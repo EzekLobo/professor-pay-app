@@ -50,6 +50,10 @@ import { parseDecimal, validateClassForm, validateExtraLessonForm } from './src/
 
 type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas';
 type SelectOption = { label: string; value: string };
+type MetricHelp = {
+  title: string;
+  items: { label: string; description: string }[];
+};
 
 const tabs: Tab[] = ['Resumo', 'Pagamentos', 'Turmas', 'Aulas'];
 const lessonFilters: LessonFilter[] = ['Todas', 'Turmas', 'Extras'];
@@ -62,6 +66,24 @@ const timeOptions = Array.from({ length: 36 }, (_, index) => {
 });
 
 const emptyDashboard: DashboardData = buildDashboard([], [], []);
+const summaryHelp: MetricHelp = {
+  title: labels.summaryTodayLabel,
+  items: [
+    { label: labels.earnedLabel, description: 'Valor das aulas realizadas ate hoje.' },
+    { label: labels.receivedLabel, description: 'Pagamentos recebidos ou ja vencidos.' },
+    { label: labels.normalLabel, description: 'Aulas de turma ja realizadas.' },
+    { label: labels.extraLabel, description: 'Aulas extras ja realizadas.' },
+  ],
+};
+const futureHelp: MetricHelp = {
+  title: labels.futureLabel,
+  items: [
+    { label: labels.plannedLabel, description: 'Valor das aulas futuras.' },
+    { label: labels.futureLessonsLabel, description: 'Aulas ainda planejadas.' },
+    { label: labels.totalPlannedLabel, description: 'Soma ativa do planejamento.' },
+    { label: labels.totalLessonsLabel, description: 'Quantidade total ativa.' },
+  ],
+};
 
 export default function App() {
   const [classes, setClasses] = useState<ClassRecord[]>([]);
@@ -73,6 +95,7 @@ export default function App() {
   const [extraModalOpen, setExtraModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassRecord | null>(null);
   const [lessonFilter, setLessonFilter] = useState<LessonFilter>('Todas');
+  const [activeHelp, setActiveHelp] = useState<MetricHelp | null>(null);
 
   const refresh = () => {
     const loadedClasses = loadClasses();
@@ -178,10 +201,8 @@ export default function App() {
               <MetricCard
                 title={labels.summaryTodayLabel}
                 icon={<Check size={18} color="#4df6a5" />}
-                help={{
-                  title: labels.summaryTodayLabel,
-                  message: 'Mostra ganhos e aulas realizadas até hoje. O valor recebido depende dos pagamentos marcados como recebidos.',
-                }}
+                help={summaryHelp}
+                onHelpPress={setActiveHelp}
                 items={[
                 [labels.earnedLabel, formatCurrency(dashboard.summary.earned)],
                 [labels.receivedLabel, formatCurrency(dashboard.summary.received)],
@@ -191,10 +212,8 @@ export default function App() {
               <MetricCard
                 title={labels.futureLabel}
                 icon={<ArrowRight size={18} color="#ffbf5f" />}
-                help={{
-                  title: labels.futureLabel,
-                  message: 'Mostra a previsão das aulas ainda planejadas. Essa estimativa muda quando você edita turmas, aulas ou valores.',
-                }}
+                help={futureHelp}
+                onHelpPress={setActiveHelp}
                 items={[
                 [labels.plannedLabel, formatCurrency(dashboard.future.planned)],
                 [labels.futureLessonsLabel, String(dashboard.future.futureLessons)],
@@ -272,6 +291,7 @@ export default function App() {
         onClose={() => setSelectedPayment(null)}
         onConfirm={(paymentDate) => handleConfirmPayment(paymentDate)}
       />
+      <MetricHelpModal help={activeHelp} onClose={() => setActiveHelp(null)} />
       <ClassFormModal open={classModalOpen} initialClass={editingClass} onClose={closeClassModal} onSaved={refresh} />
       <ExtraLessonModal open={extraModalOpen} onClose={() => setExtraModalOpen(false)} onSaved={refresh} />
     </SafeAreaView>
@@ -344,11 +364,13 @@ function MetricCard({
   icon,
   items,
   help,
+  onHelpPress,
 }: {
   title: string;
   icon: React.ReactNode;
   items: [string, string][];
-  help?: { title: string; message: string };
+  help?: MetricHelp;
+  onHelpPress?: (help: MetricHelp) => void;
 }) {
   return (
     <View style={styles.metricCard}>
@@ -359,7 +381,7 @@ function MetricCard({
             <Pressable
               accessibilityLabel={`Ajuda sobre ${title}`}
               hitSlop={8}
-              onPress={() => Alert.alert(help.title, help.message)}
+              onPress={() => onHelpPress?.(help)}
               style={styles.helpButton}
             >
               <CircleHelp size={16} color="#75d7ff" />
@@ -375,6 +397,36 @@ function MetricCard({
         </View>
       ))}
     </View>
+  );
+}
+
+function MetricHelpModal({ help, onClose }: { help: MetricHelp | null; onClose: () => void }) {
+  return (
+    <Modal visible={Boolean(help)} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.helpPanel}>
+          {help && (
+            <>
+              <View style={styles.modalHeader}>
+                <View style={styles.helpTitleGroup}>
+                  <CircleHelp size={18} color="#75d7ff" />
+                  <Text style={styles.modalTitle}>{help.title}</Text>
+                </View>
+                <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+              </View>
+              <View style={styles.helpRows}>
+                {help.items.map((item) => (
+                  <View key={item.label} style={styles.helpInfoRow}>
+                    <Text style={styles.helpInfoLabel}>{item.label}</Text>
+                    <Text style={styles.helpInfoText}>{item.description}</Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -439,7 +491,7 @@ function ClassProgressCard({
 function PaymentListItem({ payment, onPress }: { payment: PaymentView; onPress: () => void }) {
   return (
     <Pressable style={styles.paymentItem} onPress={onPress}>
-      <View>
+      <View style={styles.paymentDateBlock}>
         <Text style={styles.paymentDate}>{formatDate(payment.paymentDate)}</Text>
         <Text style={styles.paymentPeriod}>{payment.period}</Text>
       </View>
@@ -447,8 +499,10 @@ function PaymentListItem({ payment, onPress }: { payment: PaymentView; onPress: 
         <Text style={styles.paymentTotal}>{formatCurrency(payment.total)}</Text>
         <Text style={styles.paymentMini}>{payment.lessonCount} aulas</Text>
       </View>
-      <StatusBadge status={payment.status} />
-      <Eye size={17} color="#75d7ff" />
+      <View style={styles.paymentMetaActions}>
+        <StatusBadge status={payment.status} />
+        <Eye size={17} color="#75d7ff" />
+      </View>
     </Pressable>
   );
 }
@@ -1115,9 +1169,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     gap: 10,
-    justifyContent: 'space-between',
     marginBottom: 10,
     padding: 13,
+  },
+  paymentDateBlock: {
+    flex: 1,
+    minWidth: 0,
   },
   paymentDate: {
     color: '#f2f8ff',
@@ -1131,7 +1188,7 @@ const styles = StyleSheet.create({
   },
   paymentRight: {
     alignItems: 'flex-end',
-    flex: 1,
+    width: 98,
   },
   paymentTotal: {
     color: '#4df6a5',
@@ -1142,6 +1199,13 @@ const styles = StyleSheet.create({
     color: '#7d94b6',
     fontSize: 11,
     marginTop: 3,
+  },
+  paymentMetaActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'flex-end',
+    width: 116,
   },
   dataSection: {
     alignItems: 'center',
@@ -1339,11 +1403,48 @@ const styles = StyleSheet.create({
     maxHeight: '72%',
     padding: 16,
   },
+  helpPanel: {
+    backgroundColor: '#08111f',
+    borderColor: '#24517d',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderWidth: 1,
+    maxHeight: '72%',
+    padding: 16,
+  },
   modalHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 14,
+  },
+  helpTitleGroup: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexShrink: 1,
+    gap: 8,
+  },
+  helpRows: {
+    gap: 8,
+  },
+  helpInfoRow: {
+    backgroundColor: '#0d1b2e',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  helpInfoLabel: {
+    color: '#f2f8ff',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  helpInfoText: {
+    color: '#90a7c8',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
   },
   modalTitle: {
     color: '#f2f8ff',

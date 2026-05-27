@@ -3,6 +3,7 @@ import DateTimePicker from '@expo/ui/community/datetime-picker';
 import {
   Alert,
   FlatList,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -54,6 +55,10 @@ type MetricHelp = {
   title: string;
   items: { label: string; description: string }[];
 };
+type PhotoSpotlight = {
+  title: string;
+  message: string;
+};
 
 const tabs: Tab[] = ['Resumo', 'Pagamentos', 'Turmas', 'Aulas'];
 const lessonFilters: LessonFilter[] = ['Todas', 'Turmas', 'Extras'];
@@ -84,6 +89,27 @@ const futureHelp: MetricHelp = {
     { label: labels.totalLessonsLabel, description: 'Quantidade total ativa.' },
   ],
 };
+const photoSpotlightMessages = [
+  'Antes de calcular, contemple essa presenca.',
+  'AulaPay passou para lembrar: admire esse delicia.',
+  'Dois minutos se passaram. Hora de venerar o fiscal dos pagamentos.',
+  'Dados em dia, beleza tambem. Pode seguir.',
+  'Organizacao financeira com uma pitada de pura resenha.',
+];
+const classCreatedMessages = [
+  'Nova turma cadastrada. Agora admire o mestre do planejamento.',
+  'Dados recalculados. Pode venerar a organizacao.',
+  'Turma salva. O orcamento sorriu e a beleza tambem.',
+  'Mais uma turma no controle. Esse app trabalha bonito.',
+  'Turma criada. Pausa tecnica para respeitar esse delicia.',
+];
+
+function randomPhotoSpotlight(messages = photoSpotlightMessages): PhotoSpotlight {
+  return {
+    title: 'AulaPay',
+    message: messages[Math.floor(Math.random() * messages.length)],
+  };
+}
 
 export default function App() {
   const [classes, setClasses] = useState<ClassRecord[]>([]);
@@ -96,6 +122,7 @@ export default function App() {
   const [editingClass, setEditingClass] = useState<ClassRecord | null>(null);
   const [lessonFilter, setLessonFilter] = useState<LessonFilter>('Todas');
   const [activeHelp, setActiveHelp] = useState<MetricHelp | null>(null);
+  const [photoSpotlight, setPhotoSpotlight] = useState<PhotoSpotlight | null>(null);
 
   const refresh = () => {
     const loadedClasses = loadClasses();
@@ -110,6 +137,14 @@ export default function App() {
   useEffect(() => {
     initDatabase();
     refresh();
+  }, []);
+
+  useEffect(() => {
+    setPhotoSpotlight(randomPhotoSpotlight());
+    const interval = setInterval(() => {
+      setPhotoSpotlight(randomPhotoSpotlight());
+    }, 120000);
+    return () => clearInterval(interval);
   }, []);
 
   const filteredLessons = useMemo(() => filterLessonHistoryByKind(lessons, lessonFilter, dashboard.today), [lessons, lessonFilter, dashboard.today]);
@@ -291,8 +326,15 @@ export default function App() {
         onClose={() => setSelectedPayment(null)}
         onConfirm={(paymentDate) => handleConfirmPayment(paymentDate)}
       />
+      <PhotoSpotlightModal spotlight={photoSpotlight} onClose={() => setPhotoSpotlight(null)} />
       <MetricHelpModal help={activeHelp} onClose={() => setActiveHelp(null)} />
-      <ClassFormModal open={classModalOpen} initialClass={editingClass} onClose={closeClassModal} onSaved={refresh} />
+      <ClassFormModal
+        open={classModalOpen}
+        initialClass={editingClass}
+        onClose={closeClassModal}
+        onSaved={refresh}
+        onClassCreated={() => setPhotoSpotlight(randomPhotoSpotlight(classCreatedMessages))}
+      />
       <ExtraLessonModal open={extraModalOpen} onClose={() => setExtraModalOpen(false)} onSaved={refresh} />
     </SafeAreaView>
   );
@@ -424,6 +466,33 @@ function MetricHelpModal({ help, onClose }: { help: MetricHelp | null; onClose: 
               </View>
             </>
           )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function PhotoSpotlightModal({ spotlight, onClose }: { spotlight: PhotoSpotlight | null; onClose: () => void }) {
+  return (
+    <Modal visible={Boolean(spotlight)} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.photoOverlay}>
+        <View style={styles.photoPanel}>
+          {spotlight && (
+            <>
+              <Image source={require('./assets/aulapay-photo-ad.png')} style={styles.photoAdImage} resizeMode="cover" />
+              <View style={styles.photoContent}>
+                <Text style={styles.photoTitle}>{spotlight.title}</Text>
+                <Text style={styles.photoMessage}>{spotlight.message}</Text>
+                <Pressable style={styles.photoButton} onPress={onClose}>
+                  <Check size={18} color="#08111f" />
+                  <Text style={styles.photoButtonText}>Admirei</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+          <Pressable onPress={onClose} style={styles.photoCloseButton}>
+            <X size={19} color="#e8f3ff" />
+          </Pressable>
         </View>
       </View>
     </Modal>
@@ -566,11 +635,13 @@ function ClassFormModal({
   initialClass,
   onClose,
   onSaved,
+  onClassCreated,
 }: {
   open: boolean;
   initialClass: ClassRecord | null;
   onClose: () => void;
   onSaved: () => void;
+  onClassCreated?: () => void;
 }) {
   const [name, setName] = useState('');
   const [weekDay, setWeekDay] = useState('Segunda');
@@ -620,6 +691,7 @@ function ClassFormModal({
       );
     } else {
       addClass(classRecord);
+      onClassCreated?.();
     }
     onSaved();
     onClose();
@@ -1370,6 +1442,72 @@ const styles = StyleSheet.create({
     color: '#4df6a5',
     fontSize: 12,
     fontWeight: '900',
+  },
+  photoOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(1, 5, 14, 0.82)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 18,
+  },
+  photoPanel: {
+    backgroundColor: '#08111f',
+    borderColor: '#24517d',
+    borderRadius: 8,
+    borderWidth: 1,
+    maxWidth: 420,
+    overflow: 'hidden',
+    position: 'relative',
+    width: '100%',
+  },
+  photoAdImage: {
+    aspectRatio: 4 / 3,
+    backgroundColor: '#0d1b2e',
+    width: '100%',
+  },
+  photoContent: {
+    padding: 16,
+  },
+  photoTitle: {
+    color: '#f5fbff',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  photoMessage: {
+    color: '#9fb7d8',
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 20,
+    marginTop: 6,
+  },
+  photoButton: {
+    alignItems: 'center',
+    backgroundColor: '#75d7ff',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 14,
+    minHeight: 46,
+  },
+  photoButtonText: {
+    color: '#08111f',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  photoCloseButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(8, 17, 31, 0.72)',
+    borderColor: 'rgba(117, 215, 255, 0.42)',
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 10,
+    top: 10,
+    width: 38,
   },
   modalOverlay: {
     backgroundColor: 'rgba(1, 5, 14, 0.78)',

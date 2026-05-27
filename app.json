@@ -1,10 +1,15 @@
 {
   "expo": {
-    "name": "professor-pay-app",
+    "name": "AulaPay",
     "slug": "professor-pay-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/aulapay-photo-icon.png",
+    "splash": {
+      "image": "./assets/aulapay-photo-splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#08111F"
+    },
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
@@ -12,8 +17,8 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
+        "foregroundImage": "./assets/aulapay-photo-icon.png",
+        "backgroundImage": "./assets/aulapay-photo-icon.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,

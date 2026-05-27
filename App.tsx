@@ -1,20 +1,1136 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import {
+  ArrowRight,
+  BarChart3,
+  CalendarDays,
+  Check,
+  CircleDollarSign,
+  Clock3,
+  Eye,
+  Edit3,
+  GraduationCap,
+  Plus,
+  RotateCcw,
+  Trash2,
+  X,
+} from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { buildDashboard, formatCurrency, formatDate, todayIso } from './src/calculations';
+import { labels } from './src/labels';
+import {
+  addClass,
+  addExtraLesson,
+  cancelLesson,
+  confirmPayment,
+  deactivateClass,
+  initDatabase,
+  loadClasses,
+  loadConfirmations,
+  loadLessons,
+  resetDatabase,
+  updateClassFutureLessons,
+} from './src/storage';
+import { ClassRecord, DashboardData, LessonView, PaymentView } from './src/types';
+import { parseDecimal, validateClassForm, validateExtraLessonForm } from './src/validation';
+
+type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas';
+
+const tabs: Tab[] = ['Resumo', 'Pagamentos', 'Turmas', 'Aulas'];
+
+const emptyDashboard: DashboardData = buildDashboard([], [], []);
 
 export default function App() {
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+  const [lessons, setLessons] = useState<LessonView[]>([]);
+  const [dashboard, setDashboard] = useState(emptyDashboard);
+  const [activeTab, setActiveTab] = useState<Tab>('Resumo');
+  const [selectedPayment, setSelectedPayment] = useState<PaymentView | null>(null);
+  const [classModalOpen, setClassModalOpen] = useState(false);
+  const [extraModalOpen, setExtraModalOpen] = useState(false);
+  const [editingClass, setEditingClass] = useState<ClassRecord | null>(null);
+
+  const refresh = () => {
+    const loadedClasses = loadClasses();
+    const loadedLessons = loadLessons();
+    const loadedConfirmations = loadConfirmations();
+    const nextDashboard = buildDashboard(loadedClasses, loadedLessons, loadedConfirmations);
+    setClasses(loadedClasses);
+    setLessons(nextDashboard.lessons);
+    setDashboard(nextDashboard);
+  };
+
+  useEffect(() => {
+    initDatabase();
+    refresh();
+  }, []);
+
+  const upcomingLessons = useMemo(() => lessons.filter((lesson) => lesson.active && lesson.lessonDate >= dashboard.today).slice(0, 8), [lessons, dashboard.today]);
+
+  const handleDeactivateClass = (classId: string) => {
+    Alert.alert('Retirar turma', 'Aulas realizadas ficam no histórico. Aulas futuras saem do cálculo.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Retirar',
+        style: 'destructive',
+        onPress: () => {
+          deactivateClass(classId, todayIso());
+          refresh();
+        },
+      },
+    ]);
+  };
+
+  const handleCancelLesson = (lessonId: string) => {
+    cancelLesson(lessonId);
+    refresh();
+  };
+
+  const handleConfirmPayment = (paymentDate: string) => {
+    confirmPayment(paymentDate);
+    refresh();
+    setSelectedPayment((current) => current && buildDashboard(loadClasses(), loadLessons(), loadConfirmations()).payments.find((payment) => payment.paymentDate === current.paymentDate) || current);
+  };
+
+  const handleReset = () => {
+    Alert.alert('Resetar dados', 'Isso apaga turmas, aulas, extras e pagamentos recebidos. Esta ação não pode ser desfeita.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Resetar',
+        style: 'destructive',
+        onPress: () => {
+          resetDatabase();
+          setSelectedPayment(null);
+          refresh();
+        },
+      },
+    ]);
+  };
+
+  const openClassEditor = (classId: string) => {
+    const classRecord = classes.find((item) => item.id === classId);
+    if (classRecord) {
+      setEditingClass(classRecord);
+      setClassModalOpen(true);
+    }
+  };
+
+  const closeClassModal = () => {
+    setClassModalOpen(false);
+    setEditingClass(null);
+  };
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="light" />
+      <View style={styles.shell}>
+        <Header
+          total={dashboard.future.totalPlanned}
+          today={dashboard.today}
+          onAddClass={() => {
+            setEditingClass(null);
+            setClassModalOpen(true);
+          }}
+          onAddExtra={() => setExtraModalOpen(true)}
+        />
+
+        <View style={styles.tabs}>
+          {tabs.map((tab) => (
+            <Pressable key={tab} onPress={() => setActiveTab(tab)} style={[styles.tab, activeTab === tab && styles.tabActive]}>
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {activeTab === 'Resumo' && (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <View style={styles.paymentGrid}>
+              <PaymentHighlightCard tone="green" title={labels.lastPaymentLabel} payment={dashboard.lastPayment} kind="total" onPress={() => dashboard.lastPayment && setSelectedPayment(dashboard.lastPayment)} />
+              <PaymentHighlightCard tone="amber" title={labels.nextPaymentLabel} payment={dashboard.nextPayment} kind="preview" onPress={() => dashboard.nextPayment && setSelectedPayment(dashboard.nextPayment)} />
+            </View>
+
+            <View style={styles.metricGrid}>
+              <MetricCard title={labels.summaryTodayLabel} icon={<Check size={18} color="#4df6a5" />} items={[
+                [labels.earnedLabel, formatCurrency(dashboard.summary.earned)],
+                [labels.receivedLabel, formatCurrency(dashboard.summary.received)],
+                [labels.normalLabel, String(dashboard.summary.normalLessons)],
+                [labels.extraLabel, String(dashboard.summary.extraLessons)],
+              ]} />
+              <MetricCard title={labels.futureLabel} icon={<ArrowRight size={18} color="#ffbf5f" />} items={[
+                [labels.plannedLabel, formatCurrency(dashboard.future.planned)],
+                [labels.futureLessonsLabel, String(dashboard.future.futureLessons)],
+                [labels.totalPlannedLabel, formatCurrency(dashboard.future.totalPlanned)],
+                [labels.totalLessonsLabel, String(dashboard.future.totalLessons)],
+              ]} />
+            </View>
+
+            <SectionTitle title={labels.classesLabel} action="Ver todas" onPress={() => setActiveTab('Turmas')} />
+            {dashboard.progress.map((progress) => (
+              <ClassProgressCard key={progress.classId} progress={progress} />
+            ))}
+
+            <SectionTitle title={labels.paymentsLabel} action="Detalhes" onPress={() => setActiveTab('Pagamentos')} />
+            {dashboard.payments.slice(0, 4).map((payment) => (
+              <PaymentListItem key={payment.paymentDate} payment={payment} onPress={() => setSelectedPayment(payment)} />
+            ))}
+
+            <View style={styles.dataSection}>
+              <View>
+                <Text style={styles.dataSectionTitle}>Dados</Text>
+                <Text style={styles.dataSectionText}>Reset completo para limpar turmas, aulas e pagamentos.</Text>
+              </View>
+              <Pressable style={styles.resetDangerButton} onPress={handleReset}>
+                <RotateCcw size={15} color="#ff7b89" />
+                <Text style={styles.resetDangerText}>Resetar dados</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.copyrightText}>© 2026 Ezequiell Lobo. Todos os direitos reservados.</Text>
+          </ScrollView>
+        )}
+
+        {activeTab === 'Pagamentos' && (
+          <FlatList
+            data={dashboard.payments}
+            keyExtractor={(item) => item.paymentDate}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => <PaymentListItem payment={item} onPress={() => setSelectedPayment(item)} />}
+          />
+        )}
+
+        {activeTab === 'Turmas' && (
+          <FlatList
+            data={dashboard.progress}
+            keyExtractor={(item) => item.classId}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <View style={styles.rowCard}>
+                <ClassProgressCard progress={item} />
+                <View style={styles.classActions}>
+                  <Pressable style={styles.actionIconButton} onPress={() => openClassEditor(item.classId)}>
+                    <Edit3 size={17} color="#75d7ff" />
+                  </Pressable>
+                  <Pressable style={styles.actionIconButton} onPress={() => handleDeactivateClass(item.classId)}>
+                    <Trash2 size={17} color="#ff7b89" />
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          />
+        )}
+
+        {activeTab === 'Aulas' && (
+          <FlatList
+            data={upcomingLessons}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => <LessonListItem lesson={item} onCancel={() => handleCancelLesson(item.id)} />}
+            ListHeaderComponent={<Text style={styles.listHint}>Próximas aulas ativas</Text>}
+          />
+        )}
+      </View>
+
+      <PaymentDetailsModal
+        payment={selectedPayment}
+        onClose={() => setSelectedPayment(null)}
+        onConfirm={(paymentDate) => handleConfirmPayment(paymentDate)}
+      />
+      <ClassFormModal open={classModalOpen} initialClass={editingClass} onClose={closeClassModal} onSaved={refresh} />
+      <ExtraLessonModal open={extraModalOpen} onClose={() => setExtraModalOpen(false)} onSaved={refresh} />
+    </SafeAreaView>
+  );
+}
+
+function Header({
+  total,
+  today,
+  onAddClass,
+  onAddExtra,
+}: {
+  total: number;
+  today: string;
+  onAddClass: () => void;
+  onAddExtra: () => void;
+}) {
+  return (
+    <View style={styles.header}>
+      <View>
+        <Text style={styles.eyebrow}>Hoje {formatDate(today)}</Text>
+        <Text style={styles.title}>{labels.appName}</Text>
+        <Text style={styles.subtitle}>Total previsto {formatCurrency(total)}</Text>
+      </View>
+      <View style={styles.headerActions}>
+        <View style={styles.primaryActions}>
+          <IconButton label="Turma" onPress={onAddClass} icon={<Plus size={18} color="#08111f" />} />
+          <IconButton label="Extra" onPress={onAddExtra} icon={<GraduationCap size={18} color="#08111f" />} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function IconButton({ label, icon, onPress }: { label: string; icon: React.ReactNode; onPress: () => void }) {
+  return (
+    <Pressable style={styles.iconButton} onPress={onPress}>
+      {icon}
+      <Text style={styles.iconButtonText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function PaymentHighlightCard({ title, payment, kind, tone, onPress }: { title: string; payment: PaymentView | null; kind: 'total' | 'preview'; tone: 'green' | 'amber'; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.highlightCard, tone === 'green' ? styles.greenGlow : styles.amberGlow]}>
+      <View style={styles.cardTitleRow}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <StatusBadge status={payment?.status ?? 'Futuro'} />
+      </View>
+      {payment ? (
+        <>
+          <Text style={[styles.money, tone === 'green' ? styles.greenText : styles.amberText]}>{formatCurrency(payment.total)}</Text>
+          <View style={styles.compactRows}>
+            <CompactInfo icon={<CalendarDays size={14} color="#9fb7d8" />} label="Data" value={formatDate(payment.paymentDate)} />
+            <CompactInfo icon={<Clock3 size={14} color="#9fb7d8" />} label="Período" value={payment.period} />
+            <CompactInfo icon={<GraduationCap size={14} color="#9fb7d8" />} label={labels.lessonsCountLabel} value={String(payment.lessonCount)} />
+            <CompactInfo icon={<CircleDollarSign size={14} color="#9fb7d8" />} label={kind === 'preview' ? 'Previsão' : 'Total'} value={formatCurrency(payment.total)} />
+          </View>
+        </>
+      ) : (
+        <Text style={styles.emptyText}>Sem dados</Text>
+      )}
+    </Pressable>
+  );
+}
+
+function MetricCard({ title, icon, items }: { title: string; icon: React.ReactNode; items: [string, string][] }) {
+  return (
+    <View style={styles.metricCard}>
+      <View style={styles.cardTitleRow}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        {icon}
+      </View>
+      {items.map(([label, value]) => (
+        <View key={label} style={styles.metricRow}>
+          <Text style={styles.metricLabel}>{label}</Text>
+          <Text style={styles.metricValue}>{value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function ClassProgressCard({ progress }: { progress: DashboardData['progress'][number] }) {
+  return (
+    <View style={styles.classCard}>
+      <View style={styles.cardTitleRow}>
+        <Text style={styles.className}>{progress.name}</Text>
+        <Text style={styles.percent}>{progress.percent}{labels.percentLabel}</Text>
+      </View>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${Math.min(progress.percent, 100)}%` }]} />
+      </View>
+      <View style={styles.classStats}>
+        <Text style={styles.smallStat}>{labels.lessonsCountLabel}: {progress.lessonCount}</Text>
+        <Text style={styles.smallStat}>Ok: {progress.completed}</Text>
+        <Text style={styles.smallStat}>Restam: {progress.remaining}</Text>
+      </View>
+    </View>
+  );
+}
+
+function PaymentListItem({ payment, onPress }: { payment: PaymentView; onPress: () => void }) {
+  return (
+    <Pressable style={styles.paymentItem} onPress={onPress}>
+      <View>
+        <Text style={styles.paymentDate}>{formatDate(payment.paymentDate)}</Text>
+        <Text style={styles.paymentPeriod}>{payment.period}</Text>
+      </View>
+      <View style={styles.paymentRight}>
+        <Text style={styles.paymentTotal}>{formatCurrency(payment.total)}</Text>
+        <Text style={styles.paymentMini}>{payment.lessonCount} aulas</Text>
+      </View>
+      <Eye size={17} color="#75d7ff" />
+    </Pressable>
+  );
+}
+
+function LessonListItem({ lesson, onCancel }: { lesson: LessonView; onCancel?: () => void }) {
+  return (
+    <View style={styles.lessonItem}>
+      <View style={styles.lessonDatePill}>
+        <Text style={styles.lessonDate}>{formatDate(lesson.lessonDate)}</Text>
+      </View>
+      <View style={styles.lessonBody}>
+        <Text style={styles.lessonTitle}>{lesson.className}{lesson.student ? ` / ${lesson.student}` : ''}</Text>
+        <Text style={styles.lessonMeta}>{lesson.type} - {lesson.durationHours}h x {formatCurrency(lesson.hourlyRate)}</Text>
+      </View>
+      <Text style={styles.lessonValue}>{formatCurrency(lesson.lessonValue)}</Text>
+      {onCancel && (
+        <Pressable style={styles.tinyDanger} onPress={onCancel}>
+          <X size={14} color="#ff7b89" />
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function PaymentDetailsModal({ payment, onClose, onConfirm }: { payment: PaymentView | null; onClose: () => void; onConfirm: (paymentDate: string) => void }) {
+  return (
+    <Modal visible={Boolean(payment)} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalPanel}>
+          {payment && (
+            <>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>{labels.detailsLabel}</Text>
+                  <Text style={styles.modalSubtitle}>{formatDate(payment.paymentDate)} - {payment.period}</Text>
+                </View>
+                <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+              </View>
+              <View style={styles.detailSummary}>
+                <MetricPill label={labels.normalLabel} value={`${payment.normalCount} / ${formatCurrency(payment.normalTotal)}`} />
+                <MetricPill label={labels.extraLabel} value={`${payment.extraCount} / ${formatCurrency(payment.extraTotal)}`} />
+                <MetricPill label="Total" value={formatCurrency(payment.total)} />
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {payment.lessons.map((lesson) => <LessonListItem key={lesson.id} lesson={lesson} />)}
+              </ScrollView>
+              <Pressable style={styles.confirmButton} onPress={() => onConfirm(payment.paymentDate)}>
+                <Check size={18} color="#08111f" />
+                <Text style={styles.confirmButtonText}>Marcar recebido</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ClassFormModal({
+  open,
+  initialClass,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  initialClass: ClassRecord | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState('Nova turma');
+  const [weekDay, setWeekDay] = useState('Segunda');
+  const [time, setTime] = useState('19:00');
+  const [firstLesson, setFirstLesson] = useState(todayIso());
+  const [lessonCount, setLessonCount] = useState('40');
+  const [durationHours, setDurationHours] = useState('1.5');
+  const [hourlyRate, setHourlyRate] = useState('45');
+
+  useEffect(() => {
+    if (!open) return;
+    setName(initialClass?.name ?? 'Nova turma');
+    setWeekDay(initialClass?.weekDay ?? 'Segunda');
+    setTime(initialClass?.time ?? '19:00');
+    setFirstLesson(initialClass?.firstLesson ?? todayIso());
+    setLessonCount(String(initialClass?.lessonCount ?? 40));
+    setDurationHours(String(initialClass?.durationHours ?? 1.5));
+    setHourlyRate(String(initialClass?.hourlyRate ?? 45));
+  }, [open, initialClass]);
+
+  const save = () => {
+    const input = { name, weekDay, time, firstLesson, lessonCount, durationHours, hourlyRate };
+    const error = validateClassForm(input);
+    if (error) {
+      Alert.alert('Revise a turma', error);
+      return;
+    }
+    const classRecord = {
+      id: initialClass?.id ?? `class-${Date.now()}`,
+      name,
+      weekDay,
+      time,
+      firstLesson,
+      lessonCount: Number(lessonCount) || 1,
+      durationHours: parseDecimal(durationHours),
+      hourlyRate: parseDecimal(hourlyRate),
+      active: true,
+    };
+    if (initialClass) {
+      updateClassFutureLessons(
+        {
+          ...classRecord,
+          createdAt: initialClass.createdAt,
+          updatedAt: new Date().toISOString(),
+        },
+        todayIso(),
+      );
+    } else {
+      addClass(classRecord);
+    }
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <FormModal open={open} title={initialClass ? 'Editar turma' : 'Nova turma'} onClose={onClose} onSave={save}>
+      <FormInput label="Nome" value={name} onChangeText={setName} />
+      <View style={styles.formPair}>
+        <FormInput label="Dia" value={weekDay} onChangeText={setWeekDay} />
+        <FormInput label="Hora" value={time} onChangeText={setTime} />
+      </View>
+      <FormInput label="Data de início (AAAA-MM-DD)" value={firstLesson} onChangeText={setFirstLesson} />
+      <View style={styles.formPair}>
+        <FormInput label="Aulas" value={lessonCount} onChangeText={setLessonCount} keyboardType="numeric" />
+        <FormInput label="Duração" value={durationHours} onChangeText={setDurationHours} keyboardType="decimal-pad" />
+      </View>
+      <FormInput label="Valor/h" value={hourlyRate} onChangeText={setHourlyRate} keyboardType="decimal-pad" />
+    </FormModal>
+  );
+}
+
+function ExtraLessonModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
+  const [student, setStudent] = useState('Aluno extra');
+  const [lessonDate, setLessonDate] = useState(todayIso());
+  const [durationHours, setDurationHours] = useState('1');
+  const [hourlyRate, setHourlyRate] = useState('30');
+
+  const save = () => {
+    const input = { student, lessonDate, durationHours, hourlyRate };
+    const error = validateExtraLessonForm(input);
+    if (error) {
+      Alert.alert('Revise a aula extra', error);
+      return;
+    }
+    addExtraLesson({
+      student: student.trim(),
+      lessonDate,
+      durationHours: parseDecimal(durationHours),
+      hourlyRate: parseDecimal(hourlyRate),
+    });
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <FormModal open={open} title="Aula extra" onClose={onClose} onSave={save}>
+      <FormInput label="Aluno" value={student} onChangeText={setStudent} />
+      <FormInput label="Data (AAAA-MM-DD)" value={lessonDate} onChangeText={setLessonDate} />
+      <FormInput label="Duração" value={durationHours} onChangeText={setDurationHours} keyboardType="decimal-pad" />
+      <FormInput label="Valor/h" value={hourlyRate} onChangeText={setHourlyRate} keyboardType="decimal-pad" />
+    </FormModal>
+  );
+}
+
+function FormModal({ open, title, children, onClose, onSave }: { open: boolean; title: string; children: React.ReactNode; onClose: () => void; onSave: () => void }) {
+  return (
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.formPanel}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {children}
+          </ScrollView>
+          <Pressable style={styles.confirmButton} onPress={onSave}>
+            <Check size={18} color="#08111f" />
+            <Text style={styles.confirmButtonText}>Salvar</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function FormInput(props: React.ComponentProps<typeof TextInput> & { label: string }) {
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.inputLabel}>{props.label}</Text>
+      <TextInput {...props} placeholderTextColor="#5e789d" style={styles.input} />
+    </View>
+  );
+}
+
+function CompactInfo({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <View style={styles.compactInfo}>
+      {icon}
+      <Text style={styles.compactLabel}>{label}</Text>
+      <Text style={styles.compactValue}>{value}</Text>
+    </View>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  return <Text style={[styles.statusBadge, status === 'Recebido' && styles.statusReceived]}>{status}</Text>;
+}
+
+function SectionTitle({ title, action, onPress }: { title: string; action?: string; onPress?: () => void }) {
+  return (
+    <View style={styles.sectionTitle}>
+      <View style={styles.sectionTitleLeft}>
+        <BarChart3 size={17} color="#75d7ff" />
+        <Text style={styles.sectionText}>{title}</Text>
+      </View>
+      {action && <Pressable onPress={onPress}><Text style={styles.sectionAction}>{action}</Text></Pressable>}
+    </View>
+  );
+}
+
+function MetricPill({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metricPill}>
+      <Text style={styles.metricPillLabel}>{label}</Text>
+      <Text style={styles.metricPillValue}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#050914',
+  },
+  shell: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+  },
+  header: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  eyebrow: {
+    color: '#7ba1d8',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  title: {
+    color: '#f5fbff',
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  subtitle: {
+    color: '#9fb7d8',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  headerActions: {
+    alignItems: 'flex-end',
+    gap: 8,
+    paddingTop: 28,
+  },
+  primaryActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
     alignItems: 'center',
+    backgroundColor: '#75d7ff',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 5,
     justifyContent: 'center',
+    minWidth: 82,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  iconButtonText: {
+    color: '#08111f',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  tabs: {
+    backgroundColor: '#0b1424',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginTop: 18,
+    padding: 4,
+  },
+  tab: {
+    alignItems: 'center',
+    borderRadius: 6,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  tabActive: {
+    backgroundColor: '#123b62',
+  },
+  tabText: {
+    color: '#7d94b6',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  tabTextActive: {
+    color: '#e8f8ff',
+  },
+  scrollContent: {
+    paddingBottom: 28,
+    paddingTop: 16,
+  },
+  paymentGrid: {
+    gap: 12,
+  },
+  highlightCard: {
+    backgroundColor: '#0b1424',
+    borderColor: '#1f3b5c',
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 16,
+  },
+  greenGlow: {
+    shadowColor: '#4df6a5',
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+  },
+  amberGlow: {
+    shadowColor: '#ffbf5f',
+    shadowOpacity: 0.24,
+    shadowRadius: 14,
+  },
+  cardTitleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  cardTitle: {
+    color: '#e8f3ff',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  money: {
+    fontSize: 32,
+    fontWeight: '900',
+    marginTop: 10,
+  },
+  greenText: {
+    color: '#4df6a5',
+  },
+  amberText: {
+    color: '#ffbf5f',
+  },
+  compactRows: {
+    gap: 7,
+    marginTop: 12,
+  },
+  compactInfo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 7,
+  },
+  compactLabel: {
+    color: '#7d94b6',
+    fontSize: 12,
+    minWidth: 58,
+  },
+  compactValue: {
+    color: '#e8f3ff',
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'right',
+  },
+  statusBadge: {
+    backgroundColor: '#15233a',
+    borderColor: '#2b4d75',
+    borderRadius: 999,
+    borderWidth: 1,
+    color: '#9fb7d8',
+    fontSize: 10,
+    fontWeight: '900',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  statusReceived: {
+    borderColor: '#4df6a5',
+    color: '#4df6a5',
+  },
+  metricGrid: {
+    gap: 12,
+    marginTop: 12,
+  },
+  metricCard: {
+    backgroundColor: '#08111f',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 15,
+  },
+  metricRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  metricLabel: {
+    color: '#90a7c8',
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  metricValue: {
+    color: '#f2f8ff',
+    fontSize: 13,
+    fontWeight: '900',
+    textAlign: 'right',
+  },
+  sectionTitle: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    marginBottom: 9,
+  },
+  sectionTitleLeft: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  sectionText: {
+    color: '#e8f3ff',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  sectionAction: {
+    color: '#75d7ff',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  classCard: {
+    backgroundColor: '#0b1424',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 10,
+    padding: 13,
+  },
+  className: {
+    color: '#f2f8ff',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  percent: {
+    color: '#75d7ff',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  progressTrack: {
+    backgroundColor: '#142238',
+    borderRadius: 999,
+    height: 8,
+    marginTop: 12,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    backgroundColor: '#75d7ff',
+    height: '100%',
+  },
+  classStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  smallStat: {
+    color: '#90a7c8',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  paymentItem: {
+    alignItems: 'center',
+    backgroundColor: '#0b1424',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    padding: 13,
+  },
+  paymentDate: {
+    color: '#f2f8ff',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  paymentPeriod: {
+    color: '#7d94b6',
+    fontSize: 12,
+    marginTop: 3,
+  },
+  paymentRight: {
+    alignItems: 'flex-end',
+    flex: 1,
+  },
+  paymentTotal: {
+    color: '#4df6a5',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  paymentMini: {
+    color: '#7d94b6',
+    fontSize: 11,
+    marginTop: 3,
+  },
+  dataSection: {
+    alignItems: 'center',
+    backgroundColor: '#08111f',
+    borderColor: '#253249',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+    marginTop: 18,
+    padding: 13,
+  },
+  dataSectionTitle: {
+    color: '#e8f3ff',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  dataSectionText: {
+    color: '#7d94b6',
+    fontSize: 11,
+    marginTop: 3,
+    maxWidth: 190,
+  },
+  resetDangerButton: {
+    alignItems: 'center',
+    borderColor: '#5a2635',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    minHeight: 40,
+    paddingHorizontal: 10,
+  },
+  resetDangerText: {
+    color: '#ff7b89',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  copyrightText: {
+    color: '#62789a',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  listContent: {
+    paddingBottom: 28,
+    paddingTop: 16,
+  },
+  listHint: {
+    color: '#7d94b6',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  rowCard: {
+    marginBottom: 10,
+  },
+  classActions: {
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: -4,
+  },
+  actionIconButton: {
+    alignItems: 'center',
+    backgroundColor: '#0b1424',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  dangerButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: -4,
+    padding: 8,
+  },
+  dangerText: {
+    color: '#ff7b89',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  tinyDanger: {
+    padding: 6,
+  },
+  lessonItem: {
+    alignItems: 'center',
+    backgroundColor: '#0b1424',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 9,
+    marginBottom: 9,
+    padding: 10,
+  },
+  lessonDatePill: {
+    backgroundColor: '#132a45',
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+  },
+  lessonDate: {
+    color: '#dff6ff',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  lessonBody: {
+    flex: 1,
+  },
+  lessonTitle: {
+    color: '#f2f8ff',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  lessonMeta: {
+    color: '#7d94b6',
+    fontSize: 11,
+    marginTop: 3,
+  },
+  lessonValue: {
+    color: '#4df6a5',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  modalOverlay: {
+    backgroundColor: 'rgba(1, 5, 14, 0.78)',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalPanel: {
+    backgroundColor: '#08111f',
+    borderColor: '#24517d',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderWidth: 1,
+    maxHeight: '82%',
+    padding: 16,
+  },
+  formPanel: {
+    backgroundColor: '#08111f',
+    borderColor: '#24517d',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderWidth: 1,
+    maxHeight: '86%',
+    padding: 16,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  modalTitle: {
+    color: '#f2f8ff',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  modalSubtitle: {
+    color: '#90a7c8',
+    fontSize: 12,
+    marginTop: 3,
+  },
+  closeButton: {
+    padding: 7,
+  },
+  detailSummary: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  metricPill: {
+    backgroundColor: '#0d1b2e',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    padding: 10,
+  },
+  metricPillLabel: {
+    color: '#7d94b6',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  metricPillValue: {
+    color: '#f2f8ff',
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  confirmButton: {
+    alignItems: 'center',
+    backgroundColor: '#75d7ff',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 12,
+    minHeight: 46,
+  },
+  confirmButtonText: {
+    color: '#08111f',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  formPair: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  inputGroup: {
+    flex: 1,
+    marginBottom: 10,
+  },
+  inputLabel: {
+    color: '#90a7c8',
+    fontSize: 11,
+    fontWeight: '900',
+    marginBottom: 5,
+  },
+  input: {
+    backgroundColor: '#0d1b2e',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    color: '#f2f8ff',
+    fontSize: 14,
+    fontWeight: '700',
+    minHeight: 44,
+    paddingHorizontal: 12,
+  },
+  emptyText: {
+    color: '#7d94b6',
+    fontSize: 13,
+    marginTop: 12,
   },
 });

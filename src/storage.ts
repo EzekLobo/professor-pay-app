@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { generateLessonsForClass } from './calculations';
-import { futureLessonsForClassUpdate } from './classEditing';
+import { futureLessonsForClassUpdate, lessonsForClassDeactivation } from './classEditing';
 import { sampleClasses, sampleExtraLessons } from './sampleData';
 import { resetDatabaseSql } from './storageSql';
 import { ClassRecord, LessonRecord, PaymentConfirmation } from './types';
@@ -144,8 +144,14 @@ export function updateClassFutureLessons(input: ClassRecord, today: string) {
 
 export function deactivateClass(classId: string, today: string) {
   const now = new Date().toISOString();
+  const existingLessons = db
+    .getAllSync<LessonRow>('SELECT * FROM lessons WHERE classId = ? ORDER BY lessonDate ASC', [classId])
+    .map(mapLessonRow);
+  const receivedPaymentDates = new Set(loadConfirmations().map((confirmation) => confirmation.paymentDate));
+  const nextLessons = lessonsForClassDeactivation(classId, existingLessons, receivedPaymentDates);
+
   db.runSync('UPDATE classes SET active = 0, updatedAt = ? WHERE id = ?', [now, classId]);
-  db.runSync('UPDATE lessons SET active = 0, canceled = 1 WHERE classId = ? AND lessonDate > ?', [classId, today]);
+  nextLessons.forEach(insertLesson);
 }
 
 export function cancelLesson(lessonId: string) {

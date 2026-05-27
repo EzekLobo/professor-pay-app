@@ -19,3 +19,16 @@ export function futureLessonsForClassUpdate(
     ));
   return { preserved, future, nextLessons: [...preserved, ...future] };
 }
+
+export function lessonsForClassDeactivation(
+  classId: string,
+  existingLessons: LessonRecord[],
+  receivedPaymentDates: Set<string>,
+) {
+  return existingLessons.map((lesson) => {
+    if (lesson.classId !== classId || receivedPaymentDates.has(getPaymentDate(lesson.lessonDate))) {
+      return lesson;
+    }
+    return { ...lesson, active: false, canceled: true };
+  });
+}

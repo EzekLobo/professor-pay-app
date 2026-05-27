@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { futureLessonsForClassUpdate } from './classEditing';
-import { buildDashboard, generateLessonsForClass } from './calculations';
+import { futureLessonsForClassUpdate, lessonsForClassDeactivation } from './classEditing';
+import { buildDashboard, filterLessonHistoryByKind, generateLessonsForClass } from './calculations';
 import { ClassRecord, LessonRecord } from './types';
 
 const classRecord: ClassRecord = {
@@ -113,5 +113,66 @@ describe('class future editing', () => {
       '2026-06-08',
     ]);
     expect(new Set(secondEdit.nextLessons.map((item) => item.id)).size).toBe(secondEdit.nextLessons.length);
+  });
+});
+
+describe('class deactivation', () => {
+  const tuesdayClass: ClassRecord = {
+    ...classRecord,
+    id: 'class-tuesday-20',
+    name: 'TerÃ§a 20h',
+    weekDay: 'TerÃ§a',
+    time: '20:00',
+    firstLesson: '2026-05-12',
+    lessonCount: 3,
+    durationHours: 1.5,
+    hourlyRate: 30,
+  };
+
+  it('cancels unpaid class lessons even when lesson dates are already past', () => {
+    const existing = generateLessonsForClass(tuesdayClass);
+    const nextLessons = lessonsForClassDeactivation(tuesdayClass.id, existing, new Set());
+    const dashboard = buildDashboard([{ ...tuesdayClass, active: false }], nextLessons, [], '2026-05-27');
+
+    expect(nextLessons.every((lesson) => !lesson.active && lesson.canceled)).toBe(true);
+    expect(filterLessonHistoryByKind(dashboard.lessons, 'Turmas', dashboard.today)).toHaveLength(0);
+    expect(dashboard.payments.find((payment) => payment.paymentDate === '2026-06-01')).toBeUndefined();
+    expect(dashboard.payments.find((payment) => payment.paymentDate === '2026-06-15')).toBeUndefined();
+  });
+
+  it('preserves lessons from received payments when a class is deactivated', () => {
+    const existing = generateLessonsForClass(tuesdayClass);
+    const nextLessons = lessonsForClassDeactivation(tuesdayClass.id, existing, new Set(['2026-06-01']));
+
+    expect(nextLessons.map((lesson) => [lesson.lessonDate, lesson.active, lesson.canceled])).toEqual([
+      ['2026-05-12', true, false],
+      ['2026-05-19', false, true],
+      ['2026-05-26', false, true],
+    ]);
+  });
+
+  it('does not change extra lessons while removing unpaid class lessons from the dashboard', () => {
+    const extraLesson: LessonRecord = {
+      id: 'extra-lucas-2026-05-12',
+      classId: null,
+      className: 'Extra',
+      number: 1,
+      lessonDate: '2026-05-12',
+      student: 'Lucas',
+      type: 'Extra',
+      durationHours: 1,
+      hourlyRate: 30,
+      active: true,
+      canceled: false,
+      note: '',
+    };
+    const existing = [...generateLessonsForClass(tuesdayClass), extraLesson];
+    const nextLessons = lessonsForClassDeactivation(tuesdayClass.id, existing, new Set());
+    const dashboard = buildDashboard([{ ...tuesdayClass, active: false }], nextLessons, [], '2026-05-27');
+    const juneFirst = dashboard.payments.find((payment) => payment.paymentDate === '2026-06-01');
+
+    expect(nextLessons.find((lesson) => lesson.id === extraLesson.id)).toEqual(extraLesson);
+    expect(juneFirst?.lessons.map((lesson) => [lesson.className, lesson.lessonDate])).toEqual([['Extra', '2026-05-12']]);
+    expect(juneFirst?.total).toBe(30);
   });
 });

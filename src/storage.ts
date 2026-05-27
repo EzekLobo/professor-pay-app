@@ -2,6 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { generateLessonsForClass } from './calculations';
 import { futureLessonsForClassUpdate, lessonsForClassDeactivation } from './classEditing';
 import { sampleClasses, sampleExtraLessons } from './sampleData';
+import { hasExistingUserData } from './storageInitialization';
 import { resetDatabaseSql } from './storageSql';
 import { ClassRecord, LessonRecord, PaymentConfirmation } from './types';
 
@@ -54,12 +55,28 @@ export function initDatabase() {
 
   const initialized = db.getFirstSync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'initialized'");
   if (!initialized) {
+    if (hasExistingUserData(loadExistingDataCounts())) {
+      markInitialized('preserved_existing_data');
+      return;
+    }
     seedDatabase();
-    db.runSync("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('initialized', 'true')");
-    db.runSync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', [realSeedKey, 'seeded']);
+    markInitialized('seeded');
     return;
   }
   seedRealDataIfNeeded();
+}
+
+function markInitialized(realSeedValue: string) {
+  db.runSync("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('initialized', 'true')");
+  db.runSync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', [realSeedKey, realSeedValue]);
+}
+
+function loadExistingDataCounts() {
+  return {
+    classes: db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM classes')?.count ?? 0,
+    lessons: db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM lessons')?.count ?? 0,
+    paymentConfirmations: db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM payment_confirmations')?.count ?? 0,
+  };
 }
 
 function seedDatabase() {

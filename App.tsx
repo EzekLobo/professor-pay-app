@@ -685,33 +685,38 @@ function ExtraLessonModal({ open, onClose, onSaved }: { open: boolean; onClose: 
 }
 
 function FormModal({ open, title, children, onClose, onSave }: { open: boolean; title: string; children: React.ReactNode; onClose: () => void; onSave: () => void }) {
+  const content = (
+    <View style={styles.modalOverlay}>
+      <View style={styles.formPanel}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+        </View>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={styles.formScrollContent}
+        >
+          {children}
+        </ScrollView>
+        <Pressable style={styles.confirmButton} onPress={onSave}>
+          <Check size={18} color="#08111f" />
+          <Text style={styles.confirmButtonText}>Salvar</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'android' ? 'height' : 'padding'}
-        style={styles.keyboardAvoiding}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.formPanel}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{title}</Text>
-              <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
-            </View>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              contentContainerStyle={styles.formScrollContent}
-            >
-              {children}
-            </ScrollView>
-            <Pressable style={styles.confirmButton} onPress={onSave}>
-              <Check size={18} color="#08111f" />
-              <Text style={styles.confirmButtonText}>Salvar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+      {Platform.OS === 'android' ? (
+        content
+      ) : (
+        <KeyboardAvoidingView behavior="padding" style={styles.keyboardAvoiding}>
+          {content}
+        </KeyboardAvoidingView>
+      )}
     </Modal>
   );
 }

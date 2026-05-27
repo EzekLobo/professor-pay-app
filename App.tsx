@@ -3,6 +3,7 @@ import DateTimePicker from '@expo/ui/community/datetime-picker';
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -686,21 +687,31 @@ function ExtraLessonModal({ open, onClose, onSaved }: { open: boolean; onClose: 
 function FormModal({ open, title, children, onClose, onSave }: { open: boolean; title: string; children: React.ReactNode; onClose: () => void; onSave: () => void }) {
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.formPanel}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{title}</Text>
-            <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'android' ? 'height' : 'padding'}
+        style={styles.keyboardAvoiding}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.formPanel}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{title}</Text>
+              <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+            </View>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              contentContainerStyle={styles.formScrollContent}
+            >
+              {children}
+            </ScrollView>
+            <Pressable style={styles.confirmButton} onPress={onSave}>
+              <Check size={18} color="#08111f" />
+              <Text style={styles.confirmButtonText}>Salvar</Text>
+            </Pressable>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {children}
-          </ScrollView>
-          <Pressable style={styles.confirmButton} onPress={onSave}>
-            <Check size={18} color="#08111f" />
-            <Text style={styles.confirmButtonText}>Salvar</Text>
-          </Pressable>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1376,6 +1387,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
+  keyboardAvoiding: {
+    flex: 1,
+  },
   modalPanel: {
     backgroundColor: '#08111f',
     borderColor: '#24517d',
@@ -1393,6 +1407,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     maxHeight: '86%',
     padding: 16,
+  },
+  formScrollContent: {
+    paddingBottom: 18,
   },
   choicePanel: {
     backgroundColor: '#08111f',

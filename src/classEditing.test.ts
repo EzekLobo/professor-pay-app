@@ -120,8 +120,8 @@ describe('class deactivation', () => {
   const tuesdayClass: ClassRecord = {
     ...classRecord,
     id: 'class-tuesday-20',
-    name: 'TerÃ§a 20h',
-    weekDay: 'TerÃ§a',
+    name: 'Terça 20h',
+    weekDay: 'Terça',
     time: '20:00',
     firstLesson: '2026-05-12',
     lessonCount: 3,

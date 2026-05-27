@@ -1,8 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
+import DateTimePicker from '@expo/ui/community/datetime-picker';
 import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -17,6 +19,7 @@ import {
   CalendarDays,
   Check,
   CircleDollarSign,
+  CircleHelp,
   Clock3,
   Eye,
   Edit3,
@@ -27,7 +30,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { buildDashboard, formatCurrency, formatDate, todayIso } from './src/calculations';
+import { buildDashboard, filterLessonHistoryByKind, formatCurrency, formatDate, parseIsoDate, relevantPayments, todayIso, toIsoDate, type LessonFilter } from './src/calculations';
 import { labels } from './src/labels';
 import {
   addClass,
@@ -46,8 +49,17 @@ import { ClassRecord, DashboardData, LessonView, PaymentView } from './src/types
 import { parseDecimal, validateClassForm, validateExtraLessonForm } from './src/validation';
 
 type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas';
+type SelectOption = { label: string; value: string };
 
 const tabs: Tab[] = ['Resumo', 'Pagamentos', 'Turmas', 'Aulas'];
+const lessonFilters: LessonFilter[] = ['Todas', 'Turmas', 'Extras'];
+const weekDays = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+const timeOptions = Array.from({ length: 36 }, (_, index) => {
+  const totalMinutes = 6 * 60 + index * 30;
+  const hour = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+  const minute = String(totalMinutes % 60).padStart(2, '0');
+  return `${hour}:${minute}`;
+});
 
 const emptyDashboard: DashboardData = buildDashboard([], [], []);
 
@@ -60,6 +72,7 @@ export default function App() {
   const [classModalOpen, setClassModalOpen] = useState(false);
   const [extraModalOpen, setExtraModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassRecord | null>(null);
+  const [lessonFilter, setLessonFilter] = useState<LessonFilter>('Todas');
 
   const refresh = () => {
     const loadedClasses = loadClasses();
@@ -76,7 +89,8 @@ export default function App() {
     refresh();
   }, []);
 
-  const upcomingLessons = useMemo(() => lessons.filter((lesson) => lesson.active && lesson.lessonDate >= dashboard.today).slice(0, 8), [lessons, dashboard.today]);
+  const filteredLessons = useMemo(() => filterLessonHistoryByKind(lessons, lessonFilter, dashboard.today), [lessons, lessonFilter, dashboard.today]);
+  const visiblePayments = useMemo(() => relevantPayments(dashboard.payments, dashboard.today), [dashboard.payments, dashboard.today]);
 
   const handleDeactivateClass = (classId: string) => {
     Alert.alert('Retirar turma', 'Aulas realizadas ficam no histórico. Aulas futuras saem do cálculo.', [
@@ -104,7 +118,7 @@ export default function App() {
   };
 
   const handleReset = () => {
-    Alert.alert('Resetar dados', 'Isso apaga turmas, aulas, extras e pagamentos recebidos. Esta ação não pode ser desfeita.', [
+    Alert.alert('Resetar dados', 'Isso apaga turmas, aulas, extras e todo o histórico de pagamentos recebidos. Esta ação não pode ser desfeita.', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Resetar',
@@ -161,13 +175,27 @@ export default function App() {
             </View>
 
             <View style={styles.metricGrid}>
-              <MetricCard title={labels.summaryTodayLabel} icon={<Check size={18} color="#4df6a5" />} items={[
+              <MetricCard
+                title={labels.summaryTodayLabel}
+                icon={<Check size={18} color="#4df6a5" />}
+                help={{
+                  title: labels.summaryTodayLabel,
+                  message: 'Mostra ganhos e aulas realizadas até hoje. O valor recebido depende dos pagamentos marcados como recebidos.',
+                }}
+                items={[
                 [labels.earnedLabel, formatCurrency(dashboard.summary.earned)],
                 [labels.receivedLabel, formatCurrency(dashboard.summary.received)],
                 [labels.normalLabel, String(dashboard.summary.normalLessons)],
                 [labels.extraLabel, String(dashboard.summary.extraLessons)],
               ]} />
-              <MetricCard title={labels.futureLabel} icon={<ArrowRight size={18} color="#ffbf5f" />} items={[
+              <MetricCard
+                title={labels.futureLabel}
+                icon={<ArrowRight size={18} color="#ffbf5f" />}
+                help={{
+                  title: labels.futureLabel,
+                  message: 'Mostra a previsão das aulas ainda planejadas. Essa estimativa muda quando você edita turmas, aulas ou valores.',
+                }}
+                items={[
                 [labels.plannedLabel, formatCurrency(dashboard.future.planned)],
                 [labels.futureLessonsLabel, String(dashboard.future.futureLessons)],
                 [labels.totalPlannedLabel, formatCurrency(dashboard.future.totalPlanned)],
@@ -181,14 +209,14 @@ export default function App() {
             ))}
 
             <SectionTitle title={labels.paymentsLabel} action="Detalhes" onPress={() => setActiveTab('Pagamentos')} />
-            {dashboard.payments.slice(0, 4).map((payment) => (
+            {visiblePayments.slice(0, 4).map((payment) => (
               <PaymentListItem key={payment.paymentDate} payment={payment} onPress={() => setSelectedPayment(payment)} />
             ))}
 
             <View style={styles.dataSection}>
               <View>
                 <Text style={styles.dataSectionTitle}>Dados</Text>
-                <Text style={styles.dataSectionText}>Reset completo para limpar turmas, aulas e pagamentos.</Text>
+                <Text style={styles.dataSectionText}>Reset completo para limpar turmas, aulas, extras e histórico.</Text>
               </View>
               <Pressable style={styles.resetDangerButton} onPress={handleReset}>
                 <RotateCcw size={15} color="#ff7b89" />
@@ -201,7 +229,7 @@ export default function App() {
 
         {activeTab === 'Pagamentos' && (
           <FlatList
-            data={dashboard.payments}
+            data={visiblePayments}
             keyExtractor={(item) => item.paymentDate}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => <PaymentListItem payment={item} onPress={() => setSelectedPayment(item)} />}
@@ -214,28 +242,27 @@ export default function App() {
             keyExtractor={(item) => item.classId}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => (
-              <View style={styles.rowCard}>
-                <ClassProgressCard progress={item} />
-                <View style={styles.classActions}>
-                  <Pressable style={styles.actionIconButton} onPress={() => openClassEditor(item.classId)}>
-                    <Edit3 size={17} color="#75d7ff" />
-                  </Pressable>
-                  <Pressable style={styles.actionIconButton} onPress={() => handleDeactivateClass(item.classId)}>
-                    <Trash2 size={17} color="#ff7b89" />
-                  </Pressable>
-                </View>
-              </View>
+              <ClassProgressCard
+                progress={item}
+                onEdit={() => openClassEditor(item.classId)}
+                onDelete={() => handleDeactivateClass(item.classId)}
+              />
             )}
           />
         )}
 
         {activeTab === 'Aulas' && (
           <FlatList
-            data={upcomingLessons}
+            data={filteredLessons}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => <LessonListItem lesson={item} onCancel={() => handleCancelLesson(item.id)} />}
-            ListHeaderComponent={<Text style={styles.listHint}>Próximas aulas ativas</Text>}
+            ListHeaderComponent={(
+              <>
+                <SegmentedFilter options={lessonFilters} value={lessonFilter} onChange={setLessonFilter} />
+                <Text style={styles.listHint}>Histórico de aulas</Text>
+              </>
+            )}
           />
         )}
       </View>
@@ -293,7 +320,7 @@ function PaymentHighlightCard({ title, payment, kind, tone, onPress }: { title: 
     <Pressable onPress={onPress} style={[styles.highlightCard, tone === 'green' ? styles.greenGlow : styles.amberGlow]}>
       <View style={styles.cardTitleRow}>
         <Text style={styles.cardTitle}>{title}</Text>
-        <StatusBadge status={payment?.status ?? 'Futuro'} />
+        {payment && <StatusBadge status={payment.status} />}
       </View>
       {payment ? (
         <>
@@ -312,11 +339,33 @@ function PaymentHighlightCard({ title, payment, kind, tone, onPress }: { title: 
   );
 }
 
-function MetricCard({ title, icon, items }: { title: string; icon: React.ReactNode; items: [string, string][] }) {
+function MetricCard({
+  title,
+  icon,
+  items,
+  help,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  items: [string, string][];
+  help?: { title: string; message: string };
+}) {
   return (
     <View style={styles.metricCard}>
       <View style={styles.cardTitleRow}>
-        <Text style={styles.cardTitle}>{title}</Text>
+        <View style={styles.metricTitleGroup}>
+          <Text style={styles.cardTitle}>{title}</Text>
+          {help && (
+            <Pressable
+              accessibilityLabel={`Ajuda sobre ${title}`}
+              hitSlop={8}
+              onPress={() => Alert.alert(help.title, help.message)}
+              style={styles.helpButton}
+            >
+              <CircleHelp size={16} color="#75d7ff" />
+            </Pressable>
+          )}
+        </View>
         {icon}
       </View>
       {items.map(([label, value]) => (
@@ -329,12 +378,51 @@ function MetricCard({ title, icon, items }: { title: string; icon: React.ReactNo
   );
 }
 
-function ClassProgressCard({ progress }: { progress: DashboardData['progress'][number] }) {
+function SegmentedFilter<T extends string>({ options, value, onChange }: { options: T[]; value: T; onChange: (value: T) => void }) {
+  return (
+    <View style={styles.segmentedFilter}>
+      {options.map((option) => {
+        const active = option === value;
+        return (
+          <Pressable key={option} style={[styles.segmentOption, active && styles.segmentOptionActive]} onPress={() => onChange(option)}>
+            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{option}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function ClassProgressCard({
+  progress,
+  onEdit,
+  onDelete,
+}: {
+  progress: DashboardData['progress'][number];
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
   return (
     <View style={styles.classCard}>
       <View style={styles.cardTitleRow}>
-        <Text style={styles.className}>{progress.name}</Text>
-        <Text style={styles.percent}>{progress.percent}{labels.percentLabel}</Text>
+        <View style={styles.classTitleBlock}>
+          <Text style={styles.className}>{progress.name}</Text>
+          <Text style={styles.percent}>{progress.percent}{labels.percentLabel}</Text>
+        </View>
+        {(onEdit || onDelete) && (
+          <View style={styles.inlineClassActions}>
+            {onEdit && (
+              <Pressable style={styles.actionIconButton} onPress={onEdit}>
+                <Edit3 size={17} color="#75d7ff" />
+              </Pressable>
+            )}
+            {onDelete && (
+              <Pressable style={styles.actionIconButton} onPress={onDelete}>
+                <Trash2 size={17} color="#ff7b89" />
+              </Pressable>
+            )}
+          </View>
+        )}
       </View>
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${Math.min(progress.percent, 100)}%` }]} />
@@ -359,6 +447,7 @@ function PaymentListItem({ payment, onPress }: { payment: PaymentView; onPress: 
         <Text style={styles.paymentTotal}>{formatCurrency(payment.total)}</Text>
         <Text style={styles.paymentMini}>{payment.lessonCount} aulas</Text>
       </View>
+      <StatusBadge status={payment.status} />
       <Eye size={17} color="#75d7ff" />
     </Pressable>
   );
@@ -429,23 +518,23 @@ function ClassFormModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [name, setName] = useState('Nova turma');
+  const [name, setName] = useState('');
   const [weekDay, setWeekDay] = useState('Segunda');
   const [time, setTime] = useState('19:00');
   const [firstLesson, setFirstLesson] = useState(todayIso());
   const [lessonCount, setLessonCount] = useState('40');
   const [durationHours, setDurationHours] = useState('1.5');
-  const [hourlyRate, setHourlyRate] = useState('45');
+  const [hourlyRate, setHourlyRate] = useState('30');
 
   useEffect(() => {
     if (!open) return;
-    setName(initialClass?.name ?? 'Nova turma');
+    setName(initialClass?.name ?? '');
     setWeekDay(initialClass?.weekDay ?? 'Segunda');
     setTime(initialClass?.time ?? '19:00');
     setFirstLesson(initialClass?.firstLesson ?? todayIso());
     setLessonCount(String(initialClass?.lessonCount ?? 40));
     setDurationHours(String(initialClass?.durationHours ?? 1.5));
-    setHourlyRate(String(initialClass?.hourlyRate ?? 45));
+    setHourlyRate(String(initialClass?.hourlyRate ?? 30));
   }, [open, initialClass]);
 
   const save = () => {
@@ -484,12 +573,12 @@ function ClassFormModal({
 
   return (
     <FormModal open={open} title={initialClass ? 'Editar turma' : 'Nova turma'} onClose={onClose} onSave={save}>
-      <FormInput label="Nome" value={name} onChangeText={setName} />
+      <FormInput label="Nome" value={name} onChangeText={setName} placeholder="Ex.: Segunda 19h" />
       <View style={styles.formPair}>
-        <FormInput label="Dia" value={weekDay} onChangeText={setWeekDay} />
-        <FormInput label="Hora" value={time} onChangeText={setTime} />
+        <SelectField label="Dia" value={weekDay} options={weekDays.map((item) => ({ label: item, value: item }))} onChange={setWeekDay} />
+        <SelectField label="Hora" value={time} options={timeOptions.map((item) => ({ label: item, value: item }))} onChange={setTime} />
       </View>
-      <FormInput label="Data de início (AAAA-MM-DD)" value={firstLesson} onChangeText={setFirstLesson} />
+      <DateField label="Data de início" value={firstLesson} onChange={setFirstLesson} />
       <View style={styles.formPair}>
         <FormInput label="Aulas" value={lessonCount} onChangeText={setLessonCount} keyboardType="numeric" />
         <FormInput label="Duração" value={durationHours} onChangeText={setDurationHours} keyboardType="decimal-pad" />
@@ -500,20 +589,28 @@ function ClassFormModal({
 }
 
 function ExtraLessonModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
-  const [student, setStudent] = useState('Aluno extra');
+  const [participants, setParticipants] = useState('');
   const [lessonDate, setLessonDate] = useState(todayIso());
   const [durationHours, setDurationHours] = useState('1');
   const [hourlyRate, setHourlyRate] = useState('30');
 
+  useEffect(() => {
+    if (!open) return;
+    setParticipants('');
+    setLessonDate(todayIso());
+    setDurationHours('1');
+    setHourlyRate('30');
+  }, [open]);
+
   const save = () => {
-    const input = { student, lessonDate, durationHours, hourlyRate };
+    const input = { student: participants, lessonDate, durationHours, hourlyRate };
     const error = validateExtraLessonForm(input);
     if (error) {
       Alert.alert('Revise a aula extra', error);
       return;
     }
     addExtraLesson({
-      student: student.trim(),
+      student: participants.trim(),
       lessonDate,
       durationHours: parseDecimal(durationHours),
       hourlyRate: parseDecimal(hourlyRate),
@@ -524,8 +621,8 @@ function ExtraLessonModal({ open, onClose, onSaved }: { open: boolean; onClose: 
 
   return (
     <FormModal open={open} title="Aula extra" onClose={onClose} onSave={save}>
-      <FormInput label="Aluno" value={student} onChangeText={setStudent} />
-      <FormInput label="Data (AAAA-MM-DD)" value={lessonDate} onChangeText={setLessonDate} />
+      <FormInput label="Participantes" value={participants} onChangeText={setParticipants} placeholder="Ex.: Lucas, Ana" />
+      <DateField label="Data" value={lessonDate} onChange={setLessonDate} />
       <FormInput label="Duração" value={durationHours} onChangeText={setDurationHours} keyboardType="decimal-pad" />
       <FormInput label="Valor/h" value={hourlyRate} onChangeText={setHourlyRate} keyboardType="decimal-pad" />
     </FormModal>
@@ -554,6 +651,121 @@ function FormModal({ open, title, children, onClose, onSave }: { open: boolean; 
   );
 }
 
+function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selectedDate = parseIsoDate(value);
+  const handleChange = (_event: unknown, selected?: Date) => {
+    if (Platform.OS === 'android') {
+      setOpen(false);
+    }
+    if (selected) {
+      onChange(toIsoDate(selected));
+    }
+  };
+
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <Pressable style={styles.dateButton} onPress={() => setOpen(true)}>
+        <View style={styles.dateButtonContent}>
+          <View style={styles.dateIconBox}>
+            <CalendarDays size={16} color="#75d7ff" />
+          </View>
+          <Text style={styles.dateButtonText}>{formatDate(value)}</Text>
+        </View>
+      </Pressable>
+      {open && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={selectedDate}
+          onValueChange={handleChange}
+          onDismiss={() => setOpen(false)}
+          mode="date"
+          display="calendar"
+          presentation="dialog"
+          accentColor="#75d7ff"
+        />
+      )}
+      {open && Platform.OS !== 'android' && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.datePickerPanel}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{label}</Text>
+                <Pressable onPress={() => setOpen(false)} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+              </View>
+              <View style={styles.datePickerSurface}>
+                <DateTimePicker
+                  value={selectedDate}
+                  onValueChange={handleChange}
+                  mode="date"
+                  display="inline"
+                  presentation="inline"
+                  accentColor="#75d7ff"
+                />
+              </View>
+              <Pressable style={styles.confirmButton} onPress={() => setOpen(false)}>
+                <Check size={18} color="#08111f" />
+                <Text style={styles.confirmButtonText}>Concluir</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      )}
+    </View>
+  );
+}
+
+function SelectField({ label, value, options, onChange }: { label: string; value: string; options: SelectOption[]; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.value === value);
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <Pressable style={styles.selectButton} onPress={() => setOpen(true)}>
+        <Text style={styles.selectButtonText}>{selected?.label ?? value}</Text>
+      </Pressable>
+      {open && (
+        <OptionModal
+          title={label}
+          value={value}
+          options={options}
+          onClose={() => setOpen(false)}
+          onSelect={(nextValue) => {
+            onChange(nextValue);
+            setOpen(false);
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+function OptionModal({ title, value, options, onSelect, onClose }: { title: string; value: string; options: SelectOption[]; onSelect: (value: string) => void; onClose: () => void }) {
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.choicePanel}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {options.map((option) => {
+              const selected = option.value === value;
+              return (
+                <Pressable key={option.value} style={[styles.choiceItem, selected && styles.choiceItemActive]} onPress={() => onSelect(option.value)}>
+                  <Text style={[styles.choiceText, selected && styles.choiceTextActive]}>{option.label}</Text>
+                  {selected && <Check size={16} color="#75d7ff" />}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function FormInput(props: React.ComponentProps<typeof TextInput> & { label: string }) {
   return (
     <View style={styles.inputGroup}>
@@ -574,7 +786,17 @@ function CompactInfo({ icon, label, value }: { icon: React.ReactNode; label: str
 }
 
 function StatusBadge({ status }: { status: string }) {
-  return <Text style={[styles.statusBadge, status === 'Recebido' && styles.statusReceived]}>{status}</Text>;
+  return (
+    <Text style={[
+      styles.statusBadge,
+      status === 'Recebido' && styles.statusReceived,
+      status === 'Pago/previsto' && styles.statusLate,
+      status === 'Vence hoje' && styles.statusToday,
+      status === 'Futuro' && styles.statusFuture,
+    ]}>
+      {status}
+    </Text>
+  );
 }
 
 function SectionTitle({ title, action, onPress }: { title: string; action?: string; onPress?: () => void }) {
@@ -765,6 +987,18 @@ const styles = StyleSheet.create({
     borderColor: '#4df6a5',
     color: '#4df6a5',
   },
+  statusLate: {
+    borderColor: '#ff7b89',
+    color: '#ff7b89',
+  },
+  statusToday: {
+    borderColor: '#75d7ff',
+    color: '#75d7ff',
+  },
+  statusFuture: {
+    borderColor: '#ffbf5f',
+    color: '#ffbf5f',
+  },
   metricGrid: {
     gap: 12,
     marginTop: 12,
@@ -775,6 +1009,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     padding: 15,
+  },
+  metricTitleGroup: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    flexShrink: 1,
+  },
+  helpButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 28,
+    minWidth: 28,
   },
   metricRow: {
     alignItems: 'center',
@@ -826,12 +1072,18 @@ const styles = StyleSheet.create({
   },
   className: {
     color: '#f2f8ff',
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: '900',
   },
+  classTitleBlock: {
+    flex: 1,
+    gap: 3,
+    paddingRight: 10,
+  },
   percent: {
     color: '#75d7ff',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   progressTrack: {
@@ -946,6 +1198,34 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 10,
   },
+  segmentedFilter: {
+    backgroundColor: '#08111f',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 12,
+    padding: 4,
+  },
+  segmentOption: {
+    alignItems: 'center',
+    borderRadius: 6,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 34,
+  },
+  segmentOptionActive: {
+    backgroundColor: '#123b62',
+  },
+  segmentText: {
+    color: '#7d94b6',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  segmentTextActive: {
+    color: '#e8f8ff',
+  },
   rowCard: {
     marginBottom: 10,
   },
@@ -955,6 +1235,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginTop: -4,
+  },
+  inlineClassActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   actionIconButton: {
     alignItems: 'center',
@@ -1045,6 +1330,15 @@ const styles = StyleSheet.create({
     maxHeight: '86%',
     padding: 16,
   },
+  choicePanel: {
+    backgroundColor: '#08111f',
+    borderColor: '#24517d',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderWidth: 1,
+    maxHeight: '72%',
+    padding: 16,
+  },
   modalHeader: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -1127,6 +1421,93 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     minHeight: 44,
     paddingHorizontal: 12,
+  },
+  selectButton: {
+    alignItems: 'center',
+    backgroundColor: '#0d1b2e',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 12,
+  },
+  selectButtonText: {
+    color: '#f2f8ff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  dateButton: {
+    alignItems: 'center',
+    backgroundColor: '#0d1b2e',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    minHeight: 44,
+    paddingHorizontal: 10,
+  },
+  dateButtonContent: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 9,
+  },
+  dateIconBox: {
+    alignItems: 'center',
+    backgroundColor: '#132a45',
+    borderColor: '#24517d',
+    borderRadius: 7,
+    borderWidth: 1,
+    height: 30,
+    justifyContent: 'center',
+    width: 30,
+  },
+  dateButtonText: {
+    color: '#f2f8ff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  datePickerPanel: {
+    backgroundColor: '#08111f',
+    borderColor: '#24517d',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderWidth: 1,
+    maxHeight: '78%',
+    padding: 16,
+  },
+  datePickerSurface: {
+    backgroundColor: '#0d1b2e',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    overflow: 'hidden',
+    padding: 8,
+  },
+  choiceItem: {
+    alignItems: 'center',
+    backgroundColor: '#0d1b2e',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    minHeight: 44,
+    paddingHorizontal: 13,
+  },
+  choiceItemActive: {
+    borderColor: '#75d7ff',
+    backgroundColor: '#123b62',
+  },
+  choiceText: {
+    color: '#d9e9ff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  choiceTextActive: {
+    color: '#ffffff',
   },
   emptyText: {
     color: '#7d94b6',

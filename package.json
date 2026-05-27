@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo/ui": "~56.0.14",
     "expo": "~56.0.5",
     "expo-sqlite": "^56.0.4",
     "expo-status-bar": "~56.0.4",

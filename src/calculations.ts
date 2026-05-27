@@ -2,6 +2,8 @@ import { ClassProgress, ClassRecord, DashboardData, LessonRecord, LessonView, Pa
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+export type LessonFilter = 'Todas' | 'Turmas' | 'Extras';
+
 export function todayIso() {
   const now = new Date();
   return toIsoDate(now);
@@ -167,7 +169,7 @@ function buildPayments(lessons: LessonView[], confirmationDates: Set<string>, to
         extraTotal: sumLessons(extra),
         total,
         status,
-        lessons: group.sort((a, b) => a.lessonDate.localeCompare(b.lessonDate)),
+        lessons: [...group].sort((a, b) => b.lessonDate.localeCompare(a.lessonDate)),
       };
     });
 }
@@ -196,4 +198,27 @@ function sumLessons(lessons: LessonView[]) {
 
 export function daysBetween(a: string, b: string) {
   return Math.round((parseIsoDate(b).getTime() - parseIsoDate(a).getTime()) / DAY_MS);
+}
+
+export function filterLessonsByKind(lessons: LessonView[], filter: LessonFilter) {
+  const activeLessons = lessons.filter((lesson) => lesson.active && !lesson.canceled);
+  if (filter === 'Turmas') return activeLessons.filter((lesson) => lesson.type === 'Normal');
+  if (filter === 'Extras') return activeLessons.filter((lesson) => lesson.type === 'Extra');
+  return activeLessons;
+}
+
+export function filterLessonHistoryByKind(lessons: LessonView[], filter: LessonFilter, today: string) {
+  return filterLessonsByKind(lessons, filter)
+    .filter((lesson) => lesson.lessonDate <= today)
+    .sort((a, b) => b.lessonDate.localeCompare(a.lessonDate));
+}
+
+export function relevantPayments(payments: PaymentView[], today: string) {
+  const current = payments
+    .filter((payment) => payment.paymentDate <= today || payment.status === 'Recebido')
+    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
+  const currentDates = new Set(current.map((payment) => payment.paymentDate));
+  const nextFuture = payments.find((payment) => payment.paymentDate > today && !currentDates.has(payment.paymentDate));
+  return (nextFuture ? [...current, nextFuture] : current)
+    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
 }

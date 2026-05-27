@@ -10,7 +10,7 @@ describe('form validation', () => {
       firstLesson: '2026-05-04',
       lessonCount: '40',
       durationHours: '1.5',
-      hourlyRate: '45',
+      hourlyRate: '30',
     };
 
     expect(validateClassForm(valid)).toBeNull();
@@ -29,5 +29,21 @@ describe('form validation', () => {
     expect(validateExtraLessonForm(valid)).toBeNull();
     expect(validateExtraLessonForm({ ...valid, lessonDate: '09/05/2026' })).toContain('data válida');
     expect(validateExtraLessonForm({ ...valid, durationHours: '0' })).toContain('duração');
+  });
+
+  it('requires participants for extra lessons', () => {
+    expect(validateExtraLessonForm({
+      student: '',
+      lessonDate: '2026-05-09',
+      durationHours: '1',
+      hourlyRate: '30',
+    })).toContain('participantes');
+
+    expect(validateExtraLessonForm({
+      student: 'Lucas, Ana',
+      lessonDate: '2026-05-09',
+      durationHours: '1',
+      hourlyRate: '30',
+    })).toBeNull();
   });
 });

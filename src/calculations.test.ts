@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildDashboard,
+  filterLessonHistoryByKind,
+  filterLessonsByKind,
   generateLessonsForClass,
   getLessonValue,
   getPaymentDate,
   getPeriod,
   isValidIsoDate,
+  relevantPayments,
 } from './calculations';
+import { sampleClasses, sampleExtraLessons } from './sampleData';
 import { ClassRecord, LessonRecord, PaymentConfirmation } from './types';
 
 const baseClass: ClassRecord = {
@@ -109,6 +113,7 @@ describe('money and dashboard calculations', () => {
   it('groups payments, finds last and next, and applies received status', () => {
     const lessons = [
       lesson({ id: 'may-early', lessonDate: '2026-05-04', durationHours: 1, hourlyRate: 50 }),
+      lesson({ id: 'may-early-newer', lessonDate: '2026-05-12', durationHours: 1, hourlyRate: 55 }),
       lesson({ id: 'may-late', lessonDate: '2026-05-18', durationHours: 1, hourlyRate: 60 }),
       lesson({ id: 'june-early', lessonDate: '2026-06-01', durationHours: 1, hourlyRate: 70 }),
     ];
@@ -119,6 +124,7 @@ describe('money and dashboard calculations', () => {
     expect(dashboard.lastPayment?.paymentDate).toBe('2026-06-01');
     expect(dashboard.lastPayment?.status).toBe('Recebido');
     expect(dashboard.nextPayment?.paymentDate).toBe('2026-06-15');
+    expect(dashboard.payments[0].lessons.map((item) => item.id)).toEqual(['may-early-newer', 'may-early']);
   });
 
   it('calculates class progress without counting extra lessons', () => {
@@ -133,5 +139,102 @@ describe('money and dashboard calculations', () => {
       '2026-05-20',
     );
     expect(dashboard.progress[0]).toMatchObject({ lessonCount: 2, completed: 1, remaining: 1, percent: 50 });
+  });
+
+  it('filters active lessons by all, class lessons and extra lessons', () => {
+    const dashboard = buildDashboard(
+      [baseClass],
+      [
+        lesson({ id: 'normal', type: 'Normal', lessonDate: '2026-05-04' }),
+        lesson({ id: 'extra', classId: null, className: 'Extra', type: 'Extra', student: 'Lucas, Ana', lessonDate: '2026-05-05' }),
+        lesson({ id: 'canceled', type: 'Normal', lessonDate: '2026-05-06', active: false, canceled: true }),
+      ],
+      [],
+      '2026-05-20',
+    );
+
+    expect(filterLessonsByKind(dashboard.lessons, 'Todas').map((item) => item.id)).toEqual(['normal', 'extra']);
+    expect(filterLessonsByKind(dashboard.lessons, 'Turmas').map((item) => item.id)).toEqual(['normal']);
+    expect(filterLessonsByKind(dashboard.lessons, 'Extras').map((item) => item.id)).toEqual(['extra']);
+  });
+
+  it('shows lesson history up to today ordered by newest first', () => {
+    const dashboard = buildDashboard(
+      [baseClass],
+      [
+        lesson({ id: 'past-old', type: 'Normal', lessonDate: '2026-05-04' }),
+        lesson({ id: 'past-new', classId: null, className: 'Extra', type: 'Extra', student: 'Lucas', lessonDate: '2026-05-10' }),
+        lesson({ id: 'future', type: 'Normal', lessonDate: '2026-05-30' }),
+      ],
+      [],
+      '2026-05-20',
+    );
+
+    expect(filterLessonHistoryByKind(dashboard.lessons, 'Todas', dashboard.today).map((item) => item.id)).toEqual(['past-new', 'past-old']);
+    expect(filterLessonHistoryByKind(dashboard.lessons, 'Turmas', dashboard.today).map((item) => item.id)).toEqual(['past-old']);
+    expect(filterLessonHistoryByKind(dashboard.lessons, 'Extras', dashboard.today).map((item) => item.id)).toEqual(['past-new']);
+  });
+
+  it('keeps only current payment history and the next future payment visible', () => {
+    const dashboard = buildDashboard(
+      [baseClass],
+      [
+        lesson({ id: 'past', lessonDate: '2026-05-04' }),
+        lesson({ id: 'next', lessonDate: '2026-05-18' }),
+        lesson({ id: 'far', lessonDate: '2026-06-20' }),
+      ],
+      [],
+      '2026-06-10',
+    );
+
+    expect(relevantPayments(dashboard.payments, dashboard.today).map((item) => item.paymentDate)).toEqual(['2026-06-15', '2026-06-01']);
+  });
+
+  it('orders relevant payments newest first including the next future payment', () => {
+    const dashboard = buildDashboard(
+      [baseClass],
+      [
+        lesson({ id: 'older', lessonDate: '2026-04-20' }),
+        lesson({ id: 'newer', lessonDate: '2026-05-04' }),
+        lesson({ id: 'next', lessonDate: '2026-05-20' }),
+        lesson({ id: 'far', lessonDate: '2026-06-20' }),
+      ],
+      [],
+      '2026-06-10',
+    );
+
+    expect(relevantPayments(dashboard.payments, dashboard.today).map((item) => item.paymentDate)).toEqual([
+      '2026-06-15',
+      '2026-06-01',
+      '2026-05-15',
+    ]);
+  });
+});
+
+describe('initial seed data', () => {
+  it('contains the real initial classes', () => {
+    const classes = sampleClasses();
+
+    expect(classes).toHaveLength(3);
+    expect(classes.map((item) => item.name)).toEqual(['Terça 20h', 'Segunda 19h', 'Quinta 20h']);
+    expect(classes.find((item) => item.name === 'Terça 20h')?.firstLesson).toBe('2026-05-12');
+    expect(classes.every((item) => item.hourlyRate === 30)).toBe(true);
+  });
+
+  it('contains the real initial extra lessons', () => {
+    const extras = sampleExtraLessons();
+
+    expect(extras).toHaveLength(4);
+    expect(extras.map((item) => [item.lessonDate, item.student])).toEqual([
+      ['2026-04-14', 'Elena'],
+      ['2026-04-26', 'Luiz'],
+      ['2026-05-09', 'Lucas Martins'],
+      ['2026-05-12', 'Lucas'],
+    ]);
+    expect(extras.every((item) => item.hourlyRate === 30)).toBe(true);
+    expect(getPaymentDate(extras[0].lessonDate)).toBe('2026-05-01');
+    expect(getPaymentDate(extras[1].lessonDate)).toBe('2026-05-15');
+    expect(getPaymentDate(extras[2].lessonDate)).toBe('2026-06-01');
+    expect(getPaymentDate(extras[3].lessonDate)).toBe('2026-06-01');
   });
 });

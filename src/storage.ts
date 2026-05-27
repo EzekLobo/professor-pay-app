@@ -2,9 +2,11 @@ import * as SQLite from 'expo-sqlite';
 import { generateLessonsForClass } from './calculations';
 import { futureLessonsForClassUpdate } from './classEditing';
 import { sampleClasses, sampleExtraLessons } from './sampleData';
+import { resetDatabaseSql } from './storageSql';
 import { ClassRecord, LessonRecord, PaymentConfirmation } from './types';
 
 const db = SQLite.openDatabaseSync('aulapay.db');
+const realSeedKey = 'real_seed_2026_05';
 
 export function initDatabase() {
   db.execSync(`
@@ -54,7 +56,10 @@ export function initDatabase() {
   if (!initialized) {
     seedDatabase();
     db.runSync("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('initialized', 'true')");
+    db.runSync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', [realSeedKey, 'seeded']);
+    return;
   }
+  seedRealDataIfNeeded();
 }
 
 function seedDatabase() {
@@ -64,6 +69,18 @@ function seedDatabase() {
     generateLessonsForClass(classRecord).forEach(insertLesson);
   });
   sampleExtraLessons().forEach(insertLesson);
+}
+
+function seedRealDataIfNeeded() {
+  const realSeed = db.getFirstSync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', [realSeedKey]);
+  if (realSeed) return;
+
+  const classCount = db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM classes')?.count ?? 0;
+  const lessonCount = db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM lessons')?.count ?? 0;
+  if (classCount === 0 && lessonCount === 0) {
+    seedDatabase();
+    db.runSync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', [realSeedKey, 'seeded']);
+  }
 }
 
 export function loadClasses(): ClassRecord[] {
@@ -102,7 +119,8 @@ export function updateClassFutureLessons(input: ClassRecord, today: string) {
   const existingLessons = db
     .getAllSync<LessonRow>('SELECT * FROM lessons WHERE classId = ? ORDER BY lessonDate ASC', [input.id])
     .map(mapLessonRow);
-  const { future } = futureLessonsForClassUpdate(updatedClass, existingLessons, today);
+  const receivedPaymentDates = new Set(loadConfirmations().map((confirmation) => confirmation.paymentDate));
+  const { nextLessons } = futureLessonsForClassUpdate(updatedClass, existingLessons, receivedPaymentDates);
 
   db.runSync(
     `UPDATE classes
@@ -120,8 +138,8 @@ export function updateClassFutureLessons(input: ClassRecord, today: string) {
       updatedClass.id,
     ],
   );
-  db.runSync('DELETE FROM lessons WHERE classId = ? AND lessonDate > ?', [updatedClass.id, today]);
-  future.forEach(insertLesson);
+  db.runSync('DELETE FROM lessons WHERE classId = ?', [updatedClass.id]);
+  nextLessons.forEach(insertLesson);
 }
 
 export function deactivateClass(classId: string, today: string) {
@@ -161,12 +179,7 @@ export function addExtraLesson(input: Omit<LessonRecord, 'id' | 'classId' | 'cla
 }
 
 export function resetDatabase() {
-  db.execSync(`
-    DELETE FROM payment_confirmations;
-    DELETE FROM lessons;
-    DELETE FROM classes;
-    INSERT OR REPLACE INTO app_settings (key, value) VALUES ('initialized', 'true');
-  `);
+  db.execSync(resetDatabaseSql);
 }
 
 function insertClass(classRecord: ClassRecord) {

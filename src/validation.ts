@@ -33,6 +33,7 @@ export function validateClassForm(input: ClassFormInput): string | null {
 }
 
 export function validateExtraLessonForm(input: ExtraLessonFormInput): string | null {
+  if (!input.student.trim()) return 'Informe os participantes da aula extra.';
   if (!isValidIsoDate(input.lessonDate)) return 'Informe uma data válida no formato AAAA-MM-DD.';
   if (!Number.isFinite(parseDecimal(input.durationHours)) || parseDecimal(input.durationHours) <= 0) return 'Informe uma duração válida.';
   if (!Number.isFinite(parseDecimal(input.hourlyRate)) || parseDecimal(input.hourlyRate) < 0) return 'Informe um valor/h válido.';

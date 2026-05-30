@@ -1,8 +1,22 @@
 export type KodlandStudentImport = {
   externalId: string;
   name: string;
+  email: string;
+  status: string;
+  progressSummary: string;
   externalClassId: string;
   externalClassName: string;
+  rawData: Record<string, unknown>;
+};
+
+export type KodlandGroupImport = {
+  externalId: string;
+  title: string;
+  courseName: string;
+  studentCount: number;
+  startDate: string;
+  nextLessonDate: string;
+  archived: boolean;
   rawData: Record<string, unknown>;
 };
 
@@ -12,7 +26,7 @@ export type KodlandCredentials = {
 };
 
 export type KodlandSyncResult =
-  | { ok: true; students: KodlandStudentImport[] }
+  | { ok: true; teacherId: string; groups: KodlandGroupImport[]; students: KodlandStudentImport[] }
   | { ok: false; message: string };
 
 export function normalizeKodlandStudent(input: unknown): KodlandStudentImport | null {
@@ -26,6 +40,9 @@ export function normalizeKodlandStudent(input: unknown): KodlandStudentImport | 
   return {
     externalId,
     name,
+    email: stringValue(record.email),
+    status: stringValue(record.status),
+    progressSummary: stringValue(record.progressSummary ?? record.progress_summary),
     externalClassId,
     externalClassName,
     rawData: record,
@@ -41,14 +58,76 @@ export function parseKodlandStudentsPayload(payload: unknown): KodlandStudentImp
   return candidates.map(normalizeKodlandStudent).filter((student): student is KodlandStudentImport => Boolean(student));
 }
 
+export function normalizeKodlandGroup(input: unknown): KodlandGroupImport | null {
+  if (!input || typeof input !== 'object') return null;
+  const record = input as Record<string, unknown>;
+  const externalId = stringValue(record.id ?? record.group_id);
+  const title = stringValue(record.title ?? record.group_name);
+  if (!externalId || !title) return null;
+  const course = objectValue(record.course);
+  return {
+    externalId,
+    title,
+    courseName: stringValue(course.title ?? record.course_name),
+    studentCount: numberValue(record.students_count ?? record.student_count),
+    startDate: stringValue(record.start_timeslot ?? record.start_date),
+    nextLessonDate: stringValue(record.next_lesson_date),
+    archived: Boolean(record.is_archive ?? record.archived),
+    rawData: {
+      id: externalId,
+      title,
+      courseName: stringValue(course.title ?? record.course_name),
+      studentsCount: numberValue(record.students_count ?? record.student_count),
+      timetable: arrayValue(record.timetable),
+      startTimeslot: stringValue(record.start_timeslot ?? record.start_date),
+      nextLessonDate: stringValue(record.next_lesson_date),
+      archived: Boolean(record.is_archive ?? record.archived),
+    },
+  };
+}
+
+export function parseKodlandGroupStudentsPayload(payload: unknown, group: KodlandGroupImport): KodlandStudentImport[] {
+  const candidates = Array.isArray(payload) ? payload : [];
+  return candidates.map((input): KodlandStudentImport | null => {
+    const record = objectValue(input);
+    const mainInfo = objectValue(record.main_info);
+    const externalId = stringValue(mainInfo.student_id);
+    const name = stringValue(mainInfo.full_name);
+    if (!externalId || !name) return null;
+    const progressSummary = progressValue(record.progress_info);
+    return {
+      externalId,
+      name,
+      email: stringValue(mainInfo.email),
+      status: stringValue(mainInfo.status),
+      progressSummary,
+      externalClassId: group.externalId,
+      externalClassName: group.title,
+      rawData: {
+        studentId: externalId,
+        name,
+        email: stringValue(mainInfo.email),
+        status: stringValue(mainInfo.status),
+        totalCurrentGrade: numberValue(mainInfo.total_current_grade),
+        totalMaxGrade: numberValue(mainInfo.total_max_grade),
+        rating: numberValue(mainInfo.rating),
+        ratingMax: numberValue(mainInfo.rating_max),
+        progressSummary,
+      },
+    };
+  }).filter((student): student is KodlandStudentImport => Boolean(student));
+}
+
 export async function syncKodlandStudents(credentials: KodlandCredentials): Promise<KodlandSyncResult> {
   if (!credentials.username.trim() || !credentials.password.trim()) {
-    return { ok: false, message: 'Informe usuário e senha da Kodland.' };
+    return { ok: false, message: 'Informe usuario e senha da Kodland.' };
   }
-  return {
-    ok: false,
-    message: 'Credenciais salvas. O endpoint autenticado da Kodland ainda precisa ser mapeado antes da primeira sincronização.',
-  };
+  try {
+    const { fetchKodlandSnapshot } = await import('./kodlandClient');
+    return { ok: true, ...await fetchKodlandSnapshot(credentials) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : 'Nao foi possivel sincronizar com a Kodland.' };
+  }
 }
 
 function stringValue(value: unknown) {
@@ -65,4 +144,20 @@ function arrayValue(value: unknown) {
     if (Array.isArray(record.results)) return record.results;
   }
   return [];
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function numberValue(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function progressValue(value: unknown) {
+  const modules = arrayValue(value);
+  if (!modules.length) return '';
+  const completed = modules.reduce((total, module) => total + numberValue(objectValue(module).module_current_grade), 0);
+  const maximum = modules.reduce((total, module) => total + numberValue(objectValue(module).module_max_grade), 0);
+  return maximum > 0 ? `${completed}/${maximum}` : '';
 }

@@ -29,6 +29,7 @@ Last updated: 2026-05-30
 - Tests are colocated in `src/*.test.ts` and use Vitest.
 - Lesson generation adds ISO calendar days in 7-day steps for weekly class recurrences.
 - Class forms now derive `weekDay` from `firstLesson` automatically; date picker values are converted through guarded helpers in `src/calculations.ts` so UTC-midnight and local picker dates keep the selected calendar day.
+- Branch `feature/kodland-sync` adds the Kodland sync foundation: SecureStore credentials, Kodland tab, student/class-student SQLite tables, import parser, reset coverage, and student counts on classes.
 
 ## Known Follow-Ups
 
@@ -36,3 +37,4 @@ Last updated: 2026-05-30
 - Install `PyYAML` for the Python launcher if official skill validation is needed later, then rerun `py C:\Users\ezekl\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\professor-pay-ops`.
 - Consider `npm audit` review separately before applying fixes, because automated audit fixes may alter dependency versions or behavior.
 - For any Expo/RN code work, read the Expo SDK 56 docs first and use `npx expo install` for Expo SDK packages.
+- Kodland direct sync still needs authenticated endpoint mapping from `https://bo.kodland.org/students`; the app currently saves credentials securely and reports this pending integration clearly instead of attempting fragile scraping.

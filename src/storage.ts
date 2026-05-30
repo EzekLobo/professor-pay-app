@@ -4,7 +4,8 @@ import { futureLessonsForClassUpdate, lessonsForClassDeactivation } from './clas
 import { sampleClasses, sampleExtraLessons } from './sampleData';
 import { hasExistingUserData } from './storageInitialization';
 import { resetDatabaseSql } from './storageSql';
-import { ClassRecord, LessonRecord, PaymentConfirmation } from './types';
+import { KodlandStudentImport } from './kodland';
+import { ClassRecord, LessonRecord, PaymentConfirmation, StudentWithClass } from './types';
 
 const db = SQLite.openDatabaseSync('aulapay.db');
 const realSeedKey = 'real_seed_2026_05';
@@ -45,6 +46,25 @@ export function initDatabase() {
       paymentDate TEXT UNIQUE NOT NULL,
       receivedAt TEXT NOT NULL,
       note TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS students (
+      id TEXT PRIMARY KEY NOT NULL,
+      externalId TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      primaryClassId TEXT,
+      rawDataJson TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS class_students (
+      classId TEXT NOT NULL,
+      studentId TEXT NOT NULL,
+      externalClassId TEXT NOT NULL,
+      externalClassName TEXT NOT NULL,
+      confirmed INTEGER NOT NULL,
+      updatedAt TEXT NOT NULL,
+      PRIMARY KEY (classId, studentId)
     );
 
     CREATE TABLE IF NOT EXISTS app_settings (
@@ -114,6 +134,40 @@ export function loadLessons(): LessonRecord[] {
 
 export function loadConfirmations(): PaymentConfirmation[] {
   return db.getAllSync<PaymentConfirmation>('SELECT * FROM payment_confirmations ORDER BY paymentDate ASC');
+}
+
+export function loadStudents(): StudentWithClass[] {
+  return db.getAllSync<StudentWithClassRow>(
+    `SELECT students.*, class_students.classId, class_students.externalClassId, class_students.externalClassName, class_students.confirmed
+      FROM students
+      LEFT JOIN class_students ON class_students.studentId = students.id
+      ORDER BY students.name ASC`,
+  ).map((row) => ({ ...row, confirmed: Boolean(row.confirmed) }));
+}
+
+export function importKodlandStudents(students: KodlandStudentImport[], classMap: Record<string, string>) {
+  const now = new Date().toISOString();
+  let linked = 0;
+  students.forEach((student) => {
+    const id = `kodland-student-${student.externalId}`;
+    const classId = classMap[student.externalClassId] ?? null;
+    db.runSync(
+      `INSERT OR REPLACE INTO students (id, externalId, name, primaryClassId, rawDataJson, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, student.externalId, student.name, classId, JSON.stringify(student.rawData), now],
+    );
+    db.runSync('DELETE FROM class_students WHERE studentId = ?', [id]);
+    if (classId) {
+      db.runSync(
+        `INSERT OR REPLACE INTO class_students
+          (classId, studentId, externalClassId, externalClassName, confirmed, updatedAt)
+          VALUES (?, ?, ?, ?, 1, ?)`,
+        [classId, id, student.externalClassId, student.externalClassName, now],
+      );
+      linked += 1;
+    }
+  });
+  return { imported: students.length, linked, unlinked: students.length - linked };
 }
 
 export function addClass(input: Omit<ClassRecord, 'createdAt' | 'updatedAt'>) {
@@ -254,6 +308,7 @@ type LessonRow = Omit<LessonRecord, 'active' | 'canceled' | 'type'> & {
   canceled: number;
   type: 'Normal' | 'Extra';
 };
+type StudentWithClassRow = Omit<StudentWithClass, 'confirmed'> & { confirmed: number };
 
 function mapClassRow(row: ClassRow): ClassRecord {
   return { ...row, active: Boolean(row.active) };

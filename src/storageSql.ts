@@ -1,4 +1,6 @@
 export const resetDatabaseSql = `
+  DELETE FROM class_students;
+  DELETE FROM students;
   DELETE FROM payment_confirmations;
   DELETE FROM lessons;
   DELETE FROM classes;

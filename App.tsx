@@ -43,6 +43,8 @@ import {
   toPickerDate,
   type LessonFilter,
 } from './src/calculations';
+import { clearKodlandCredentials, loadKodlandCredentials, saveKodlandCredentials } from './src/kodlandCredentials';
+import { syncKodlandStudents } from './src/kodland';
 import { labels } from './src/labels';
 import {
   addClass,
@@ -54,20 +56,21 @@ import {
   loadClasses,
   loadConfirmations,
   loadLessons,
+  loadStudents,
   resetDatabase,
   updateClassFutureLessons,
 } from './src/storage';
-import { ClassRecord, DashboardData, LessonView, PaymentView } from './src/types';
+import { ClassRecord, DashboardData, LessonView, PaymentView, StudentWithClass } from './src/types';
 import { parseDecimal, validateClassForm, validateExtraLessonForm } from './src/validation';
 
-type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas';
+type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas' | 'Kodland';
 type SelectOption = { label: string; value: string };
 type MetricHelp = {
   title: string;
   items: { label: string; description: string }[];
 };
 
-const tabs: Tab[] = ['Resumo', 'Pagamentos', 'Turmas', 'Aulas'];
+const tabs: Tab[] = ['Resumo', 'Pagamentos', 'Turmas', 'Aulas', 'Kodland'];
 const lessonFilters: LessonFilter[] = ['Todas', 'Turmas', 'Extras'];
 const timeOptions = Array.from({ length: 36 }, (_, index) => {
   const totalMinutes = 6 * 60 + index * 30;
@@ -99,6 +102,7 @@ const futureHelp: MetricHelp = {
 export default function App() {
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [lessons, setLessons] = useState<LessonView[]>([]);
+  const [students, setStudents] = useState<StudentWithClass[]>([]);
   const [dashboard, setDashboard] = useState(emptyDashboard);
   const [activeTab, setActiveTab] = useState<Tab>('Resumo');
   const [selectedPayment, setSelectedPayment] = useState<PaymentView | null>(null);
@@ -115,6 +119,7 @@ export default function App() {
     const nextDashboard = buildDashboard(loadedClasses, loadedLessons, loadedConfirmations);
     setClasses(loadedClasses);
     setLessons(nextDashboard.lessons);
+    setStudents(loadStudents());
     setDashboard(nextDashboard);
   };
 
@@ -235,7 +240,7 @@ export default function App() {
 
             <SectionTitle title={labels.classesLabel} action="Ver todas" onPress={() => setActiveTab('Turmas')} />
             {dashboard.progress.map((progress) => (
-              <ClassProgressCard key={progress.classId} progress={progress} />
+              <ClassProgressCard key={progress.classId} progress={progress} studentCount={students.filter((student) => student.classId === progress.classId).length} />
             ))}
 
             <SectionTitle title={labels.paymentsLabel} action="Detalhes" onPress={() => setActiveTab('Pagamentos')} />
@@ -274,6 +279,7 @@ export default function App() {
             renderItem={({ item }) => (
               <ClassProgressCard
                 progress={item}
+                studentCount={students.filter((student) => student.classId === item.classId).length}
                 onEdit={() => openClassEditor(item.classId)}
                 onDelete={() => handleDeactivateClass(item.classId)}
               />
@@ -294,6 +300,10 @@ export default function App() {
               </>
             )}
           />
+        )}
+
+        {activeTab === 'Kodland' && (
+          <KodlandScreen classes={classes} students={students} onRefresh={refresh} />
         )}
       </View>
 
@@ -458,10 +468,12 @@ function SegmentedFilter<T extends string>({ options, value, onChange }: { optio
 
 function ClassProgressCard({
   progress,
+  studentCount = 0,
   onEdit,
   onDelete,
 }: {
   progress: DashboardData['progress'][number];
+  studentCount?: number;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -494,8 +506,109 @@ function ClassProgressCard({
         <Text style={styles.smallStat}>{labels.lessonsCountLabel}: {progress.lessonCount}</Text>
         <Text style={styles.smallStat}>Ok: {progress.completed}</Text>
         <Text style={styles.smallStat}>Restam: {progress.remaining}</Text>
+        {studentCount > 0 && <Text style={styles.smallStat}>Alunos: {studentCount}</Text>}
       </View>
     </View>
+  );
+}
+
+function KodlandScreen({ classes, students, onRefresh }: { classes: ClassRecord[]; students: StudentWithClass[]; onRefresh: () => void }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    loadKodlandCredentials().then((credentials) => {
+      setUsername(credentials.username);
+      setPassword(credentials.password);
+    }).catch(() => {
+      Alert.alert('Kodland', 'Não foi possível ler as credenciais salvas neste aparelho.');
+    });
+  }, []);
+
+  const saveCredentials = async () => {
+    if (!username.trim() || !password) {
+      Alert.alert('Kodland', 'Informe usuário e senha.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await saveKodlandCredentials({ username, password });
+      Alert.alert('Kodland', 'Credenciais salvas com segurança neste aparelho.');
+    } catch {
+      Alert.alert('Kodland', 'Não foi possível salvar as credenciais.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearCredentials = async () => {
+    setBusy(true);
+    try {
+      await clearKodlandCredentials();
+      setUsername('');
+      setPassword('');
+      Alert.alert('Kodland', 'Credenciais removidas deste aparelho.');
+    } catch {
+      Alert.alert('Kodland', 'Não foi possível remover as credenciais.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const synchronize = async () => {
+    if (!username.trim() || !password) {
+      Alert.alert('Kodland', 'Informe usuário e senha.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await saveKodlandCredentials({ username, password });
+      const result = await syncKodlandStudents({ username, password });
+      if (!result.ok) {
+        Alert.alert('Sincronização Kodland', result.message);
+        return;
+      }
+      onRefresh();
+      Alert.alert('Sincronização Kodland', `${result.students.length} alunos recebidos.`);
+    } catch {
+      Alert.alert('Sincronização Kodland', 'Não foi possível iniciar a sincronização.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+      <View style={styles.kodlandPanel}>
+        <Text style={styles.sectionText}>Kodland</Text>
+        <Text style={styles.kodlandText}>Credenciais ficam protegidas neste aparelho e não entram no banco de dados do AulaPay.</Text>
+        <FormInput label="Usuário Kodland" value={username} onChangeText={setUsername} autoCapitalize="none" />
+        <FormInput label="Senha Kodland" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
+        <View style={styles.kodlandActions}>
+          <Pressable style={styles.kodlandSecondaryButton} disabled={busy} onPress={saveCredentials}>
+            <Text style={styles.kodlandSecondaryText}>Salvar acesso</Text>
+          </Pressable>
+          <Pressable style={styles.kodlandPrimaryButton} disabled={busy} onPress={synchronize}>
+            <Text style={styles.kodlandPrimaryText}>{busy ? 'Aguarde...' : 'Sincronizar'}</Text>
+          </Pressable>
+        </View>
+        <Pressable style={styles.kodlandClearButton} disabled={busy} onPress={clearCredentials}>
+          <Text style={styles.resetDangerText}>Apagar credenciais</Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.listHint}>{students.length} alunos importados em {classes.length} turmas locais</Text>
+      {students.map((student) => (
+        <View key={`${student.id}-${student.classId ?? 'unlinked'}`} style={styles.studentItem}>
+          <View style={styles.lessonBody}>
+            <Text style={styles.lessonTitle}>{student.name}</Text>
+            <Text style={styles.lessonMeta}>{student.externalClassName || 'Sem turma vinculada'}</Text>
+          </View>
+          <Text style={styles.studentStatus}>{student.classId ? 'Vinculado' : 'Revisar'}</Text>
+        </View>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -1189,6 +1302,8 @@ const styles = StyleSheet.create({
   },
   classStats: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     marginTop: 10,
   },
@@ -1297,6 +1412,76 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     marginBottom: 10,
+  },
+  kodlandPanel: {
+    backgroundColor: '#08111f',
+    borderColor: '#24517d',
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 16,
+    padding: 14,
+  },
+  kodlandText: {
+    color: '#90a7c8',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 14,
+    marginTop: 6,
+  },
+  kodlandActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  kodlandPrimaryButton: {
+    alignItems: 'center',
+    backgroundColor: '#75d7ff',
+    borderRadius: 8,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 10,
+  },
+  kodlandPrimaryText: {
+    color: '#08111f',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  kodlandSecondaryButton: {
+    alignItems: 'center',
+    borderColor: '#24517d',
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 10,
+  },
+  kodlandSecondaryText: {
+    color: '#75d7ff',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  kodlandClearButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    paddingVertical: 6,
+  },
+  studentItem: {
+    alignItems: 'center',
+    backgroundColor: '#0b1424',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 9,
+    padding: 12,
+  },
+  studentStatus: {
+    color: '#75d7ff',
+    fontSize: 11,
+    fontWeight: '900',
   },
   segmentedFilter: {
     backgroundColor: '#08111f',

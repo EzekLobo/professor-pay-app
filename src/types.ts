@@ -36,6 +36,31 @@ export type PaymentConfirmation = {
   note: string;
 };
 
+export type StudentRecord = {
+  id: string;
+  externalId: string;
+  name: string;
+  primaryClassId: string | null;
+  rawDataJson: string;
+  updatedAt: string;
+};
+
+export type ClassStudentRecord = {
+  classId: string;
+  studentId: string;
+  externalClassId: string;
+  externalClassName: string;
+  confirmed: boolean;
+  updatedAt: string;
+};
+
+export type StudentWithClass = StudentRecord & {
+  classId: string | null;
+  externalClassId: string;
+  externalClassName: string;
+  confirmed: boolean;
+};
+
 export type LessonView = LessonRecord & {
   period: string;
   paymentDate: string;

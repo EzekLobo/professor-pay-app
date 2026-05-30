@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo/ui": "~56.0.14",
     "expo": "~56.0.5",
+    "expo-secure-store": "~56.0.4",
     "expo-sqlite": "^56.0.4",
     "expo-status-bar": "~56.0.4",
     "lucide-react-native": "^1.16.0",

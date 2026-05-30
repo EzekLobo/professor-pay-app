@@ -720,13 +720,12 @@ function FormModal({ open, title, children, onClose, onSave }: { open: boolean; 
 
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      {Platform.OS === 'android' ? (
-        content
-      ) : (
-        <KeyboardAvoidingView behavior="padding" style={styles.keyboardAvoiding}>
-          {content}
-        </KeyboardAvoidingView>
-      )}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoiding}
+      >
+        {content}
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

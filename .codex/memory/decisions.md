@@ -17,3 +17,9 @@
 - Decision: Require reading Expo SDK 56 docs before Expo/RN code changes, but do not vendor documentation into the repo.
 - Reason: Links keep context small and reduce stale copied documentation.
 - Affected areas: `AGENTS.md`, `.codex/rules/expo-v56.md`.
+
+## 2026-05-30 - Keep Kodland sync read-only and minimal
+
+- Decision: Use only mapped read endpoints during AulaPay sync, keep session tokens in memory, and exclude individual student detail from the default flow.
+- Reason: The student detail response contains sensitive fields that AulaPay does not need, including a student platform password.
+- Affected areas: `src/kodlandClient.ts`, `src/kodland.ts`, `src/storage.ts`, `docs/kodland-endpoints.md`.

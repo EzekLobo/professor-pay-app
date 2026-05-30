@@ -141,3 +141,21 @@ Before enabling production sync:
 2. Validate any remaining response shapes without logging credentials, tokens,
    phone numbers, emails, or full API payloads.
 3. Add parser fixtures with synthetic responses.
+
+## AulaPay Implementation Status
+
+Implemented on branch `feature/kodland-sync`:
+
+- SSO login and in-memory token handling;
+- one automatic access-token refresh after a `401`;
+- paginated teacher-group loading from backoffice API v2;
+- student loading for active groups;
+- filtered local snapshots without unrelated sensitive fields;
+- SQLite persistence for remote groups, students, remote relationships, and
+  confirmed local-class links;
+- manual class-link selection in the Kodland tab.
+
+Still pending:
+
+- capture and validate the schedule response shape before importing lesson
+  dates from Kodland.

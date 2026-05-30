@@ -3,12 +3,17 @@ import {
   buildDashboard,
   filterLessonHistoryByKind,
   filterLessonsByKind,
+  fromPickerDate,
   generateLessonsForClass,
   getLessonValue,
   getPaymentDate,
   getPeriod,
+  getWeekDayLabel,
+  isIsoDateOnWeekDay,
   isValidIsoDate,
   relevantPayments,
+  toPickerDate,
+  toPickerIsoDate,
 } from './calculations';
 import { sampleClasses, sampleExtraLessons } from './sampleData';
 import { ClassRecord, LessonRecord, PaymentConfirmation } from './types';
@@ -62,8 +67,52 @@ describe('lesson generation', () => {
     expect(lessons[1].lessonDate).toBe('2026-05-11');
   });
 
+  it('adds lessons in seven-day steps that keep the same weekday', () => {
+    const lessons = generateLessonsForClass({ ...baseClass, firstLesson: '2026-04-20', lessonCount: 3 });
+
+    expect(lessons.map((item) => item.lessonDate)).toEqual(['2026-04-20', '2026-04-27', '2026-05-04']);
+    expect(lessons.every((item) => getWeekDayLabel(item.lessonDate) === 'Segunda')).toBe(true);
+  });
+
   it('generates one lesson when lesson count is one', () => {
     expect(generateLessonsForClass({ ...baseClass, lessonCount: 1 })).toHaveLength(1);
+  });
+});
+
+describe('weekday helpers', () => {
+  it('identifies the weekday for ISO dates', () => {
+    expect(getWeekDayLabel('2026-04-19')).toBe('Domingo');
+    expect(getWeekDayLabel('2026-04-20')).toBe('Segunda');
+  });
+
+  it('checks whether an ISO date falls on the selected weekday', () => {
+    expect(isIsoDateOnWeekDay('2026-04-20', 'Segunda')).toBe(true);
+    expect(isIsoDateOnWeekDay('2026-04-19', 'Segunda')).toBe(false);
+  });
+
+  it('keeps picker UTC-midnight dates on the selected calendar day', () => {
+    expect(toPickerIsoDate(new Date('2026-04-20T00:00:00.000Z'))).toBe('2026-04-20');
+  });
+
+  it('keeps UTC-midnight picker selections on the selected calendar day', () => {
+    expect(fromPickerDate(new Date('2026-05-20T00:00:00.000Z'))).toBe('2026-05-20');
+  });
+
+  it('keeps local picker selections on the selected calendar day', () => {
+    expect(fromPickerDate(new Date(2026, 4, 20))).toBe('2026-05-20');
+  });
+
+  it('sends picker dates at a safe time on the requested calendar day', () => {
+    const date = toPickerDate('2026-05-20');
+
+    expect(date.getUTCFullYear()).toBe(2026);
+    expect(date.getUTCMonth()).toBe(4);
+    expect(date.getUTCDate()).toBe(20);
+    expect(date.getUTCHours()).toBe(12);
+  });
+
+  it('derives the class weekday from the selected start date', () => {
+    expect(getWeekDayLabel('2026-05-20')).toBe('Quarta');
   });
 });
 

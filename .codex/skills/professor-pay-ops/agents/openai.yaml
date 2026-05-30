@@ -1,0 +1,4 @@
+interface:
+  display_name: "Professor Pay Ops"
+  short_description: "Operational Codex memory for AulaPay"
+  default_prompt: "Use this skill to work efficiently in professor-pay-app by reading the repo-local Codex memory, rules, and role checklists before making changes."

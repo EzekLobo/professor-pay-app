@@ -17,6 +17,11 @@ type TeacherGroupsResponse = {
   results?: unknown[];
 };
 
+type TokenSession = {
+  accessToken: string;
+  refreshToken?: string;
+};
+
 export type KodlandRemoteSnapshot = {
   teacherId: string;
   groups: KodlandGroupImport[];
@@ -25,10 +30,11 @@ export type KodlandRemoteSnapshot = {
 
 export async function fetchKodlandSnapshot(credentials: KodlandCredentials, fetcher: FetchLike = fetch): Promise<KodlandRemoteSnapshot> {
   const tokens = await loginKodland(credentials, fetcher);
-  const teacherId = getUserIdFromAccessToken(tokens.access_token);
-  const groups = await fetchTeacherGroups(teacherId, tokens.access_token, fetcher);
+  const session = { accessToken: tokens.access_token, refreshToken: tokens.refresh_token };
+  const teacherId = getUserIdFromAccessToken(session.accessToken);
+  const groups = await fetchTeacherGroups(teacherId, session, fetcher);
   const students = (await Promise.all(groups.filter((group) => !group.archived).map(async (group) => {
-    const payload = await getJson(`student_groups/${group.externalId}/get_students_main_data/`, tokens.access_token, fetcher);
+    const payload = await getJson(`student_groups/${group.externalId}/get_students_main_data/`, session, fetcher);
     return parseKodlandGroupStudentsPayload(payload, group);
   }))).flat();
   return { teacherId, groups, students };
@@ -60,11 +66,11 @@ export function getUserIdFromAccessToken(token: string) {
   return String(userId);
 }
 
-async function fetchTeacherGroups(teacherId: string, token: string, fetcher: FetchLike) {
+async function fetchTeacherGroups(teacherId: string, session: TokenSession, fetcher: FetchLike) {
   const groups: KodlandGroupImport[] = [];
   let page = 1;
   while (true) {
-    const payload = await getJson(`teachers/${teacherId}/get_teachers_groups/?page=${page}&page_size=${pageSize}`, token, fetcher) as TeacherGroupsResponse;
+    const payload = await getJson(`teachers/${teacherId}/get_teachers_groups/?page=${page}&page_size=${pageSize}`, session, fetcher) as TeacherGroupsResponse;
     const pageGroups = Array.isArray(payload.results)
       ? payload.results.map(normalizeKodlandGroup).filter((group): group is KodlandGroupImport => Boolean(group))
       : [];
@@ -75,14 +81,39 @@ async function fetchTeacherGroups(teacherId: string, token: string, fetcher: Fet
   return groups;
 }
 
-async function getJson(path: string, token: string, fetcher: FetchLike) {
-  const response = await fetcher(`${backofficeBaseUrl}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+async function getJson(path: string, session: TokenSession, fetcher: FetchLike) {
+  let response = await authenticatedGet(path, session.accessToken, fetcher);
+  if (response.status === 401 && session.refreshToken) {
+    session.accessToken = await refreshKodlandAccessToken(session.refreshToken, fetcher);
+    response = await authenticatedGet(path, session.accessToken, fetcher);
+  }
   if (!response.ok) {
     throw new KodlandApiError(response.status === 401 ? 'Sua sessao da Kodland expirou. Sincronize novamente.' : 'A Kodland nao respondeu como esperado.', response.status);
   }
   return response.json();
+}
+
+async function authenticatedGet(path: string, token: string, fetcher: FetchLike) {
+  return fetcher(`${backofficeBaseUrl}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+async function refreshKodlandAccessToken(refreshToken: string, fetcher: FetchLike) {
+  const body = new URLSearchParams();
+  body.append('grant_type', 'refresh_token');
+  body.append('refresh_token', refreshToken);
+  const response = await fetcher(`${ssoBaseUrl}token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  if (!response.ok) {
+    throw new KodlandApiError('Sua sessao da Kodland expirou. Sincronize novamente.', response.status);
+  }
+  const payload = await response.json() as Partial<TokenResponse>;
+  if (!payload.access_token) throw new KodlandApiError('A Kodland nao retornou uma sessao valida.');
+  return payload.access_token;
 }
 
 function decodeJwtPayload(token: string): Record<string, unknown> {

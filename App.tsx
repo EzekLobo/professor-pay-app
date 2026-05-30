@@ -25,6 +25,7 @@ import {
   Eye,
   Edit3,
   GraduationCap,
+  Link2,
   Plus,
   RotateCcw,
   Trash2,
@@ -52,15 +53,19 @@ import {
   cancelLesson,
   confirmPayment,
   deactivateClass,
+  importKodlandSnapshot,
   initDatabase,
+  linkKodlandGroup,
   loadClasses,
   loadConfirmations,
   loadLessons,
+  loadKodlandGroups,
+  loadKodlandLastSync,
   loadStudents,
   resetDatabase,
   updateClassFutureLessons,
 } from './src/storage';
-import { ClassRecord, DashboardData, LessonView, PaymentView, StudentWithClass } from './src/types';
+import { ClassRecord, DashboardData, KodlandGroupRecord, LessonView, PaymentView, StudentWithClass } from './src/types';
 import { parseDecimal, validateClassForm, validateExtraLessonForm } from './src/validation';
 
 type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas' | 'Kodland';
@@ -103,6 +108,8 @@ export default function App() {
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [lessons, setLessons] = useState<LessonView[]>([]);
   const [students, setStudents] = useState<StudentWithClass[]>([]);
+  const [kodlandGroups, setKodlandGroups] = useState<KodlandGroupRecord[]>([]);
+  const [kodlandLastSync, setKodlandLastSync] = useState('');
   const [dashboard, setDashboard] = useState(emptyDashboard);
   const [activeTab, setActiveTab] = useState<Tab>('Resumo');
   const [selectedPayment, setSelectedPayment] = useState<PaymentView | null>(null);
@@ -120,6 +127,8 @@ export default function App() {
     setClasses(loadedClasses);
     setLessons(nextDashboard.lessons);
     setStudents(loadStudents());
+    setKodlandGroups(loadKodlandGroups());
+    setKodlandLastSync(loadKodlandLastSync());
     setDashboard(nextDashboard);
   };
 
@@ -303,7 +312,7 @@ export default function App() {
         )}
 
         {activeTab === 'Kodland' && (
-          <KodlandScreen classes={classes} students={students} onRefresh={refresh} />
+          <KodlandScreen classes={classes} groups={kodlandGroups} students={students} lastSync={kodlandLastSync} onRefresh={refresh} />
         )}
       </View>
 
@@ -512,7 +521,7 @@ function ClassProgressCard({
   );
 }
 
-function KodlandScreen({ classes, students, onRefresh }: { classes: ClassRecord[]; students: StudentWithClass[]; onRefresh: () => void }) {
+function KodlandScreen({ classes, groups, students, lastSync, onRefresh }: { classes: ClassRecord[]; groups: KodlandGroupRecord[]; students: StudentWithClass[]; lastSync: string; onRefresh: () => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -569,6 +578,7 @@ function KodlandScreen({ classes, students, onRefresh }: { classes: ClassRecord[
         Alert.alert('Sincronização Kodland', result.message);
         return;
       }
+      importKodlandSnapshot(result.groups, result.students);
       onRefresh();
       Alert.alert('Sincronização Kodland', `${result.students.length} alunos recebidos.`);
     } catch {
@@ -576,6 +586,26 @@ function KodlandScreen({ classes, students, onRefresh }: { classes: ClassRecord[
     } finally {
       setBusy(false);
     }
+  };
+
+  const chooseLocalClass = (group: KodlandGroupRecord) => {
+    Alert.alert('Vincular turma', group.title, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Manter sem vinculo',
+        onPress: () => {
+          linkKodlandGroup(group.externalId, null);
+          onRefresh();
+        },
+      },
+      ...classes.map((item) => ({
+        text: item.name,
+        onPress: () => {
+          linkKodlandGroup(group.externalId, item.id);
+          onRefresh();
+        },
+      })),
+    ]);
   };
 
   return (
@@ -598,12 +628,30 @@ function KodlandScreen({ classes, students, onRefresh }: { classes: ClassRecord[
         </Pressable>
       </View>
 
-      <Text style={styles.listHint}>{students.length} alunos importados em {classes.length} turmas locais</Text>
+      <Text style={styles.listHint}>{groups.length} turmas Kodland / {students.length} alunos{lastSync ? ` / Atualizado ${new Date(lastSync).toLocaleString('pt-BR')}` : ''}</Text>
+      {groups.map((group) => {
+        const localClass = classes.find((item) => item.id === group.localClassId);
+        return (
+          <View key={group.externalId} style={styles.studentItem}>
+            <View style={styles.lessonBody}>
+              <Text style={styles.lessonTitle}>{group.title}</Text>
+              <Text style={styles.lessonMeta}>{group.courseName || 'Curso nao informado'} / {group.studentCount} alunos</Text>
+              <Text style={styles.lessonMeta}>{localClass ? `Vinculada a ${localClass.name}` : 'Sem turma local vinculada'}</Text>
+            </View>
+            <Pressable accessibilityLabel={`Vincular ${group.title}`} style={styles.actionIconButton} onPress={() => chooseLocalClass(group)}>
+              <Link2 size={17} color={localClass ? '#4df6a5' : '#75d7ff'} />
+            </Pressable>
+          </View>
+        );
+      })}
+
+      <Text style={styles.listHint}>Alunos importados</Text>
       {students.map((student) => (
-        <View key={`${student.id}-${student.classId ?? 'unlinked'}`} style={styles.studentItem}>
+        <View key={`${student.id}-${student.classId ?? student.externalClassId}`} style={styles.studentItem}>
           <View style={styles.lessonBody}>
             <Text style={styles.lessonTitle}>{student.name}</Text>
-            <Text style={styles.lessonMeta}>{student.externalClassName || 'Sem turma vinculada'}</Text>
+            <Text style={styles.lessonMeta}>{student.email || 'Sem e-mail'} / {student.externalClassName || 'Sem turma vinculada'}</Text>
+            {student.progressSummary ? <Text style={styles.lessonMeta}>Progresso: {student.progressSummary}</Text> : null}
           </View>
           <Text style={styles.studentStatus}>{student.classId ? 'Vinculado' : 'Revisar'}</Text>
         </View>

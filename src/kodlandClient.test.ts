@@ -51,4 +51,27 @@ describe('kodland authenticated client', () => {
     const fetcher = vi.fn(() => jsonResponse({}, 401));
     await expect(loginKodland({ username: 'teacher', password: 'wrong' }, fetcher as typeof fetch)).rejects.toThrow('Usuario ou senha invalidos.');
   });
+
+  it('renews an expired access token once during synchronization', async () => {
+    const expired = token({ user_id: 7 });
+    const renewed = token({ user_id: 7, renewed: true });
+    let groupAttempts = 0;
+    const fetcher = vi.fn((url: string) => {
+      if (url.endsWith('/login')) return jsonResponse({ access_token: expired, refresh_token: 'refresh' });
+      if (url.endsWith('/token')) return jsonResponse({ access_token: renewed });
+      if (url.includes('get_teachers_groups')) {
+        groupAttempts += 1;
+        return groupAttempts === 1 ? jsonResponse({}, 401) : jsonResponse({ next: null, results: [] });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    await expect(fetchKodlandSnapshot({ username: 'teacher', password: 'secret' }, fetcher as typeof fetch)).resolves.toMatchObject({
+      teacherId: '7',
+      groups: [],
+    });
+    expect(fetcher).toHaveBeenCalledWith('https://sso.production.kodland.org/token', expect.objectContaining({
+      method: 'POST',
+      body: 'grant_type=refresh_token&refresh_token=refresh',
+    }));
+  });
 });

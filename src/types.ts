@@ -40,8 +40,25 @@ export type StudentRecord = {
   id: string;
   externalId: string;
   name: string;
+  email: string;
+  status: string;
+  progressSummary: string;
   primaryClassId: string | null;
   rawDataJson: string;
+  updatedAt: string;
+};
+
+export type KodlandGroupRecord = {
+  externalId: string;
+  title: string;
+  courseName: string;
+  studentCount: number;
+  startDate: string;
+  nextLessonDate: string;
+  archived: boolean;
+  rawDataJson: string;
+  localClassId: string | null;
+  confirmed: boolean;
   updatedAt: string;
 };
 

@@ -5,7 +5,6 @@ describe('form validation', () => {
   it('requires a valid class start date', () => {
     const valid = {
       name: 'Seg 19h',
-      weekDay: 'Segunda',
       time: '19:00',
       firstLesson: '2026-05-04',
       lessonCount: '40',
@@ -16,6 +15,19 @@ describe('form validation', () => {
     expect(validateClassForm(valid)).toBeNull();
     expect(validateClassForm({ ...valid, firstLesson: '' })).toContain('data de início');
     expect(validateClassForm({ ...valid, firstLesson: '2026-02-30' })).toContain('data de início');
+  });
+
+  it('does not require a manually selected weekday', () => {
+    const valid = {
+      name: 'Seg 19h',
+      time: '19:00',
+      firstLesson: '2026-04-19',
+      lessonCount: '40',
+      durationHours: '1.5',
+      hourlyRate: '30',
+    };
+
+    expect(validateClassForm(valid)).toBeNull();
   });
 
   it('validates extra lesson date and numeric fields', () => {

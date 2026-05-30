@@ -31,7 +31,18 @@ import {
   X,
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { buildDashboard, filterLessonHistoryByKind, formatCurrency, formatDate, parseIsoDate, relevantPayments, todayIso, toIsoDate, type LessonFilter } from './src/calculations';
+import {
+  buildDashboard,
+  filterLessonHistoryByKind,
+  formatCurrency,
+  formatDate,
+  fromPickerDate,
+  getWeekDayLabel,
+  relevantPayments,
+  todayIso,
+  toPickerDate,
+  type LessonFilter,
+} from './src/calculations';
 import { labels } from './src/labels';
 import {
   addClass,
@@ -58,7 +69,6 @@ type MetricHelp = {
 
 const tabs: Tab[] = ['Resumo', 'Pagamentos', 'Turmas', 'Aulas'];
 const lessonFilters: LessonFilter[] = ['Todas', 'Turmas', 'Extras'];
-const weekDays = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 const timeOptions = Array.from({ length: 36 }, (_, index) => {
   const totalMinutes = 6 * 60 + index * 30;
   const hour = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
@@ -574,17 +584,16 @@ function ClassFormModal({
   onSaved: () => void;
 }) {
   const [name, setName] = useState('');
-  const [weekDay, setWeekDay] = useState('Segunda');
   const [time, setTime] = useState('19:00');
   const [firstLesson, setFirstLesson] = useState(todayIso());
   const [lessonCount, setLessonCount] = useState('40');
   const [durationHours, setDurationHours] = useState('1.5');
   const [hourlyRate, setHourlyRate] = useState('30');
+  const weekDay = getWeekDayLabel(firstLesson);
 
   useEffect(() => {
     if (!open) return;
     setName(initialClass?.name ?? '');
-    setWeekDay(initialClass?.weekDay ?? 'Segunda');
     setTime(initialClass?.time ?? '19:00');
     setFirstLesson(initialClass?.firstLesson ?? todayIso());
     setLessonCount(String(initialClass?.lessonCount ?? 40));
@@ -593,16 +602,17 @@ function ClassFormModal({
   }, [open, initialClass]);
 
   const save = () => {
-    const input = { name, weekDay, time, firstLesson, lessonCount, durationHours, hourlyRate };
+    const input = { name, time, firstLesson, lessonCount, durationHours, hourlyRate };
     const error = validateClassForm(input);
     if (error) {
       Alert.alert('Revise a turma', error);
       return;
     }
+    const derivedWeekDay = getWeekDayLabel(firstLesson);
     const classRecord = {
       id: initialClass?.id ?? `class-${Date.now()}`,
       name,
-      weekDay,
+      weekDay: derivedWeekDay,
       time,
       firstLesson,
       lessonCount: Number(lessonCount) || 1,
@@ -630,8 +640,8 @@ function ClassFormModal({
     <FormModal open={open} title={initialClass ? 'Editar turma' : 'Nova turma'} onClose={onClose} onSave={save}>
       <FormInput label="Nome" value={name} onChangeText={setName} placeholder="Ex.: Segunda 19h" />
       <View style={styles.formPair}>
-        <SelectField label="Dia" value={weekDay} options={weekDays.map((item) => ({ label: item, value: item }))} onChange={setWeekDay} />
         <SelectField label="Hora" value={time} options={timeOptions.map((item) => ({ label: item, value: item }))} onChange={setTime} />
+        <ReadOnlyField label="Dia" value={weekDay} />
       </View>
       <DateField label="Data de início" value={firstLesson} onChange={setFirstLesson} />
       <View style={styles.formPair}>
@@ -723,13 +733,13 @@ function FormModal({ open, title, children, onClose, onSave }: { open: boolean; 
 
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false);
-  const selectedDate = parseIsoDate(value);
+  const selectedDate = toPickerDate(value);
   const handleChange = (_event: unknown, selected?: Date) => {
     if (Platform.OS === 'android') {
       setOpen(false);
     }
     if (selected) {
-      onChange(toIsoDate(selected));
+      onChange(fromPickerDate(selected));
     }
   };
 
@@ -781,6 +791,17 @@ function DateField({ label, value, onChange }: { label: string; value: string; o
           </View>
         </Modal>
       )}
+    </View>
+  );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <View style={styles.readOnlyField}>
+        <Text style={styles.selectButtonText}>{value}</Text>
+      </View>
     </View>
   );
 }
@@ -1560,6 +1581,16 @@ const styles = StyleSheet.create({
     color: '#f2f8ff',
     fontSize: 14,
     fontWeight: '800',
+  },
+  readOnlyField: {
+    alignItems: 'center',
+    backgroundColor: '#0d1b2e',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    minHeight: 44,
+    paddingHorizontal: 12,
   },
   dateButton: {
     alignItems: 'center',

@@ -1,6 +1,7 @@
 # Kodland Backoffice Endpoint Map
 
 Last static review: 2026-05-30
+Last authenticated HAR review: 2026-05-30
 
 This map was extracted from the public JavaScript bundles loaded by
 `https://bo.kodland.org/`. It does not contain credentials, tokens, or private
@@ -11,8 +12,8 @@ responses. Kodland may change these internal endpoints without notice.
 | Client | Base URL | Purpose |
 | --- | --- | --- |
 | SSO | `https://sso.production.kodland.org/` | Login, token refresh, permissions |
-| Backoffice v1 | `https://backoffice.kodland.org/api/v1/` | Current teacher, group, student, and schedule screens |
-| Backoffice v2 | `https://backoffice.kodland.org/api/v2/` | Some newer backoffice operations |
+| Backoffice v1 | `https://backoffice.kodland.org/api/v1/` | Some legacy operations |
+| Backoffice v2 | `https://backoffice.kodland.org/api/v2/` | Current teacher, group, student, and schedule screens |
 
 The browser sends `Authorization: Bearer <access_token>`. The access and refresh
 tokens must never be logged or persisted in the AulaPay SQLite database.
@@ -23,7 +24,7 @@ tokens must never be logged or persisted in the AulaPay SQLite database.
 | --- | --- | --- | --- |
 | `POST` | `login` | Form: `username`, `password` | Obtain `access_token` and `refresh_token` |
 | `POST` | `token` | Form: `grant_type=refresh_token`, `refresh_token` | Renew the access token |
-| `GET` | `user_groups/my/` | - | Load permissions from SSO |
+| `GET` | `user_groups/my/` | - | Load permissions from backoffice v2 |
 
 ## Read-Only Sync Flow
 
@@ -38,7 +39,7 @@ first integration scope.
 | `GET` | `student_groups/{groupId}/get_students_main_data` | Students linked to the group and progress summary |
 | `GET` | `student_groups/{groupId}/schedule_view/` | Group lesson schedule |
 | `GET` | `student_groups/{groupId}/lessons/` | Group lessons |
-| `GET` | `students/{studentId}/get_general_info_for_student_backoffice_page/` | Full student details |
+| `GET` | `students/{studentId}/get_general_info_for_student_backoffice_page/` | Full student details; avoid during default sync |
 | `GET` | `students/{studentId}/backoffice_groups/` | Groups linked to one student |
 
 Examples visible in the supplied screenshots:
@@ -56,8 +57,8 @@ Recommended synchronization sequence:
 2. Read the user ID from the access token payload.
 3. Fetch the teacher groups with `teachers/{teacherId}/get_teachers_groups/`.
 4. For each group, fetch general info, students, and schedule.
-5. Fetch individual student detail only when the local record needs richer
-   contact information.
+5. Do not fetch individual student detail during the default sync. That
+   response contains sensitive fields that AulaPay does not need.
 6. Import into AulaPay in one SQLite transaction and retain the last successful
    local snapshot if the remote sync fails.
 
@@ -86,6 +87,25 @@ Recommended synchronization sequence:
 | `GET` | `students/{studentId}/get_all_courses/` | Student course history |
 | `GET` | `student_transfers/?student={studentId}` | Student transfer history |
 
+## Authenticated HAR Findings
+
+An authenticated HAR supplied locally on 2026-05-30 confirmed `200` responses
+from the current v2 API for the relevant teacher and group screens. The HAR was
+inspected locally without copying credentials, tokens, cookies, or personal
+payload values into this repository.
+
+The teacher group endpoint returns paginated records with group ID, title,
+course, student count, schedule slots, start date, next lesson, and archive
+status.
+
+The group student endpoint returns an array with a `main_info` object and a
+`progress_info` array for each student. The default AulaPay import should only
+retain the minimum fields required for consultation and local linking.
+
+The individual student detail endpoint returns sensitive fields, including a
+student platform password. AulaPay must not call this endpoint during default
+sync and must never import or persist that field.
+
 ## Administrative Endpoints Excluded From Sync
 
 The portal also exposes mutation endpoints. AulaPay sync must not call them.
@@ -111,15 +131,13 @@ The portal also exposes mutation endpoints. AulaPay sync must not call them.
 
 ## Runtime Validation Still Needed
 
-Unauthenticated requests to the example endpoints returned `404` on 2026-05-30.
-This is consistent with an API that hides protected routes from anonymous
-clients, but it does not validate response shapes.
+Unauthenticated v1 requests to the example endpoints returned `404` on
+2026-05-30. The authenticated HAR subsequently confirmed that the current
+screens use v2 endpoints.
 
 Before enabling production sync:
 
-1. Log in through the AulaPay credential form or a local browser session.
-2. Call only the read-only sync flow endpoints.
-3. Validate response shapes without logging credentials, tokens, phone numbers,
-   emails, or full API payloads.
-4. Add parser fixtures with redacted sample responses.
-
+1. Call only the read-only sync flow endpoints.
+2. Validate any remaining response shapes without logging credentials, tokens,
+   phone numbers, emails, or full API payloads.
+3. Add parser fixtures with synthetic responses.

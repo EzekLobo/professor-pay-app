@@ -30,7 +30,7 @@ Last updated: 2026-05-30
 - Lesson generation adds ISO calendar days in 7-day steps for weekly class recurrences.
 - Class forms now derive `weekDay` from `firstLesson` automatically; date picker values are converted through guarded helpers in `src/calculations.ts` so UTC-midnight and local picker dates keep the selected calendar day.
 - Branch `feature/kodland-sync` adds the Kodland sync foundation: SecureStore credentials, Kodland tab, student/class-student SQLite tables, import parser, reset coverage, and student counts on classes.
-- Kodland endpoint mapping extracted from the public backoffice bundles is documented in `docs/kodland-endpoints.md`. The read-only sync path is SSO login, teacher groups, group general info, group students, and group schedule. Authenticated response-shape validation is still required before enabling live sync.
+- Kodland endpoint mapping extracted from public bundles and an authenticated local HAR is documented in `docs/kodland-endpoints.md`. Current screens use backoffice API v2. The read-only sync path is SSO login, teacher groups, group general info, group students, and group schedule. The default sync must avoid individual student detail because its response contains sensitive fields that AulaPay does not need.
 
 ## Known Follow-Ups
 
@@ -38,4 +38,4 @@ Last updated: 2026-05-30
 - Install `PyYAML` for the Python launcher if official skill validation is needed later, then rerun `py C:\Users\ezekl\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\professor-pay-ops`.
 - Consider `npm audit` review separately before applying fixes, because automated audit fixes may alter dependency versions or behavior.
 - For any Expo/RN code work, read the Expo SDK 56 docs first and use `npx expo install` for Expo SDK packages.
-- Kodland direct sync still needs authenticated response-shape validation for the mapped read-only endpoints; the app currently saves credentials securely and reports this pending integration clearly instead of attempting fragile scraping.
+- Kodland direct sync still needs implementation against the mapped v2 read-only endpoints and synthetic parser fixtures. The app currently saves credentials securely and reports this pending integration clearly instead of attempting fragile scraping.

@@ -29,6 +29,7 @@ yarn-error.*
 expo-server*.log
 expo-web*.log
 build-*.log
+*.apk
 
 # macOS
 .DS_Store

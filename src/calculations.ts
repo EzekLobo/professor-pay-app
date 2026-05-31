@@ -5,6 +5,15 @@ const weekDayLabels = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sext
 
 export type LessonFilter = 'Todas' | 'Turmas' | 'Extras';
 
+export type ClassLessonHistoryGroup = {
+  classId: string;
+  className: string;
+  lessons: LessonView[];
+  lessonCount: number;
+  total: number;
+  latestLessonDate: string;
+};
+
 export function todayIso() {
   const now = new Date();
   return toIsoDate(now);
@@ -245,6 +254,32 @@ export function filterLessonHistoryByKind(lessons: LessonView[], filter: LessonF
   return filterLessonsByKind(lessons, filter)
     .filter((lesson) => lesson.lessonDate <= today)
     .sort((a, b) => b.lessonDate.localeCompare(a.lessonDate));
+}
+
+export function groupClassLessonHistory(lessons: LessonView[]): ClassLessonHistoryGroup[] {
+  const groups = new Map<string, LessonView[]>();
+  lessons
+    .filter((lesson) => lesson.type === 'Normal')
+    .forEach((lesson) => {
+      const key = lesson.classId ?? lesson.className;
+      const group = groups.get(key) ?? [];
+      group.push(lesson);
+      groups.set(key, group);
+    });
+
+  return [...groups.entries()]
+    .map(([classId, group]) => {
+      const ordered = [...group].sort((a, b) => b.lessonDate.localeCompare(a.lessonDate));
+      return {
+        classId,
+        className: ordered[0]?.className ?? '',
+        lessons: ordered,
+        lessonCount: ordered.length,
+        total: sumLessons(ordered),
+        latestLessonDate: ordered[0]?.lessonDate ?? '',
+      };
+    })
+    .sort((a, b) => b.latestLessonDate.localeCompare(a.latestLessonDate) || a.className.localeCompare(b.className, 'pt-BR', { sensitivity: 'base' }));
 }
 
 export function relevantPayments(payments: PaymentView[], today: string) {

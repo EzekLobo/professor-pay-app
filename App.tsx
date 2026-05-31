@@ -1,9 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
+import * as Clipboard from 'expo-clipboard';
 import DateTimePicker from '@expo/ui/community/datetime-picker';
 import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -22,10 +24,13 @@ import {
   CircleDollarSign,
   CircleHelp,
   Clock3,
+  Copy,
+  ExternalLink,
   Eye,
   Edit3,
   GraduationCap,
   Link2,
+  MessageCircle,
   Plus,
   RotateCcw,
   Trash2,
@@ -39,9 +44,11 @@ import {
   formatDate,
   fromPickerDate,
   getWeekDayLabel,
+  groupClassLessonHistory,
   relevantPayments,
   todayIso,
   toPickerDate,
+  type ClassLessonHistoryGroup,
   type LessonFilter,
 } from './src/calculations';
 import { clearKodlandCredentials, loadKodlandCredentials, saveKodlandCredentials } from './src/kodlandCredentials';
@@ -53,6 +60,7 @@ import {
   cancelLesson,
   confirmPayment,
   deactivateClass,
+  deleteKodlandStudent,
   importKodlandSnapshot,
   initDatabase,
   linkKodlandGroup,
@@ -63,10 +71,13 @@ import {
   loadKodlandLastSync,
   loadStudents,
   resetDatabase,
+  updateKodlandStudent,
   updateClassFutureLessons,
 } from './src/storage';
 import { ClassRecord, DashboardData, KodlandGroupRecord, LessonView, PaymentView, StudentWithClass } from './src/types';
 import { parseDecimal, validateClassForm, validateExtraLessonForm } from './src/validation';
+import { normalizeWhatsAppPhone } from './src/whatsapp';
+import { compareStudentsByStatusProgressThenName, compareStudentsByStatusThenName, studentPointsLabel, studentRankPosition, studentStatusLabel } from './src/studentStatus';
 
 type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas' | 'Kodland';
 type SelectOption = { label: string; value: string };
@@ -116,7 +127,13 @@ export default function App() {
   const [classModalOpen, setClassModalOpen] = useState(false);
   const [extraModalOpen, setExtraModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassRecord | null>(null);
+  const [classInitialName, setClassInitialName] = useState('');
+  const [pendingKodlandGroup, setPendingKodlandGroup] = useState<KodlandGroupRecord | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<StudentWithClass | null>(null);
+  const [editingStudent, setEditingStudent] = useState<StudentWithClass | null>(null);
   const [lessonFilter, setLessonFilter] = useState<LessonFilter>('Todas');
+  const [expandedLessonClassId, setExpandedLessonClassId] = useState<string | null>(null);
   const [activeHelp, setActiveHelp] = useState<MetricHelp | null>(null);
 
   const refresh = () => {
@@ -138,7 +155,14 @@ export default function App() {
   }, []);
 
   const filteredLessons = useMemo(() => filterLessonHistoryByKind(lessons, lessonFilter, dashboard.today), [lessons, lessonFilter, dashboard.today]);
+  const classLessonGroups = useMemo(() => lessonFilter === 'Turmas' ? groupClassLessonHistory(filteredLessons) : [], [filteredLessons, lessonFilter]);
   const visiblePayments = useMemo(() => relevantPayments(dashboard.payments, dashboard.today), [dashboard.payments, dashboard.today]);
+  const selectedClass = selectedClassId ? classes.find((item) => item.id === selectedClassId) ?? null : null;
+  const selectedClassStudents = selectedClassId ? students.filter((student) => student.classId === selectedClassId).sort(compareStudentsByStatusProgressThenName) : [];
+
+  useEffect(() => {
+    setExpandedLessonClassId(null);
+  }, [activeTab, lessonFilter]);
 
   const handleDeactivateClass = (classId: string) => {
     Alert.alert('Retirar turma', 'Aulas realizadas ficam no histórico. Aulas futuras saem do cálculo.', [
@@ -191,6 +215,54 @@ export default function App() {
   const closeClassModal = () => {
     setClassModalOpen(false);
     setEditingClass(null);
+    setClassInitialName('');
+    setPendingKodlandGroup(null);
+  };
+
+  const saveStudent = (student: StudentWithClass, input: { name: string; email: string; phone: string; status: string; profileUrl: string; localNote: string }) => {
+    updateKodlandStudent(student.id, input);
+    setSelectedStudent((current) => current?.id === student.id ? { ...current, ...input, locallyEdited: true } : current);
+    setEditingStudent(null);
+    refresh();
+  };
+
+  const deleteStudent = (student: StudentWithClass) => {
+    Alert.alert('Excluir aluno', `${student.name} será ocultado no AulaPay e não voltará na próxima sincronização.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: () => {
+          deleteKodlandStudent(student.id);
+          setSelectedStudent(null);
+          refresh();
+        },
+      },
+    ]);
+  };
+
+  const copyProfile = async (student: StudentWithClass) => {
+    if (!student.profileUrl) return;
+    await Clipboard.setStringAsync(student.profileUrl);
+    Alert.alert('Perfil Kodland', 'Link copiado.');
+  };
+
+  const openWhatsApp = async (student: StudentWithClass) => {
+    const phone = normalizeWhatsAppPhone(student.phone);
+    if (!phone) return;
+    await Linking.openURL(`https://wa.me/${phone}`);
+  };
+
+  const openProfile = async (student: StudentWithClass) => {
+    if (!student.profileUrl) return;
+    await Linking.openURL(student.profileUrl);
+  };
+
+  const openKodlandClassCreator = (group: KodlandGroupRecord) => {
+    setEditingClass(null);
+    setClassInitialName(group.title);
+    setPendingKodlandGroup(group);
+    setClassModalOpen(true);
   };
 
   return (
@@ -202,17 +274,24 @@ export default function App() {
           today={dashboard.today}
           onAddClass={() => {
             setEditingClass(null);
+            setClassInitialName('');
+            setPendingKodlandGroup(null);
             setClassModalOpen(true);
           }}
           onAddExtra={() => setExtraModalOpen(true)}
         />
 
-        <View style={styles.tabs}>
-          {tabs.map((tab) => (
-            <Pressable key={tab} onPress={() => setActiveTab(tab)} style={[styles.tab, activeTab === tab && styles.tabActive]}>
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
-            </Pressable>
-          ))}
+        <View style={styles.tabsFrame}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+            {tabs.map((tab) => (
+              <Pressable key={tab} onPress={() => {
+                if (tab === 'Aulas') setExpandedLessonClassId(null);
+                setActiveTab(tab);
+              }} style={[styles.tab, activeTab === tab && styles.tabActive]}>
+                <Text numberOfLines={1} style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
 
         {activeTab === 'Resumo' && (
@@ -277,42 +356,100 @@ export default function App() {
             keyExtractor={(item) => item.paymentDate}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => <PaymentListItem payment={item} onPress={() => setSelectedPayment(item)} />}
+            ListEmptyComponent={<Text style={styles.emptyText}>Sem pagamentos no historico.</Text>}
           />
         )}
 
         {activeTab === 'Turmas' && (
-          <FlatList
-            data={dashboard.progress}
-            keyExtractor={(item) => item.classId}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => (
-              <ClassProgressCard
-                progress={item}
-                studentCount={students.filter((student) => student.classId === item.classId).length}
-                onEdit={() => openClassEditor(item.classId)}
-                onDelete={() => handleDeactivateClass(item.classId)}
-              />
-            )}
-          />
+          selectedClass ? (
+            <FlatList
+              data={selectedClassStudents}
+              keyExtractor={(item) => `${item.id}-${item.externalClassId ?? selectedClass.id}`}
+              contentContainerStyle={styles.listContent}
+              ListHeaderComponent={(
+                <>
+                  <View style={styles.kodlandSubHeader}>
+                    <Pressable style={styles.kodlandSecondaryButton} onPress={() => setSelectedClassId(null)}>
+                      <Text style={styles.kodlandSecondaryText}>Voltar turmas</Text>
+                    </Pressable>
+                    <Pressable style={styles.actionIconButton} onPress={() => openClassEditor(selectedClass.id)}>
+                      <Edit3 size={17} color="#75d7ff" />
+                    </Pressable>
+                  </View>
+                  <Text style={styles.sectionText}>{selectedClass.name}</Text>
+                  <Text style={styles.listHint}>{selectedClassStudents.length} alunos vinculados</Text>
+                </>
+              )}
+              renderItem={({ item, index }) => (
+                <StudentListItem student={item} showLinkStatus={false} rankPosition={studentRankPosition(item, index)} onPress={() => setSelectedStudent(item)} />
+              )}
+              ListEmptyComponent={<Text style={styles.emptyText}>Nenhum aluno vinculado a esta turma.</Text>}
+            />
+          ) : (
+            <FlatList
+              data={dashboard.progress}
+              keyExtractor={(item) => item.classId}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => (
+                <ClassProgressCard
+                  progress={item}
+                  studentCount={students.filter((student) => student.classId === item.classId).length}
+                  onPress={() => setSelectedClassId(item.classId)}
+                  onEdit={() => openClassEditor(item.classId)}
+                  onDelete={() => handleDeactivateClass(item.classId)}
+                />
+              )}
+            />
+          )
         )}
 
         {activeTab === 'Aulas' && (
-          <FlatList
-            data={filteredLessons}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => <LessonListItem lesson={item} onCancel={() => handleCancelLesson(item.id)} />}
-            ListHeaderComponent={(
-              <>
-                <SegmentedFilter options={lessonFilters} value={lessonFilter} onChange={setLessonFilter} />
-                <Text style={styles.listHint}>Histórico de aulas</Text>
-              </>
-            )}
-          />
+          lessonFilter === 'Turmas' ? (
+            <FlatList
+              data={classLessonGroups}
+              keyExtractor={(item) => item.classId}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => (
+                <ClassLessonHistoryCard
+                  group={item}
+                  expanded={expandedLessonClassId === item.classId}
+                  onPress={() => setExpandedLessonClassId((current) => current === item.classId ? null : item.classId)}
+                  onCancelLesson={handleCancelLesson}
+                />
+              )}
+              ListHeaderComponent={(
+                <>
+                  <SegmentedFilter options={lessonFilters} value={lessonFilter} onChange={(value) => {
+                    setExpandedLessonClassId(null);
+                    setLessonFilter(value);
+                  }} />
+                  <Text style={styles.listHint}>Historico por turma</Text>
+                </>
+              )}
+              ListEmptyComponent={<Text style={styles.emptyText}>Sem aulas de turma no historico.</Text>}
+            />
+          ) : (
+            <FlatList
+              data={filteredLessons}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => <LessonListItem lesson={item} onCancel={() => handleCancelLesson(item.id)} />}
+              ListHeaderComponent={(
+                <>
+                  <SegmentedFilter options={lessonFilters} value={lessonFilter} onChange={(value) => {
+                    setExpandedLessonClassId(null);
+                    setLessonFilter(value);
+                  }} />
+                  <Text style={styles.listHint}>Historico de aulas</Text>
+                </>
+              )}
+              ListEmptyComponent={<Text style={styles.emptyText}>Sem aulas no historico.</Text>}
+            />
+          )
         )}
 
         {activeTab === 'Kodland' && (
-          <KodlandScreen classes={classes} groups={kodlandGroups} students={students} lastSync={kodlandLastSync} onRefresh={refresh} />
+          <KodlandScreen classes={classes} groups={kodlandGroups} students={students} lastSync={kodlandLastSync} onRefresh={refresh} onCreateClass={openKodlandClassCreator} onOpenStudent={setSelectedStudent} />
         )}
       </View>
 
@@ -322,7 +459,30 @@ export default function App() {
         onConfirm={(paymentDate) => handleConfirmPayment(paymentDate)}
       />
       <MetricHelpModal help={activeHelp} onClose={() => setActiveHelp(null)} />
-      <ClassFormModal open={classModalOpen} initialClass={editingClass} onClose={closeClassModal} onSaved={refresh} />
+      <KodlandStudentDetailsModal
+        student={selectedStudent}
+        onClose={() => setSelectedStudent(null)}
+        onEdit={(student) => setEditingStudent(student)}
+        onDelete={deleteStudent}
+        onCopyProfile={copyProfile}
+        onOpenProfile={openProfile}
+        onOpenWhatsApp={openWhatsApp}
+      />
+      <KodlandStudentEditModal
+        student={editingStudent}
+        onClose={() => setEditingStudent(null)}
+        onSave={saveStudent}
+      />
+      <ClassFormModal
+        open={classModalOpen}
+        initialClass={editingClass}
+        initialName={classInitialName}
+        onClose={closeClassModal}
+        onSaved={(classId) => {
+          if (pendingKodlandGroup) linkKodlandGroup(pendingKodlandGroup.externalId, classId);
+          refresh();
+        }}
+      />
       <ExtraLessonModal open={extraModalOpen} onClose={() => setExtraModalOpen(false)} onSaved={refresh} />
     </SafeAreaView>
   );
@@ -478,16 +638,19 @@ function SegmentedFilter<T extends string>({ options, value, onChange }: { optio
 function ClassProgressCard({
   progress,
   studentCount = 0,
+  onPress,
   onEdit,
   onDelete,
 }: {
   progress: DashboardData['progress'][number];
   studentCount?: number;
+  onPress?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
+  const Container = onPress ? Pressable : View;
   return (
-    <View style={styles.classCard}>
+    <Container style={styles.classCard} onPress={onPress}>
       <View style={styles.cardTitleRow}>
         <View style={styles.classTitleBlock}>
           <Text style={styles.className}>{progress.name}</Text>
@@ -517,14 +680,72 @@ function ClassProgressCard({
         <Text style={styles.smallStat}>Restam: {progress.remaining}</Text>
         {studentCount > 0 && <Text style={styles.smallStat}>Alunos: {studentCount}</Text>}
       </View>
-    </View>
+    </Container>
   );
 }
 
-function KodlandScreen({ classes, groups, students, lastSync, onRefresh }: { classes: ClassRecord[]; groups: KodlandGroupRecord[]; students: StudentWithClass[]; lastSync: string; onRefresh: () => void }) {
+function StudentListItem({
+  student,
+  onPress,
+  showLinkStatus = true,
+  rankPosition = null,
+}: {
+  student: StudentWithClass;
+  onPress: () => void;
+  showLinkStatus?: boolean;
+  rankPosition?: number | null;
+}) {
+  const statusLabel = studentStatusLabel(student.status);
+  const pointsLabel = studentPointsLabel(student.progressSummary);
+  const initial = student.name.trim().charAt(0).toLocaleUpperCase('pt-BR') || '?';
+  const contact = [student.email, student.phone].filter(Boolean).join(' / ') || 'Sem contato';
+  return (
+    <Pressable style={[styles.studentCard, rankPosition ? styles.studentCardRanked : null, statusLabel && styles.studentCardExpelled]} onPress={onPress}>
+      <View style={[styles.studentAvatar, statusLabel && styles.studentAvatarExpelled]}>
+        <Text style={[styles.studentAvatarText, statusLabel && styles.studentAvatarTextExpelled]}>{initial}</Text>
+      </View>
+      <View style={styles.studentCardBody}>
+        <View style={styles.studentTitleRow}>
+          <Text numberOfLines={1} style={styles.studentName}>{student.name}</Text>
+          {rankPosition ? <Text numberOfLines={1} style={styles.rankBadge}>{rankPosition}º</Text> : null}
+          {statusLabel ? <Text numberOfLines={1} style={styles.expelledBadge}>{statusLabel}</Text> : null}
+        </View>
+        <Text numberOfLines={1} style={styles.studentContact}>{contact}</Text>
+        <View style={styles.studentChips}>
+          {pointsLabel ? <Text numberOfLines={1} style={styles.studentChip}>Pontos {pointsLabel}</Text> : null}
+          {showLinkStatus && !student.classId ? <Text numberOfLines={1} style={styles.reviewChip}>Revisar</Text> : null}
+        </View>
+      </View>
+      <ArrowRight size={16} color={statusLabel ? '#a36c75' : '#75d7ff'} />
+    </Pressable>
+  );
+}
+
+function KodlandScreen({
+  classes,
+  groups,
+  students,
+  lastSync,
+  onRefresh,
+  onCreateClass,
+  onOpenStudent,
+}: {
+  classes: ClassRecord[];
+  groups: KodlandGroupRecord[];
+  students: StudentWithClass[];
+  lastSync: string;
+  onRefresh: () => void;
+  onCreateClass: (group: KodlandGroupRecord) => void;
+  onOpenStudent: (student: StudentWithClass) => void;
+}) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [linkingGroup, setLinkingGroup] = useState<KodlandGroupRecord | null>(null);
+
+  const selectedGroup = groups.find((group) => group.externalId === selectedGroupId) ?? null;
+  const visibleStudents = selectedGroup ? students.filter((student) => student.externalClassId === selectedGroup.externalId).sort(compareStudentsByStatusThenName) : [];
 
   useEffect(() => {
     loadKodlandCredentials().then((credentials) => {
@@ -588,26 +809,6 @@ function KodlandScreen({ classes, groups, students, lastSync, onRefresh }: { cla
     }
   };
 
-  const chooseLocalClass = (group: KodlandGroupRecord) => {
-    Alert.alert('Vincular turma', group.title, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Manter sem vinculo',
-        onPress: () => {
-          linkKodlandGroup(group.externalId, null);
-          onRefresh();
-        },
-      },
-      ...classes.map((item) => ({
-        text: item.name,
-        onPress: () => {
-          linkKodlandGroup(group.externalId, item.id);
-          onRefresh();
-        },
-      })),
-    ]);
-  };
-
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
       <View style={styles.kodlandPanel}>
@@ -629,34 +830,239 @@ function KodlandScreen({ classes, groups, students, lastSync, onRefresh }: { cla
       </View>
 
       <Text style={styles.listHint}>{groups.length} turmas Kodland / {students.length} alunos{lastSync ? ` / Atualizado ${new Date(lastSync).toLocaleString('pt-BR')}` : ''}</Text>
-      {groups.map((group) => {
+      {!selectedGroup && groups.map((group) => {
         const localClass = classes.find((item) => item.id === group.localClassId);
+        const groupStudents = students.filter((student) => student.externalClassId === group.externalId);
         return (
-          <View key={group.externalId} style={styles.studentItem}>
+          <Pressable key={group.externalId} style={styles.studentItem} onPress={() => setSelectedGroupId(group.externalId)}>
             <View style={styles.lessonBody}>
               <Text style={styles.lessonTitle}>{group.title}</Text>
-              <Text style={styles.lessonMeta}>{group.courseName || 'Curso nao informado'} / {group.studentCount} alunos</Text>
+              <Text style={styles.lessonMeta}>{group.courseName || 'Curso nao informado'} / {groupStudents.length || group.studentCount} alunos</Text>
               <Text style={styles.lessonMeta}>{localClass ? `Vinculada a ${localClass.name}` : 'Sem turma local vinculada'}</Text>
             </View>
-            <Pressable accessibilityLabel={`Vincular ${group.title}`} style={styles.actionIconButton} onPress={() => chooseLocalClass(group)}>
+            <Pressable accessibilityLabel={`Vincular ${group.title}`} style={styles.actionIconButton} onPress={() => setLinkingGroup(group)}>
               <Link2 size={17} color={localClass ? '#4df6a5' : '#75d7ff'} />
             </Pressable>
-          </View>
+          </Pressable>
         );
       })}
 
-      <Text style={styles.listHint}>Alunos importados</Text>
-      {students.map((student) => (
-        <View key={`${student.id}-${student.classId ?? student.externalClassId}`} style={styles.studentItem}>
-          <View style={styles.lessonBody}>
-            <Text style={styles.lessonTitle}>{student.name}</Text>
-            <Text style={styles.lessonMeta}>{student.email || 'Sem e-mail'} / {student.externalClassName || 'Sem turma vinculada'}</Text>
-            {student.progressSummary ? <Text style={styles.lessonMeta}>Progresso: {student.progressSummary}</Text> : null}
+      {selectedGroup && (
+        <>
+          <View style={styles.kodlandSubHeader}>
+            <Pressable style={styles.kodlandSecondaryButton} onPress={() => {
+              setSelectedGroupId(null);
+            }}>
+              <Text style={styles.kodlandSecondaryText}>Voltar turmas</Text>
+            </Pressable>
+            <Pressable accessibilityLabel={`Vincular ${selectedGroup.title}`} style={styles.actionIconButton} onPress={() => setLinkingGroup(selectedGroup)}>
+              <Link2 size={17} color={selectedGroup.localClassId ? '#4df6a5' : '#75d7ff'} />
+            </Pressable>
           </View>
-          <Text style={styles.studentStatus}>{student.classId ? 'Vinculado' : 'Revisar'}</Text>
-        </View>
-      ))}
+          <Text style={styles.sectionText}>{selectedGroup.title}</Text>
+          <Text style={styles.listHint}>{visibleStudents.length} alunos nesta turma</Text>
+          {visibleStudents.map((student) => (
+            <StudentListItem key={`${student.id}-${student.externalClassId}`} student={student} onPress={() => onOpenStudent(student)} />
+          ))}
+        </>
+      )}
+      <KodlandClassLinkModal
+        group={linkingGroup}
+        classes={classes}
+        onClose={() => setLinkingGroup(null)}
+        onSelect={(classId) => {
+          if (!linkingGroup) return;
+          linkKodlandGroup(linkingGroup.externalId, classId);
+          setLinkingGroup(null);
+          onRefresh();
+        }}
+        onCreate={() => {
+          if (!linkingGroup) return;
+          const group = linkingGroup;
+          setLinkingGroup(null);
+          onCreateClass(group);
+        }}
+      />
     </ScrollView>
+  );
+}
+
+function KodlandClassLinkModal({
+  group,
+  classes,
+  onClose,
+  onSelect,
+  onCreate,
+}: {
+  group: KodlandGroupRecord | null;
+  classes: ClassRecord[];
+  onClose: () => void;
+  onSelect: (classId: string | null) => void;
+  onCreate: () => void;
+}) {
+  return (
+    <Modal visible={Boolean(group)} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.choicePanel}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>Vincular turma</Text>
+              {group && <Text style={styles.modalSubtitle}>{group.title}</Text>}
+            </View>
+            <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <Pressable style={styles.choiceItem} onPress={() => onSelect(null)}>
+              <Text style={styles.choiceText}>Manter sem vínculo</Text>
+            </Pressable>
+            <Pressable style={styles.choiceItem} onPress={onCreate}>
+              <Text style={styles.choiceText}>Cadastrar como nova turma</Text>
+              <Plus size={16} color="#75d7ff" />
+            </Pressable>
+            {classes.map((classRecord) => (
+              <Pressable key={classRecord.id} style={[styles.choiceItem, group?.localClassId === classRecord.id && styles.choiceItemActive]} onPress={() => onSelect(classRecord.id)}>
+                <Text style={[styles.choiceText, group?.localClassId === classRecord.id && styles.choiceTextActive]}>{classRecord.name}</Text>
+                {group?.localClassId === classRecord.id && <Check size={16} color="#75d7ff" />}
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function KodlandStudentDetailsModal({
+  student,
+  onClose,
+  onEdit,
+  onDelete,
+  onCopyProfile,
+  onOpenProfile,
+  onOpenWhatsApp,
+}: {
+  student: StudentWithClass | null;
+  onClose: () => void;
+  onEdit: (student: StudentWithClass) => void;
+  onDelete: (student: StudentWithClass) => void;
+  onCopyProfile: (student: StudentWithClass) => void;
+  onOpenProfile: (student: StudentWithClass) => void;
+  onOpenWhatsApp: (student: StudentWithClass) => void;
+}) {
+  const whatsappPhone = student ? normalizeWhatsAppPhone(student.phone) : '';
+  const statusLabel = student ? studentStatusLabel(student.status) : '';
+  const pointsLabel = student ? studentPointsLabel(student.progressSummary) : '';
+  return (
+    <Modal visible={Boolean(student)} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalPanel}>
+          {student && (
+            <>
+              <View style={styles.modalHeader}>
+                <View>
+                  <View style={styles.studentTitleRow}>
+                    <Text style={styles.modalTitle}>{student.name}</Text>
+                    {statusLabel ? <Text style={styles.expelledBadge}>{statusLabel}</Text> : null}
+                  </View>
+                  <Text style={styles.modalSubtitle}>{student.externalClassName || 'Sem turma Kodland'}</Text>
+                </View>
+                <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <DetailRow label="E-mail" value={student.email || 'Sem e-mail'} />
+                <DetailRow
+                  label="Telefone"
+                  value={student.phone || 'Sem telefone'}
+                  actions={whatsappPhone ? (
+                    <Pressable accessibilityLabel="Abrir WhatsApp" style={styles.inlineWhatsappButton} onPress={() => onOpenWhatsApp(student)}>
+                      <MessageCircle size={16} color="#07130d" />
+                    </Pressable>
+                  ) : null}
+                />
+                <DetailRow label="Status" value={student.status || 'Sem status'} />
+                <DetailRow label="Pontos" value={pointsLabel || 'Sem pontos'} />
+                <DetailRow label="Turma local" value={student.classId ? 'Vinculado' : 'Sem vínculo'} />
+                <DetailRow
+                  label="Perfil Kodland"
+                  value={student.profileUrl || 'Sem link'}
+                  actions={student.profileUrl ? (
+                    <View style={styles.inlineActions}>
+                      <Pressable accessibilityLabel="Abrir perfil Kodland" style={styles.inlineIconButton} onPress={() => onOpenProfile(student)}>
+                        <ExternalLink size={16} color="#75d7ff" />
+                      </Pressable>
+                      <Pressable accessibilityLabel="Copiar perfil Kodland" style={styles.inlineIconButton} onPress={() => onCopyProfile(student)}>
+                        <Copy size={16} color="#75d7ff" />
+                      </Pressable>
+                    </View>
+                  ) : null}
+                />
+                <DetailRow label="Observação" value={student.localNote || 'Sem observação'} />
+              </ScrollView>
+              <View style={styles.studentActionGrid}>
+                <Pressable style={styles.studentSecondaryAction} onPress={() => onEdit(student)}>
+                  <Edit3 size={16} color="#75d7ff" />
+                  <Text numberOfLines={1} style={styles.kodlandSecondaryText}>Editar</Text>
+                </Pressable>
+                <Pressable style={styles.deleteStudentButton} onPress={() => onDelete(student)}>
+                  <Trash2 size={16} color="#ff7b89" />
+                  <Text numberOfLines={1} style={styles.resetDangerText}>Excluir</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function KodlandStudentEditModal({
+  student,
+  onClose,
+  onSave,
+}: {
+  student: StudentWithClass | null;
+  onClose: () => void;
+  onSave: (student: StudentWithClass, input: { name: string; email: string; phone: string; status: string; profileUrl: string; localNote: string }) => void;
+}) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [status, setStatus] = useState('');
+  const [profileUrl, setProfileUrl] = useState('');
+  const [localNote, setLocalNote] = useState('');
+
+  useEffect(() => {
+    if (!student) return;
+    setName(student.name);
+    setEmail(student.email);
+    setPhone(student.phone);
+    setStatus(student.status);
+    setProfileUrl(student.profileUrl);
+    setLocalNote(student.localNote);
+  }, [student]);
+
+  return (
+    <FormModal
+      open={Boolean(student)}
+      title="Editar aluno"
+      onClose={onClose}
+      onSave={() => {
+        if (!student) return;
+        if (!name.trim()) {
+          Alert.alert('Revise o aluno', 'Informe o nome do aluno.');
+          return;
+        }
+        onSave(student, { name, email, phone, status, profileUrl, localNote });
+      }}
+    >
+      <FormInput label="Nome" value={name} onChangeText={setName} />
+      <FormInput label="E-mail" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+      <FormInput label="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+      <FormInput label="Status" value={status} onChangeText={setStatus} />
+      <FormInput label="Perfil Kodland" value={profileUrl} onChangeText={setProfileUrl} autoCapitalize="none" />
+      <FormInput label="Observação" value={localNote} onChangeText={setLocalNote} multiline />
+    </FormModal>
   );
 }
 
@@ -699,6 +1105,41 @@ function LessonListItem({ lesson, onCancel }: { lesson: LessonView; onCancel?: (
   );
 }
 
+function ClassLessonHistoryCard({
+  group,
+  expanded,
+  onPress,
+  onCancelLesson,
+}: {
+  group: ClassLessonHistoryGroup;
+  expanded: boolean;
+  onPress: () => void;
+  onCancelLesson: (lessonId: string) => void;
+}) {
+  return (
+    <View style={styles.lessonGroupBlock}>
+      <Pressable style={[styles.lessonGroupCard, expanded && styles.lessonGroupCardOpen]} onPress={onPress}>
+        <View style={styles.lessonBody}>
+          <Text numberOfLines={1} style={styles.lessonTitle}>{group.className}</Text>
+          <Text style={styles.lessonMeta}>{group.lessonCount} aulas / {formatCurrency(group.total)}</Text>
+          <Text style={styles.lessonMeta}>Mais recente: {formatDate(group.latestLessonDate)}</Text>
+        </View>
+        <View style={styles.lessonGroupRight}>
+          <Text style={styles.lessonValue}>{formatCurrency(group.total)}</Text>
+          <ArrowRight size={16} color="#75d7ff" style={expanded ? styles.expandIconOpen : styles.expandIconClosed} />
+        </View>
+      </Pressable>
+      {expanded && (
+        <View style={styles.lessonGroupLessons}>
+          {group.lessons.map((lesson) => (
+            <LessonListItem key={lesson.id} lesson={lesson} onCancel={() => onCancelLesson(lesson.id)} />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function PaymentDetailsModal({ payment, onClose, onConfirm }: { payment: PaymentView | null; onClose: () => void; onConfirm: (paymentDate: string) => void }) {
   return (
     <Modal visible={Boolean(payment)} transparent animationType="slide" onRequestClose={onClose}>
@@ -736,13 +1177,15 @@ function PaymentDetailsModal({ payment, onClose, onConfirm }: { payment: Payment
 function ClassFormModal({
   open,
   initialClass,
+  initialName = '',
   onClose,
   onSaved,
 }: {
   open: boolean;
   initialClass: ClassRecord | null;
+  initialName?: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (classId: string) => void;
 }) {
   const [name, setName] = useState('');
   const [time, setTime] = useState('19:00');
@@ -754,13 +1197,13 @@ function ClassFormModal({
 
   useEffect(() => {
     if (!open) return;
-    setName(initialClass?.name ?? '');
+    setName(initialClass?.name ?? initialName);
     setTime(initialClass?.time ?? '19:00');
     setFirstLesson(initialClass?.firstLesson ?? todayIso());
     setLessonCount(String(initialClass?.lessonCount ?? 40));
     setDurationHours(String(initialClass?.durationHours ?? 1.5));
     setHourlyRate(String(initialClass?.hourlyRate ?? 30));
-  }, [open, initialClass]);
+  }, [open, initialClass, initialName]);
 
   const save = () => {
     const input = { name, time, firstLesson, lessonCount, durationHours, hourlyRate };
@@ -793,7 +1236,7 @@ function ClassFormModal({
     } else {
       addClass(classRecord);
     }
-    onSaved();
+    onSaved(classRecord.id);
     onClose();
   };
 
@@ -1026,6 +1469,18 @@ function FormInput(props: React.ComponentProps<typeof TextInput> & { label: stri
   );
 }
 
+function DetailRow({ label, value, actions }: { label: string; value: string; actions?: React.ReactNode }) {
+  return (
+    <View style={styles.detailRow}>
+      <View style={styles.detailTextBlock}>
+        <Text style={styles.detailLabel}>{label}</Text>
+        <Text style={styles.detailValue}>{value}</Text>
+      </View>
+      {actions ? <View style={styles.detailActions}>{actions}</View> : null}
+    </View>
+  );
+}
+
 function CompactInfo({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <View style={styles.compactInfo}>
@@ -1129,21 +1584,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
   },
-  tabs: {
+  tabsFrame: {
     backgroundColor: '#0b1424',
     borderColor: '#18314f',
     borderRadius: 8,
     borderWidth: 1,
-    flexDirection: 'row',
+    height: 44,
+    justifyContent: 'center',
     marginTop: 18,
+    overflow: 'hidden',
+  },
+  tabs: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
     padding: 4,
   },
   tab: {
     alignItems: 'center',
     borderRadius: 6,
-    flex: 1,
+    height: 34,
     justifyContent: 'center',
-    minHeight: 36,
+    minWidth: 88,
+    paddingHorizontal: 12,
   },
   tabActive: {
     backgroundColor: '#123b62',
@@ -1499,7 +1962,9 @@ const styles = StyleSheet.create({
     borderColor: '#24517d',
     borderRadius: 8,
     borderWidth: 1,
+    flexDirection: 'row',
     flex: 1,
+    gap: 7,
     justifyContent: 'center',
     minHeight: 44,
     paddingHorizontal: 10,
@@ -1515,6 +1980,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 6,
   },
+  kodlandSubHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
   studentItem: {
     alignItems: 'center',
     backgroundColor: '#0b1424',
@@ -1526,10 +1997,165 @@ const styles = StyleSheet.create({
     marginBottom: 9,
     padding: 12,
   },
+  studentItemExpelled: {
+    borderColor: '#7a3c46',
+    opacity: 0.76,
+  },
+  studentTitleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexShrink: 1,
+    gap: 8,
+  },
+  expelledBadge: {
+    backgroundColor: '#3a1820',
+    borderColor: '#ff7b89',
+    borderRadius: 999,
+    borderWidth: 1,
+    color: '#ff9aa6',
+    fontSize: 10,
+    fontWeight: '900',
+    overflow: 'hidden',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
   studentStatus: {
     color: '#75d7ff',
     fontSize: 11,
     fontWeight: '900',
+  },
+  studentCard: {
+    alignItems: 'center',
+    backgroundColor: '#0b1424',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 11,
+    marginBottom: 9,
+    minHeight: 76,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  studentCardExpelled: {
+    backgroundColor: '#100f18',
+    borderColor: '#6d3340',
+  },
+  studentCardRanked: {
+    borderColor: '#ffbf5f',
+  },
+  studentAvatar: {
+    alignItems: 'center',
+    backgroundColor: '#123b62',
+    borderColor: '#24517d',
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  studentAvatarExpelled: {
+    backgroundColor: '#311721',
+    borderColor: '#7a3c46',
+  },
+  studentAvatarText: {
+    color: '#e8f8ff',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  studentAvatarTextExpelled: {
+    color: '#ffbac3',
+  },
+  studentCardBody: {
+    flex: 1,
+    gap: 5,
+    minWidth: 0,
+  },
+  studentName: {
+    color: '#f2f8ff',
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  rankBadge: {
+    backgroundColor: '#2f2411',
+    borderColor: '#ffbf5f',
+    borderRadius: 999,
+    borderWidth: 1,
+    color: '#ffcf7a',
+    fontSize: 10,
+    fontWeight: '900',
+    overflow: 'hidden',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  studentContact: {
+    color: '#90a7c8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  studentChips: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    minHeight: 18,
+  },
+  studentChip: {
+    backgroundColor: '#102238',
+    borderColor: '#1f3b5c',
+    borderRadius: 999,
+    borderWidth: 1,
+    color: '#9fdcff',
+    fontSize: 10,
+    fontWeight: '900',
+    overflow: 'hidden',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  reviewChip: {
+    backgroundColor: '#2f2411',
+    borderColor: '#6b4b1a',
+    borderRadius: 999,
+    borderWidth: 1,
+    color: '#ffbf5f',
+    fontSize: 10,
+    fontWeight: '900',
+    overflow: 'hidden',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  studentActionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  studentSecondaryAction: {
+    alignItems: 'center',
+    borderColor: '#24517d',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexBasis: 130,
+    flexDirection: 'row',
+    flexGrow: 1,
+    gap: 7,
+    height: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  deleteStudentButton: {
+    alignItems: 'center',
+    borderColor: '#5a2635',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexBasis: 130,
+    flexDirection: 'row',
+    flexGrow: 1,
+    gap: 7,
+    height: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
   },
   segmentedFilter: {
     backgroundColor: '#08111f',
@@ -1599,6 +2225,39 @@ const styles = StyleSheet.create({
   },
   tinyDanger: {
     padding: 6,
+  },
+  lessonGroupBlock: {
+    marginBottom: 9,
+  },
+  lessonGroupCard: {
+    alignItems: 'center',
+    backgroundColor: '#0b1424',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 12,
+  },
+  lessonGroupCardOpen: {
+    borderColor: '#75d7ff',
+  },
+  lessonGroupRight: {
+    alignItems: 'flex-end',
+    gap: 7,
+  },
+  lessonGroupLessons: {
+    borderLeftColor: '#18314f',
+    borderLeftWidth: 1,
+    marginLeft: 14,
+    marginTop: 8,
+    paddingLeft: 10,
+  },
+  expandIconClosed: {
+    transform: [{ rotate: '0deg' }],
+  },
+  expandIconOpen: {
+    transform: [{ rotate: '90deg' }],
   },
   lessonItem: {
     alignItems: 'center',
@@ -1823,6 +2482,64 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     minHeight: 44,
     paddingHorizontal: 12,
+  },
+  detailRow: {
+    alignItems: 'center',
+    backgroundColor: '#0d1b2e',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  detailTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  detailLabel: {
+    color: '#7d94b6',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  detailValue: {
+    color: '#f2f8ff',
+    flexShrink: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  detailActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 7,
+  },
+  inlineActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 7,
+  },
+  inlineIconButton: {
+    alignItems: 'center',
+    backgroundColor: '#12263d',
+    borderColor: '#24517d',
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  inlineWhatsappButton: {
+    alignItems: 'center',
+    backgroundColor: '#4df6a5',
+    borderRadius: 8,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
   dateButton: {
     alignItems: 'center',

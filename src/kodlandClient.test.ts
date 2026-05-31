@@ -28,7 +28,7 @@ describe('kodland authenticated client', () => {
     }));
   });
 
-  it('fetches all group pages and active group students from the v2 api', async () => {
+  it('fetches all group pages, active group students, and safe student details from the v2 api', async () => {
     const accessToken = token({ user_id: 7 });
     const fetcher = vi.fn((url: string) => {
       if (url.endsWith('/login')) return jsonResponse({ access_token: accessToken });
@@ -37,14 +37,18 @@ describe('kodland authenticated client', () => {
       if (url.includes('student_groups/10/get_students_main_data/')) {
         return jsonResponse([{ main_info: { student_id: 50, full_name: 'Aluno Teste', status: 'active' }, progress_info: [] }]);
       }
+      if (url.includes('students/50/get_general_info_for_student_backoffice_page/')) {
+        return jsonResponse({ main_info: { phone_number: '11999999999', profile_url: 'https://bo.kodland.test/students/50', password: 'secret' } });
+      }
       throw new Error(`Unexpected URL: ${url}`);
     });
     await expect(fetchKodlandSnapshot({ username: 'teacher', password: 'secret' }, fetcher as typeof fetch)).resolves.toMatchObject({
       teacherId: '7',
       groups: [{ externalId: '10' }, { externalId: '11' }],
-      students: [{ externalId: '50', externalClassId: '10' }],
+      students: [{ externalId: '50', externalClassId: '10', phone: '11999999999', profileUrl: 'https://bo.kodland.test/students/50' }],
     });
     expect(fetcher).not.toHaveBeenCalledWith(expect.stringContaining('student_groups/11/'), expect.anything());
+    expect(fetcher).toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/students/50/get_general_info_for_student_backoffice_page/', expect.anything());
   });
 
   it('returns a useful message for invalid credentials', async () => {

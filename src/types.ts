@@ -41,8 +41,13 @@ export type StudentRecord = {
   externalId: string;
   name: string;
   email: string;
+  phone: string;
   status: string;
   progressSummary: string;
+  profileUrl: string;
+  localNote: string;
+  locallyEdited: boolean;
+  deletedAt: string;
   primaryClassId: string | null;
   rawDataJson: string;
   updatedAt: string;
@@ -73,8 +78,8 @@ export type ClassStudentRecord = {
 
 export type StudentWithClass = StudentRecord & {
   classId: string | null;
-  externalClassId: string;
-  externalClassName: string;
+  externalClassId: string | null;
+  externalClassName: string | null;
   confirmed: boolean;
 };
 

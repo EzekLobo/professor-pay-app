@@ -39,7 +39,7 @@ first integration scope.
 | `GET` | `student_groups/{groupId}/get_students_main_data` | Students linked to the group and progress summary |
 | `GET` | `student_groups/{groupId}/schedule_view/` | Group lesson schedule |
 | `GET` | `student_groups/{groupId}/lessons/` | Group lessons |
-| `GET` | `students/{studentId}/get_general_info_for_student_backoffice_page/` | Full student details; avoid during default sync |
+| `GET` | `students/{studentId}/get_general_info_for_student_backoffice_page/` | Student details; sync only allowlisted safe fields |
 | `GET` | `students/{studentId}/backoffice_groups/` | Groups linked to one student |
 
 Examples visible in the supplied screenshots:
@@ -57,8 +57,9 @@ Recommended synchronization sequence:
 2. Read the user ID from the access token payload.
 3. Fetch the teacher groups with `teachers/{teacherId}/get_teachers_groups/`.
 4. For each group, fetch general info, students, and schedule.
-5. Do not fetch individual student detail during the default sync. That
-   response contains sensitive fields that AulaPay does not need.
+5. Fetch individual student detail only to extract an allowlist of safe fields
+   such as phone, email, status, and profile URL. Never persist the full detail
+   payload or sensitive fields such as student passwords.
 6. Import into AulaPay in one SQLite transaction and retain the last successful
    local snapshot if the remote sync fails.
 
@@ -103,8 +104,8 @@ The group student endpoint returns an array with a `main_info` object and a
 retain the minimum fields required for consultation and local linking.
 
 The individual student detail endpoint returns sensitive fields, including a
-student platform password. AulaPay must not call this endpoint during default
-sync and must never import or persist that field.
+student platform password. AulaPay may call this endpoint during sync only with
+an allowlist parser and must never import or persist sensitive fields.
 
 ## Administrative Endpoints Excluded From Sync
 

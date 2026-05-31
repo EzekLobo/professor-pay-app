@@ -2,8 +2,10 @@ export type KodlandStudentImport = {
   externalId: string;
   name: string;
   email: string;
+  phone: string;
   status: string;
   progressSummary: string;
+  profileUrl: string;
   externalClassId: string;
   externalClassName: string;
   rawData: Record<string, unknown>;
@@ -41,8 +43,10 @@ export function normalizeKodlandStudent(input: unknown): KodlandStudentImport | 
     externalId,
     name,
     email: stringValue(record.email),
+    phone: stringValue(record.phone ?? record.phone_number ?? record.mobile ?? record.mobile_phone),
     status: stringValue(record.status),
     progressSummary: stringValue(record.progressSummary ?? record.progress_summary),
+    profileUrl: profileUrlValue(record, externalId),
     externalClassId,
     externalClassName,
     rawData: record,
@@ -99,15 +103,19 @@ export function parseKodlandGroupStudentsPayload(payload: unknown, group: Kodlan
       externalId,
       name,
       email: stringValue(mainInfo.email),
+      phone: stringValue(mainInfo.phone ?? mainInfo.phone_number ?? mainInfo.mobile ?? mainInfo.mobile_phone),
       status: stringValue(mainInfo.status),
       progressSummary,
+      profileUrl: profileUrlValue(mainInfo, externalId),
       externalClassId: group.externalId,
       externalClassName: group.title,
       rawData: {
         studentId: externalId,
         name,
         email: stringValue(mainInfo.email),
+        phone: stringValue(mainInfo.phone ?? mainInfo.phone_number ?? mainInfo.mobile ?? mainInfo.mobile_phone),
         status: stringValue(mainInfo.status),
+        profileUrl: profileUrlValue(mainInfo, externalId),
         totalCurrentGrade: numberValue(mainInfo.total_current_grade),
         totalMaxGrade: numberValue(mainInfo.total_max_grade),
         rating: numberValue(mainInfo.rating),
@@ -116,6 +124,33 @@ export function parseKodlandGroupStudentsPayload(payload: unknown, group: Kodlan
       },
     };
   }).filter((student): student is KodlandStudentImport => Boolean(student));
+}
+
+export function enrichKodlandStudentFromDetail(student: KodlandStudentImport, payload: unknown): KodlandStudentImport {
+  const detail = objectValue(payload);
+  const mainInfo = objectValue(detail.main_info);
+  const source = Object.keys(mainInfo).length ? mainInfo : detail;
+  const phone = stringValue(source.phone ?? source.phone_number ?? source.mobile ?? source.mobile_phone ?? source.parent_phone);
+  const email = stringValue(source.email);
+  const status = stringValue(source.status);
+  const profileUrl = profileUrlValue(source, student.externalId);
+  return {
+    ...student,
+    email: email || student.email,
+    phone: phone || student.phone,
+    status: status || student.status,
+    profileUrl: profileUrl || student.profileUrl,
+    rawData: {
+      ...student.rawData,
+      detail: {
+        studentId: student.externalId,
+        email: email || student.email,
+        phone: phone || student.phone,
+        status: status || student.status,
+        profileUrl: profileUrl || student.profileUrl,
+      },
+    },
+  };
 }
 
 export async function syncKodlandStudents(credentials: KodlandCredentials): Promise<KodlandSyncResult> {
@@ -134,6 +169,11 @@ function stringValue(value: unknown) {
   if (typeof value === 'string') return value.trim();
   if (typeof value === 'number') return String(value);
   return '';
+}
+
+function profileUrlValue(record: Record<string, unknown>, externalId: string) {
+  const directUrl = stringValue(record.profileUrl ?? record.profile_url ?? record.backofficeUrl ?? record.backoffice_url ?? record.url);
+  return directUrl || `https://bo.kodland.org/students/${externalId}`;
 }
 
 function arrayValue(value: unknown) {

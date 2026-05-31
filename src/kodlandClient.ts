@@ -1,4 +1,4 @@
-import { KodlandCredentials, KodlandGroupImport, KodlandStudentImport, normalizeKodlandGroup, parseKodlandGroupStudentsPayload } from './kodland';
+import { KodlandCredentials, KodlandGroupImport, KodlandStudentImport, enrichKodlandStudentFromDetail, normalizeKodlandGroup, parseKodlandGroupStudentsPayload } from './kodland';
 
 const ssoBaseUrl = 'https://sso.production.kodland.org/';
 const backofficeBaseUrl = 'https://backoffice.kodland.org/api/v2/';
@@ -35,7 +35,8 @@ export async function fetchKodlandSnapshot(credentials: KodlandCredentials, fetc
   const groups = await fetchTeacherGroups(teacherId, session, fetcher);
   const students = (await Promise.all(groups.filter((group) => !group.archived).map(async (group) => {
     const payload = await getJson(`student_groups/${group.externalId}/get_students_main_data/`, session, fetcher);
-    return parseKodlandGroupStudentsPayload(payload, group);
+    const groupStudents = parseKodlandGroupStudentsPayload(payload, group);
+    return Promise.all(groupStudents.map((student) => fetchStudentDetail(student, session, fetcher)));
   }))).flat();
   return { teacherId, groups, students };
 }
@@ -79,6 +80,15 @@ async function fetchTeacherGroups(teacherId: string, session: TokenSession, fetc
     page += 1;
   }
   return groups;
+}
+
+async function fetchStudentDetail(student: KodlandStudentImport, session: TokenSession, fetcher: FetchLike) {
+  try {
+    const payload = await getJson(`students/${student.externalId}/get_general_info_for_student_backoffice_page/`, session, fetcher);
+    return enrichKodlandStudentFromDetail(student, payload);
+  } catch {
+    return student;
+  }
 }
 
 async function getJson(path: string, session: TokenSession, fetcher: FetchLike) {

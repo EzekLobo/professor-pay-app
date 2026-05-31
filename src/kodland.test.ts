@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeKodlandGroup, normalizeKodlandStudent, parseKodlandGroupStudentsPayload, parseKodlandStudentsPayload, syncKodlandStudents } from './kodland';
+import { enrichKodlandStudentFromDetail, normalizeKodlandGroup, normalizeKodlandStudent, parseKodlandGroupStudentsPayload, parseKodlandStudentsPayload, syncKodlandStudents } from './kodland';
 
 describe('kodland student import', () => {
   it('normalizes common student and class fields while preserving raw data', () => {
@@ -13,8 +13,10 @@ describe('kodland student import', () => {
       externalId: '42',
       name: 'Ana Silva',
       email: '',
+      phone: '11999999999',
       status: '',
       progressSummary: '',
+      profileUrl: 'https://bo.kodland.org/students/42',
       externalClassId: 'group-1',
       externalClassName: 'Terca 20h',
       rawData: {
@@ -51,7 +53,9 @@ describe('kodland student import', () => {
         student_id: 42,
         full_name: 'Ana Silva',
         email: 'ana@example.test',
+        phone: '(11) 99999-9999',
         status: 'active',
+        profile_url: 'https://bo.kodland.test/students/42',
         password: 'must-not-be-kept',
       },
       progress_info: [
@@ -62,15 +66,19 @@ describe('kodland student import', () => {
       externalId: '42',
       name: 'Ana Silva',
       email: 'ana@example.test',
+      phone: '(11) 99999-9999',
       status: 'active',
       progressSummary: '50/100',
+      profileUrl: 'https://bo.kodland.test/students/42',
       externalClassId: '10',
       externalClassName: 'Turma A',
       rawData: {
         studentId: '42',
         name: 'Ana Silva',
         email: 'ana@example.test',
+        phone: '(11) 99999-9999',
         status: 'active',
+        profileUrl: 'https://bo.kodland.test/students/42',
         totalCurrentGrade: 0,
         totalMaxGrade: 0,
         rating: 0,
@@ -78,5 +86,33 @@ describe('kodland student import', () => {
         progressSummary: '50/100',
       },
     }]);
+  });
+
+  it('merges individual student details while keeping only safe fields', () => {
+    const student = normalizeKodlandStudent({
+      id: 42,
+      name: 'Ana Silva',
+      classId: '10',
+      className: 'Turma A',
+    });
+    expect(student).not.toBeNull();
+    const enriched = enrichKodlandStudentFromDetail(student!, {
+      main_info: {
+        email: 'ana@example.test',
+        phone_number: '+55 11 99999-9999',
+        status: 'active',
+        password: 'must-not-be-kept',
+        token: 'must-not-be-kept',
+      },
+    });
+    expect(enriched).toMatchObject({
+      email: 'ana@example.test',
+      phone: '+55 11 99999-9999',
+      status: 'active',
+      profileUrl: 'https://bo.kodland.org/students/42',
+    });
+    expect(JSON.stringify(enriched.rawData)).not.toContain('must-not-be-kept');
+    expect(JSON.stringify(enriched.rawData)).not.toContain('password');
+    expect(JSON.stringify(enriched.rawData)).not.toContain('token');
   });
 });

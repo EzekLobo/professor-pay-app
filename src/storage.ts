@@ -7,6 +7,15 @@ import { resetDatabaseSql } from './storageSql';
 import { KodlandGroupImport, KodlandStudentImport } from './kodland';
 import { ClassRecord, KodlandGroupRecord, LessonRecord, PaymentConfirmation, StudentWithClass } from './types';
 
+export type StudentLocalUpdate = {
+  name: string;
+  email: string;
+  phone: string;
+  status: string;
+  profileUrl: string;
+  localNote: string;
+};
+
 const db = SQLite.openDatabaseSync('aulapay.db');
 const realSeedKey = 'real_seed_2026_05';
 
@@ -53,8 +62,13 @@ export function initDatabase() {
       externalId TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       email TEXT NOT NULL DEFAULT '',
+      phone TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT '',
       progressSummary TEXT NOT NULL DEFAULT '',
+      profileUrl TEXT NOT NULL DEFAULT '',
+      localNote TEXT NOT NULL DEFAULT '',
+      locallyEdited INTEGER NOT NULL DEFAULT 0,
+      deletedAt TEXT NOT NULL DEFAULT '',
       primaryClassId TEXT,
       rawDataJson TEXT NOT NULL,
       updatedAt TEXT NOT NULL
@@ -102,8 +116,13 @@ export function initDatabase() {
     );
   `);
   ensureColumn('students', 'email', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn('students', 'phone', "TEXT NOT NULL DEFAULT ''");
   ensureColumn('students', 'status', "TEXT NOT NULL DEFAULT ''");
   ensureColumn('students', 'progressSummary', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn('students', 'profileUrl', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn('students', 'localNote', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn('students', 'locallyEdited', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('students', 'deletedAt', "TEXT NOT NULL DEFAULT ''");
 
   const initialized = db.getFirstSync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'initialized'");
   if (!initialized) {
@@ -170,11 +189,19 @@ export function loadConfirmations(): PaymentConfirmation[] {
 
 export function loadStudents(): StudentWithClass[] {
   return db.getAllSync<StudentWithClassRow>(
-    `SELECT students.*, class_students.classId, class_students.externalClassId, class_students.externalClassName, class_students.confirmed
+    `SELECT
+        students.*,
+        kodland_class_links.localClassId AS classId,
+        kodland_student_groups.externalClassId AS externalClassId,
+        kodland_groups.title AS externalClassName,
+        COALESCE(kodland_class_links.confirmed, 0) AS confirmed
       FROM students
-      LEFT JOIN class_students ON class_students.studentId = students.id
-      ORDER BY students.name ASC`,
-  ).map((row) => ({ ...row, confirmed: Boolean(row.confirmed) }));
+      LEFT JOIN kodland_student_groups ON kodland_student_groups.externalStudentId = students.externalId
+      LEFT JOIN kodland_groups ON kodland_groups.externalId = kodland_student_groups.externalClassId
+      LEFT JOIN kodland_class_links ON kodland_class_links.externalClassId = kodland_student_groups.externalClassId
+      WHERE students.deletedAt = ''
+      ORDER BY kodland_groups.title ASC, students.name ASC`,
+  ).map(mapStudentRow);
 }
 
 export function loadKodlandGroups(): KodlandGroupRecord[] {
@@ -200,11 +227,35 @@ export function linkKodlandGroup(externalClassId: string, localClassId: string |
   rebuildKodlandStudentLinks();
 }
 
-export function importKodlandSnapshot(groups: KodlandGroupImport[], students: KodlandStudentImport[]) {
+export function updateKodlandStudent(studentId: string, input: StudentLocalUpdate) {
+  const now = new Date().toISOString();
+  db.runSync(
+    `UPDATE students
+      SET name = ?, email = ?, phone = ?, status = ?, profileUrl = ?, localNote = ?, locallyEdited = 1, updatedAt = ?
+      WHERE id = ? AND deletedAt = ''`,
+    [input.name.trim(), input.email.trim(), input.phone.trim(), input.status.trim(), input.profileUrl.trim(), input.localNote.trim(), now, studentId],
+  );
+}
+
+export function deleteKodlandStudent(studentId: string) {
   const now = new Date().toISOString();
   db.withTransactionSync(() => {
+    db.runSync('UPDATE students SET deletedAt = ?, updatedAt = ? WHERE id = ?', [now, now, studentId]);
+    db.runSync('DELETE FROM class_students WHERE studentId = ?', [studentId]);
+  });
+}
+
+export function importKodlandSnapshot(groups: KodlandGroupImport[], students: KodlandStudentImport[]) {
+  const now = new Date().toISOString();
+  const incomingStudentIds = new Set(students.map((student) => `kodland-student-${student.externalId}`));
+  db.withTransactionSync(() => {
     db.runSync("DELETE FROM class_students WHERE studentId LIKE 'kodland-student-%'");
-    db.runSync("DELETE FROM students WHERE id LIKE 'kodland-student-%'");
+    const existingStudents = db.getAllSync<{ id: string; deletedAt: string; locallyEdited: number }>("SELECT id, deletedAt, locallyEdited FROM students WHERE id LIKE 'kodland-student-%'");
+    existingStudents.forEach((student) => {
+      if (!incomingStudentIds.has(student.id) && !student.locallyEdited && !student.deletedAt) {
+        db.runSync('DELETE FROM students WHERE id = ?', [student.id]);
+      }
+    });
     db.runSync('DELETE FROM kodland_groups');
     db.runSync('DELETE FROM kodland_student_groups');
     groups.forEach((group) => {
@@ -218,12 +269,32 @@ export function importKodlandSnapshot(groups: KodlandGroupImport[], students: Ko
     });
     students.forEach((student) => {
       const id = `kodland-student-${student.externalId}`;
-      db.runSync(
-        `INSERT OR REPLACE INTO students
-          (id, externalId, name, email, status, progressSummary, primaryClassId, rawDataJson, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
-        [id, student.externalId, student.name, student.email, student.status, student.progressSummary, JSON.stringify(student.rawData), now],
-      );
+      const existing = db.getFirstSync<{ locallyEdited: number; deletedAt: string }>('SELECT locallyEdited, deletedAt FROM students WHERE id = ?', [id]);
+      if (existing?.deletedAt) return;
+      if (existing?.locallyEdited) {
+        db.runSync(
+          `UPDATE students
+            SET progressSummary = ?, rawDataJson = ?, updatedAt = ?
+            WHERE id = ?`,
+          [student.progressSummary, JSON.stringify(student.rawData), now, id],
+        );
+      } else {
+        db.runSync(
+          `INSERT INTO students
+            (id, externalId, name, email, phone, status, progressSummary, profileUrl, localNote, locallyEdited, deletedAt, primaryClassId, rawDataJson, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 0, '', NULL, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              name = excluded.name,
+              email = excluded.email,
+              phone = excluded.phone,
+              status = excluded.status,
+              progressSummary = excluded.progressSummary,
+              profileUrl = excluded.profileUrl,
+              rawDataJson = excluded.rawDataJson,
+              updatedAt = excluded.updatedAt`,
+          [id, student.externalId, student.name, student.email, student.phone, student.status, student.progressSummary, student.profileUrl, JSON.stringify(student.rawData), now],
+        );
+      }
       db.runSync(
         `INSERT OR REPLACE INTO kodland_student_groups (externalStudentId, externalClassId, updatedAt)
           VALUES (?, ?, ?)`,
@@ -242,6 +313,7 @@ export function addClass(input: Omit<ClassRecord, 'createdAt' | 'updatedAt'>) {
   const classRecord: ClassRecord = { ...input, createdAt: now, updatedAt: now };
   insertClass(classRecord);
   generateLessonsForClass(classRecord).forEach(insertLesson);
+  return classRecord;
 }
 
 export function updateClassFutureLessons(input: ClassRecord, today: string) {
@@ -329,11 +401,10 @@ export function resetDatabase() {
 function ensureKodlandGroupSuggestion(group: KodlandGroupImport, now: string) {
   const existing = db.getFirstSync<{ externalClassId: string }>('SELECT externalClassId FROM kodland_class_links WHERE externalClassId = ?', [group.externalId]);
   if (existing) return;
-  const localClass = loadClasses().find((item) => normalizedName(item.name) === normalizedName(group.title));
   db.runSync(
     `INSERT INTO kodland_class_links (externalClassId, localClassId, confirmed, updatedAt)
       VALUES (?, ?, 0, ?)`,
-    [group.externalId, localClass?.id ?? null, now],
+    [group.externalId, null, now],
   );
 }
 
@@ -362,10 +433,6 @@ function rebuildKodlandStudentLinks(now = new Date().toISOString()) {
     });
     db.runSync('UPDATE students SET primaryClassId = ? WHERE id = ?', [groups[0]?.localClassId ?? null, student.id]);
   });
-}
-
-function normalizedName(value: string) {
-  return value.trim().toLocaleLowerCase('pt-BR');
 }
 
 function ensureColumn(table: string, column: string, definition: string) {
@@ -422,7 +489,7 @@ type LessonRow = Omit<LessonRecord, 'active' | 'canceled' | 'type'> & {
   canceled: number;
   type: 'Normal' | 'Extra';
 };
-type StudentWithClassRow = Omit<StudentWithClass, 'confirmed'> & { confirmed: number };
+type StudentWithClassRow = Omit<StudentWithClass, 'confirmed' | 'locallyEdited'> & { confirmed: number; locallyEdited: number };
 type KodlandGroupRow = Omit<KodlandGroupRecord, 'archived' | 'confirmed'> & { archived: number; confirmed: number };
 
 function mapClassRow(row: ClassRow): ClassRecord {
@@ -431,4 +498,8 @@ function mapClassRow(row: ClassRow): ClassRecord {
 
 function mapLessonRow(row: LessonRow): LessonRecord {
   return { ...row, active: Boolean(row.active), canceled: Boolean(row.canceled) };
+}
+
+function mapStudentRow(row: StudentWithClassRow): StudentWithClass {
+  return { ...row, confirmed: Boolean(row.confirmed), locallyEdited: Boolean(row.locallyEdited) };
 }

@@ -22,14 +22,40 @@ export type KodlandGroupImport = {
   rawData: Record<string, unknown>;
 };
 
+export type KodlandPendingReviewImport = {
+  id: string;
+  externalClassId: string;
+  externalClassName: string;
+  externalStudentId: string;
+  studentName: string;
+  lessonId: string;
+  lessonNumber: number;
+  lessonTitle: string;
+  moduleNumber: string;
+  taskId: string;
+  taskNumber: number;
+  taskTitle: string;
+  statusKey: string;
+  statusLabel: string;
+  correctionUrl: string;
+};
+
 export type KodlandCredentials = {
   username: string;
   password: string;
 };
 
 export type KodlandSyncResult =
-  | { ok: true; teacherId: string; groups: KodlandGroupImport[]; students: KodlandStudentImport[] }
+  | { ok: true; teacherId: string; groups: KodlandGroupImport[]; students: KodlandStudentImport[]; pendingReviews: KodlandPendingReviewImport[] }
   | { ok: false; message: string };
+
+export type KodlandPendingReviewSyncResult =
+  | { ok: true; pendingReviews: KodlandPendingReviewImport[] }
+  | { ok: false; message: string };
+
+export type KodlandPendingReviewGroupInput = Pick<KodlandGroupImport, 'externalId' | 'title' | 'archived'>;
+
+const pendingReviewStatusKeys = new Set(['TASK_SUBMITTED', 'TASK_SUBMITTED_LATE']);
 
 export function normalizeKodlandStudent(input: unknown): KodlandStudentImport | null {
   if (!input || typeof input !== 'object') return null;
@@ -126,6 +152,80 @@ export function parseKodlandGroupStudentsPayload(payload: unknown, group: Kodlan
   }).filter((student): student is KodlandStudentImport => Boolean(student));
 }
 
+export function parseKodlandPendingReviewsPayload(
+  group: KodlandGroupImport,
+  groupStudentsPayload: unknown,
+  lessonsPayload: unknown,
+  lessonProgressPayloads: unknown[],
+): KodlandPendingReviewImport[] {
+  const moduleByLessonId = moduleMapFromGroupStudentsPayload(groupStudentsPayload);
+  const validLessons = arrayValue(lessonsPayload).filter((input) => objectValue(input).lesson_passed === true);
+  const lessonsById = new Map(validLessons.map((input) => {
+    const lesson = objectValue(input);
+    const lessonId = stringValue(lesson.lesson_id ?? lesson.id);
+    return [lessonId, {
+      lessonId,
+      lessonNumber: numberValue(lesson.lesson_number ?? lesson.number),
+      lessonTitle: stringValue(lesson.lesson_title ?? lesson.title ?? lesson.lesson_theme),
+    }];
+  }).filter(([lessonId]) => Boolean(lessonId)) as [string, { lessonId: string; lessonNumber: number; lessonTitle: string }][]);
+  const validLessonIds = new Set(lessonsById.keys());
+
+  return lessonProgressPayloads.flatMap((payload) => {
+    const progress = objectValue(payload);
+    const tasksById = new Map(arrayValue(progress.lesson_tasks).map((input) => {
+      const task = objectValue(input);
+      const taskId = stringValue(task.id ?? task.task_id);
+      const linkToService = stringValue(task.link_to_service ?? task.linkToService ?? task.url);
+      return [taskId, {
+        taskId,
+        taskNumber: numberValue(task.number ?? task.task_number),
+        taskTitle: stringValue(task.title ?? task.task_title),
+        lessonId: stringValue(task.lesson_id),
+        correctionUrl: correctionUrlValue(linkToService, group.externalId),
+      }];
+    }).filter(([taskId]) => Boolean(taskId)) as [string, { taskId: string; taskNumber: number; taskTitle: string; lessonId: string; correctionUrl: string }][]);
+
+    return arrayValue(progress.students_progress).flatMap((studentInput) => {
+      const student = objectValue(studentInput);
+      const externalStudentId = stringValue(student.student_id);
+      const studentName = stringValue(student.student_name);
+      if (!externalStudentId || !studentName) return [];
+
+      return arrayValue(student.tasks_data).map((taskInput): KodlandPendingReviewImport | null => {
+        const taskData = objectValue(taskInput);
+        const statusKey = stringValue(taskData.task_status_key);
+        if (!pendingReviewStatusKeys.has(statusKey)) return null;
+
+        const taskId = stringValue(taskData.task_id);
+        const task = tasksById.get(taskId);
+        if (!task) return null;
+        if (!validLessonIds.has(task.lessonId)) return null;
+
+        const lesson = lessonsById.get(task.lessonId);
+        if (!lesson) return null;
+        return {
+          id: `${group.externalId}-${externalStudentId}-${lesson.lessonId}-${taskId}`,
+          externalClassId: group.externalId,
+          externalClassName: group.title,
+          externalStudentId,
+          studentName,
+          lessonId: lesson.lessonId,
+          lessonNumber: lesson.lessonNumber,
+          lessonTitle: lesson.lessonTitle,
+          moduleNumber: moduleByLessonId.get(lesson.lessonId) ?? '',
+          taskId,
+          taskNumber: task.taskNumber,
+          taskTitle: task.taskTitle,
+          statusKey,
+          statusLabel: statusLabelValue(statusKey),
+          correctionUrl: task.correctionUrl,
+        };
+      }).filter((review): review is KodlandPendingReviewImport => Boolean(review));
+    });
+  });
+}
+
 export function enrichKodlandStudentFromDetail(student: KodlandStudentImport, payload: unknown): KodlandStudentImport {
   const detail = objectValue(payload);
   const mainInfo = objectValue(detail.main_info);
@@ -165,6 +265,24 @@ export async function syncKodlandStudents(credentials: KodlandCredentials): Prom
   }
 }
 
+export async function syncKodlandPendingReviews(
+  credentials: KodlandCredentials,
+  groups: KodlandPendingReviewGroupInput[],
+): Promise<KodlandPendingReviewSyncResult> {
+  if (!credentials.username.trim() || !credentials.password.trim()) {
+    return { ok: false, message: 'Informe usuario e senha da Kodland.' };
+  }
+  if (!groups.length) {
+    return { ok: false, message: 'Sincronize as turmas Kodland antes de atualizar as correcoes.' };
+  }
+  try {
+    const { fetchKodlandPendingReviews } = await import('./kodlandClient');
+    return { ok: true, pendingReviews: await fetchKodlandPendingReviews(credentials, groups) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : 'Nao foi possivel atualizar as correcoes.' };
+  }
+}
+
 function stringValue(value: unknown) {
   if (typeof value === 'string') return value.trim();
   if (typeof value === 'number') return String(value);
@@ -200,4 +318,32 @@ function progressValue(value: unknown) {
   const completed = modules.reduce((total, module) => total + numberValue(objectValue(module).module_current_grade), 0);
   const maximum = modules.reduce((total, module) => total + numberValue(objectValue(module).module_max_grade), 0);
   return maximum > 0 ? `${completed}/${maximum}` : '';
+}
+
+function correctionUrlValue(value: string, externalClassId: string) {
+  if (!value) return `https://bo.kodland.org/groups/${externalClassId}`;
+  if (/^https?:\/\//i.test(value)) return value;
+  return `https://bo.kodland.org${value.startsWith('/') ? value : `/${value}`}`;
+}
+
+export function statusLabelValue(statusKey: string) {
+  if (statusKey === 'TASK_SUBMITTED_LATE') return 'Entregue com atraso';
+  if (statusKey === 'TASK_SUBMITTED') return 'Entregue';
+  return 'Pendente';
+}
+
+function moduleMapFromGroupStudentsPayload(payload: unknown) {
+  const modulesByLessonId = new Map<string, string>();
+  arrayValue(payload).forEach((studentInput) => {
+    arrayValue(objectValue(studentInput).progress_info).forEach((moduleInput) => {
+      const module = objectValue(moduleInput);
+      const moduleNumber = stringValue(module.module_number);
+      if (!moduleNumber) return;
+      arrayValue(module.lessons_data).forEach((lessonInput) => {
+        const lessonId = stringValue(objectValue(lessonInput).lesson_id);
+        if (lessonId && !modulesByLessonId.has(lessonId)) modulesByLessonId.set(lessonId, moduleNumber);
+      });
+    });
+  });
+  return modulesByLessonId;
 }

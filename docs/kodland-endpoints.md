@@ -1,7 +1,7 @@
 # Kodland Backoffice Endpoint Map
 
 Last static review: 2026-05-30
-Last authenticated HAR review: 2026-05-30
+Last authenticated HAR review: 2026-06-01
 
 This map was extracted from the public JavaScript bundles loaded by
 `https://bo.kodland.org/`. It does not contain credentials, tokens, or private
@@ -39,6 +39,7 @@ first integration scope.
 | `GET` | `student_groups/{groupId}/get_students_main_data` | Students linked to the group and progress summary |
 | `GET` | `student_groups/{groupId}/schedule_view/` | Group lesson schedule |
 | `GET` | `student_groups/{groupId}/lessons/` | Group lessons |
+| `GET` | `student_groups/{groupId}/lesson/{lessonId}/get_group_progress/` | Lesson task progress by student |
 | `GET` | `students/{studentId}/get_general_info_for_student_backoffice_page/` | Student details; sync only allowlisted safe fields |
 | `GET` | `students/{studentId}/backoffice_groups/` | Groups linked to one student |
 
@@ -107,6 +108,19 @@ The individual student detail endpoint returns sensitive fields, including a
 student platform password. AulaPay may call this endpoint during sync only with
 an allowlist parser and must never import or persist sensitive fields.
 
+An authenticated HAR supplied locally on 2026-06-01 confirmed the read-only
+lesson progress flow for correction review. `student_groups/{groupId}/lessons/`
+returns lesson IDs, lesson numbers, titles, themes, and passed status.
+`student_groups/{groupId}/lesson/{lessonId}/get_group_progress/` returns
+`lesson_tasks` and `students_progress.tasks_data`. AulaPay treats only
+`TASK_SUBMITTED` and `TASK_SUBMITTED_LATE` as pending teacher review, and
+ignores `TASK_CHECKED`, `TASK_NOT_SUBMITTED`, and `TASK_NOT_GRADED`. The sync
+also skips lessons where `lesson_passed` is not `true`, so future modules do not
+create correction items. Task status labels are translated locally in AulaPay;
+raw labels such as `Not graded assignment` must not be shown in the UI. When a
+task does not include `link_to_service`, AulaPay links the review action to the
+group page at `https://bo.kodland.org/groups/{groupId}`.
+
 ## Administrative Endpoints Excluded From Sync
 
 The portal also exposes mutation endpoints. AulaPay sync must not call them.
@@ -151,6 +165,7 @@ Implemented on branch `feature/kodland-sync`:
 - one automatic access-token refresh after a `401`;
 - paginated teacher-group loading from backoffice API v2;
 - student loading for active groups;
+- pending correction snapshots from group lessons and lesson progress;
 - filtered local snapshots without unrelated sensitive fields;
 - SQLite persistence for remote groups, students, remote relationships, and
   confirmed local-class links;

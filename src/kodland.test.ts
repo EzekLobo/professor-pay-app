@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { enrichKodlandStudentFromDetail, normalizeKodlandGroup, normalizeKodlandStudent, parseKodlandGroupStudentsPayload, parseKodlandStudentsPayload, syncKodlandStudents } from './kodland';
+import { enrichKodlandStudentFromDetail, normalizeKodlandGroup, normalizeKodlandStudent, parseKodlandGroupStudentsPayload, parseKodlandPendingReviewsPayload, parseKodlandStudentsPayload, syncKodlandStudents } from './kodland';
 
 describe('kodland student import', () => {
   it('normalizes common student and class fields while preserving raw data', () => {
@@ -114,5 +114,62 @@ describe('kodland student import', () => {
     expect(JSON.stringify(enriched.rawData)).not.toContain('must-not-be-kept');
     expect(JSON.stringify(enriched.rawData)).not.toContain('password');
     expect(JSON.stringify(enriched.rawData)).not.toContain('token');
+  });
+
+  it('parses submitted task statuses as pending reviews and ignores checked or missing work', () => {
+    const group = normalizeKodlandGroup({ id: 10, title: 'Turma A', students_count: 1 });
+    expect(group).not.toBeNull();
+    const reviews = parseKodlandPendingReviewsPayload(group!, [{
+      progress_info: [{
+        module_number: 3,
+        lessons_data: [{ lesson_id: 200, lesson_number: 8 }],
+      }],
+    }], [{
+      lesson_id: 200,
+      lesson_number: 8,
+      lesson_title: 'Loops',
+      lesson_passed: true,
+    }, {
+      lesson_id: 201,
+      lesson_number: 99,
+      lesson_title: 'Futuro',
+      lesson_passed: false,
+    }], [{
+      lesson_tasks: [
+        { id: 1, number: 1, title: 'Projeto', lesson_id: 200, link_to_service: '/teacher/review/1' },
+        { id: 2, number: 2, title: 'Quiz', lesson_id: 200 },
+        { id: 3, number: 3, title: 'Leitura', lesson_id: 200 },
+        { id: 4, number: 4, title: 'Pratica', lesson_id: 200 },
+        { id: 5, number: 5, title: 'Extra', lesson_id: 200 },
+        { id: 6, number: 6, title: 'Futura', lesson_id: 201 },
+      ],
+      students_progress: [{
+        student_id: 42,
+        student_name: 'Ana Silva',
+        tasks_data: [
+          { task_id: 1, task_status_key: 'TASK_SUBMITTED', task_status_value: 'Enviada' },
+          { task_id: 2, task_status_key: 'TASK_SUBMITTED_LATE', task_status_value: 'Enviada com atraso' },
+          { task_id: 3, task_status_key: 'TASK_NOT_GRADED', task_status_value: 'Sem nota' },
+          { task_id: 4, task_status_key: 'TASK_CHECKED', task_status_value: 'Tarefa revisada' },
+          { task_id: 5, task_status_key: 'TASK_NOT_SUBMITTED', task_status_value: 'Tarefa não enviada' },
+          { task_id: 6, task_status_key: 'TASK_SUBMITTED', task_status_value: 'Submitted' },
+        ],
+      }],
+    }]);
+    expect(reviews.map((review) => review.taskTitle)).toEqual(['Projeto', 'Quiz']);
+    expect(reviews.map((review) => review.moduleNumber)).toEqual(['3', '3']);
+    expect(reviews[0]).toMatchObject({
+      externalClassId: '10',
+      externalClassName: 'Turma A',
+      externalStudentId: '42',
+      studentName: 'Ana Silva',
+      lessonId: '200',
+      lessonNumber: 8,
+      lessonTitle: 'Loops',
+      statusKey: 'TASK_SUBMITTED',
+      statusLabel: 'Entregue',
+      correctionUrl: 'https://bo.kodland.org/teacher/review/1',
+    });
+    expect(reviews[1].correctionUrl).toBe('https://bo.kodland.org/groups/10');
   });
 });

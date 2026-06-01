@@ -1,4 +1,4 @@
-import { KodlandCredentials, KodlandGroupImport, KodlandStudentImport, enrichKodlandStudentFromDetail, normalizeKodlandGroup, parseKodlandGroupStudentsPayload } from './kodland';
+import { KodlandCredentials, KodlandGroupImport, KodlandPendingReviewImport, KodlandStudentImport, enrichKodlandStudentFromDetail, normalizeKodlandGroup, parseKodlandGroupStudentsPayload, parseKodlandPendingReviewsPayload } from './kodland';
 
 const ssoBaseUrl = 'https://sso.production.kodland.org/';
 const backofficeBaseUrl = 'https://backoffice.kodland.org/api/v2/';
@@ -26,19 +26,46 @@ export type KodlandRemoteSnapshot = {
   teacherId: string;
   groups: KodlandGroupImport[];
   students: KodlandStudentImport[];
+  pendingReviews: KodlandPendingReviewImport[];
 };
+
+export type KodlandPendingReviewGroup = Pick<KodlandGroupImport, 'externalId' | 'title' | 'archived'>;
 
 export async function fetchKodlandSnapshot(credentials: KodlandCredentials, fetcher: FetchLike = fetch): Promise<KodlandRemoteSnapshot> {
   const tokens = await loginKodland(credentials, fetcher);
   const session = { accessToken: tokens.access_token, refreshToken: tokens.refresh_token };
   const teacherId = getUserIdFromAccessToken(session.accessToken);
   const groups = await fetchTeacherGroups(teacherId, session, fetcher);
-  const students = (await Promise.all(groups.filter((group) => !group.archived).map(async (group) => {
+  const activeGroupSnapshots = await Promise.all(groups.filter((group) => !group.archived).map(async (group) => {
     const payload = await getJson(`student_groups/${group.externalId}/get_students_main_data/`, session, fetcher);
     const groupStudents = parseKodlandGroupStudentsPayload(payload, group);
-    return Promise.all(groupStudents.map((student) => fetchStudentDetail(student, session, fetcher)));
-  }))).flat();
-  return { teacherId, groups, students };
+    const [students, pendingReviews] = await Promise.all([
+      Promise.all(groupStudents.map((student) => fetchStudentDetail(student, session, fetcher))),
+      fetchPendingReviewsForGroup(group, payload, session, fetcher),
+    ]);
+    return { students, pendingReviews };
+  }));
+  return {
+    teacherId,
+    groups,
+    students: activeGroupSnapshots.flatMap((snapshot) => snapshot.students),
+    pendingReviews: activeGroupSnapshots.flatMap((snapshot) => snapshot.pendingReviews),
+  };
+}
+
+export async function fetchKodlandPendingReviews(
+  credentials: KodlandCredentials,
+  groups: KodlandPendingReviewGroup[],
+  fetcher: FetchLike = fetch,
+): Promise<KodlandPendingReviewImport[]> {
+  const tokens = await loginKodland(credentials, fetcher);
+  const session = { accessToken: tokens.access_token, refreshToken: tokens.refresh_token };
+  const snapshots = await Promise.all(groups.filter((group) => !group.archived).map(async (group) => {
+    const groupImport = pendingReviewGroupToImport(group);
+    const payload = await getJson(`student_groups/${group.externalId}/get_students_main_data/`, session, fetcher);
+    return fetchPendingReviewsForGroup(groupImport, payload, session, fetcher);
+  }));
+  return snapshots.flat();
 }
 
 export async function loginKodland(credentials: KodlandCredentials, fetcher: FetchLike = fetch): Promise<TokenResponse> {
@@ -88,6 +115,37 @@ async function fetchStudentDetail(student: KodlandStudentImport, session: TokenS
     return enrichKodlandStudentFromDetail(student, payload);
   } catch {
     return student;
+  }
+}
+
+function pendingReviewGroupToImport(group: KodlandPendingReviewGroup): KodlandGroupImport {
+  return {
+    externalId: group.externalId,
+    title: group.title,
+    archived: group.archived,
+    courseName: '',
+    studentCount: 0,
+    startDate: '',
+    nextLessonDate: '',
+    rawData: {},
+  };
+}
+
+async function fetchPendingReviewsForGroup(group: KodlandGroupImport, groupStudentsPayload: unknown, session: TokenSession, fetcher: FetchLike) {
+  try {
+    const lessonsPayload = await getJson(`student_groups/${group.externalId}/lessons/`, session, fetcher);
+    const lessonIds = Array.isArray(lessonsPayload)
+      ? lessonsPayload
+        .filter((lesson) => (lesson as Record<string, unknown>).lesson_passed === true)
+        .map((lesson) => String((lesson as Record<string, unknown>).lesson_id ?? ''))
+        .filter(Boolean)
+      : [];
+    const progressPayloads = await Promise.all(lessonIds.map((lessonId) => (
+      getJson(`student_groups/${group.externalId}/lesson/${lessonId}/get_group_progress/`, session, fetcher)
+    )));
+    return parseKodlandPendingReviewsPayload(group, groupStudentsPayload, lessonsPayload, progressPayloads);
+  } catch {
+    return [];
   }
 }
 

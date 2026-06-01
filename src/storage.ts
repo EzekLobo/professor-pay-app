@@ -4,8 +4,8 @@ import { futureLessonsForClassUpdate, lessonsForClassDeactivation } from './clas
 import { sampleClasses, sampleExtraLessons } from './sampleData';
 import { hasExistingUserData } from './storageInitialization';
 import { resetDatabaseSql } from './storageSql';
-import { KodlandGroupImport, KodlandStudentImport } from './kodland';
-import { ClassRecord, KodlandGroupRecord, LessonRecord, PaymentConfirmation, StudentWithClass } from './types';
+import { KodlandGroupImport, KodlandPendingReviewImport, KodlandStudentImport } from './kodland';
+import { ClassRecord, KodlandGroupRecord, LessonRecord, PaymentConfirmation, PendingReviewRecord, StudentWithClass } from './types';
 
 export type StudentLocalUpdate = {
   name: string;
@@ -18,6 +18,8 @@ export type StudentLocalUpdate = {
 
 const db = SQLite.openDatabaseSync('aulapay.db');
 const realSeedKey = 'real_seed_2026_05';
+const pendingReviewsSnapshotVersionKey = 'pending_reviews_snapshot_version';
+const pendingReviewsSnapshotVersion = 'submitted_only_v2';
 
 export function initDatabase() {
   db.execSync(`
@@ -110,6 +112,25 @@ export function initDatabase() {
       PRIMARY KEY (externalStudentId, externalClassId)
     );
 
+    CREATE TABLE IF NOT EXISTS pending_reviews (
+      id TEXT PRIMARY KEY NOT NULL,
+      externalClassId TEXT NOT NULL,
+      externalClassName TEXT NOT NULL,
+      externalStudentId TEXT NOT NULL,
+      studentName TEXT NOT NULL,
+      lessonId TEXT NOT NULL,
+      lessonNumber INTEGER NOT NULL,
+      lessonTitle TEXT NOT NULL,
+      moduleNumber TEXT NOT NULL,
+      taskId TEXT NOT NULL,
+      taskNumber INTEGER NOT NULL,
+      taskTitle TEXT NOT NULL,
+      statusKey TEXT NOT NULL,
+      statusLabel TEXT NOT NULL,
+      correctionUrl TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
@@ -123,6 +144,8 @@ export function initDatabase() {
   ensureColumn('students', 'localNote', "TEXT NOT NULL DEFAULT ''");
   ensureColumn('students', 'locallyEdited', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('students', 'deletedAt', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn('pending_reviews', 'correctionUrl', "TEXT NOT NULL DEFAULT ''");
+  resetPendingReviewsIfRuleChanged();
 
   const initialized = db.getFirstSync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'initialized'");
   if (!initialized) {
@@ -217,6 +240,17 @@ export function loadKodlandLastSync() {
   return db.getFirstSync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'kodland_last_sync'")?.value ?? '';
 }
 
+export function loadPendingReviewsLastSync() {
+  return db.getFirstSync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'kodland_pending_reviews_last_sync'")?.value ?? '';
+}
+
+export function loadPendingReviews(): PendingReviewRecord[] {
+  return db.getAllSync<PendingReviewRecord>(
+    `SELECT * FROM pending_reviews
+      ORDER BY externalClassName ASC, studentName ASC, moduleNumber ASC, lessonNumber ASC, taskNumber ASC, taskTitle ASC`,
+  );
+}
+
 export function linkKodlandGroup(externalClassId: string, localClassId: string | null) {
   const now = new Date().toISOString();
   db.runSync(
@@ -245,7 +279,7 @@ export function deleteKodlandStudent(studentId: string) {
   });
 }
 
-export function importKodlandSnapshot(groups: KodlandGroupImport[], students: KodlandStudentImport[]) {
+export function importKodlandSnapshot(groups: KodlandGroupImport[], students: KodlandStudentImport[], pendingReviews: KodlandPendingReviewImport[] = []) {
   const now = new Date().toISOString();
   const incomingStudentIds = new Set(students.map((student) => `kodland-student-${student.externalId}`));
   db.withTransactionSync(() => {
@@ -301,11 +335,58 @@ export function importKodlandSnapshot(groups: KodlandGroupImport[], students: Ko
         [student.externalId, student.externalClassId, now],
       );
     });
+    replacePendingReviews(pendingReviews, now);
     db.runSync("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('kodland_last_sync', ?)", [now]);
     rebuildKodlandStudentLinks(now);
   });
   const linked = loadStudents().filter((student) => Boolean(student.classId)).length;
   return { imported: students.length, linked, unlinked: students.length - linked };
+}
+
+export function importKodlandPendingReviews(pendingReviews: KodlandPendingReviewImport[]) {
+  const now = new Date().toISOString();
+  db.withTransactionSync(() => {
+    replacePendingReviews(pendingReviews, now);
+  });
+  return { imported: pendingReviews.length };
+}
+
+function replacePendingReviews(pendingReviews: KodlandPendingReviewImport[], now: string) {
+  db.runSync('DELETE FROM pending_reviews');
+  pendingReviews.forEach((review) => {
+    db.runSync(
+      `INSERT OR REPLACE INTO pending_reviews
+        (id, externalClassId, externalClassName, externalStudentId, studentName, lessonId, lessonNumber, lessonTitle, moduleNumber, taskId, taskNumber, taskTitle, statusKey, statusLabel, correctionUrl, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        review.id,
+        review.externalClassId,
+        review.externalClassName,
+        review.externalStudentId,
+        review.studentName,
+        review.lessonId,
+        review.lessonNumber,
+        review.lessonTitle,
+        review.moduleNumber,
+        review.taskId,
+        review.taskNumber,
+        review.taskTitle,
+        review.statusKey,
+        review.statusLabel,
+        review.correctionUrl,
+        now,
+      ],
+    );
+  });
+  db.runSync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', [pendingReviewsSnapshotVersionKey, pendingReviewsSnapshotVersion]);
+  db.runSync("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('kodland_pending_reviews_last_sync', ?)", [now]);
+}
+
+function resetPendingReviewsIfRuleChanged() {
+  const storedVersion = db.getFirstSync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', [pendingReviewsSnapshotVersionKey])?.value ?? '';
+  if (storedVersion === pendingReviewsSnapshotVersion) return;
+  db.runSync('DELETE FROM pending_reviews');
+  db.runSync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', [pendingReviewsSnapshotVersionKey, pendingReviewsSnapshotVersion]);
 }
 
 export function addClass(input: Omit<ClassRecord, 'createdAt' | 'updatedAt'>) {

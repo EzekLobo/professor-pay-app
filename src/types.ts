@@ -83,6 +83,25 @@ export type StudentWithClass = StudentRecord & {
   confirmed: boolean;
 };
 
+export type PendingReviewRecord = {
+  id: string;
+  externalClassId: string;
+  externalClassName: string;
+  externalStudentId: string;
+  studentName: string;
+  lessonId: string;
+  lessonNumber: number;
+  lessonTitle: string;
+  moduleNumber: string;
+  taskId: string;
+  taskNumber: number;
+  taskTitle: string;
+  statusKey: string;
+  statusLabel: string;
+  correctionUrl: string;
+  updatedAt: string;
+};
+
 export type LessonView = LessonRecord & {
   period: string;
   paymentDate: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchKodlandSnapshot, getUserIdFromAccessToken, loginKodland } from './kodlandClient';
+import { fetchKodlandPendingReviews, fetchKodlandSnapshot, getUserIdFromAccessToken, loginKodland } from './kodlandClient';
 
 function token(payload: Record<string, unknown>) {
   return `header.${btoa(JSON.stringify(payload))}.signature`;
@@ -37,6 +37,22 @@ describe('kodland authenticated client', () => {
       if (url.includes('student_groups/10/get_students_main_data/')) {
         return jsonResponse([{ main_info: { student_id: 50, full_name: 'Aluno Teste', status: 'active' }, progress_info: [] }]);
       }
+      if (url.includes('student_groups/10/lessons/')) {
+        return jsonResponse([
+          { lesson_id: 200, lesson_number: 8, lesson_title: 'Loops', lesson_passed: true },
+          { lesson_id: 201, lesson_number: 9, lesson_title: 'Condicionais', lesson_passed: false },
+        ]);
+      }
+      if (url.includes('student_groups/10/lesson/200/get_group_progress/')) {
+        return jsonResponse({
+          lesson_tasks: [{ id: 1, number: 1, title: 'Projeto', lesson_id: 200, link_to_service: 'https://bo.kodland.test/review/1' }],
+          students_progress: [{
+            student_id: 50,
+            student_name: 'Aluno Teste',
+            tasks_data: [{ task_id: 1, task_status_key: 'TASK_SUBMITTED', task_status_value: 'Enviada' }],
+          }],
+        });
+      }
       if (url.includes('students/50/get_general_info_for_student_backoffice_page/')) {
         return jsonResponse({ main_info: { phone_number: '11999999999', profile_url: 'https://bo.kodland.test/students/50', password: 'secret' } });
       }
@@ -46,14 +62,57 @@ describe('kodland authenticated client', () => {
       teacherId: '7',
       groups: [{ externalId: '10' }, { externalId: '11' }],
       students: [{ externalId: '50', externalClassId: '10', phone: '11999999999', profileUrl: 'https://bo.kodland.test/students/50' }],
+      pendingReviews: [{ externalStudentId: '50', taskTitle: 'Projeto', correctionUrl: 'https://bo.kodland.test/review/1' }],
     });
     expect(fetcher).not.toHaveBeenCalledWith(expect.stringContaining('student_groups/11/'), expect.anything());
     expect(fetcher).toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/students/50/get_general_info_for_student_backoffice_page/', expect.anything());
+    expect(fetcher).toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/student_groups/10/lessons/', expect.anything());
+    expect(fetcher).toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/student_groups/10/lesson/200/get_group_progress/', expect.anything());
+    expect(fetcher).not.toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/student_groups/10/lesson/201/get_group_progress/', expect.anything());
   });
 
   it('returns a useful message for invalid credentials', async () => {
     const fetcher = vi.fn(() => jsonResponse({}, 401));
     await expect(loginKodland({ username: 'teacher', password: 'wrong' }, fetcher as typeof fetch)).rejects.toThrow('Usuario ou senha invalidos.');
+  });
+
+  it('updates pending reviews without fetching teacher pages or student details', async () => {
+    const accessToken = token({ user_id: 7 });
+    const fetcher = vi.fn((url: string) => {
+      if (url.endsWith('/login')) return jsonResponse({ access_token: accessToken });
+      if (url.includes('student_groups/10/get_students_main_data/')) {
+        return jsonResponse([{ main_info: { student_id: 50, full_name: 'Aluno Teste', status: 'active' }, progress_info: [] }]);
+      }
+      if (url.includes('student_groups/10/lessons/')) {
+        return jsonResponse([
+          { lesson_id: 200, lesson_number: 8, lesson_title: 'Loops', lesson_passed: true },
+          { lesson_id: 201, lesson_number: 9, lesson_title: 'Futura', lesson_passed: false },
+        ]);
+      }
+      if (url.includes('student_groups/10/lesson/200/get_group_progress/')) {
+        return jsonResponse({
+          lesson_tasks: [{ id: 1, number: 1, title: 'Projeto', lesson_id: 200 }],
+          students_progress: [{
+            student_id: 50,
+            student_name: 'Aluno Teste',
+            tasks_data: [{ task_id: 1, task_status_key: 'TASK_SUBMITTED_LATE' }],
+          }],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    await expect(fetchKodlandPendingReviews(
+      { username: 'teacher', password: 'secret' },
+      [{ externalId: '10', title: 'Turma A', archived: false }, { externalId: '11', title: 'Turma B', archived: true }],
+      fetcher as typeof fetch,
+    )).resolves.toMatchObject([{ externalClassId: '10', externalStudentId: '50', taskTitle: 'Projeto', statusLabel: 'Entregue com atraso' }]);
+
+    expect(fetcher).not.toHaveBeenCalledWith(expect.stringContaining('get_teachers_groups'), expect.anything());
+    expect(fetcher).not.toHaveBeenCalledWith(expect.stringContaining('get_general_info_for_student_backoffice_page'), expect.anything());
+    expect(fetcher).toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/student_groups/10/lesson/200/get_group_progress/', expect.anything());
+    expect(fetcher).not.toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/student_groups/10/lesson/201/get_group_progress/', expect.anything());
+    expect(fetcher).not.toHaveBeenCalledWith(expect.stringContaining('student_groups/11/'), expect.anything());
   });
 
   it('renews an expired access token once during synchronization', async () => {

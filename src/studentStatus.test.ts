@@ -63,11 +63,11 @@ describe('student status display', () => {
     ].sort(compareStudentsByStatusProgressThenName).map((student) => student.name)).toEqual(['Ana', 'Carlos', 'Bruno', 'Zoe']);
   });
 
-  it('marks top three only for active students with progress points', () => {
+  it('marks every active student in ranking order', () => {
     expect(studentRankPosition({ status: 'active', progressSummary: '80/100' }, 0)).toBe(1);
     expect(studentRankPosition({ status: 'active', progressSummary: '20/100' }, 2)).toBe(3);
-    expect(studentRankPosition({ status: 'active', progressSummary: '' }, 1)).toBeNull();
+    expect(studentRankPosition({ status: 'active', progressSummary: '10/100' }, 3)).toBe(4);
+    expect(studentRankPosition({ status: 'active', progressSummary: '' }, 1)).toBe(2);
     expect(studentRankPosition({ status: 'removed', progressSummary: '100/100' }, 0)).toBeNull();
-    expect(studentRankPosition({ status: 'active', progressSummary: '10/100' }, 3)).toBeNull();
   });
 });

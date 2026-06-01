@@ -40,6 +40,6 @@ export function compareStudentsByStatusProgressThenName<T extends { name: string
 }
 
 export function studentRankPosition(student: { status: string; progressSummary: string }, index: number) {
-  if (index > 2 || isExpelledStudentStatus(student.status) || studentProgressPoints(student.progressSummary) <= 0) return null;
+  if (isExpelledStudentStatus(student.status)) return null;
   return index + 1;
 }

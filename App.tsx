@@ -52,7 +52,7 @@ import {
   type LessonFilter,
 } from './src/calculations';
 import { clearKodlandCredentials, loadKodlandCredentials, saveKodlandCredentials } from './src/kodlandCredentials';
-import { syncKodlandStudents } from './src/kodland';
+import { syncKodlandPendingReviews, syncKodlandStudents } from './src/kodland';
 import { labels } from './src/labels';
 import {
   addClass,
@@ -61,6 +61,7 @@ import {
   confirmPayment,
   deactivateClass,
   deleteKodlandStudent,
+  importKodlandPendingReviews,
   importKodlandSnapshot,
   initDatabase,
   linkKodlandGroup,
@@ -69,24 +70,27 @@ import {
   loadLessons,
   loadKodlandGroups,
   loadKodlandLastSync,
+  loadPendingReviews,
+  loadPendingReviewsLastSync,
   loadStudents,
   resetDatabase,
   updateKodlandStudent,
   updateClassFutureLessons,
 } from './src/storage';
-import { ClassRecord, DashboardData, KodlandGroupRecord, LessonView, PaymentView, StudentWithClass } from './src/types';
+import { ClassRecord, DashboardData, KodlandGroupRecord, LessonView, PaymentView, PendingReviewRecord, StudentWithClass } from './src/types';
 import { parseDecimal, validateClassForm, validateExtraLessonForm } from './src/validation';
 import { normalizeWhatsAppPhone } from './src/whatsapp';
-import { compareStudentsByStatusProgressThenName, compareStudentsByStatusThenName, studentPointsLabel, studentRankPosition, studentStatusLabel } from './src/studentStatus';
+import { compareStudentsByStatusProgressThenName, studentPointsLabel, studentRankPosition, studentStatusLabel } from './src/studentStatus';
+import { filterPendingReviewsByModule, summarizePendingReviews, summarizePendingReviewsByModule } from './src/pendingReviews';
 
-type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas' | 'Kodland';
+type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas' | 'Correções' | 'Kodland';
 type SelectOption = { label: string; value: string };
 type MetricHelp = {
   title: string;
   items: { label: string; description: string }[];
 };
 
-const tabs: Tab[] = ['Resumo', 'Pagamentos', 'Turmas', 'Aulas', 'Kodland'];
+const tabs: Tab[] = ['Resumo', 'Pagamentos', 'Turmas', 'Aulas', 'Correções', 'Kodland'];
 const lessonFilters: LessonFilter[] = ['Todas', 'Turmas', 'Extras'];
 const timeOptions = Array.from({ length: 36 }, (_, index) => {
   const totalMinutes = 6 * 60 + index * 30;
@@ -120,7 +124,9 @@ export default function App() {
   const [lessons, setLessons] = useState<LessonView[]>([]);
   const [students, setStudents] = useState<StudentWithClass[]>([]);
   const [kodlandGroups, setKodlandGroups] = useState<KodlandGroupRecord[]>([]);
+  const [pendingReviews, setPendingReviews] = useState<PendingReviewRecord[]>([]);
   const [kodlandLastSync, setKodlandLastSync] = useState('');
+  const [pendingReviewsLastSync, setPendingReviewsLastSync] = useState('');
   const [dashboard, setDashboard] = useState(emptyDashboard);
   const [activeTab, setActiveTab] = useState<Tab>('Resumo');
   const [selectedPayment, setSelectedPayment] = useState<PaymentView | null>(null);
@@ -145,7 +151,9 @@ export default function App() {
     setLessons(nextDashboard.lessons);
     setStudents(loadStudents());
     setKodlandGroups(loadKodlandGroups());
+    setPendingReviews(loadPendingReviews());
     setKodlandLastSync(loadKodlandLastSync());
+    setPendingReviewsLastSync(loadPendingReviewsLastSync());
     setDashboard(nextDashboard);
   };
 
@@ -256,6 +264,30 @@ export default function App() {
   const openProfile = async (student: StudentWithClass) => {
     if (!student.profileUrl) return;
     await Linking.openURL(student.profileUrl);
+  };
+
+  const openReview = async (review: PendingReviewRecord) => {
+    if (!review.correctionUrl) return;
+    await Linking.openURL(review.correctionUrl);
+  };
+
+  const refreshPendingReviewsOnly = async () => {
+    try {
+      const credentials = await loadKodlandCredentials();
+      const activeGroups = kodlandGroups
+        .filter((group) => !group.archived)
+        .map((group) => ({ externalId: group.externalId, title: group.title, archived: group.archived }));
+      const result = await syncKodlandPendingReviews(credentials, activeGroups);
+      if (!result.ok) {
+        Alert.alert('Correções Kodland', result.message);
+        return;
+      }
+      importKodlandPendingReviews(result.pendingReviews);
+      refresh();
+      Alert.alert('Correções Kodland', `${result.pendingReviews.length} atividades pendentes atualizadas.`);
+    } catch {
+      Alert.alert('Correções Kodland', 'Não foi possível atualizar as correções.');
+    }
   };
 
   const openKodlandClassCreator = (group: KodlandGroupRecord) => {
@@ -450,6 +482,10 @@ export default function App() {
 
         {activeTab === 'Kodland' && (
           <KodlandScreen classes={classes} groups={kodlandGroups} students={students} lastSync={kodlandLastSync} onRefresh={refresh} onCreateClass={openKodlandClassCreator} onOpenStudent={setSelectedStudent} />
+        )}
+
+        {activeTab === 'Correções' && (
+          <CorrectionsScreen reviews={pendingReviews} students={students} lastSync={pendingReviewsLastSync || kodlandLastSync} onOpenStudentProfile={openProfile} onOpenReview={openReview} onRefreshReviews={refreshPendingReviewsOnly} />
         )}
       </View>
 
@@ -721,6 +757,208 @@ function StudentListItem({
   );
 }
 
+function CorrectionsScreen({
+  reviews,
+  students,
+  lastSync,
+  onOpenStudentProfile,
+  onOpenReview,
+  onRefreshReviews,
+}: {
+  reviews: PendingReviewRecord[];
+  students: StudentWithClass[];
+  lastSync: string;
+  onOpenStudentProfile: (student: StudentWithClass) => void;
+  onOpenReview: (review: PendingReviewRecord) => void;
+  onRefreshReviews: () => Promise<void>;
+}) {
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  const [refreshingReviews, setRefreshingReviews] = useState(false);
+  const selectedClassReviews = selectedClassId ? reviews.filter((review) => review.externalClassId === selectedClassId) : [];
+  const selectedStudentReviews = selectedStudentId ? selectedClassReviews.filter((review) => review.externalStudentId === selectedStudentId) : [];
+  const selectedModuleReviews = selectedModuleId ? filterPendingReviewsByModule(selectedStudentReviews, selectedModuleId) : [];
+  const selectedClassName = selectedClassReviews[0]?.externalClassName ?? '';
+  const selectedStudentName = selectedStudentReviews[0]?.studentName ?? '';
+  const selectedModuleName = summarizePendingReviewsByModule(selectedStudentReviews).find((module) => module.id === selectedModuleId)?.title ?? '';
+  const selectedStudent = selectedStudentId
+    ? students.find((student) => student.externalId === selectedStudentId && (!selectedClassId || student.externalClassId === selectedClassId))
+      ?? students.find((student) => student.externalId === selectedStudentId)
+      ?? null
+    : null;
+  const classSummaries = summarizePendingReviews(reviews, 'externalClassId', 'externalClassName');
+  const studentSummaries = summarizePendingReviews(selectedClassReviews, 'externalStudentId', 'studentName');
+  const moduleSummaries = summarizePendingReviewsByModule(selectedStudentReviews);
+
+  const updateReviews = async () => {
+    setRefreshingReviews(true);
+    try {
+      await onRefreshReviews();
+    } finally {
+      setRefreshingReviews(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedClassId && !reviews.some((review) => review.externalClassId === selectedClassId)) {
+      setSelectedClassId(null);
+      setSelectedStudentId(null);
+      setSelectedModuleId(null);
+    }
+  }, [reviews, selectedClassId]);
+
+  if (selectedModuleId) {
+    return (
+      <FlatList
+        data={selectedModuleReviews}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={(
+          <>
+            <View style={styles.kodlandSubHeader}>
+              <Pressable style={styles.kodlandSecondaryButton} onPress={() => setSelectedModuleId(null)}>
+                <Text style={styles.kodlandSecondaryText}>Voltar módulos</Text>
+              </Pressable>
+              {selectedStudent?.profileUrl ? (
+                <Pressable accessibilityLabel="Abrir perfil Kodland" style={styles.actionIconButton} onPress={() => onOpenStudentProfile(selectedStudent)}>
+                  <ExternalLink size={17} color="#75d7ff" />
+                </Pressable>
+              ) : null}
+            </View>
+            <Text style={styles.sectionText}>{selectedModuleName}</Text>
+            <Text style={styles.listHint}>{selectedModuleReviews.length} atividades pendentes de correção / {selectedStudentName}</Text>
+          </>
+        )}
+        renderItem={({ item }) => <PendingReviewItem review={item} onOpen={() => onOpenReview(item)} />}
+        ListEmptyComponent={<Text style={styles.emptyText}>Sem pendências neste módulo.</Text>}
+      />
+    );
+  }
+
+  if (selectedStudentId) {
+    return (
+      <FlatList
+        data={moduleSummaries}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={(
+          <>
+            <View style={styles.kodlandSubHeader}>
+              <Pressable style={styles.kodlandSecondaryButton} onPress={() => {
+                setSelectedStudentId(null);
+                setSelectedModuleId(null);
+              }}>
+                <Text style={styles.kodlandSecondaryText}>Voltar alunos</Text>
+              </Pressable>
+              {selectedStudent?.profileUrl ? (
+                <Pressable accessibilityLabel="Abrir perfil Kodland" style={styles.actionIconButton} onPress={() => onOpenStudentProfile(selectedStudent)}>
+                  <ExternalLink size={17} color="#75d7ff" />
+                </Pressable>
+              ) : null}
+            </View>
+            <Text style={styles.sectionText}>{selectedStudentName}</Text>
+            <Text style={styles.listHint}>{selectedStudentReviews.length} atividades pendentes de correção / {selectedClassName}</Text>
+          </>
+        )}
+        renderItem={({ item }) => (
+          <Pressable style={styles.studentItem} onPress={() => setSelectedModuleId(item.id)}>
+            <View style={styles.lessonBody}>
+              <Text style={styles.lessonTitle}>{item.title}</Text>
+              <Text style={styles.lessonMeta}>{item.count} atividades pendentes de correção</Text>
+            </View>
+            <Text style={styles.reviewChip}>{item.count}</Text>
+          </Pressable>
+        )}
+        ListEmptyComponent={<Text style={styles.emptyText}>Sem pendências para este aluno.</Text>}
+      />
+    );
+  }
+
+  if (selectedClassId) {
+    return (
+      <FlatList
+        data={studentSummaries}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={(
+          <>
+            <View style={styles.kodlandSubHeader}>
+              <Pressable style={styles.kodlandSecondaryButton} onPress={() => {
+                setSelectedClassId(null);
+                setSelectedStudentId(null);
+                setSelectedModuleId(null);
+              }}>
+                <Text style={styles.kodlandSecondaryText}>Voltar turmas</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.sectionText}>{selectedClassName}</Text>
+            <Text style={styles.listHint}>{selectedClassReviews.length} atividades pendentes de correção</Text>
+          </>
+        )}
+        renderItem={({ item }) => (
+          <Pressable style={styles.studentItem} onPress={() => setSelectedStudentId(item.id)}>
+            <View style={styles.lessonBody}>
+              <Text style={styles.lessonTitle}>{item.title}</Text>
+              <Text style={styles.lessonMeta}>{item.count} atividades pendentes de correção</Text>
+            </View>
+            <Text style={styles.reviewChip}>{item.count}</Text>
+          </Pressable>
+        )}
+        ListEmptyComponent={<Text style={styles.emptyText}>Sem alunos com pendências nesta turma.</Text>}
+      />
+    );
+  }
+
+  return (
+    <FlatList
+      data={classSummaries}
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={styles.listContent}
+      ListHeaderComponent={(
+        <>
+          <Text style={styles.sectionText}>Correções</Text>
+          <Text style={styles.listHint}>{reviews.length} atividades pendentes de correção{lastSync ? ` / Atualizado ${new Date(lastSync).toLocaleString('pt-BR')}` : ''}</Text>
+          <Pressable style={styles.kodlandPrimaryButton} disabled={refreshingReviews} onPress={updateReviews}>
+            <Text style={styles.kodlandPrimaryText}>{refreshingReviews ? 'Atualizando...' : 'Atualizar correções'}</Text>
+          </Pressable>
+        </>
+      )}
+      renderItem={({ item }) => (
+        <Pressable style={styles.studentItem} onPress={() => setSelectedClassId(item.id)}>
+          <View style={styles.lessonBody}>
+            <Text style={styles.lessonTitle}>{item.title}</Text>
+            <Text style={styles.lessonMeta}>{item.count} atividades pendentes de correção</Text>
+          </View>
+          <Text style={styles.reviewChip}>{item.count}</Text>
+        </Pressable>
+      )}
+      ListEmptyComponent={<Text style={styles.emptyText}>Sem pendências de correção.</Text>}
+    />
+  );
+}
+
+function PendingReviewItem({ review, onOpen }: { review: PendingReviewRecord; onOpen: () => void }) {
+  const moduleLabel = review.moduleNumber ? `Módulo ${review.moduleNumber}` : 'Módulo não informado';
+  const lessonLabel = review.lessonNumber ? `Aula ${review.lessonNumber}` : 'Aula sem número';
+  const taskLabel = review.taskNumber ? `${review.taskNumber}. ${review.taskTitle}` : review.taskTitle;
+  return (
+    <View style={styles.studentItem}>
+      <View style={styles.lessonBody}>
+        <Text style={styles.lessonTitle}>{taskLabel || 'Atividade sem título'}</Text>
+        <Text style={styles.lessonMeta}>{moduleLabel} / {lessonLabel}</Text>
+        <Text style={styles.lessonMeta}>{review.lessonTitle || 'Título da aula não informado'}</Text>
+      </View>
+      <View style={styles.inlineActions}>
+        <Text style={styles.reviewChip}>{review.statusLabel || 'Entregue'}</Text>
+        <Pressable accessibilityLabel="Abrir atividade na Kodland" style={styles.actionIconButton} onPress={onOpen}>
+          <ExternalLink size={17} color="#75d7ff" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 function KodlandScreen({
   classes,
   groups,
@@ -745,7 +983,7 @@ function KodlandScreen({
   const [linkingGroup, setLinkingGroup] = useState<KodlandGroupRecord | null>(null);
 
   const selectedGroup = groups.find((group) => group.externalId === selectedGroupId) ?? null;
-  const visibleStudents = selectedGroup ? students.filter((student) => student.externalClassId === selectedGroup.externalId).sort(compareStudentsByStatusThenName) : [];
+  const visibleStudents = selectedGroup ? students.filter((student) => student.externalClassId === selectedGroup.externalId).sort(compareStudentsByStatusProgressThenName) : [];
 
   useEffect(() => {
     loadKodlandCredentials().then((credentials) => {
@@ -799,9 +1037,9 @@ function KodlandScreen({
         Alert.alert('Sincronização Kodland', result.message);
         return;
       }
-      importKodlandSnapshot(result.groups, result.students);
+      importKodlandSnapshot(result.groups, result.students, result.pendingReviews);
       onRefresh();
-      Alert.alert('Sincronização Kodland', `${result.students.length} alunos recebidos.`);
+      Alert.alert('Sincronização Kodland', `${result.students.length} alunos recebidos. ${result.pendingReviews.length} pendências de correção.`);
     } catch {
       Alert.alert('Sincronização Kodland', 'Não foi possível iniciar a sincronização.');
     } finally {
@@ -861,8 +1099,8 @@ function KodlandScreen({
           </View>
           <Text style={styles.sectionText}>{selectedGroup.title}</Text>
           <Text style={styles.listHint}>{visibleStudents.length} alunos nesta turma</Text>
-          {visibleStudents.map((student) => (
-            <StudentListItem key={`${student.id}-${student.externalClassId}`} student={student} onPress={() => onOpenStudent(student)} />
+          {visibleStudents.map((student, index) => (
+            <StudentListItem key={`${student.id}-${student.externalClassId}`} student={student} rankPosition={studentRankPosition(student, index)} onPress={() => onOpenStudent(student)} />
           ))}
         </>
       )}

@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-05-30
+Last updated: 2026-06-05
 
 ## Project State
 
@@ -36,6 +36,8 @@ Last updated: 2026-05-30
 - Student list rows now use compact cards with initial avatar, contact line, progress/review chips, and a detail arrow; expelled students keep the `Expulso` badge and subdued alert styling while remaining sorted after active students.
 - In the local `Turmas` class detail, active students are ranked by Kodland progress points from `progressSummary`; the top three scored active students get compact `1º`, `2º`, `3º` badges, while expelled students remain at the end. The Kodland review student list still uses status/name ordering.
 - Student UI now labels Kodland progress as `Pontos` and displays only the earned value before `/` (for example `480/6031` appears as `Pontos 480`). `Aulas > Turmas` now shows class-history groups first, starting collapsed, with one expandable class at a time.
+- Ranking badges now appear for every active ranked student, but only the top three receive the highlighted card/badge styling. Kodland class linking lists only active local classes, and top-level tab changes reset detail selections back to main lists.
+- The Kodland class-link modal now keeps manually registered local classes behind a compact expandable field; when expanded, the field shows an instruction and the selected class is marked only inside the list.
 - Kodland endpoint mapping extracted from public bundles and an authenticated local HAR is documented in `docs/kodland-endpoints.md`. Current screens use backoffice API v2. The read-only sync path is SSO login, teacher groups, group general info, group students, allowed safe fields from student detail, and group schedule.
 
 ## Known Follow-Ups

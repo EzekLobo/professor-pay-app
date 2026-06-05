@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   compareStudentsByStatusProgressThenName,
   compareStudentsByStatusThenName,
+  isHighlightedRank,
   isExpelledStudentStatus,
   studentPointsLabel,
   studentProgressPoints,
@@ -69,5 +70,13 @@ describe('student status display', () => {
     expect(studentRankPosition({ status: 'active', progressSummary: '10/100' }, 3)).toBe(4);
     expect(studentRankPosition({ status: 'active', progressSummary: '' }, 1)).toBe(2);
     expect(studentRankPosition({ status: 'removed', progressSummary: '100/100' }, 0)).toBeNull();
+  });
+
+  it('highlights only the top three ranking positions', () => {
+    expect(isHighlightedRank(1)).toBe(true);
+    expect(isHighlightedRank(2)).toBe(true);
+    expect(isHighlightedRank(3)).toBe(true);
+    expect(isHighlightedRank(4)).toBe(false);
+    expect(isHighlightedRank(null)).toBe(false);
   });
 });

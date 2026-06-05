@@ -43,3 +43,7 @@ export function studentRankPosition(student: { status: string; progressSummary: 
   if (isExpelledStudentStatus(student.status)) return null;
   return index + 1;
 }
+
+export function isHighlightedRank(rankPosition: number | null) {
+  return rankPosition !== null && rankPosition >= 1 && rankPosition <= 3;
+}

@@ -80,7 +80,7 @@ import {
 import { ClassRecord, DashboardData, KodlandGroupRecord, LessonView, PaymentView, PendingReviewRecord, StudentWithClass } from './src/types';
 import { parseDecimal, validateClassForm, validateExtraLessonForm } from './src/validation';
 import { normalizeWhatsAppPhone } from './src/whatsapp';
-import { compareStudentsByStatusProgressThenName, studentPointsLabel, studentRankPosition, studentStatusLabel } from './src/studentStatus';
+import { compareStudentsByStatusProgressThenName, isHighlightedRank, studentPointsLabel, studentRankPosition, studentStatusLabel } from './src/studentStatus';
 import { filterPendingReviewsByModule, summarizePendingReviews, summarizePendingReviewsByModule } from './src/pendingReviews';
 
 type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas' | 'Correções' | 'Kodland';
@@ -171,6 +171,15 @@ export default function App() {
   useEffect(() => {
     setExpandedLessonClassId(null);
   }, [activeTab, lessonFilter]);
+
+  const handleTabChange = (tab: Tab) => {
+    setSelectedClassId(null);
+    setSelectedStudent(null);
+    setSelectedPayment(null);
+    setEditingStudent(null);
+    if (tab === 'Aulas') setExpandedLessonClassId(null);
+    setActiveTab(tab);
+  };
 
   const handleDeactivateClass = (classId: string) => {
     Alert.alert('Retirar turma', 'Aulas realizadas ficam no histórico. Aulas futuras saem do cálculo.', [
@@ -316,10 +325,7 @@ export default function App() {
         <View style={styles.tabsFrame}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
             {tabs.map((tab) => (
-              <Pressable key={tab} onPress={() => {
-                if (tab === 'Aulas') setExpandedLessonClassId(null);
-                setActiveTab(tab);
-              }} style={[styles.tab, activeTab === tab && styles.tabActive]}>
+              <Pressable key={tab} onPress={() => handleTabChange(tab)} style={[styles.tab, activeTab === tab && styles.tabActive]}>
                 <Text numberOfLines={1} style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
               </Pressable>
             ))}
@@ -735,15 +741,16 @@ function StudentListItem({
   const pointsLabel = studentPointsLabel(student.progressSummary);
   const initial = student.name.trim().charAt(0).toLocaleUpperCase('pt-BR') || '?';
   const contact = [student.email, student.phone].filter(Boolean).join(' / ') || 'Sem contato';
+  const highlightedRank = isHighlightedRank(rankPosition);
   return (
-    <Pressable style={[styles.studentCard, rankPosition ? styles.studentCardRanked : null, statusLabel && styles.studentCardExpelled]} onPress={onPress}>
+    <Pressable style={[styles.studentCard, highlightedRank ? styles.studentCardRanked : null, statusLabel && styles.studentCardExpelled]} onPress={onPress}>
       <View style={[styles.studentAvatar, statusLabel && styles.studentAvatarExpelled]}>
         <Text style={[styles.studentAvatarText, statusLabel && styles.studentAvatarTextExpelled]}>{initial}</Text>
       </View>
       <View style={styles.studentCardBody}>
         <View style={styles.studentTitleRow}>
           <Text numberOfLines={1} style={styles.studentName}>{student.name}</Text>
-          {rankPosition ? <Text numberOfLines={1} style={styles.rankBadge}>{rankPosition}º</Text> : null}
+          {rankPosition ? <Text numberOfLines={1} style={[styles.rankBadge, highlightedRank && styles.rankBadgeHighlighted]}>{rankPosition}º</Text> : null}
           {statusLabel ? <Text numberOfLines={1} style={styles.expelledBadge}>{statusLabel}</Text> : null}
         </View>
         <Text numberOfLines={1} style={styles.studentContact}>{contact}</Text>
@@ -1138,6 +1145,15 @@ function KodlandClassLinkModal({
   onSelect: (classId: string | null) => void;
   onCreate: () => void;
 }) {
+  const activeClasses = classes.filter((classRecord) => classRecord.active);
+  const [classListOpen, setClassListOpen] = useState(false);
+  const selectedClass = activeClasses.find((classRecord) => classRecord.id === group?.localClassId) ?? null;
+  const linkedClassFieldValue = classListOpen ? 'Escolha uma turma abaixo' : selectedClass?.name ?? 'Selecionar turma cadastrada';
+
+  useEffect(() => {
+    setClassListOpen(false);
+  }, [group?.externalId]);
+
   return (
     <Modal visible={Boolean(group)} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -1157,7 +1173,17 @@ function KodlandClassLinkModal({
               <Text style={styles.choiceText}>Cadastrar como nova turma</Text>
               <Plus size={16} color="#75d7ff" />
             </Pressable>
-            {classes.map((classRecord) => (
+            <Pressable style={styles.linkedClassField} onPress={() => setClassListOpen((current) => !current)}>
+              <View style={styles.linkedClassFieldTextBlock}>
+                <Text style={styles.linkedClassLabel}>Turma cadastrada</Text>
+                <Text numberOfLines={1} style={[styles.linkedClassValue, classListOpen && styles.linkedClassHintValue]}>{linkedClassFieldValue}</Text>
+              </View>
+              <ArrowRight size={17} color="#75d7ff" style={classListOpen ? styles.expandIconOpen : styles.expandIconClosed} />
+            </Pressable>
+            {classListOpen && activeClasses.length === 0 && (
+              <Text style={styles.emptyText}>Nenhuma turma ativa cadastrada para vincular.</Text>
+            )}
+            {classListOpen && activeClasses.map((classRecord) => (
               <Pressable key={classRecord.id} style={[styles.choiceItem, group?.localClassId === classRecord.id && styles.choiceItemActive]} onPress={() => onSelect(classRecord.id)}>
                 <Text style={[styles.choiceText, group?.localClassId === classRecord.id && styles.choiceTextActive]}>{classRecord.name}</Text>
                 {group?.localClassId === classRecord.id && <Check size={16} color="#75d7ff" />}
@@ -2316,16 +2342,21 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   rankBadge: {
-    backgroundColor: '#2f2411',
-    borderColor: '#ffbf5f',
+    backgroundColor: '#12223a',
+    borderColor: '#27415f',
     borderRadius: 999,
     borderWidth: 1,
-    color: '#ffcf7a',
+    color: '#bdd2ee',
     fontSize: 10,
     fontWeight: '900',
     overflow: 'hidden',
     paddingHorizontal: 7,
     paddingVertical: 3,
+  },
+  rankBadgeHighlighted: {
+    backgroundColor: '#2f2411',
+    borderColor: '#ffbf5f',
+    color: '#ffcf7a',
   },
   studentContact: {
     color: '#90a7c8',
@@ -2841,6 +2872,38 @@ const styles = StyleSheet.create({
   choiceItemActive: {
     borderColor: '#75d7ff',
     backgroundColor: '#123b62',
+  },
+  linkedClassField: {
+    alignItems: 'center',
+    backgroundColor: '#091a2c',
+    borderColor: '#24517d',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    minHeight: 54,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
+  linkedClassFieldTextBlock: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  linkedClassLabel: {
+    color: '#7d94b6',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  linkedClassValue: {
+    color: '#f2f8ff',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  linkedClassHintValue: {
+    color: '#90a7c8',
+    fontWeight: '800',
   },
   choiceText: {
     color: '#d9e9ff',

@@ -2,7 +2,7 @@
   "expo": {
     "name": "AulaPay",
     "slug": "professor-pay-app",
-    "version": "1.0.7",
+    "version": "1.7.0",
     "orientation": "portrait",
     "icon": "./assets/aulapay-photo-icon.png",
     "userInterfaceStyle": "light",
@@ -11,7 +11,7 @@
     },
     "android": {
       "icon": "./assets/aulapay-photo-icon.png",
-      "versionCode": 7,
+      "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/aulapay-photo-icon.png",

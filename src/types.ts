@@ -57,13 +57,37 @@ export type KodlandGroupRecord = {
   externalId: string;
   title: string;
   courseName: string;
+  courseId: string;
   studentCount: number;
   startDate: string;
   nextLessonDate: string;
+  nextLessonTitle: string;
+  nextLessonUrl: string;
+  nextLessonId: string;
   archived: boolean;
   rawDataJson: string;
   localClassId: string | null;
   confirmed: boolean;
+  updatedAt: string;
+};
+
+export type KodlandLessonRecord = {
+  id: string;
+  externalClassId: string;
+  externalClassName: string;
+  courseId: string;
+  lessonId: string;
+  lessonNumber: number;
+  lessonTitle: string;
+  lessonDate: string;
+  lessonPassed: boolean;
+  materialUrl: string;
+  slideUrl: string;
+  slideTitle: string;
+  slideMaterialId: string;
+  scriptUrl: string;
+  scriptTitle: string;
+  scriptMaterialId: string;
   updatedAt: string;
 };
 

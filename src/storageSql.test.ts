@@ -5,6 +5,7 @@ describe('storage SQL', () => {
   it('clears classes, lessons and payment history on reset', () => {
     expect(resetDatabaseSql).toContain('DELETE FROM class_students');
     expect(resetDatabaseSql).toContain('DELETE FROM pending_reviews');
+    expect(resetDatabaseSql).toContain('DELETE FROM kodland_lessons');
     expect(resetDatabaseSql).toContain('DELETE FROM students');
     expect(resetDatabaseSql).toContain('DELETE FROM kodland_student_groups');
     expect(resetDatabaseSql).toContain('DELETE FROM kodland_class_links');

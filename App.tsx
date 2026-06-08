@@ -67,6 +67,7 @@ import {
   linkKodlandGroup,
   loadClasses,
   loadConfirmations,
+  loadKodlandLessons,
   loadLessons,
   loadKodlandGroups,
   loadKodlandLastSync,
@@ -74,10 +75,11 @@ import {
   loadPendingReviewsLastSync,
   loadStudents,
   resetDatabase,
+  updateKodlandLessonMaterials,
   updateKodlandStudent,
   updateClassFutureLessons,
 } from './src/storage';
-import { ClassRecord, DashboardData, KodlandGroupRecord, LessonView, PaymentView, PendingReviewRecord, StudentWithClass } from './src/types';
+import { ClassRecord, DashboardData, KodlandGroupRecord, KodlandLessonRecord, LessonView, PaymentView, PendingReviewRecord, StudentWithClass } from './src/types';
 import { parseDecimal, validateClassForm, validateExtraLessonForm } from './src/validation';
 import { normalizeWhatsAppPhone } from './src/whatsapp';
 import { compareStudentsByStatusProgressThenName, isHighlightedRank, studentPointsLabel, studentRankPosition, studentStatusLabel } from './src/studentStatus';
@@ -119,9 +121,30 @@ const futureHelp: MetricHelp = {
   ],
 };
 
+function upcomingKodlandLessons(lessons: KodlandLessonRecord[], today: string) {
+  return lessons
+    .filter((lesson) => !lesson.lessonPassed && (!lesson.lessonDate || lesson.lessonDate >= today))
+    .sort((a, b) => {
+      const aDate = a.lessonDate || '9999-12-31';
+      const bDate = b.lessonDate || '9999-12-31';
+      return aDate.localeCompare(bDate)
+        || a.externalClassName.localeCompare(b.externalClassName, 'pt-BR', { sensitivity: 'base' })
+        || a.lessonNumber - b.lessonNumber;
+    });
+}
+
+function nextKodlandLessonsByClass(lessons: KodlandLessonRecord[], today: string) {
+  const byClass = new Map<string, KodlandLessonRecord>();
+  upcomingKodlandLessons(lessons, today).forEach((lesson) => {
+    if (!byClass.has(lesson.externalClassId)) byClass.set(lesson.externalClassId, lesson);
+  });
+  return [...byClass.values()].sort((a, b) => a.externalClassName.localeCompare(b.externalClassName, 'pt-BR', { sensitivity: 'base' }));
+}
+
 export default function App() {
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [lessons, setLessons] = useState<LessonView[]>([]);
+  const [kodlandLessons, setKodlandLessons] = useState<KodlandLessonRecord[]>([]);
   const [students, setStudents] = useState<StudentWithClass[]>([]);
   const [kodlandGroups, setKodlandGroups] = useState<KodlandGroupRecord[]>([]);
   const [pendingReviews, setPendingReviews] = useState<PendingReviewRecord[]>([]);
@@ -138,6 +161,7 @@ export default function App() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<StudentWithClass | null>(null);
   const [editingStudent, setEditingStudent] = useState<StudentWithClass | null>(null);
+  const [editingKodlandLesson, setEditingKodlandLesson] = useState<KodlandLessonRecord | null>(null);
   const [lessonFilter, setLessonFilter] = useState<LessonFilter>('Todas');
   const [expandedLessonClassId, setExpandedLessonClassId] = useState<string | null>(null);
   const [activeHelp, setActiveHelp] = useState<MetricHelp | null>(null);
@@ -149,6 +173,7 @@ export default function App() {
     const nextDashboard = buildDashboard(loadedClasses, loadedLessons, loadedConfirmations);
     setClasses(loadedClasses);
     setLessons(nextDashboard.lessons);
+    setKodlandLessons(loadKodlandLessons());
     setStudents(loadStudents());
     setKodlandGroups(loadKodlandGroups());
     setPendingReviews(loadPendingReviews());
@@ -165,6 +190,8 @@ export default function App() {
   const filteredLessons = useMemo(() => filterLessonHistoryByKind(lessons, lessonFilter, dashboard.today), [lessons, lessonFilter, dashboard.today]);
   const classLessonGroups = useMemo(() => lessonFilter === 'Turmas' ? groupClassLessonHistory(filteredLessons) : [], [filteredLessons, lessonFilter]);
   const visiblePayments = useMemo(() => relevantPayments(dashboard.payments, dashboard.today), [dashboard.payments, dashboard.today]);
+  const futureKodlandLessons = useMemo(() => upcomingKodlandLessons(kodlandLessons, dashboard.today), [kodlandLessons, dashboard.today]);
+  const nextKodlandLessons = useMemo(() => nextKodlandLessonsByClass(kodlandLessons, dashboard.today), [kodlandLessons, dashboard.today]);
   const selectedClass = selectedClassId ? classes.find((item) => item.id === selectedClassId) ?? null : null;
   const selectedClassStudents = selectedClassId ? students.filter((student) => student.classId === selectedClassId).sort(compareStudentsByStatusProgressThenName) : [];
 
@@ -280,6 +307,17 @@ export default function App() {
     await Linking.openURL(review.correctionUrl);
   };
 
+  const openKodlandMaterial = async (url: string) => {
+    if (!url) return;
+    await Linking.openURL(url);
+  };
+
+  const saveKodlandLessonMaterials = (lesson: KodlandLessonRecord, input: { slideUrl: string; scriptUrl: string }) => {
+    updateKodlandLessonMaterials(lesson, input);
+    setEditingKodlandLesson(null);
+    refresh();
+  };
+
   const refreshPendingReviewsOnly = async () => {
     try {
       const credentials = await loadKodlandCredentials();
@@ -363,6 +401,16 @@ export default function App() {
                 [labels.totalLessonsLabel, String(dashboard.future.totalLessons)],
               ]} />
             </View>
+
+            <SectionTitle title="Proximas aulas" action="Ver aulas" onPress={() => setActiveTab('Aulas')} />
+            {nextKodlandLessons.length ? (
+              <KodlandNextLessonsOverview lessons={nextKodlandLessons} onOpenMaterial={openKodlandMaterial} onEdit={setEditingKodlandLesson} />
+            ) : (
+              <View style={styles.kodlandLessonEmpty}>
+                <Text style={styles.lessonTitle}>Nenhuma aula Kodland sincronizada</Text>
+                <Text style={styles.lessonMeta}>Sincronize a Kodland para ver a proxima aula de cada turma.</Text>
+              </View>
+            )}
 
             <SectionTitle title={labels.classesLabel} action="Ver todas" onPress={() => setActiveTab('Turmas')} />
             {dashboard.progress.map((progress) => (
@@ -461,6 +509,7 @@ export default function App() {
                     setExpandedLessonClassId(null);
                     setLessonFilter(value);
                   }} />
+                  <KodlandLessonsSection lessons={futureKodlandLessons} onOpenMaterial={openKodlandMaterial} onEdit={setEditingKodlandLesson} />
                   <Text style={styles.listHint}>Historico por turma</Text>
                 </>
               )}
@@ -478,6 +527,7 @@ export default function App() {
                     setExpandedLessonClassId(null);
                     setLessonFilter(value);
                   }} />
+                  <KodlandLessonsSection lessons={futureKodlandLessons} onOpenMaterial={openKodlandMaterial} onEdit={setEditingKodlandLesson} />
                   <Text style={styles.listHint}>Historico de aulas</Text>
                 </>
               )}
@@ -514,6 +564,11 @@ export default function App() {
         student={editingStudent}
         onClose={() => setEditingStudent(null)}
         onSave={saveStudent}
+      />
+      <KodlandLessonMaterialsModal
+        lesson={editingKodlandLesson}
+        onClose={() => setEditingKodlandLesson(null)}
+        onSave={saveKodlandLessonMaterials}
       />
       <ClassFormModal
         open={classModalOpen}
@@ -1044,9 +1099,9 @@ function KodlandScreen({
         Alert.alert('Sincronização Kodland', result.message);
         return;
       }
-      importKodlandSnapshot(result.groups, result.students, result.pendingReviews);
+      importKodlandSnapshot(result.groups, result.students, result.pendingReviews, result.lessons);
       onRefresh();
-      Alert.alert('Sincronização Kodland', `${result.students.length} alunos recebidos. ${result.pendingReviews.length} pendências de correção.`);
+      Alert.alert('Sincronização Kodland', `${result.students.length} alunos recebidos. ${result.lessons.length} aulas sincronizadas. ${result.pendingReviews.length} pendências de correção.`);
     } catch {
       Alert.alert('Sincronização Kodland', 'Não foi possível iniciar a sincronização.');
     } finally {
@@ -1330,6 +1385,48 @@ function KodlandStudentEditModal({
   );
 }
 
+function KodlandLessonMaterialsModal({
+  lesson,
+  onClose,
+  onSave,
+}: {
+  lesson: KodlandLessonRecord | null;
+  onClose: () => void;
+  onSave: (lesson: KodlandLessonRecord, input: { slideUrl: string; scriptUrl: string }) => void;
+}) {
+  const [slideUrl, setSlideUrl] = useState('');
+  const [scriptUrl, setScriptUrl] = useState('');
+
+  useEffect(() => {
+    if (!lesson) return;
+    setSlideUrl(lesson.slideUrl);
+    setScriptUrl(lesson.scriptUrl);
+  }, [lesson]);
+
+  const save = () => {
+    if (!lesson) return;
+    if (!isMaterialUrl(slideUrl) || !isMaterialUrl(scriptUrl)) {
+      Alert.alert('Revise os links', 'Use links http(s) ou slack://. Deixe em branco quando nao houver link.');
+      return;
+    }
+    onSave(lesson, { slideUrl, scriptUrl });
+  };
+
+  const lessonLabel = lesson?.lessonNumber ? `Aula ${lesson.lessonNumber}` : 'Aula';
+  return (
+    <FormModal open={Boolean(lesson)} title="Materiais da aula" onClose={onClose} onSave={save}>
+      <Text style={styles.formHint}>{lesson ? `${lessonLabel} do curso. Os links serao usados nas turmas que estiverem nesta mesma aula.` : ''}</Text>
+      <FormInput label="Slide" value={slideUrl} onChangeText={setSlideUrl} autoCapitalize="none" keyboardType="url" placeholder="https://docs.google.com/presentation/..." />
+      <FormInput label="Roteiro" value={scriptUrl} onChangeText={setScriptUrl} autoCapitalize="none" keyboardType="url" placeholder="https://...slack.com/... ou slack://..." />
+    </FormModal>
+  );
+}
+
+function isMaterialUrl(value: string) {
+  const trimmed = value.trim();
+  return !trimmed || /^https?:\/\//i.test(trimmed) || /^slack:\/\//i.test(trimmed);
+}
+
 function PaymentListItem({ payment, onPress }: { payment: PaymentView; onPress: () => void }) {
   return (
     <Pressable style={styles.paymentItem} onPress={onPress}>
@@ -1366,6 +1463,67 @@ function LessonListItem({ lesson, onCancel }: { lesson: LessonView; onCancel?: (
         </Pressable>
       )}
     </View>
+  );
+}
+
+function KodlandNextLessonsOverview({ lessons, onOpenMaterial, onEdit }: { lessons: KodlandLessonRecord[]; onOpenMaterial: (url: string) => void; onEdit: (lesson: KodlandLessonRecord) => void }) {
+  return (
+    <View style={styles.kodlandLessonsBlock}>
+      {lessons.map((lesson) => (
+        <KodlandLessonCard key={lesson.id} lesson={lesson} featured onOpenMaterial={onOpenMaterial} onEdit={onEdit} />
+      ))}
+    </View>
+  );
+}
+
+function KodlandLessonsSection({ lessons, onOpenMaterial, onEdit }: { lessons: KodlandLessonRecord[]; onOpenMaterial: (url: string) => void; onEdit: (lesson: KodlandLessonRecord) => void }) {
+  if (!lessons.length) return null;
+  return (
+    <View style={styles.kodlandLessonsBlock}>
+      <Text style={styles.kodlandLessonsTitle}>Proximas aulas Kodland</Text>
+      {lessons.slice(0, 6).map((lesson, index) => (
+        <KodlandLessonCard key={lesson.id} lesson={lesson} featured={index === 0} onOpenMaterial={onOpenMaterial} onEdit={onEdit} />
+      ))}
+    </View>
+  );
+}
+
+function KodlandLessonCard({ lesson, featured = false, onOpenMaterial, onEdit }: { lesson: KodlandLessonRecord; featured?: boolean; onOpenMaterial: (url: string) => void; onEdit: (lesson: KodlandLessonRecord) => void }) {
+  const lessonLabel = lesson.lessonNumber ? `Aula ${lesson.lessonNumber}` : 'Aula';
+  return (
+    <View style={[styles.kodlandLessonCard, featured && styles.kodlandLessonCardFeatured]}>
+      <View style={styles.lessonDatePill}>
+        <Text style={styles.lessonDate}>{lesson.lessonDate ? formatDate(lesson.lessonDate) : 'Sem data'}</Text>
+      </View>
+      <View style={styles.lessonBody}>
+        <Text numberOfLines={1} style={styles.lessonTitle}>{lesson.externalClassName}</Text>
+        <Text numberOfLines={2} style={styles.lessonMeta}>{lessonLabel}{lesson.lessonTitle ? ` - ${lesson.lessonTitle}` : ''}</Text>
+      </View>
+      <View style={styles.materialActions}>
+        <MaterialLinkButton label="Aula" url={lesson.materialUrl} onOpen={onOpenMaterial} />
+        <MaterialLinkButton label="Slide" url={lesson.slideUrl} onOpen={onOpenMaterial} />
+        <MaterialLinkButton label="Roteiro" url={lesson.scriptUrl} onOpen={onOpenMaterial} />
+        <Pressable accessibilityLabel="Editar materiais" style={styles.materialEditButton} onPress={() => onEdit(lesson)}>
+          <Edit3 size={13} color="#75d7ff" />
+          <Text numberOfLines={1} style={styles.materialEditText}>Editar</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function MaterialLinkButton({ label, url, onOpen }: { label: string; url: string; onOpen: (url: string) => void }) {
+  const available = Boolean(url);
+  return (
+    <Pressable
+      accessibilityLabel={available ? `Abrir ${label}` : `${label} indisponivel`}
+      disabled={!available}
+      style={[styles.materialButton, !available && styles.materialButtonDisabled]}
+      onPress={() => onOpen(url)}
+    >
+      <ExternalLink size={13} color={available ? '#08111f' : '#62789a'} />
+      <Text numberOfLines={1} style={[styles.materialButtonText, !available && styles.materialButtonTextDisabled]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -2539,6 +2697,83 @@ const styles = StyleSheet.create({
     marginBottom: 9,
     padding: 10,
   },
+  kodlandLessonsBlock: {
+    marginBottom: 12,
+  },
+  kodlandLessonsTitle: {
+    color: '#e8f3ff',
+    fontSize: 14,
+    fontWeight: '900',
+    marginBottom: 9,
+  },
+  kodlandLessonCard: {
+    alignItems: 'center',
+    backgroundColor: '#0b1424',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 9,
+    marginBottom: 9,
+    minHeight: 72,
+    padding: 10,
+  },
+  kodlandLessonCardFeatured: {
+    borderColor: '#75d7ff',
+  },
+  kodlandLessonEmpty: {
+    backgroundColor: '#08111f',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 10,
+    padding: 13,
+  },
+  materialActions: {
+    gap: 6,
+    width: 88,
+  },
+  materialButton: {
+    alignItems: 'center',
+    backgroundColor: '#75d7ff',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 5,
+    justifyContent: 'center',
+    minHeight: 31,
+    paddingHorizontal: 7,
+    width: 88,
+  },
+  materialButtonDisabled: {
+    backgroundColor: '#111c2d',
+    borderColor: '#253249',
+    borderWidth: 1,
+  },
+  materialButtonText: {
+    color: '#08111f',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  materialButtonTextDisabled: {
+    color: '#62789a',
+  },
+  materialEditButton: {
+    alignItems: 'center',
+    borderColor: '#24517d',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 5,
+    justifyContent: 'center',
+    minHeight: 31,
+    paddingHorizontal: 7,
+    width: 88,
+  },
+  materialEditText: {
+    color: '#75d7ff',
+    fontSize: 11,
+    fontWeight: '900',
+  },
   lessonDatePill: {
     backgroundColor: '#132a45',
     borderRadius: 7,
@@ -2704,6 +2939,13 @@ const styles = StyleSheet.create({
   formPair: {
     flexDirection: 'row',
     gap: 10,
+  },
+  formHint: {
+    color: '#90a7c8',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginBottom: 12,
   },
   inputGroup: {
     flex: 1,

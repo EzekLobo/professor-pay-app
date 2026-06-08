@@ -1,5 +1,6 @@
 export const resetDatabaseSql = `
   DELETE FROM pending_reviews;
+  DELETE FROM kodland_lessons;
   DELETE FROM class_students;
   DELETE FROM students;
   DELETE FROM kodland_student_groups;

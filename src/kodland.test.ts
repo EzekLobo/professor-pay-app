@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { enrichKodlandStudentFromDetail, normalizeKodlandGroup, normalizeKodlandStudent, parseKodlandGroupStudentsPayload, parseKodlandPendingReviewsPayload, parseKodlandStudentsPayload, syncKodlandStudents } from './kodland';
+import { courseIdFromKodlandLessonUrl, enrichKodlandStudentFromDetail, lessonIdFromKodlandLessonUrl, normalizeKodlandGroup, normalizeKodlandStudent, parseKodlandGroupStudentsPayload, parseKodlandLessonsPayload, parseKodlandPendingReviewsPayload, parseKodlandStudentsPayload, parseKodlandStudyGuideMaterialsPayload, syncKodlandStudents } from './kodland';
 
 describe('kodland student import', () => {
   it('normalizes common student and class fields while preserving raw data', () => {
@@ -171,5 +171,97 @@ describe('kodland student import', () => {
       correctionUrl: 'https://bo.kodland.org/teacher/review/1',
     });
     expect(reviews[1].correctionUrl).toBe('https://bo.kodland.org/groups/10');
+  });
+
+  it('parses lesson materials and builds the Kodland lesson page URL', () => {
+    const group = normalizeKodlandGroup({
+      id: 10,
+      title: 'Turma A',
+      course: { id: 1192, title: 'Python Start' },
+      students_count: 1,
+    });
+    expect(group).not.toBeNull();
+
+    expect(parseKodlandLessonsPayload(group!, [{
+      lesson_id: 20836,
+      lesson_number: 12,
+      lesson_theme: 'Funcoes',
+      lesson_passed: false,
+      lesson_date: '2026-06-10',
+      slide_url: 'https://slides.kodland.test/20836',
+    }, {
+      id: '',
+      lesson_number: 13,
+    }], {
+      modules: [{
+        lessons: [{
+          lesson_id: 20836,
+          teacher_scenario_url: 'https://roteiros.kodland.test/20836',
+        }],
+      }],
+    })).toEqual([{
+      id: '10-20836',
+      externalClassId: '10',
+      externalClassName: 'Turma A',
+      courseId: '1192',
+      lessonId: '20836',
+      lessonNumber: 12,
+      lessonTitle: 'Funcoes',
+      lessonDate: '2026-06-10',
+      lessonPassed: false,
+      materialUrl: 'https://bo.kodland.org/courses/1192?lessonId=20836',
+      slideUrl: 'https://slides.kodland.test/20836',
+      slideTitle: '',
+      slideMaterialId: '',
+      scriptUrl: 'https://roteiros.kodland.test/20836',
+      scriptTitle: '',
+      scriptMaterialId: '',
+    }]);
+  });
+
+  it('leaves direct material links empty when a lesson has no direct slide or script fields', () => {
+    const group = normalizeKodlandGroup({ id: 10, title: 'Turma A', students_count: 1 });
+    expect(group).not.toBeNull();
+
+    expect(parseKodlandLessonsPayload(group!, [{
+      lesson_id: 20836,
+      lesson_number: 12,
+      lesson_title: 'Loops',
+      lesson_passed: false,
+    }])[0]).toMatchObject({
+      materialUrl: 'https://bo.kodland.org/groups/10',
+      slideUrl: '',
+      scriptUrl: '',
+    });
+  });
+
+  it('extracts course and lesson ids from the next lesson URL', () => {
+    const url = 'https://bo.kodland.org/courses/1192?lessonId=21674';
+    expect(courseIdFromKodlandLessonUrl(url)).toBe('1192');
+    expect(lessonIdFromKodlandLessonUrl(url)).toBe('21674');
+  });
+
+  it('parses Kodland study guide materials into slide and roteiro links', () => {
+    expect(parseKodlandStudyGuideMaterialsPayload('1192', '21674', [
+      { id: 48806, title: 'M1L4 Apresentação de Slides', link: 'https://docs.google.com/presentation/d/slides/edit' },
+      { id: 50771, title: 'M1L4', link: 'https://slack.com/archives/roteiro' },
+    ])).toEqual({
+      slideUrl: 'https://docs.google.com/presentation/d/slides/edit',
+      slideTitle: 'M1L4 Apresentação de Slides',
+      slideMaterialId: '48806',
+      scriptUrl: 'https://slack.com/archives/roteiro',
+      scriptTitle: 'M1L4',
+      scriptMaterialId: '50771',
+    });
+  });
+
+  it('falls back to the authenticated material download URL when a guide has no direct link', () => {
+    expect(parseKodlandStudyGuideMaterialsPayload('1192', '21674', [
+      { id: 48806, title: 'M1L4 Apresentação de Slides' },
+      { id: 50771, title: 'M1L4' },
+    ])).toMatchObject({
+      slideUrl: 'https://backoffice.kodland.org/api/v2/materials/48806/download',
+      scriptUrl: 'https://backoffice.kodland.org/api/v2/materials/50771/download',
+    });
   });
 });

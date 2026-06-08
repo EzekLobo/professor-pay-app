@@ -1,4 +1,4 @@
-import { KodlandCredentials, KodlandGroupImport, KodlandPendingReviewImport, KodlandStudentImport, enrichKodlandStudentFromDetail, normalizeKodlandGroup, parseKodlandGroupStudentsPayload, parseKodlandPendingReviewsPayload } from './kodland';
+import { KodlandCredentials, KodlandGroupImport, KodlandLessonImport, KodlandLessonMaterialLinks, KodlandPendingReviewImport, KodlandStudentImport, enrichKodlandStudentFromDetail, normalizeKodlandGroup, parseKodlandGroupStudentsPayload, parseKodlandLessonsPayload, parseKodlandPendingReviewsPayload, parseKodlandStudyGuideMaterialsPayload } from './kodland';
 
 const ssoBaseUrl = 'https://sso.production.kodland.org/';
 const backofficeBaseUrl = 'https://backoffice.kodland.org/api/v2/';
@@ -27,6 +27,7 @@ export type KodlandRemoteSnapshot = {
   groups: KodlandGroupImport[];
   students: KodlandStudentImport[];
   pendingReviews: KodlandPendingReviewImport[];
+  lessons: KodlandLessonImport[];
 };
 
 export type KodlandPendingReviewGroup = Pick<KodlandGroupImport, 'externalId' | 'title' | 'archived'>;
@@ -36,20 +37,26 @@ export async function fetchKodlandSnapshot(credentials: KodlandCredentials, fetc
   const session = { accessToken: tokens.access_token, refreshToken: tokens.refresh_token };
   const teacherId = getUserIdFromAccessToken(session.accessToken);
   const groups = await fetchTeacherGroups(teacherId, session, fetcher);
-  const activeGroupSnapshots = await Promise.all(groups.filter((group) => !group.archived).map(async (group) => {
+  const studyGuideMaterialsByLessonId = new Map<string, KodlandLessonMaterialLinks>();
+  const activeGroupSnapshots = [];
+  for (const group of groups.filter((item) => !item.archived)) {
     const payload = await getJson(`student_groups/${group.externalId}/get_students_main_data/`, session, fetcher);
     const groupStudents = parseKodlandGroupStudentsPayload(payload, group);
+    const lessonsPayload = await fetchLessonsPayload(group, session, fetcher);
+    const coursePayload = await fetchCoursePayload(group, session, fetcher);
+    const materialsPayloads = await fetchStudyGuideMaterialsForLessons(group, lessonsPayload, studyGuideMaterialsByLessonId, session, fetcher);
     const [students, pendingReviews] = await Promise.all([
       Promise.all(groupStudents.map((student) => fetchStudentDetail(student, session, fetcher))),
-      fetchPendingReviewsForGroup(group, payload, session, fetcher),
+      fetchPendingReviewsForGroup(group, payload, lessonsPayload, session, fetcher),
     ]);
-    return { students, pendingReviews };
-  }));
+    activeGroupSnapshots.push({ students, pendingReviews, lessons: parseKodlandLessonsPayload(group, lessonsPayload, coursePayload, materialsPayloads) });
+  }
   return {
     teacherId,
     groups,
     students: activeGroupSnapshots.flatMap((snapshot) => snapshot.students),
     pendingReviews: activeGroupSnapshots.flatMap((snapshot) => snapshot.pendingReviews),
+    lessons: activeGroupSnapshots.flatMap((snapshot) => snapshot.lessons),
   };
 }
 
@@ -63,7 +70,8 @@ export async function fetchKodlandPendingReviews(
   const snapshots = await Promise.all(groups.filter((group) => !group.archived).map(async (group) => {
     const groupImport = pendingReviewGroupToImport(group);
     const payload = await getJson(`student_groups/${group.externalId}/get_students_main_data/`, session, fetcher);
-    return fetchPendingReviewsForGroup(groupImport, payload, session, fetcher);
+    const lessonsPayload = await fetchLessonsPayload(groupImport, session, fetcher);
+    return fetchPendingReviewsForGroup(groupImport, payload, lessonsPayload, session, fetcher);
   }));
   return snapshots.flat();
 }
@@ -95,10 +103,21 @@ export function getUserIdFromAccessToken(token: string) {
 }
 
 async function fetchTeacherGroups(teacherId: string, session: TokenSession, fetcher: FetchLike) {
+  try {
+    const groups = await fetchPaginatedGroups('student_groups/', session, fetcher);
+    if (groups.length) return groups;
+  } catch {
+    // The teacher-scoped endpoint is kept as a fallback for older backoffice payloads.
+  }
+  return fetchPaginatedGroups(`teachers/${teacherId}/get_teachers_groups/`, session, fetcher);
+}
+
+async function fetchPaginatedGroups(path: string, session: TokenSession, fetcher: FetchLike) {
   const groups: KodlandGroupImport[] = [];
   let page = 1;
   while (true) {
-    const payload = await getJson(`teachers/${teacherId}/get_teachers_groups/?page=${page}&page_size=${pageSize}`, session, fetcher) as TeacherGroupsResponse;
+    const separator = path.includes('?') ? '&' : '?';
+    const payload = await getJson(`${path}${separator}page=${page}&page_size=${pageSize}`, session, fetcher) as TeacherGroupsResponse;
     const pageGroups = Array.isArray(payload.results)
       ? payload.results.map(normalizeKodlandGroup).filter((group): group is KodlandGroupImport => Boolean(group))
       : [];
@@ -124,16 +143,77 @@ function pendingReviewGroupToImport(group: KodlandPendingReviewGroup): KodlandGr
     title: group.title,
     archived: group.archived,
     courseName: '',
+    courseId: '',
     studentCount: 0,
     startDate: '',
     nextLessonDate: '',
+    nextLessonTitle: '',
+    nextLessonUrl: '',
+    nextLessonId: '',
     rawData: {},
   };
 }
 
-async function fetchPendingReviewsForGroup(group: KodlandGroupImport, groupStudentsPayload: unknown, session: TokenSession, fetcher: FetchLike) {
+async function fetchLessonsPayload(group: KodlandGroupImport, session: TokenSession, fetcher: FetchLike) {
   try {
-    const lessonsPayload = await getJson(`student_groups/${group.externalId}/lessons/`, session, fetcher);
+    return await getJson(`student_groups/${group.externalId}/lessons/`, session, fetcher);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchCoursePayload(group: KodlandGroupImport, session: TokenSession, fetcher: FetchLike) {
+  if (!group.courseId) return null;
+  try {
+    return await getJson(`courses/${group.courseId}/get_general_info_for_course_backoffice_page`, session, fetcher);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchStudyGuideMaterialsForLessons(
+  group: KodlandGroupImport,
+  lessonsPayload: unknown,
+  sharedMaterialsByLessonId: Map<string, KodlandLessonMaterialLinks>,
+  session: TokenSession,
+  fetcher: FetchLike,
+) {
+  const lessons = Array.isArray(lessonsPayload)
+    ? lessonsPayload
+      .map((lesson) => lesson as Record<string, unknown>)
+      .filter((lesson) => lesson.lesson_passed !== true)
+    : [];
+  const groupMaterials = new Map<string, KodlandLessonMaterialLinks>();
+  await Promise.all(lessons.map(async (lesson) => {
+    const lessonId = String(lesson.lesson_id ?? lesson.id ?? '');
+    if (!lessonId) return;
+    if (sharedMaterialsByLessonId.has(lessonId)) {
+      groupMaterials.set(lessonId, sharedMaterialsByLessonId.get(lessonId)!);
+      return;
+    }
+    try {
+      const payload = await getJson(`materials?lesson=${encodeURIComponent(lessonId)}`, session, fetcher);
+      const links = parseKodlandStudyGuideMaterialsPayload(group.courseId, lessonId, payload);
+      sharedMaterialsByLessonId.set(lessonId, links);
+      groupMaterials.set(lessonId, links);
+    } catch {
+      const emptyLinks = {
+        slideUrl: '',
+        slideTitle: '',
+        slideMaterialId: '',
+        scriptUrl: '',
+        scriptTitle: '',
+        scriptMaterialId: '',
+      };
+      sharedMaterialsByLessonId.set(lessonId, emptyLinks);
+      groupMaterials.set(lessonId, emptyLinks);
+    }
+  }));
+  return groupMaterials;
+}
+
+async function fetchPendingReviewsForGroup(group: KodlandGroupImport, groupStudentsPayload: unknown, lessonsPayload: unknown, session: TokenSession, fetcher: FetchLike) {
+  try {
     const lessonIds = Array.isArray(lessonsPayload)
       ? lessonsPayload
         .filter((lesson) => (lesson as Record<string, unknown>).lesson_passed === true)

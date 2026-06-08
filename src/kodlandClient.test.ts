@@ -32,7 +32,7 @@ describe('kodland authenticated client', () => {
     const accessToken = token({ user_id: 7 });
     const fetcher = vi.fn((url: string) => {
       if (url.endsWith('/login')) return jsonResponse({ access_token: accessToken });
-      if (url.includes('page=1')) return jsonResponse({ next: 'page-2', results: [{ id: 10, title: 'Turma A', students_count: 1 }] });
+      if (url.includes('page=1')) return jsonResponse({ next: 'page-2', results: [{ id: 10, title: 'Turma A', course: { id: 1192, title: 'Python Start' }, students_count: 1 }] });
       if (url.includes('page=2')) return jsonResponse({ next: null, results: [{ id: 11, title: 'Turma B', is_archive: true }] });
       if (url.includes('student_groups/10/get_students_main_data/')) {
         return jsonResponse([{ main_info: { student_id: 50, full_name: 'Aluno Teste', status: 'active' }, progress_info: [] }]);
@@ -53,6 +53,21 @@ describe('kodland authenticated client', () => {
           }],
         });
       }
+      if (url.includes('courses/1192/get_general_info_for_course_backoffice_page')) {
+        return jsonResponse({
+          modules: [{
+            lessons: [{
+              lesson_id: 201,
+            }],
+          }],
+        });
+      }
+      if (url.includes('materials?lesson=201')) {
+        return jsonResponse([
+          { id: 48806, title: 'M1L9 Apresentação de Slides', link: 'https://slides.kodland.test/201' },
+          { id: 50771, title: 'M1L9', link: 'https://roteiros.kodland.test/201' },
+        ]);
+      }
       if (url.includes('students/50/get_general_info_for_student_backoffice_page/')) {
         return jsonResponse({ main_info: { phone_number: '11999999999', profile_url: 'https://bo.kodland.test/students/50', password: 'secret' } });
       }
@@ -63,12 +78,48 @@ describe('kodland authenticated client', () => {
       groups: [{ externalId: '10' }, { externalId: '11' }],
       students: [{ externalId: '50', externalClassId: '10', phone: '11999999999', profileUrl: 'https://bo.kodland.test/students/50' }],
       pendingReviews: [{ externalStudentId: '50', taskTitle: 'Projeto', correctionUrl: 'https://bo.kodland.test/review/1' }],
+      lessons: [{ lessonId: '200', materialUrl: 'https://bo.kodland.org/courses/1192?lessonId=200' }, { lessonId: '201', slideUrl: 'https://slides.kodland.test/201', scriptUrl: 'https://roteiros.kodland.test/201' }],
     });
     expect(fetcher).not.toHaveBeenCalledWith(expect.stringContaining('student_groups/11/'), expect.anything());
     expect(fetcher).toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/students/50/get_general_info_for_student_backoffice_page/', expect.anything());
     expect(fetcher).toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/student_groups/10/lessons/', expect.anything());
+    expect(fetcher).toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/courses/1192/get_general_info_for_course_backoffice_page', expect.anything());
+    expect(fetcher).toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/materials?lesson=201', expect.anything());
     expect(fetcher).toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/student_groups/10/lesson/200/get_group_progress/', expect.anything());
     expect(fetcher).not.toHaveBeenCalledWith('https://backoffice.kodland.org/api/v2/student_groups/10/lesson/201/get_group_progress/', expect.anything());
+  });
+
+  it('reuses study guide material fetches for repeated future lessons', async () => {
+    const accessToken = token({ user_id: 7 });
+    const fetcher = vi.fn((url: string) => {
+      if (url.endsWith('/login')) return jsonResponse({ access_token: accessToken });
+      if (url.includes('page=1')) {
+        return jsonResponse({ next: null, results: [
+          { id: 10, title: 'Turma A', course: { id: 1192, title: 'Roblox' }, students_count: 1 },
+          { id: 11, title: 'Turma B', course: { id: 1192, title: 'Roblox' }, students_count: 1 },
+        ] });
+      }
+      if (url.includes('get_students_main_data')) return jsonResponse([]);
+      if (url.includes('student_groups/10/lessons/') || url.includes('student_groups/11/lessons/')) {
+        return jsonResponse([{ lesson_id: 21674, lesson_number: 4, lesson_title: 'Variáveis', lesson_passed: false }]);
+      }
+      if (url.includes('courses/1192/get_general_info_for_course_backoffice_page')) return jsonResponse({});
+      if (url.includes('materials?lesson=21674')) {
+        return jsonResponse([
+          { id: 48806, title: 'M1L4 Apresentação de Slides', link: 'https://docs.google.com/presentation/d/slides/edit' },
+          { id: 50771, title: 'M1L4', link: 'https://slack.com/archives/roteiro' },
+        ]);
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await fetchKodlandSnapshot({ username: 'teacher', password: 'secret' }, fetcher as typeof fetch);
+    expect(result.lessons).toHaveLength(2);
+    expect(result.lessons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ externalClassId: '10', slideUrl: 'https://docs.google.com/presentation/d/slides/edit', scriptUrl: 'https://slack.com/archives/roteiro' }),
+      expect.objectContaining({ externalClassId: '11', slideUrl: 'https://docs.google.com/presentation/d/slides/edit', scriptUrl: 'https://slack.com/archives/roteiro' }),
+    ]));
+    expect(fetcher.mock.calls.filter(([url]) => String(url).includes('materials?lesson=21674'))).toHaveLength(1);
   });
 
   it('returns a useful message for invalid credentials', async () => {

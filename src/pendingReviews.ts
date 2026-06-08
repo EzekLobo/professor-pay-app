@@ -1,4 +1,5 @@
 import { PendingReviewRecord } from './types';
+import { isExpelledStudentStatus } from './studentStatus';
 
 export type PendingReviewSummary = {
   id: string;
@@ -34,6 +35,22 @@ export function summarizePendingReviewsByModule(reviews: PendingReviewRecord[]):
 
 export function filterPendingReviewsByModule(reviews: PendingReviewRecord[], moduleId: string) {
   return reviews.filter((review) => (review.moduleNumber || 'sem-modulo') === moduleId);
+}
+
+export function filterPendingReviewsForActiveStudents<
+  R extends Pick<PendingReviewRecord, 'externalStudentId' | 'externalClassId'>,
+  T extends { externalId: string; externalClassId: string | null; status: string },
+>(
+  reviews: R[],
+  students: T[],
+) {
+  return reviews.filter((review) => {
+    const student = students.find((item) => (
+      item.externalId === review.externalStudentId
+      && (!item.externalClassId || item.externalClassId === review.externalClassId)
+    )) ?? students.find((item) => item.externalId === review.externalStudentId);
+    return !student || !isExpelledStudentStatus(student.status);
+  });
 }
 
 function moduleTitle(moduleNumber: string) {

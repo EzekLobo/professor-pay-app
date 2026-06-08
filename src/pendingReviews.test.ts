@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterPendingReviewsByModule, summarizePendingReviews, summarizePendingReviewsByModule } from './pendingReviews';
+import { filterPendingReviewsByModule, filterPendingReviewsForActiveStudents, summarizePendingReviews, summarizePendingReviewsByModule } from './pendingReviews';
 import { PendingReviewRecord } from './types';
 
 function review(input: Partial<PendingReviewRecord>): PendingReviewRecord {
@@ -43,5 +43,17 @@ describe('pending review grouping', () => {
       { id: '2', title: 'Módulo 2', count: 1 },
     ]);
     expect(filterPendingReviewsByModule(reviews.slice(1), '2').map((item) => item.id)).toEqual(['3']);
+  });
+
+  it('removes pending reviews for expelled students from visible correction lists', () => {
+    const reviews = [
+      review({ id: 'active', externalStudentId: 'student-1', studentName: 'Ana' }),
+      review({ id: 'removed', externalStudentId: 'student-2', studentName: 'Bruno' }),
+      review({ id: 'unknown', externalStudentId: 'student-3', studentName: 'Carla' }),
+    ];
+    expect(filterPendingReviewsForActiveStudents(reviews, [
+      { externalId: 'student-1', externalClassId: 'class-1', status: 'active' },
+      { externalId: 'student-2', externalClassId: 'class-1', status: 'removed' },
+    ]).map((item) => item.id)).toEqual(['active', 'unknown']);
   });
 });

@@ -52,7 +52,7 @@ import {
   type LessonFilter,
 } from './src/calculations';
 import { clearKodlandCredentials, loadKodlandCredentials, saveKodlandCredentials } from './src/kodlandCredentials';
-import { syncKodlandPendingReviews, syncKodlandStudents } from './src/kodland';
+import { syncKodlandLessonMaterials, syncKodlandPendingReviews, syncKodlandStudents } from './src/kodland';
 import { labels } from './src/labels';
 import {
   addClass,
@@ -61,6 +61,7 @@ import {
   confirmPayment,
   deactivateClass,
   deleteKodlandStudent,
+  importKodlandLessons,
   importKodlandPendingReviews,
   importKodlandSnapshot,
   initDatabase,
@@ -83,9 +84,11 @@ import { ClassRecord, DashboardData, KodlandGroupRecord, KodlandLessonRecord, Le
 import { parseDecimal, validateClassForm, validateExtraLessonForm } from './src/validation';
 import { normalizeWhatsAppPhone } from './src/whatsapp';
 import { compareStudentsByStatusProgressThenName, isHighlightedRank, studentPointsLabel, studentRankPosition, studentStatusLabel } from './src/studentStatus';
-import { filterPendingReviewsByModule, summarizePendingReviews, summarizePendingReviewsByModule } from './src/pendingReviews';
+import { filterPendingReviewsByModule, filterPendingReviewsForActiveStudents, summarizePendingReviews, summarizePendingReviewsByModule } from './src/pendingReviews';
+import { groupKodlandMaterialsByCourse } from './src/kodlandLessonMaterials';
 
 type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas' | 'Correções' | 'Kodland';
+type PaymentArea = 'Pagamentos' | 'Histórico';
 type SelectOption = { label: string; value: string };
 type MetricHelp = {
   title: string;
@@ -93,6 +96,7 @@ type MetricHelp = {
 };
 
 const tabs: Tab[] = ['Resumo', 'Pagamentos', 'Turmas', 'Aulas', 'Correções', 'Kodland'];
+const paymentAreas: PaymentArea[] = ['Pagamentos', 'Histórico'];
 const lessonFilters: LessonFilter[] = ['Todas', 'Turmas', 'Extras'];
 const timeOptions = Array.from({ length: 36 }, (_, index) => {
   const totalMinutes = 6 * 60 + index * 30;
@@ -162,8 +166,10 @@ export default function App() {
   const [selectedStudent, setSelectedStudent] = useState<StudentWithClass | null>(null);
   const [editingStudent, setEditingStudent] = useState<StudentWithClass | null>(null);
   const [editingKodlandLesson, setEditingKodlandLesson] = useState<KodlandLessonRecord | null>(null);
+  const [paymentArea, setPaymentArea] = useState<PaymentArea>('Pagamentos');
   const [lessonFilter, setLessonFilter] = useState<LessonFilter>('Todas');
   const [expandedLessonClassId, setExpandedLessonClassId] = useState<string | null>(null);
+  const [refreshingKodlandMaterials, setRefreshingKodlandMaterials] = useState(false);
   const [activeHelp, setActiveHelp] = useState<MetricHelp | null>(null);
 
   const refresh = () => {
@@ -190,8 +196,9 @@ export default function App() {
   const filteredLessons = useMemo(() => filterLessonHistoryByKind(lessons, lessonFilter, dashboard.today), [lessons, lessonFilter, dashboard.today]);
   const classLessonGroups = useMemo(() => lessonFilter === 'Turmas' ? groupClassLessonHistory(filteredLessons) : [], [filteredLessons, lessonFilter]);
   const visiblePayments = useMemo(() => relevantPayments(dashboard.payments, dashboard.today), [dashboard.payments, dashboard.today]);
-  const futureKodlandLessons = useMemo(() => upcomingKodlandLessons(kodlandLessons, dashboard.today), [kodlandLessons, dashboard.today]);
   const nextKodlandLessons = useMemo(() => nextKodlandLessonsByClass(kodlandLessons, dashboard.today), [kodlandLessons, dashboard.today]);
+  const kodlandMaterialCourses = useMemo(() => groupKodlandMaterialsByCourse(kodlandLessons, kodlandGroups), [kodlandLessons, kodlandGroups]);
+  const hasKodlandMaterialLinks = useMemo(() => kodlandLessons.some((lesson) => Boolean(lesson.slideUrl || lesson.scriptUrl)), [kodlandLessons]);
   const selectedClass = selectedClassId ? classes.find((item) => item.id === selectedClassId) ?? null : null;
   const selectedClassStudents = selectedClassId ? students.filter((student) => student.classId === selectedClassId).sort(compareStudentsByStatusProgressThenName) : [];
 
@@ -204,6 +211,7 @@ export default function App() {
     setSelectedStudent(null);
     setSelectedPayment(null);
     setEditingStudent(null);
+    if (tab !== 'Pagamentos') setPaymentArea('Pagamentos');
     if (tab === 'Aulas') setExpandedLessonClassId(null);
     setActiveTab(tab);
   };
@@ -331,9 +339,43 @@ export default function App() {
       }
       importKodlandPendingReviews(result.pendingReviews);
       refresh();
-      Alert.alert('Correções Kodland', `${result.pendingReviews.length} atividades pendentes atualizadas.`);
+      const visibleReviews = filterPendingReviewsForActiveStudents(result.pendingReviews, students);
+      Alert.alert('Correções Kodland', `${visibleReviews.length} atividades pendentes atualizadas.`);
     } catch {
       Alert.alert('Correções Kodland', 'Não foi possível atualizar as correções.');
+    }
+  };
+
+  const refreshKodlandMaterialsOnly = async () => {
+    if (refreshingKodlandMaterials) return;
+    const activeGroups = kodlandGroups
+      .filter((group) => !group.archived)
+      .map((group) => ({
+        externalId: group.externalId,
+        title: group.title,
+        courseId: group.courseId,
+        courseName: group.courseName,
+        archived: group.archived,
+      }));
+    if (!activeGroups.length) {
+      Alert.alert('Materiais Kodland', 'Sincronize as turmas Kodland antes de atualizar os materiais.');
+      return;
+    }
+    setRefreshingKodlandMaterials(true);
+    try {
+      const credentials = await loadKodlandCredentials();
+      const result = await syncKodlandLessonMaterials(credentials, activeGroups);
+      if (!result.ok) {
+        Alert.alert('Materiais Kodland', result.message);
+        return;
+      }
+      importKodlandLessons(result.lessons);
+      refresh();
+      Alert.alert('Materiais Kodland', `${result.lessons.length} aulas atualizadas.`);
+    } catch {
+      Alert.alert('Materiais Kodland', 'Nao foi possivel atualizar os materiais.');
+    } finally {
+      setRefreshingKodlandMaterials(false);
     }
   };
 
@@ -437,13 +479,63 @@ export default function App() {
         )}
 
         {activeTab === 'Pagamentos' && (
-          <FlatList
-            data={visiblePayments}
-            keyExtractor={(item) => item.paymentDate}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => <PaymentListItem payment={item} onPress={() => setSelectedPayment(item)} />}
-            ListEmptyComponent={<Text style={styles.emptyText}>Sem pagamentos no historico.</Text>}
-          />
+          paymentArea === 'Histórico' ? (
+            lessonFilter === 'Turmas' ? (
+              <FlatList
+                data={classLessonGroups}
+                keyExtractor={(item) => item.classId}
+                contentContainerStyle={styles.listContent}
+                renderItem={({ item }) => (
+                  <ClassLessonHistoryCard
+                    group={item}
+                    expanded={expandedLessonClassId === item.classId}
+                    onPress={() => setExpandedLessonClassId((current) => current === item.classId ? null : item.classId)}
+                    onCancelLesson={handleCancelLesson}
+                  />
+                )}
+                ListHeaderComponent={(
+                  <PaymentHistoryHeader
+                    paymentArea={paymentArea}
+                    onPaymentAreaChange={setPaymentArea}
+                    lessonFilter={lessonFilter}
+                    onLessonFilterChange={(value) => {
+                      setExpandedLessonClassId(null);
+                      setLessonFilter(value);
+                    }}
+                  />
+                )}
+                ListEmptyComponent={<Text style={styles.emptyText}>Sem aulas de turma no historico.</Text>}
+              />
+            ) : (
+              <FlatList
+                data={filteredLessons}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.listContent}
+                renderItem={({ item }) => <LessonListItem lesson={item} onCancel={() => handleCancelLesson(item.id)} />}
+                ListHeaderComponent={(
+                  <PaymentHistoryHeader
+                    paymentArea={paymentArea}
+                    onPaymentAreaChange={setPaymentArea}
+                    lessonFilter={lessonFilter}
+                    onLessonFilterChange={(value) => {
+                      setExpandedLessonClassId(null);
+                      setLessonFilter(value);
+                    }}
+                  />
+                )}
+                ListEmptyComponent={<Text style={styles.emptyText}>Sem aulas no historico.</Text>}
+              />
+            )
+          ) : (
+            <FlatList
+              data={visiblePayments}
+              keyExtractor={(item) => item.paymentDate}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => <PaymentListItem payment={item} onPress={() => setSelectedPayment(item)} />}
+              ListHeaderComponent={<PaymentAreaHeader paymentArea={paymentArea} onPaymentAreaChange={setPaymentArea} />}
+              ListEmptyComponent={<Text style={styles.emptyText}>Sem pagamentos no historico.</Text>}
+            />
+          )
         )}
 
         {activeTab === 'Turmas' && (
@@ -490,54 +582,19 @@ export default function App() {
         )}
 
         {activeTab === 'Aulas' && (
-          lessonFilter === 'Turmas' ? (
-            <FlatList
-              data={classLessonGroups}
-              keyExtractor={(item) => item.classId}
-              contentContainerStyle={styles.listContent}
-              renderItem={({ item }) => (
-                <ClassLessonHistoryCard
-                  group={item}
-                  expanded={expandedLessonClassId === item.classId}
-                  onPress={() => setExpandedLessonClassId((current) => current === item.classId ? null : item.classId)}
-                  onCancelLesson={handleCancelLesson}
-                />
-              )}
-              ListHeaderComponent={(
-                <>
-                  <SegmentedFilter options={lessonFilters} value={lessonFilter} onChange={(value) => {
-                    setExpandedLessonClassId(null);
-                    setLessonFilter(value);
-                  }} />
-                  <KodlandLessonsSection lessons={futureKodlandLessons} onOpenMaterial={openKodlandMaterial} onEdit={setEditingKodlandLesson} />
-                  <Text style={styles.listHint}>Historico por turma</Text>
-                </>
-              )}
-              ListEmptyComponent={<Text style={styles.emptyText}>Sem aulas de turma no historico.</Text>}
+          <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+            <KodlandMaterialsLibrary
+              courses={kodlandMaterialCourses}
+              refreshing={refreshingKodlandMaterials}
+              onRefreshMaterials={refreshKodlandMaterialsOnly}
+              onOpenMaterial={openKodlandMaterial}
+              onEdit={setEditingKodlandLesson}
             />
-          ) : (
-            <FlatList
-              data={filteredLessons}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              renderItem={({ item }) => <LessonListItem lesson={item} onCancel={() => handleCancelLesson(item.id)} />}
-              ListHeaderComponent={(
-                <>
-                  <SegmentedFilter options={lessonFilters} value={lessonFilter} onChange={(value) => {
-                    setExpandedLessonClassId(null);
-                    setLessonFilter(value);
-                  }} />
-                  <KodlandLessonsSection lessons={futureKodlandLessons} onOpenMaterial={openKodlandMaterial} onEdit={setEditingKodlandLesson} />
-                  <Text style={styles.listHint}>Historico de aulas</Text>
-                </>
-              )}
-              ListEmptyComponent={<Text style={styles.emptyText}>Sem aulas no historico.</Text>}
-            />
-          )
+          </ScrollView>
         )}
 
         {activeTab === 'Kodland' && (
-          <KodlandScreen classes={classes} groups={kodlandGroups} students={students} lastSync={kodlandLastSync} onRefresh={refresh} onCreateClass={openKodlandClassCreator} onOpenStudent={setSelectedStudent} />
+          <KodlandScreen classes={classes} groups={kodlandGroups} students={students} lastSync={kodlandLastSync} shouldSyncInitialMaterials={!hasKodlandMaterialLinks} onRefresh={refresh} onCreateClass={openKodlandClassCreator} onOpenStudent={setSelectedStudent} />
         )}
 
         {activeTab === 'Correções' && (
@@ -819,6 +876,36 @@ function StudentListItem({
   );
 }
 
+function PaymentAreaHeader({ paymentArea, onPaymentAreaChange }: { paymentArea: PaymentArea; onPaymentAreaChange: (value: PaymentArea) => void }) {
+  return (
+    <View style={styles.subTabHeader}>
+      <SegmentedFilter options={paymentAreas} value={paymentArea} onChange={onPaymentAreaChange} />
+    </View>
+  );
+}
+
+function PaymentHistoryHeader({
+  paymentArea,
+  onPaymentAreaChange,
+  lessonFilter,
+  onLessonFilterChange,
+}: {
+  paymentArea: PaymentArea;
+  onPaymentAreaChange: (value: PaymentArea) => void;
+  lessonFilter: LessonFilter;
+  onLessonFilterChange: (value: LessonFilter) => void;
+}) {
+  return (
+    <>
+      <PaymentAreaHeader paymentArea={paymentArea} onPaymentAreaChange={onPaymentAreaChange} />
+      <View style={styles.compactFilterBlock}>
+        <SegmentedFilter options={lessonFilters} value={lessonFilter} onChange={onLessonFilterChange} />
+      </View>
+      <Text style={styles.listHint}>{lessonFilter === 'Turmas' ? 'Histórico por turma' : 'Histórico de aulas dadas'}</Text>
+    </>
+  );
+}
+
 function CorrectionsScreen({
   reviews,
   students,
@@ -838,7 +925,8 @@ function CorrectionsScreen({
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [refreshingReviews, setRefreshingReviews] = useState(false);
-  const selectedClassReviews = selectedClassId ? reviews.filter((review) => review.externalClassId === selectedClassId) : [];
+  const visibleReviews = useMemo(() => filterPendingReviewsForActiveStudents(reviews, students), [reviews, students]);
+  const selectedClassReviews = selectedClassId ? visibleReviews.filter((review) => review.externalClassId === selectedClassId) : [];
   const selectedStudentReviews = selectedStudentId ? selectedClassReviews.filter((review) => review.externalStudentId === selectedStudentId) : [];
   const selectedModuleReviews = selectedModuleId ? filterPendingReviewsByModule(selectedStudentReviews, selectedModuleId) : [];
   const selectedClassName = selectedClassReviews[0]?.externalClassName ?? '';
@@ -849,7 +937,7 @@ function CorrectionsScreen({
       ?? students.find((student) => student.externalId === selectedStudentId)
       ?? null
     : null;
-  const classSummaries = summarizePendingReviews(reviews, 'externalClassId', 'externalClassName');
+  const classSummaries = summarizePendingReviews(visibleReviews, 'externalClassId', 'externalClassName');
   const studentSummaries = summarizePendingReviews(selectedClassReviews, 'externalStudentId', 'studentName');
   const moduleSummaries = summarizePendingReviewsByModule(selectedStudentReviews);
 
@@ -863,12 +951,12 @@ function CorrectionsScreen({
   };
 
   useEffect(() => {
-    if (selectedClassId && !reviews.some((review) => review.externalClassId === selectedClassId)) {
+    if (selectedClassId && !visibleReviews.some((review) => review.externalClassId === selectedClassId)) {
       setSelectedClassId(null);
       setSelectedStudentId(null);
       setSelectedModuleId(null);
     }
-  }, [reviews, selectedClassId]);
+  }, [visibleReviews, selectedClassId]);
 
   if (selectedModuleId) {
     return (
@@ -980,7 +1068,7 @@ function CorrectionsScreen({
       ListHeaderComponent={(
         <>
           <Text style={styles.sectionText}>Correções</Text>
-          <Text style={styles.listHint}>{reviews.length} atividades pendentes de correção{lastSync ? ` / Atualizado ${new Date(lastSync).toLocaleString('pt-BR')}` : ''}</Text>
+          <Text style={styles.listHint}>{visibleReviews.length} atividades pendentes de correção{lastSync ? ` / Atualizado ${new Date(lastSync).toLocaleString('pt-BR')}` : ''}</Text>
           <Pressable style={styles.kodlandPrimaryButton} disabled={refreshingReviews} onPress={updateReviews}>
             <Text style={styles.kodlandPrimaryText}>{refreshingReviews ? 'Atualizando...' : 'Atualizar correções'}</Text>
           </Pressable>
@@ -1026,6 +1114,7 @@ function KodlandScreen({
   groups,
   students,
   lastSync,
+  shouldSyncInitialMaterials,
   onRefresh,
   onCreateClass,
   onOpenStudent,
@@ -1034,6 +1123,7 @@ function KodlandScreen({
   groups: KodlandGroupRecord[];
   students: StudentWithClass[];
   lastSync: string;
+  shouldSyncInitialMaterials: boolean;
   onRefresh: () => void;
   onCreateClass: (group: KodlandGroupRecord) => void;
   onOpenStudent: (student: StudentWithClass) => void;
@@ -1094,14 +1184,19 @@ function KodlandScreen({
     setBusy(true);
     try {
       await saveKodlandCredentials({ username, password });
-      const result = await syncKodlandStudents({ username, password });
+      const result = await syncKodlandStudents({ username, password }, { includeMaterials: shouldSyncInitialMaterials });
       if (!result.ok) {
         Alert.alert('Sincronização Kodland', result.message);
         return;
       }
       importKodlandSnapshot(result.groups, result.students, result.pendingReviews, result.lessons);
       onRefresh();
-      Alert.alert('Sincronização Kodland', `${result.students.length} alunos recebidos. ${result.lessons.length} aulas sincronizadas. ${result.pendingReviews.length} pendências de correção.`);
+      const visibleReviews = filterPendingReviewsForActiveStudents(result.pendingReviews, result.students.map((student) => ({
+        externalId: student.externalId,
+        externalClassId: student.externalClassId,
+        status: student.status,
+      })));
+      Alert.alert('Sincronização Kodland', `${result.students.length} alunos recebidos. ${result.lessons.length} aulas sincronizadas. ${visibleReviews.length} pendências de correção.`);
     } catch {
       Alert.alert('Sincronização Kodland', 'Não foi possível iniciar a sincronização.');
     } finally {
@@ -1476,14 +1571,146 @@ function KodlandNextLessonsOverview({ lessons, onOpenMaterial, onEdit }: { lesso
   );
 }
 
-function KodlandLessonsSection({ lessons, onOpenMaterial, onEdit }: { lessons: KodlandLessonRecord[]; onOpenMaterial: (url: string) => void; onEdit: (lesson: KodlandLessonRecord) => void }) {
-  if (!lessons.length) return null;
+function KodlandMaterialsLibrary({
+  courses,
+  refreshing,
+  onRefreshMaterials,
+  onOpenMaterial,
+  onEdit,
+}: {
+  courses: ReturnType<typeof groupKodlandMaterialsByCourse>;
+  refreshing: boolean;
+  onRefreshMaterials: () => void;
+  onOpenMaterial: (url: string) => void;
+  onEdit: (lesson: KodlandLessonRecord) => void;
+}) {
+  const [selectedCourseKey, setSelectedCourseKey] = useState('');
+  const [expandedModuleKey, setExpandedModuleKey] = useState<string | null>(null);
+  const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
+  const courseKeys = courses.map((course) => course.key).join('|');
+  const selectedCourse = courses.length === 1
+    ? courses[0]
+    : courses.find((course) => course.key === selectedCourseKey) ?? courses[0];
+
+  useEffect(() => {
+    if (!courses.length) {
+      setSelectedCourseKey('');
+      setExpandedModuleKey(null);
+      setExpandedLessonId(null);
+      return;
+    }
+    if (!selectedCourseKey || !courses.some((course) => course.key === selectedCourseKey)) {
+      setSelectedCourseKey(courses[0].key);
+      setExpandedModuleKey(null);
+      setExpandedLessonId(null);
+    }
+  }, [courseKeys, courses, selectedCourseKey]);
+
   return (
-    <View style={styles.kodlandLessonsBlock}>
-      <Text style={styles.kodlandLessonsTitle}>Proximas aulas Kodland</Text>
-      {lessons.slice(0, 6).map((lesson, index) => (
-        <KodlandLessonCard key={lesson.id} lesson={lesson} featured={index === 0} onOpenMaterial={onOpenMaterial} onEdit={onEdit} />
-      ))}
+    <View style={styles.materialLibraryBlock}>
+      <View style={styles.materialLibraryHeader}>
+        <Text style={styles.sectionText}>Materiais do curso</Text>
+        <Pressable
+          accessibilityLabel="Atualizar materiais das aulas"
+          disabled={refreshing}
+          style={[styles.materialRefreshButton, refreshing && styles.materialRefreshButtonDisabled]}
+          onPress={onRefreshMaterials}
+        >
+          <RotateCcw size={15} color={refreshing ? '#62789a' : '#75d7ff'} />
+        </Pressable>
+      </View>
+      {!courses.length ? (
+        <View style={styles.kodlandLessonEmpty}>
+          <Text style={styles.lessonTitle}>Nenhum material sincronizado</Text>
+          <Text style={styles.lessonMeta}>Sincronize a Kodland para ver aulas, slides e roteiros por modulo.</Text>
+        </View>
+      ) : (
+        <>
+          {courses.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.materialCourseTabs}>
+              {courses.map((course) => {
+                const active = course.key === selectedCourse?.key;
+                return (
+                  <Pressable
+                    key={course.key}
+                    style={[styles.materialCourseTab, active && styles.materialCourseTabActive]}
+                    onPress={() => {
+                      setSelectedCourseKey(course.key);
+                      setExpandedModuleKey(null);
+                      setExpandedLessonId(null);
+                    }}
+                  >
+                    <Text numberOfLines={1} style={[styles.materialCourseTabText, active && styles.materialCourseTabTextActive]}>{course.title}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+          {selectedCourse ? (
+            <View style={styles.materialModuleList}>
+              {selectedCourse.modules.map((group) => {
+                const expanded = expandedModuleKey === group.key;
+                return (
+                  <View key={group.key} style={styles.materialModuleBlock}>
+                    <Pressable
+                      style={styles.materialModuleHeader}
+                      onPress={() => {
+                        setExpandedModuleKey((current) => current === group.key ? null : group.key);
+                        setExpandedLessonId(null);
+                      }}
+                    >
+                      <View>
+                        <Text style={styles.kodlandLessonsTitle}>{group.title}</Text>
+                        <Text style={styles.lessonMeta}>{group.lessons.length} aulas</Text>
+                      </View>
+                      <Text style={styles.materialExpandIcon}>{expanded ? '-' : '+'}</Text>
+                    </Pressable>
+                    {expanded && (
+                      <View style={styles.materialLessonList}>
+                        {group.lessons.map((lesson) => (
+                          <MaterialLessonRow
+                            key={lesson.id}
+                            lesson={lesson}
+                            expanded={expandedLessonId === lesson.id}
+                            onPress={() => setExpandedLessonId((current) => current === lesson.id ? null : lesson.id)}
+                            onOpenMaterial={onOpenMaterial}
+                            onEdit={onEdit}
+                          />
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+        </>
+      )}
+    </View>
+  );
+}
+
+function MaterialLessonRow({ lesson, expanded, onPress, onOpenMaterial, onEdit }: { lesson: KodlandLessonRecord; expanded: boolean; onPress: () => void; onOpenMaterial: (url: string) => void; onEdit: (lesson: KodlandLessonRecord) => void }) {
+  const lessonLabel = lesson.lessonNumber ? `Aula ${lesson.lessonNumber}` : 'Aula';
+  return (
+    <View style={styles.materialLessonBlock}>
+      <Pressable style={styles.materialLessonRow} onPress={onPress}>
+        <View style={styles.lessonBody}>
+          <Text numberOfLines={1} style={styles.lessonTitle}>{lesson.lessonTitle || lessonLabel}</Text>
+          <Text numberOfLines={1} style={styles.lessonMeta}>{lessonLabel}</Text>
+        </View>
+        <Text style={styles.materialExpandIcon}>{expanded ? '-' : '+'}</Text>
+      </Pressable>
+      {expanded && (
+        <View style={styles.materialActionsExpanded}>
+          <MaterialLinkButton label="Aula" url={lesson.materialUrl} onOpen={onOpenMaterial} />
+          <MaterialLinkButton label="Slide" url={lesson.slideUrl} onOpen={onOpenMaterial} />
+          <MaterialLinkButton label="Roteiro" url={lesson.scriptUrl} onOpen={onOpenMaterial} />
+          <Pressable accessibilityLabel="Editar materiais" style={styles.materialEditIconButton} onPress={() => onEdit(lesson)}>
+            <Edit3 size={13} color="#75d7ff" />
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -1492,9 +1719,11 @@ function KodlandLessonCard({ lesson, featured = false, onOpenMaterial, onEdit }:
   const lessonLabel = lesson.lessonNumber ? `Aula ${lesson.lessonNumber}` : 'Aula';
   return (
     <View style={[styles.kodlandLessonCard, featured && styles.kodlandLessonCardFeatured]}>
-      <View style={styles.lessonDatePill}>
-        <Text style={styles.lessonDate}>{lesson.lessonDate ? formatDate(lesson.lessonDate) : 'Sem data'}</Text>
-      </View>
+      {lesson.lessonDate ? (
+        <View style={styles.lessonDatePill}>
+          <Text style={styles.lessonDate}>{formatDate(lesson.lessonDate)}</Text>
+        </View>
+      ) : null}
       <View style={styles.lessonBody}>
         <Text numberOfLines={1} style={styles.lessonTitle}>{lesson.externalClassName}</Text>
         <Text numberOfLines={2} style={styles.lessonMeta}>{lessonLabel}{lesson.lessonTitle ? ` - ${lesson.lessonTitle}` : ''}</Text>
@@ -2700,11 +2929,123 @@ const styles = StyleSheet.create({
   kodlandLessonsBlock: {
     marginBottom: 12,
   },
+  subTabHeader: {
+    marginBottom: 10,
+  },
+  compactFilterBlock: {
+    marginBottom: 8,
+  },
+  materialLibraryBlock: {
+    marginTop: 8,
+  },
+  materialLibraryHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  materialRefreshButton: {
+    alignItems: 'center',
+    backgroundColor: '#0b1424',
+    borderColor: '#24517d',
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
+  },
+  materialRefreshButtonDisabled: {
+    opacity: 0.55,
+  },
+  materialCourseTabs: {
+    gap: 8,
+    paddingBottom: 8,
+  },
+  materialCourseTab: {
+    backgroundColor: '#0b1424',
+    borderColor: '#18314f',
+    borderRadius: 8,
+    borderWidth: 1,
+    maxWidth: 160,
+    minHeight: 34,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  materialCourseTabActive: {
+    backgroundColor: '#132a45',
+    borderColor: '#75d7ff',
+  },
+  materialCourseTabText: {
+    color: '#7d94b6',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  materialCourseTabTextActive: {
+    color: '#dff6ff',
+  },
+  materialModuleList: {
+    gap: 8,
+  },
+  materialModuleBlock: {
+    backgroundColor: '#10223a',
+    borderColor: '#2b5f8c',
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 6,
+  },
+  materialModuleHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 56,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
   kodlandLessonsTitle: {
     color: '#e8f3ff',
     fontSize: 14,
     fontWeight: '900',
-    marginBottom: 9,
+  },
+  materialExpandIcon: {
+    color: '#75d7ff',
+    fontSize: 20,
+    fontWeight: '900',
+    width: 24,
+    textAlign: 'center',
+  },
+  materialLessonList: {
+    backgroundColor: '#07101e',
+    borderColor: '#18314f',
+    borderRadius: 7,
+    borderWidth: 1,
+    gap: 6,
+    padding: 6,
+  },
+  materialLessonBlock: {
+    backgroundColor: '#0b1424',
+    borderColor: '#1d3c62',
+    borderLeftColor: '#75d7ff',
+    borderLeftWidth: 3,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  materialLessonRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  materialActionsExpanded: {
+    alignItems: 'center',
+    borderTopColor: '#132a45',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
   },
   kodlandLessonCard: {
     alignItems: 'center',
@@ -2731,7 +3072,7 @@ const styles = StyleSheet.create({
   },
   materialActions: {
     gap: 6,
-    width: 88,
+    width: 104,
   },
   materialButton: {
     alignItems: 'center',
@@ -2742,7 +3083,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 31,
     paddingHorizontal: 7,
-    width: 88,
+    width: 94,
   },
   materialButtonDisabled: {
     backgroundColor: '#111c2d',
@@ -2767,7 +3108,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 31,
     paddingHorizontal: 7,
-    width: 88,
+    width: 104,
+  },
+  materialEditIconButton: {
+    alignItems: 'center',
+    borderColor: '#24517d',
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 31,
+    justifyContent: 'center',
+    width: 36,
   },
   materialEditText: {
     color: '#75d7ff',

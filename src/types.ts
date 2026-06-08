@@ -88,6 +88,7 @@ export type KodlandLessonRecord = {
   scriptUrl: string;
   scriptTitle: string;
   scriptMaterialId: string;
+  recordingUrl: string;
   updatedAt: string;
 };
 

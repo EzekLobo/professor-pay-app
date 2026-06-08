@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { courseIdFromKodlandLessonUrl, enrichKodlandStudentFromDetail, lessonIdFromKodlandLessonUrl, normalizeKodlandGroup, normalizeKodlandStudent, parseKodlandGroupStudentsPayload, parseKodlandLessonsPayload, parseKodlandPendingReviewsPayload, parseKodlandStudentsPayload, parseKodlandStudyGuideMaterialsPayload, syncKodlandStudents } from './kodland';
+import { courseIdFromKodlandLessonUrl, enrichKodlandStudentFromDetail, lessonIdFromKodlandLessonUrl, normalizeKodlandGroup, normalizeKodlandStudent, parseKodlandGroupStudentsPayload, parseKodlandLessonsPayload, parseKodlandPendingReviewsPayload, parseKodlandRecordingPayload, parseKodlandStudentsPayload, parseKodlandStudyGuideMaterialsPayload, syncKodlandStudents } from './kodland';
 
 describe('kodland student import', () => {
   it('normalizes common student and class fields while preserving raw data', () => {
@@ -216,6 +216,7 @@ describe('kodland student import', () => {
       scriptUrl: 'https://roteiros.kodland.test/20836',
       scriptTitle: '',
       scriptMaterialId: '',
+      recordingUrl: '',
     }]);
   });
 
@@ -235,6 +236,25 @@ describe('kodland student import', () => {
     });
   });
 
+  it('reads lesson dates from schedule and timetable fallback fields', () => {
+    const group = normalizeKodlandGroup({ id: 10, title: 'Turma A', students_count: 1 });
+    expect(group).not.toBeNull();
+
+    expect(parseKodlandLessonsPayload(group!, [{
+      lesson_id: 20836,
+      lesson_number: 12,
+      lesson_title: 'Loops',
+      lesson_passed: false,
+      timetable: { start_datetime: '2026-06-10T20:00:00Z' },
+    }, {
+      lesson_id: 20837,
+      lesson_number: 13,
+      lesson_title: 'Condicionais',
+      lesson_passed: false,
+      schedule: { date: '2026-06-17' },
+    }]).map((lesson) => lesson.lessonDate)).toEqual(['2026-06-10T20:00:00Z', '2026-06-17']);
+  });
+
   it('extracts course and lesson ids from the next lesson URL', () => {
     const url = 'https://bo.kodland.org/courses/1192?lessonId=21674';
     expect(courseIdFromKodlandLessonUrl(url)).toBe('1192');
@@ -252,6 +272,7 @@ describe('kodland student import', () => {
       scriptUrl: 'https://slack.com/archives/roteiro',
       scriptTitle: 'M1L4',
       scriptMaterialId: '50771',
+      recordingUrl: '',
     });
   });
 
@@ -263,5 +284,11 @@ describe('kodland student import', () => {
       slideUrl: 'https://backoffice.kodland.org/api/v2/materials/48806/download',
       scriptUrl: 'https://backoffice.kodland.org/api/v2/materials/50771/download',
     });
+  });
+
+  it('parses lesson recording links from zoom record payloads', () => {
+    expect(parseKodlandRecordingPayload({
+      results: [{ id: 1, record_url: 'https://zoom.us/rec/share/lesson' }],
+    })).toBe('https://zoom.us/rec/share/lesson');
   });
 });

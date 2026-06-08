@@ -33,6 +33,7 @@ export type KodlandLessonMaterialLinks = {
   scriptUrl: string;
   scriptTitle: string;
   scriptMaterialId: string;
+  recordingUrl: string;
 };
 
 export type KodlandLessonImport = {
@@ -52,6 +53,7 @@ export type KodlandLessonImport = {
   scriptUrl: string;
   scriptTitle: string;
   scriptMaterialId: string;
+  recordingUrl: string;
 };
 
 export type KodlandPendingReviewImport = {
@@ -85,7 +87,16 @@ export type KodlandPendingReviewSyncResult =
   | { ok: true; pendingReviews: KodlandPendingReviewImport[] }
   | { ok: false; message: string };
 
+export type KodlandLessonMaterialsSyncResult =
+  | { ok: true; lessons: KodlandLessonImport[] }
+  | { ok: false; message: string };
+
 export type KodlandPendingReviewGroupInput = Pick<KodlandGroupImport, 'externalId' | 'title' | 'archived'>;
+export type KodlandLessonMaterialsGroupInput = Pick<KodlandGroupImport, 'externalId' | 'title' | 'courseId' | 'courseName' | 'archived'>;
+
+export type KodlandStudentSyncOptions = {
+  includeMaterials?: boolean;
+};
 
 const pendingReviewStatusKeys = new Set(['TASK_SUBMITTED', 'TASK_SUBMITTED_LATE']);
 
@@ -163,6 +174,7 @@ export function parseKodlandLessonsPayload(
   payload: unknown,
   coursePayload: unknown = null,
   studyGuideMaterialsByLessonId = new Map<string, KodlandLessonMaterialLinks>(),
+  recordingUrlsByLessonId = new Map<string, string>(),
 ): KodlandLessonImport[] {
   return arrayValue(payload).map((input): KodlandLessonImport | null => {
     const record = objectValue(input);
@@ -170,9 +182,10 @@ export function parseKodlandLessonsPayload(
     if (!lessonId) return null;
     const lessonTitle = stringValue(record.lesson_title ?? record.title ?? record.lesson_theme);
     const courseId = stringValue(record.course_id ?? record.courseId) || group.courseId;
-    const lessonDate = stringValue(record.start_datetime ?? record.start_date ?? record.lesson_date ?? record.date);
+    const lessonDate = lessonDateValue(record);
     const directLinks = materialLinksForLesson(lessonId, record, coursePayload);
     mergeMaterialLinks(directLinks, studyGuideMaterialsByLessonId.get(lessonId) ?? emptyMaterialLinks());
+    const recordingUrl = directLinks.recordingUrl || recordingUrlsByLessonId.get(lessonId) || '';
     return {
       id: `${group.externalId}-${lessonId}`,
       externalClassId: group.externalId,
@@ -190,8 +203,18 @@ export function parseKodlandLessonsPayload(
       scriptUrl: directLinks.scriptUrl,
       scriptTitle: directLinks.scriptTitle,
       scriptMaterialId: directLinks.scriptMaterialId,
+      recordingUrl,
     };
   }).filter((lesson): lesson is KodlandLessonImport => Boolean(lesson));
+}
+
+export function parseKodlandRecordingPayload(payload: unknown): string {
+  const candidates = arrayValue(payload);
+  for (const input of candidates.length ? candidates : [payload]) {
+    const url = recordingUrlFromRecord(objectValue(input));
+    if (url) return url;
+  }
+  return '';
 }
 
 export function parseKodlandStudyGuideMaterialsPayload(courseId: string, lessonId: string, payload: unknown): KodlandLessonMaterialLinks {
@@ -381,15 +404,33 @@ export function enrichKodlandStudentFromDetail(student: KodlandStudentImport, pa
   };
 }
 
-export async function syncKodlandStudents(credentials: KodlandCredentials): Promise<KodlandSyncResult> {
+export async function syncKodlandStudents(credentials: KodlandCredentials, options: KodlandStudentSyncOptions = {}): Promise<KodlandSyncResult> {
   if (!credentials.username.trim() || !credentials.password.trim()) {
     return { ok: false, message: 'Informe usuario e senha da Kodland.' };
   }
   try {
     const { fetchKodlandSnapshot } = await import('./kodlandClient');
-    return { ok: true, ...await fetchKodlandSnapshot(credentials) };
+    return { ok: true, ...await fetchKodlandSnapshot(credentials, fetch, options) };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : 'Nao foi possivel sincronizar com a Kodland.' };
+  }
+}
+
+export async function syncKodlandLessonMaterials(
+  credentials: KodlandCredentials,
+  groups: KodlandLessonMaterialsGroupInput[],
+): Promise<KodlandLessonMaterialsSyncResult> {
+  if (!credentials.username.trim() || !credentials.password.trim()) {
+    return { ok: false, message: 'Informe usuario e senha da Kodland.' };
+  }
+  if (!groups.length) {
+    return { ok: false, message: 'Sincronize as turmas Kodland antes de atualizar os materiais.' };
+  }
+  try {
+    const { fetchKodlandLessonMaterials } = await import('./kodlandClient');
+    return { ok: true, lessons: await fetchKodlandLessonMaterials(credentials, groups) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : 'Nao foi possivel atualizar os materiais.' };
   }
 }
 
@@ -440,6 +481,37 @@ function numberValue(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+function lessonDateValue(record: Record<string, unknown>) {
+  const timetable = objectValue(record.timetable ?? record.time_table);
+  const schedule = objectValue(record.schedule ?? record.schedule_view ?? record.timeslot);
+  return stringValue(
+    record.start_datetime
+    ?? record.startDateTime
+    ?? record.start_date
+    ?? record.startDate
+    ?? record.lesson_date
+    ?? record.lessonDate
+    ?? record.scheduled_date
+    ?? record.scheduledDate
+    ?? record.date
+    ?? record.datetime
+    ?? record.date_time
+    ?? record.dateTime
+    ?? timetable.start_datetime
+    ?? timetable.startDateTime
+    ?? timetable.start_date
+    ?? timetable.startDate
+    ?? timetable.date
+    ?? schedule.start_datetime
+    ?? schedule.startDateTime
+    ?? schedule.start_date
+    ?? schedule.startDate
+    ?? schedule.lesson_date
+    ?? schedule.lessonDate
+    ?? schedule.date,
+  );
+}
+
 function progressValue(value: unknown) {
   const modules = arrayValue(value);
   if (!modules.length) return '';
@@ -469,7 +541,7 @@ function materialLinksForLesson(lessonId: string, lessonRecord: Record<string, u
 }
 
 function emptyMaterialLinks(): KodlandLessonMaterialLinks {
-  return { slideUrl: '', slideTitle: '', slideMaterialId: '', scriptUrl: '', scriptTitle: '', scriptMaterialId: '' };
+  return { slideUrl: '', slideTitle: '', slideMaterialId: '', scriptUrl: '', scriptTitle: '', scriptMaterialId: '', recordingUrl: '' };
 }
 
 function mergeMaterialLinks(target: KodlandLessonMaterialLinks, source: KodlandLessonMaterialLinks) {
@@ -483,6 +555,7 @@ function mergeMaterialLinks(target: KodlandLessonMaterialLinks, source: KodlandL
     target.scriptTitle = source.scriptTitle;
     target.scriptMaterialId = source.scriptMaterialId;
   }
+  if (!target.recordingUrl && source.recordingUrl) target.recordingUrl = source.recordingUrl;
 }
 
 function lessonObjectsFromPayload(payload: unknown, lessonId: string) {
@@ -532,6 +605,10 @@ function assignMaterialLink(links: KodlandLessonMaterialLinks, context: string, 
   }
   if (!links.scriptUrl && /script|scenario|roteiro|teacher|plan|plano|lesson[_ -]?plan|conspect/i.test(context)) {
     links.scriptUrl = url;
+    return;
+  }
+  if (!links.recordingUrl && /record|recording|zoom|video|grava|gravacao|gravação/i.test(context)) {
+    links.recordingUrl = url;
   }
 }
 
@@ -599,6 +676,35 @@ function materialUrlFromMaterialRecord(record: Record<string, unknown>): string 
   if (direct) return direct;
   const nested = Object.values(record).map((value) => materialUrlValue(value)).find(Boolean);
   return nested ?? '';
+}
+
+function recordingUrlFromRecord(record: Record<string, unknown>): string {
+  const direct = materialUrlValue(
+    record.url
+    ?? record.link
+    ?? record.href
+    ?? record.record_url
+    ?? record.recordUrl
+    ?? record.recording_url
+    ?? record.recordingUrl
+    ?? record.zoom_url
+    ?? record.zoomUrl
+    ?? record.video_url
+    ?? record.videoUrl,
+  );
+  if (direct) return direct;
+  for (const [key, value] of Object.entries(record)) {
+    const context = key.toLowerCase();
+    if (/record|recording|zoom|video|grava|gravacao|gravação/i.test(context)) {
+      const url = materialUrlValue(value);
+      if (url) return url;
+    }
+    if (value && typeof value === 'object') {
+      const nested = recordingUrlFromRecord(objectValue(value));
+      if (nested) return nested;
+    }
+  }
+  return '';
 }
 
 function materialDownloadUrl(materialId: string) {

@@ -181,6 +181,9 @@ Implemented on branch `feature/kodland-sync`:
 - lesson material metadata from group lessons, including a generated Kodland
   lesson URL for fallback diagnostics plus direct slide/roteiro URLs from
   lesson, course-detail, or `materials?lesson={lessonId}` payloads;
+- lesson recording URLs for completed lessons when the lesson payload exposes
+  direct recording fields or a `timetable_id` that resolves through
+  `zoom_records/?timetable_id={id}&group_id={groupId}`;
 - manual slide/roteiro overrides shared by `courseId + lessonNumber`, so one
   material entry applies to all turmas using the same course lesson;
 - filtered local snapshots without unrelated sensitive fields;

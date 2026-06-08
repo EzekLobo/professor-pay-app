@@ -1,4 +1,4 @@
-import { KodlandCredentials, KodlandGroupImport, KodlandLessonImport, KodlandLessonMaterialLinks, KodlandPendingReviewImport, KodlandStudentImport, enrichKodlandStudentFromDetail, normalizeKodlandGroup, parseKodlandGroupStudentsPayload, parseKodlandLessonsPayload, parseKodlandPendingReviewsPayload, parseKodlandStudyGuideMaterialsPayload } from './kodland';
+import { KodlandCredentials, KodlandGroupImport, KodlandLessonImport, KodlandLessonMaterialLinks, KodlandPendingReviewImport, KodlandStudentImport, enrichKodlandStudentFromDetail, normalizeKodlandGroup, parseKodlandGroupStudentsPayload, parseKodlandLessonsPayload, parseKodlandPendingReviewsPayload, parseKodlandRecordingPayload, parseKodlandStudyGuideMaterialsPayload } from './kodland';
 
 const ssoBaseUrl = 'https://sso.production.kodland.org/';
 const backofficeBaseUrl = 'https://backoffice.kodland.org/api/v2/';
@@ -31,25 +31,33 @@ export type KodlandRemoteSnapshot = {
 };
 
 export type KodlandPendingReviewGroup = Pick<KodlandGroupImport, 'externalId' | 'title' | 'archived'>;
+export type KodlandLessonMaterialsGroup = Pick<KodlandGroupImport, 'externalId' | 'title' | 'courseId' | 'courseName' | 'archived'>;
 
-export async function fetchKodlandSnapshot(credentials: KodlandCredentials, fetcher: FetchLike = fetch): Promise<KodlandRemoteSnapshot> {
+type KodlandSnapshotOptions = {
+  includeMaterials?: boolean;
+};
+
+export async function fetchKodlandSnapshot(credentials: KodlandCredentials, fetcher: FetchLike = fetch, options: KodlandSnapshotOptions = {}): Promise<KodlandRemoteSnapshot> {
   const tokens = await loginKodland(credentials, fetcher);
   const session = { accessToken: tokens.access_token, refreshToken: tokens.refresh_token };
   const teacherId = getUserIdFromAccessToken(session.accessToken);
   const groups = await fetchTeacherGroups(teacherId, session, fetcher);
-  const studyGuideMaterialsByLessonId = new Map<string, KodlandLessonMaterialLinks>();
+  const studyGuideMaterialsByCourseLesson = new Map<string, KodlandLessonMaterialLinks>();
   const activeGroupSnapshots = [];
   for (const group of groups.filter((item) => !item.archived)) {
     const payload = await getJson(`student_groups/${group.externalId}/get_students_main_data/`, session, fetcher);
     const groupStudents = parseKodlandGroupStudentsPayload(payload, group);
     const lessonsPayload = await fetchLessonsPayload(group, session, fetcher);
     const coursePayload = await fetchCoursePayload(group, session, fetcher);
-    const materialsPayloads = await fetchStudyGuideMaterialsForLessons(group, lessonsPayload, studyGuideMaterialsByLessonId, session, fetcher);
+    const materialsPayloads = options.includeMaterials === false
+      ? new Map<string, KodlandLessonMaterialLinks>()
+      : await fetchStudyGuideMaterialsForLessons(group, lessonsPayload, studyGuideMaterialsByCourseLesson, session, fetcher);
+    const recordingUrls = await fetchRecordingUrlsForLessons(group, lessonsPayload, session, fetcher);
     const [students, pendingReviews] = await Promise.all([
       Promise.all(groupStudents.map((student) => fetchStudentDetail(student, session, fetcher))),
       fetchPendingReviewsForGroup(group, payload, lessonsPayload, session, fetcher),
     ]);
-    activeGroupSnapshots.push({ students, pendingReviews, lessons: parseKodlandLessonsPayload(group, lessonsPayload, coursePayload, materialsPayloads) });
+    activeGroupSnapshots.push({ students, pendingReviews, lessons: parseKodlandLessonsPayload(group, lessonsPayload, coursePayload, materialsPayloads, recordingUrls) });
   }
   return {
     teacherId,
@@ -58,6 +66,24 @@ export async function fetchKodlandSnapshot(credentials: KodlandCredentials, fetc
     pendingReviews: activeGroupSnapshots.flatMap((snapshot) => snapshot.pendingReviews),
     lessons: activeGroupSnapshots.flatMap((snapshot) => snapshot.lessons),
   };
+}
+
+export async function fetchKodlandLessonMaterials(
+  credentials: KodlandCredentials,
+  groups: KodlandLessonMaterialsGroup[],
+  fetcher: FetchLike = fetch,
+): Promise<KodlandLessonImport[]> {
+  const tokens = await loginKodland(credentials, fetcher);
+  const session = { accessToken: tokens.access_token, refreshToken: tokens.refresh_token };
+  const studyGuideMaterialsByCourseLesson = new Map<string, KodlandLessonMaterialLinks>();
+  const lessonsByGroup = await Promise.all(groups.filter((group) => !group.archived).map(async (group) => {
+    const groupImport = lessonMaterialsGroupToImport(group);
+    const lessonsPayload = await fetchLessonsPayload(groupImport, session, fetcher);
+    const coursePayload = await fetchCoursePayload(groupImport, session, fetcher);
+    const materialsPayloads = await fetchStudyGuideMaterialsForLessons(groupImport, lessonsPayload, studyGuideMaterialsByCourseLesson, session, fetcher);
+    return parseKodlandLessonsPayload(groupImport, lessonsPayload, coursePayload, materialsPayloads);
+  }));
+  return lessonsByGroup.flat();
 }
 
 export async function fetchKodlandPendingReviews(
@@ -154,6 +180,23 @@ function pendingReviewGroupToImport(group: KodlandPendingReviewGroup): KodlandGr
   };
 }
 
+function lessonMaterialsGroupToImport(group: KodlandLessonMaterialsGroup): KodlandGroupImport {
+  return {
+    externalId: group.externalId,
+    title: group.title,
+    archived: group.archived,
+    courseName: group.courseName,
+    courseId: group.courseId,
+    studentCount: 0,
+    startDate: '',
+    nextLessonDate: '',
+    nextLessonTitle: '',
+    nextLessonUrl: '',
+    nextLessonId: '',
+    rawData: {},
+  };
+}
+
 async function fetchLessonsPayload(group: KodlandGroupImport, session: TokenSession, fetcher: FetchLike) {
   try {
     return await getJson(`student_groups/${group.externalId}/lessons/`, session, fetcher);
@@ -174,27 +217,27 @@ async function fetchCoursePayload(group: KodlandGroupImport, session: TokenSessi
 async function fetchStudyGuideMaterialsForLessons(
   group: KodlandGroupImport,
   lessonsPayload: unknown,
-  sharedMaterialsByLessonId: Map<string, KodlandLessonMaterialLinks>,
+  sharedMaterialsByCourseLesson: Map<string, KodlandLessonMaterialLinks>,
   session: TokenSession,
   fetcher: FetchLike,
 ) {
   const lessons = Array.isArray(lessonsPayload)
     ? lessonsPayload
       .map((lesson) => lesson as Record<string, unknown>)
-      .filter((lesson) => lesson.lesson_passed !== true)
     : [];
   const groupMaterials = new Map<string, KodlandLessonMaterialLinks>();
   await Promise.all(lessons.map(async (lesson) => {
     const lessonId = String(lesson.lesson_id ?? lesson.id ?? '');
     if (!lessonId) return;
-    if (sharedMaterialsByLessonId.has(lessonId)) {
-      groupMaterials.set(lessonId, sharedMaterialsByLessonId.get(lessonId)!);
+    const courseLessonKey = studyGuideMaterialCacheKey(group, lesson, lessonId);
+    if (sharedMaterialsByCourseLesson.has(courseLessonKey)) {
+      groupMaterials.set(lessonId, sharedMaterialsByCourseLesson.get(courseLessonKey)!);
       return;
     }
     try {
       const payload = await getJson(`materials?lesson=${encodeURIComponent(lessonId)}`, session, fetcher);
       const links = parseKodlandStudyGuideMaterialsPayload(group.courseId, lessonId, payload);
-      sharedMaterialsByLessonId.set(lessonId, links);
+      sharedMaterialsByCourseLesson.set(courseLessonKey, links);
       groupMaterials.set(lessonId, links);
     } catch {
       const emptyLinks = {
@@ -204,12 +247,51 @@ async function fetchStudyGuideMaterialsForLessons(
         scriptUrl: '',
         scriptTitle: '',
         scriptMaterialId: '',
+        recordingUrl: '',
       };
-      sharedMaterialsByLessonId.set(lessonId, emptyLinks);
+      sharedMaterialsByCourseLesson.set(courseLessonKey, emptyLinks);
       groupMaterials.set(lessonId, emptyLinks);
     }
   }));
   return groupMaterials;
+}
+
+function studyGuideMaterialCacheKey(group: KodlandGroupImport, lesson: Record<string, unknown>, lessonId: string) {
+  const title = String(lesson.lesson_title ?? lesson.title ?? lesson.lesson_theme ?? '').trim();
+  const moduleMatch = title.match(/\bM\s*(\d+)\s*[\.\-_/]?\s*L\s*(\d+)\b/i);
+  const courseId = group.courseId || String(lesson.course_id ?? lesson.courseId ?? '').trim() || group.externalId;
+  if (moduleMatch) return `${courseId}:m${Number(moduleMatch[1])}:l${Number(moduleMatch[2])}`;
+  const lessonNumber = Number(lesson.lesson_number ?? lesson.number);
+  if (Number.isFinite(lessonNumber) && lessonNumber > 0) return `${courseId}:lesson-${lessonNumber}`;
+  return `${courseId}:id-${lessonId}`;
+}
+
+async function fetchRecordingUrlsForLessons(group: KodlandGroupImport, lessonsPayload: unknown, session: TokenSession, fetcher: FetchLike) {
+  const recordingUrls = new Map<string, string>();
+  const lessons = Array.isArray(lessonsPayload) ? lessonsPayload.map((lesson) => lesson as Record<string, unknown>) : [];
+  await Promise.all(lessons
+    .filter((lesson) => lesson.lesson_passed === true || lesson.passed === true)
+    .map(async (lesson) => {
+      const lessonId = String(lesson.lesson_id ?? lesson.id ?? '');
+      const timetableId = timetableIdValue(lesson);
+      if (!lessonId || !timetableId) return;
+      try {
+        const payload = await getJson(`zoom_records/?timetable_id=${encodeURIComponent(timetableId)}&group_id=${encodeURIComponent(group.externalId)}`, session, fetcher);
+        const recordingUrl = parseKodlandRecordingPayload(payload);
+        if (recordingUrl) recordingUrls.set(lessonId, recordingUrl);
+      } catch {
+        // Recordings are optional; keep the rest of the lesson sync usable.
+      }
+    }));
+  return recordingUrls;
+}
+
+function timetableIdValue(lesson: Record<string, unknown>) {
+  const timetable = lesson.timetable && typeof lesson.timetable === 'object' ? lesson.timetable as Record<string, unknown> : {};
+  const value = lesson.timetable_id ?? lesson.timetableId ?? lesson.timetable ?? timetable.id ?? timetable.timetable_id;
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number') return String(value);
+  return '';
 }
 
 async function fetchPendingReviewsForGroup(group: KodlandGroupImport, groupStudentsPayload: unknown, lessonsPayload: unknown, session: TokenSession, fetcher: FetchLike) {

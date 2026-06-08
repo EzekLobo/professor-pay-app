@@ -147,6 +147,7 @@ export function initDatabase() {
       scriptUrl TEXT NOT NULL DEFAULT '',
       scriptTitle TEXT NOT NULL DEFAULT '',
       scriptMaterialId TEXT NOT NULL DEFAULT '',
+      recordingUrl TEXT NOT NULL DEFAULT '',
       updatedAt TEXT NOT NULL
     );
 
@@ -192,6 +193,7 @@ export function initDatabase() {
   ensureColumn('kodland_lessons', 'scriptUrl', "TEXT NOT NULL DEFAULT ''");
   ensureColumn('kodland_lessons', 'scriptTitle', "TEXT NOT NULL DEFAULT ''");
   ensureColumn('kodland_lessons', 'scriptMaterialId', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn('kodland_lessons', 'recordingUrl', "TEXT NOT NULL DEFAULT ''");
   ensureColumn('pending_reviews', 'correctionUrl', "TEXT NOT NULL DEFAULT ''");
   resetPendingReviewsIfRuleChanged();
 
@@ -316,6 +318,24 @@ export function updateKodlandLessonMaterials(lesson: KodlandLessonRecord, input:
   );
 }
 
+export function importKodlandLessons(lessons: KodlandLessonImport[]) {
+  const now = new Date().toISOString();
+  const lessonMaterials = loadExistingKodlandLessonMaterials();
+  lessons.forEach((lesson) => {
+    mergeLessonMaterial(lessonMaterials, lessonMaterialKey(lesson), {
+      slideUrl: lesson.slideUrl,
+      slideTitle: lesson.slideTitle,
+      slideMaterialId: lesson.slideMaterialId,
+      scriptUrl: lesson.scriptUrl,
+      scriptTitle: lesson.scriptTitle,
+      scriptMaterialId: lesson.scriptMaterialId,
+    });
+  });
+  db.withTransactionSync(() => {
+    lessons.forEach((lesson) => upsertKodlandLesson(lesson, lessonMaterials, now));
+  });
+}
+
 export function loadPendingReviewsLastSync() {
   return db.getFirstSync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'kodland_pending_reviews_last_sync'")?.value ?? '';
 }
@@ -389,33 +409,7 @@ export function importKodlandSnapshot(groups: KodlandGroupImport[], students: Ko
       );
       ensureKodlandGroupSuggestion(group, now);
     });
-    lessons.forEach((lesson) => {
-      const materials = lessonMaterials.get(lessonMaterialKey(lesson)) ?? { slideUrl: '', slideTitle: '', slideMaterialId: '', scriptUrl: '', scriptTitle: '', scriptMaterialId: '' };
-      db.runSync(
-        `INSERT OR REPLACE INTO kodland_lessons
-          (id, externalClassId, externalClassName, courseId, lessonId, lessonNumber, lessonTitle, lessonDate, lessonPassed, materialUrl, slideUrl, slideTitle, slideMaterialId, scriptUrl, scriptTitle, scriptMaterialId, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          lesson.id,
-          lesson.externalClassId,
-          lesson.externalClassName,
-          lesson.courseId,
-          lesson.lessonId,
-          lesson.lessonNumber,
-          lesson.lessonTitle,
-          lesson.lessonDate,
-          lesson.lessonPassed ? 1 : 0,
-          lesson.materialUrl,
-          lesson.slideUrl || materials.slideUrl,
-          lesson.slideTitle || materials.slideTitle,
-          lesson.slideMaterialId || materials.slideMaterialId,
-          lesson.scriptUrl || materials.scriptUrl,
-          lesson.scriptTitle || materials.scriptTitle,
-          lesson.scriptMaterialId || materials.scriptMaterialId,
-          now,
-        ],
-      );
-    });
+    lessons.forEach((lesson) => upsertKodlandLesson(lesson, lessonMaterials, now));
     students.forEach((student) => {
       const id = `kodland-student-${student.externalId}`;
       const existing = db.getFirstSync<{ locallyEdited: number; deletedAt: string }>('SELECT locallyEdited, deletedAt FROM students WHERE id = ?', [id]);
@@ -456,6 +450,36 @@ export function importKodlandSnapshot(groups: KodlandGroupImport[], students: Ko
   });
   const linked = loadStudents().filter((student) => Boolean(student.classId)).length;
   return { imported: students.length, linked, unlinked: students.length - linked };
+}
+
+function upsertKodlandLesson(lesson: KodlandLessonImport, lessonMaterials: Map<string, StoredKodlandLessonMaterial>, now: string) {
+  const materials = lessonMaterials.get(lessonMaterialKey(lesson)) ?? { slideUrl: '', slideTitle: '', slideMaterialId: '', scriptUrl: '', scriptTitle: '', scriptMaterialId: '' };
+  const existing = db.getFirstSync<KodlandLessonRow>('SELECT * FROM kodland_lessons WHERE id = ?', [lesson.id]);
+  db.runSync(
+    `INSERT OR REPLACE INTO kodland_lessons
+      (id, externalClassId, externalClassName, courseId, lessonId, lessonNumber, lessonTitle, lessonDate, lessonPassed, materialUrl, slideUrl, slideTitle, slideMaterialId, scriptUrl, scriptTitle, scriptMaterialId, recordingUrl, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      lesson.id,
+      lesson.externalClassId || existing?.externalClassId || '',
+      lesson.externalClassName || existing?.externalClassName || '',
+      lesson.courseId || existing?.courseId || '',
+      lesson.lessonId || existing?.lessonId || '',
+      lesson.lessonNumber || existing?.lessonNumber || 0,
+      lesson.lessonTitle || existing?.lessonTitle || '',
+      lesson.lessonDate || existing?.lessonDate || '',
+      lesson.lessonPassed ? 1 : existing?.lessonPassed ?? 0,
+      lesson.materialUrl || existing?.materialUrl || '',
+      lesson.slideUrl || materials.slideUrl,
+      lesson.slideTitle || materials.slideTitle,
+      lesson.slideMaterialId || materials.slideMaterialId,
+      lesson.scriptUrl || materials.scriptUrl,
+      lesson.scriptTitle || materials.scriptTitle,
+      lesson.scriptMaterialId || materials.scriptMaterialId,
+      lesson.recordingUrl || existing?.recordingUrl || '',
+      now,
+    ],
+  );
 }
 
 function loadExistingKodlandLessonMaterials() {

@@ -39,6 +39,8 @@ first integration scope.
 | `GET` | `student_groups/{groupId}/get_students_main_data` | Students linked to the group and progress summary |
 | `GET` | `student_groups/{groupId}/schedule_view/` | Group lesson schedule |
 | `GET` | `student_groups/{groupId}/lessons/` | Group lessons |
+| `GET` | `materials?lesson={lessonId}` | Study-guide materials shown inside the lesson page |
+| `GET` | `materials/{materialId}/download` | Authenticated material download fallback |
 | `GET` | `student_groups/{groupId}/lesson/{lessonId}/get_group_progress/` | Lesson task progress by student |
 | `GET` | `students/{studentId}/get_general_info_for_student_backoffice_page/` | Student details; sync only allowlisted safe fields |
 | `GET` | `students/{studentId}/backoffice_groups/` | Groups linked to one student |
@@ -121,6 +123,16 @@ raw labels such as `Not graded assignment` must not be shown in the UI. When a
 task does not include `link_to_service`, AulaPay links the review action to the
 group page at `https://bo.kodland.org/groups/{groupId}`.
 
+An authenticated HAR supplied locally on 2026-06-08 captured only the rendered
+Backoffice lesson route `https://bo.kodland.org/courses/1192?lessonId=20836`
+and CSS, not separate JSON material responses. A later static bundle review
+identified the lesson-page study guides flow: the route loads lessons with
+`lessons/get_lessons_list?course={courseId}` and study-guide rows with
+`materials?lesson={lessonId}`; downloads use `materials/{materialId}/download`.
+AulaPay uses `materials?lesson={lessonId}` to classify `Slide` and `Roteiro`
+links, and keeps the lesson page/manual links as fallbacks if a material only
+opens behind Kodland login.
+
 ## Administrative Endpoints Excluded From Sync
 
 The portal also exposes mutation endpoints. AulaPay sync must not call them.
@@ -166,6 +178,11 @@ Implemented on branch `feature/kodland-sync`:
 - paginated teacher-group loading from backoffice API v2;
 - student loading for active groups;
 - pending correction snapshots from group lessons and lesson progress;
+- lesson material metadata from group lessons, including a generated Kodland
+  lesson URL for fallback diagnostics plus direct slide/roteiro URLs from
+  lesson, course-detail, or `materials?lesson={lessonId}` payloads;
+- manual slide/roteiro overrides shared by `courseId + lessonNumber`, so one
+  material entry applies to all turmas using the same course lesson;
 - filtered local snapshots without unrelated sensitive fields;
 - SQLite persistence for remote groups, students, remote relationships, and
   confirmed local-class links;
@@ -173,5 +190,5 @@ Implemented on branch `feature/kodland-sync`:
 
 Still pending:
 
-- capture and validate the schedule response shape before importing lesson
-  dates from Kodland.
+- capture richer material payloads if direct roteiro/slide links are not found
+  in production sync responses.

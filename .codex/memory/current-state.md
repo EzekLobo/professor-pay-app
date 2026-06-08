@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-06-05
+Last updated: 2026-06-08
 
 ## Project State
 
@@ -39,6 +39,7 @@ Last updated: 2026-06-05
 - Ranking badges now appear for every active ranked student, but only the top three receive the highlighted card/badge styling. Kodland class linking lists only active local classes, and top-level tab changes reset detail selections back to main lists.
 - The Kodland class-link modal now keeps manually registered local classes behind a compact expandable field; when expanded, the field shows an instruction and the selected class is marked only inside the list.
 - Kodland endpoint mapping extracted from public bundles and an authenticated local HAR is documented in `docs/kodland-endpoints.md`. Current screens use backoffice API v2. The read-only sync path is SSO login, teacher groups, group general info, group students, allowed safe fields from student detail, and group schedule.
+- Branch `feature/kodland-lesson-materials` adds Kodland lesson material metadata from `student_groups/{groupId}/lessons/` and study-guide material sync from `materials?lesson={lessonId}`: lesson id/number/title/date/passed state, generated aula URL, detected slide/roteiro URLs, material IDs, and material titles. `Resumo` shows the next Kodland lesson for each turma and `Aulas` shows upcoming Kodland lessons with `Aula`, `Slide`, `Roteiro`, and manual `Editar`; material links are shared by `courseId + lessonNumber`, so editing once applies to all turmas on that same course lesson.
 
 ## Known Follow-Ups
 
@@ -47,4 +48,4 @@ Last updated: 2026-06-05
 - Install `PyYAML` for the Python launcher if official skill validation is needed later, then rerun `py C:\Users\ezekl\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\professor-pay-ops`.
 - Consider `npm audit` review separately before applying fixes, because automated audit fixes may alter dependency versions or behavior.
 - For any Expo/RN code work, read the Expo SDK 56 docs first and use `npx expo install` for Expo SDK packages.
-- Kodland schedule import remains pending until an authenticated HAR captures the schedule response shape. Group and student sync are implemented against mapped v2 read-only endpoints with synthetic parser fixtures.
+- If a Kodland material only returns an authenticated file ID without a public URL, AulaPay opens `materials/{materialId}/download` or the aula page as fallback; direct Google Slides/Slack links are used when present in `materials?lesson={lessonId}`.

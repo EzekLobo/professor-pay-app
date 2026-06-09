@@ -1609,7 +1609,10 @@ function KodlandMaterialsLibrary({
   return (
     <View style={styles.materialLibraryBlock}>
       <View style={styles.materialLibraryHeader}>
-        <Text style={styles.sectionText}>Materiais do curso</Text>
+        <View style={styles.materialLibraryTitle}>
+          <Link2 size={17} color="#75d7ff" />
+          <Text style={styles.sectionText}>Materiais do curso</Text>
+        </View>
         <Pressable
           accessibilityLabel="Atualizar materiais das aulas"
           disabled={refreshing}
@@ -2940,7 +2943,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
+  },
+  materialLibraryTitle: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   materialRefreshButton: {
     alignItems: 'center',
@@ -2982,17 +2990,21 @@ const styles = StyleSheet.create({
     color: '#dff6ff',
   },
   materialModuleList: {
-    gap: 8,
+    gap: 10,
   },
   materialModuleBlock: {
-    backgroundColor: '#10223a',
-    borderColor: '#2b5f8c',
+    backgroundColor: '#07101e',
+    borderColor: '#24517d',
     borderRadius: 8,
     borderWidth: 1,
     padding: 6,
   },
   materialModuleHeader: {
     alignItems: 'center',
+    backgroundColor: '#10223a',
+    borderColor: '#2b5f8c',
+    borderRadius: 7,
+    borderWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
     minHeight: 56,
@@ -3012,11 +3024,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   materialLessonList: {
-    backgroundColor: '#07101e',
+    backgroundColor: '#050914',
     borderColor: '#18314f',
     borderRadius: 7,
     borderWidth: 1,
     gap: 6,
+    marginTop: 6,
     padding: 6,
   },
   materialLessonBlock: {
@@ -3042,6 +3055,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'nowrap',
     gap: 7,
+    justifyContent: 'center',
     paddingHorizontal: 10,
     paddingVertical: 10,
   },

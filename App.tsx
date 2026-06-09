@@ -1703,7 +1703,6 @@ function MaterialLessonRow({ lesson, expanded, onPress, onOpenMaterial, onEdit }
       </Pressable>
       {expanded && (
         <View style={styles.materialActionsExpanded}>
-          <MaterialLinkButton label="Aula" url={lesson.materialUrl} onOpen={onOpenMaterial} />
           <MaterialLinkButton label="Slide" url={lesson.slideUrl} onOpen={onOpenMaterial} />
           <MaterialLinkButton label="Roteiro" url={lesson.scriptUrl} onOpen={onOpenMaterial} />
           <Pressable accessibilityLabel="Editar materiais" style={styles.materialEditIconButton} onPress={() => onEdit(lesson)}>
@@ -1729,7 +1728,6 @@ function KodlandLessonCard({ lesson, featured = false, onOpenMaterial, onEdit }:
         <Text numberOfLines={2} style={styles.lessonMeta}>{lessonLabel}{lesson.lessonTitle ? ` - ${lesson.lessonTitle}` : ''}</Text>
       </View>
       <View style={styles.materialActions}>
-        <MaterialLinkButton label="Aula" url={lesson.materialUrl} onOpen={onOpenMaterial} />
         <MaterialLinkButton label="Slide" url={lesson.slideUrl} onOpen={onOpenMaterial} />
         <MaterialLinkButton label="Roteiro" url={lesson.scriptUrl} onOpen={onOpenMaterial} />
         <Pressable accessibilityLabel="Editar materiais" style={styles.materialEditButton} onPress={() => onEdit(lesson)}>
@@ -3042,7 +3040,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#132a45',
     borderTopWidth: 1,
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     gap: 7,
     paddingHorizontal: 10,
     paddingVertical: 10,
@@ -3083,7 +3081,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 31,
     paddingHorizontal: 7,
-    width: 94,
+    width: 104,
   },
   materialButtonDisabled: {
     backgroundColor: '#111c2d',
@@ -3117,7 +3115,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 31,
     justifyContent: 'center',
-    width: 36,
+    width: 38,
   },
   materialEditText: {
     color: '#75d7ff',

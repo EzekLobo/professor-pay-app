@@ -5,6 +5,7 @@ import { sampleClasses, sampleExtraLessons } from './sampleData';
 import { hasExistingUserData } from './storageInitialization';
 import { resetDatabaseSql } from './storageSql';
 import { KodlandGroupImport, KodlandLessonImport, KodlandPendingReviewImport, KodlandStudentImport } from './kodland';
+import { RemoteLicenseStatus, parseRemoteLicenseStatus, serializeRemoteLicenseStatus } from './remoteLicense';
 import { ClassRecord, KodlandGroupRecord, KodlandLessonRecord, LessonRecord, PaymentConfirmation, PendingReviewRecord, StudentWithClass } from './types';
 
 export type StudentLocalUpdate = {
@@ -34,6 +35,8 @@ const db = SQLite.openDatabaseSync('aulapay.db');
 const realSeedKey = 'real_seed_2026_05';
 const pendingReviewsSnapshotVersionKey = 'pending_reviews_snapshot_version';
 const pendingReviewsSnapshotVersion = 'submitted_only_v2';
+const remoteLicenseStatusKey = 'remote_license_status';
+const remoteLicenseSeenNotificationKey = 'remote_license_seen_notification';
 
 export function initDatabase() {
   db.execSync(`
@@ -288,6 +291,23 @@ export function loadKodlandGroups(): KodlandGroupRecord[] {
 
 export function loadKodlandLastSync() {
   return db.getFirstSync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'kodland_last_sync'")?.value ?? '';
+}
+
+export function loadRemoteLicenseStatus(): RemoteLicenseStatus | null {
+  const value = db.getFirstSync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', [remoteLicenseStatusKey])?.value ?? '';
+  return parseRemoteLicenseStatus(value);
+}
+
+export function saveRemoteLicenseStatus(status: RemoteLicenseStatus) {
+  db.runSync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', [remoteLicenseStatusKey, serializeRemoteLicenseStatus(status)]);
+}
+
+export function loadRemoteLicenseSeenNotification() {
+  return db.getFirstSync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', [remoteLicenseSeenNotificationKey])?.value ?? '';
+}
+
+export function saveRemoteLicenseSeenNotification(notification: string) {
+  db.runSync('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', [remoteLicenseSeenNotificationKey, notification]);
 }
 
 export function loadKodlandLessons(): KodlandLessonRecord[] {

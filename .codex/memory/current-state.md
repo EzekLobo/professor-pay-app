@@ -42,6 +42,9 @@ Last updated: 2026-06-08
 - Branch `feature/kodland-lesson-materials` adds Kodland lesson material metadata from `student_groups/{groupId}/lessons/` and study-guide material sync from `materials?lesson={lessonId}`: lesson id/number/title/date/passed state, generated aula URL, detected slide/roteiro URLs, material IDs, material titles, and recording URLs for completed lessons when available. `Resumo` shows the next Kodland lesson for each turma. `Pagamentos` owns the local lesson history behind `Pagamentos | Historico`. `Aulas` is now a compact material library by course, module, and lesson, with `Aula`, `Slide`, `Roteiro`, and manual `Editar`; it does not show dates or recordings in materials. Material fetches and manual links are shared by course lesson, so repeated turmas on the same course do not duplicate the material library.
 - The `Correções` UI filters out pending review counts and lists for Kodland students whose status is treated as expelled/removed/inactive; the raw pending review snapshot remains preserved in storage.
 
+- Branch `feature/remote-license-control` adds remote blocking through a published CSV sheet. The sheet URL lives in `src/remoteLicense.ts` as `remoteLicenseCsvUrl`; template and setup docs are in `docs/license-control-template.csv` and `docs/license-control.md`. The app checks on launch and then after 1 hour when returning to foreground, caches the last status in `app_settings`, and blocks the main UI without deleting local data.
+- Remote license control is read-only: the app never writes to Google Sheets. It can silently compare the installed app version and local device model labels from `expo-device` against sheet rules, show only a block screen when denied, and show a remote notification once per notification text when allowed.
+
 ## Known Follow-Ups
 
 - Run `npm.cmd test` after future code changes.

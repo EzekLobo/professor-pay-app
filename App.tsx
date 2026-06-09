@@ -1,8 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
 import * as Clipboard from 'expo-clipboard';
+import * as Device from 'expo-device';
 import DateTimePicker from '@expo/ui/community/datetime-picker';
 import {
   Alert,
+  AppState,
   FlatList,
   KeyboardAvoidingView,
   Linking,
@@ -30,6 +32,7 @@ import {
   Edit3,
   GraduationCap,
   Link2,
+  LockKeyhole,
   MessageCircle,
   Plus,
   RotateCcw,
@@ -72,10 +75,14 @@ import {
   loadLessons,
   loadKodlandGroups,
   loadKodlandLastSync,
+  loadRemoteLicenseStatus,
+  loadRemoteLicenseSeenNotification,
   loadPendingReviews,
   loadPendingReviewsLastSync,
   loadStudents,
   resetDatabase,
+  saveRemoteLicenseStatus,
+  saveRemoteLicenseSeenNotification,
   updateKodlandLessonMaterials,
   updateKodlandStudent,
   updateClassFutureLessons,
@@ -86,6 +93,7 @@ import { normalizeWhatsAppPhone } from './src/whatsapp';
 import { compareStudentsByStatusProgressThenName, isHighlightedRank, studentPointsLabel, studentRankPosition, studentStatusLabel } from './src/studentStatus';
 import { filterPendingReviewsByModule, filterPendingReviewsForActiveStudents, summarizePendingReviews, summarizePendingReviewsByModule } from './src/pendingReviews';
 import { groupKodlandMaterialsByCourse } from './src/kodlandLessonMaterials';
+import { AULAPAY_APP_ID, AULAPAY_APP_VERSION, RemoteLicenseStatus, remoteLicenseCsvUrl, resolveRemoteLicense } from './src/remoteLicense';
 
 type Tab = 'Resumo' | 'Pagamentos' | 'Turmas' | 'Aulas' | 'Correções' | 'Kodland';
 type PaymentArea = 'Pagamentos' | 'Histórico';
@@ -124,6 +132,18 @@ const futureHelp: MetricHelp = {
     { label: labels.totalLessonsLabel, description: 'Quantidade total ativa.' },
   ],
 };
+
+function remoteLicenseDeviceLabels() {
+  return [
+    Device.manufacturer,
+    Device.brand,
+    Device.modelName,
+    Device.deviceName,
+    Device.designName,
+    [Device.manufacturer, Device.modelName].filter(Boolean).join(' '),
+    [Device.brand, Device.modelName].filter(Boolean).join(' '),
+  ].filter((item): item is string => Boolean(item?.trim()));
+}
 
 function upcomingKodlandLessons(lessons: KodlandLessonRecord[], today: string) {
   return lessons
@@ -171,6 +191,9 @@ export default function App() {
   const [expandedLessonClassId, setExpandedLessonClassId] = useState<string | null>(null);
   const [refreshingKodlandMaterials, setRefreshingKodlandMaterials] = useState(false);
   const [activeHelp, setActiveHelp] = useState<MetricHelp | null>(null);
+  const [remoteLicenseStatus, setRemoteLicenseStatus] = useState<RemoteLicenseStatus | null>(null);
+  const [checkingRemoteLicense, setCheckingRemoteLicense] = useState(true);
+  const [lastShownRemoteNotification, setLastShownRemoteNotification] = useState('');
 
   const refresh = () => {
     const loadedClasses = loadClasses();
@@ -188,10 +211,50 @@ export default function App() {
     setDashboard(nextDashboard);
   };
 
+  const checkRemoteLicense = async (force = false) => {
+    setCheckingRemoteLicense(true);
+    try {
+      const status = await resolveRemoteLicense({
+        appId: AULAPAY_APP_ID,
+        appVersion: AULAPAY_APP_VERSION,
+        csvUrl: remoteLicenseCsvUrl,
+        cached: loadRemoteLicenseStatus(),
+        deviceInfo: { labels: remoteLicenseDeviceLabels() },
+        now: new Date(),
+        force,
+      });
+      saveRemoteLicenseStatus(status);
+      setRemoteLicenseStatus(status);
+    } finally {
+      setCheckingRemoteLicense(false);
+    }
+  };
+
   useEffect(() => {
     initDatabase();
     refresh();
+    setRemoteLicenseStatus(loadRemoteLicenseStatus());
+    checkRemoteLicense(true);
   }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') checkRemoteLicense(false);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    const notification = remoteLicenseStatus?.allowed ? remoteLicenseStatus.notification.trim() : '';
+    if (!notification || notification === lastShownRemoteNotification || notification === loadRemoteLicenseSeenNotification()) return;
+    setLastShownRemoteNotification(notification);
+    Alert.alert('AulaPay', notification, [
+      {
+        text: 'OK',
+        onPress: () => saveRemoteLicenseSeenNotification(notification),
+      },
+    ]);
+  }, [remoteLicenseStatus, lastShownRemoteNotification]);
 
   const filteredLessons = useMemo(() => filterLessonHistoryByKind(lessons, lessonFilter, dashboard.today), [lessons, lessonFilter, dashboard.today]);
   const classLessonGroups = useMemo(() => lessonFilter === 'Turmas' ? groupClassLessonHistory(filteredLessons) : [], [filteredLessons, lessonFilter]);
@@ -215,6 +278,10 @@ export default function App() {
     if (tab === 'Aulas') setExpandedLessonClassId(null);
     setActiveTab(tab);
   };
+
+  if (remoteLicenseStatus?.allowed === false) {
+    return <LicenseGate status={remoteLicenseStatus} checking={checkingRemoteLicense} onRetry={() => checkRemoteLicense(true)} />;
+  }
 
   const handleDeactivateClass = (classId: string) => {
     Alert.alert('Retirar turma', 'Aulas realizadas ficam no histórico. Aulas futuras saem do cálculo.', [
@@ -638,6 +705,29 @@ export default function App() {
         }}
       />
       <ExtraLessonModal open={extraModalOpen} onClose={() => setExtraModalOpen(false)} onSaved={refresh} />
+    </SafeAreaView>
+  );
+}
+
+function LicenseGate({ status, checking, onRetry }: { status: RemoteLicenseStatus; checking: boolean; onRetry: () => void }) {
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="light" />
+      <View style={styles.licenseShell}>
+        <View style={styles.licensePanel}>
+          <View style={styles.licenseIcon}>
+            <LockKeyhole size={26} color="#75d7ff" />
+          </View>
+          <Text style={styles.licenseTitle}>Aplicativo bloqueado</Text>
+          <Text style={styles.licenseMessage}>
+            {status.message || 'Aplicativo bloqueado. Entre em contato para liberar o acesso.'}
+          </Text>
+          <Pressable style={[styles.licenseRetryButton, checking && styles.materialRefreshButtonDisabled]} disabled={checking} onPress={onRetry}>
+            <RotateCcw size={15} color="#08111f" />
+            <Text style={styles.licenseRetryText}>{checking ? 'Tentando' : 'Tentar novamente'}</Text>
+          </Pressable>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -2187,6 +2277,62 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 18,
+  },
+  licenseShell: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 18,
+  },
+  licensePanel: {
+    alignItems: 'center',
+    backgroundColor: '#08111f',
+    borderColor: '#24517d',
+    borderRadius: 8,
+    borderWidth: 1,
+    maxWidth: 420,
+    padding: 20,
+    width: '100%',
+  },
+  licenseIcon: {
+    alignItems: 'center',
+    backgroundColor: '#10223a',
+    borderColor: '#2b5f8c',
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 54,
+    justifyContent: 'center',
+    marginBottom: 12,
+    width: 54,
+  },
+  licenseTitle: {
+    color: '#f2f8ff',
+    fontSize: 19,
+    fontWeight: '900',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  licenseMessage: {
+    color: '#9fb4d5',
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  licenseRetryButton: {
+    alignItems: 'center',
+    backgroundColor: '#75d7ff',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 7,
+    justifyContent: 'center',
+    minHeight: 38,
+    paddingHorizontal: 14,
+  },
+  licenseRetryText: {
+    color: '#08111f',
+    fontSize: 12,
+    fontWeight: '900',
   },
   header: {
     alignItems: 'flex-start',

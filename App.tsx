@@ -194,6 +194,7 @@ export default function App() {
   const [remoteLicenseStatus, setRemoteLicenseStatus] = useState<RemoteLicenseStatus | null>(null);
   const [checkingRemoteLicense, setCheckingRemoteLicense] = useState(true);
   const [lastShownRemoteNotification, setLastShownRemoteNotification] = useState('');
+  const [remoteNotificationMessage, setRemoteNotificationMessage] = useState('');
 
   const refresh = () => {
     const loadedClasses = loadClasses();
@@ -248,13 +249,14 @@ export default function App() {
     const notification = remoteLicenseStatus?.allowed ? remoteLicenseStatus.notification.trim() : '';
     if (!notification || notification === lastShownRemoteNotification || notification === loadRemoteLicenseSeenNotification()) return;
     setLastShownRemoteNotification(notification);
-    Alert.alert('AulaPay', notification, [
-      {
-        text: 'OK',
-        onPress: () => saveRemoteLicenseSeenNotification(notification),
-      },
-    ]);
+    setRemoteNotificationMessage(notification);
   }, [remoteLicenseStatus, lastShownRemoteNotification]);
+
+  const closeRemoteNotification = () => {
+    const notification = remoteNotificationMessage.trim();
+    if (notification) saveRemoteLicenseSeenNotification(notification);
+    setRemoteNotificationMessage('');
+  };
 
   const filteredLessons = useMemo(() => filterLessonHistoryByKind(lessons, lessonFilter, dashboard.today), [lessons, lessonFilter, dashboard.today]);
   const classLessonGroups = useMemo(() => lessonFilter === 'Turmas' ? groupClassLessonHistory(filteredLessons) : [], [filteredLessons, lessonFilter]);
@@ -486,34 +488,9 @@ export default function App() {
               <PaymentHighlightCard tone="amber" title={labels.nextPaymentLabel} payment={dashboard.nextPayment} kind="preview" onPress={() => dashboard.nextPayment && setSelectedPayment(dashboard.nextPayment)} />
             </View>
 
-            <View style={styles.metricGrid}>
-              <MetricCard
-                title={labels.summaryTodayLabel}
-                icon={<Check size={18} color="#4df6a5" />}
-                help={summaryHelp}
-                onHelpPress={setActiveHelp}
-                items={[
-                [labels.earnedLabel, formatCurrency(dashboard.summary.earned)],
-                [labels.receivedLabel, formatCurrency(dashboard.summary.received)],
-                [labels.normalLabel, String(dashboard.summary.normalLessons)],
-                [labels.extraLabel, String(dashboard.summary.extraLessons)],
-              ]} />
-              <MetricCard
-                title={labels.futureLabel}
-                icon={<ArrowRight size={18} color="#ffbf5f" />}
-                help={futureHelp}
-                onHelpPress={setActiveHelp}
-                items={[
-                [labels.plannedLabel, formatCurrency(dashboard.future.planned)],
-                [labels.futureLessonsLabel, String(dashboard.future.futureLessons)],
-                [labels.totalPlannedLabel, formatCurrency(dashboard.future.totalPlanned)],
-                [labels.totalLessonsLabel, String(dashboard.future.totalLessons)],
-              ]} />
-            </View>
-
             <SectionTitle title="Proximas aulas" action="Ver aulas" onPress={() => setActiveTab('Aulas')} />
             {nextKodlandLessons.length ? (
-              <KodlandNextLessonsOverview lessons={nextKodlandLessons} onOpenMaterial={openKodlandMaterial} onEdit={setEditingKodlandLesson} />
+              <KodlandNextLessonsOverview lessons={nextKodlandLessons} onOpenMaterial={openKodlandMaterial} />
             ) : (
               <View style={styles.kodlandLessonEmpty}>
                 <Text style={styles.lessonTitle}>Nenhuma aula Kodland sincronizada</Text>
@@ -524,11 +501,6 @@ export default function App() {
             <SectionTitle title={labels.classesLabel} action="Ver todas" onPress={() => setActiveTab('Turmas')} />
             {dashboard.progress.map((progress) => (
               <ClassProgressCard key={progress.classId} progress={progress} studentCount={students.filter((student) => student.classId === progress.classId).length} />
-            ))}
-
-            <SectionTitle title={labels.paymentsLabel} action="Detalhes" onPress={() => setActiveTab('Pagamentos')} />
-            {visiblePayments.slice(0, 4).map((payment) => (
-              <PaymentListItem key={payment.paymentDate} payment={payment} onPress={() => setSelectedPayment(payment)} />
             ))}
 
             <View style={styles.dataSection}>
@@ -599,7 +571,14 @@ export default function App() {
               keyExtractor={(item) => item.paymentDate}
               contentContainerStyle={styles.listContent}
               renderItem={({ item }) => <PaymentListItem payment={item} onPress={() => setSelectedPayment(item)} />}
-              ListHeaderComponent={<PaymentAreaHeader paymentArea={paymentArea} onPaymentAreaChange={setPaymentArea} />}
+              ListHeaderComponent={(
+                <PaymentOverviewHeader
+                  paymentArea={paymentArea}
+                  onPaymentAreaChange={setPaymentArea}
+                  dashboard={dashboard}
+                  onHelpPress={setActiveHelp}
+                />
+              )}
               ListEmptyComponent={<Text style={styles.emptyText}>Sem pagamentos no historico.</Text>}
             />
           )
@@ -674,6 +653,7 @@ export default function App() {
         onClose={() => setSelectedPayment(null)}
         onConfirm={(paymentDate) => handleConfirmPayment(paymentDate)}
       />
+      <RemoteNotificationModal message={remoteNotificationMessage} onClose={closeRemoteNotification} />
       <MetricHelpModal help={activeHelp} onClose={() => setActiveHelp(null)} />
       <KodlandStudentDetailsModal
         student={selectedStudent}
@@ -864,6 +844,29 @@ function MetricHelpModal({ help, onClose }: { help: MetricHelp | null; onClose: 
   );
 }
 
+function RemoteNotificationModal({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <Modal visible={Boolean(message)} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.helpPanel}>
+          <View style={styles.modalHeader}>
+            <View style={styles.helpTitleGroup}>
+              <MessageCircle size={18} color="#75d7ff" />
+              <Text style={styles.modalTitle}>AulaPay</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.closeButton}><X size={20} color="#e8f3ff" /></Pressable>
+          </View>
+          <Text style={styles.remoteNotificationText}>{message}</Text>
+          <Pressable style={styles.remoteNotificationButton} onPress={onClose}>
+            <Check size={16} color="#08111f" />
+            <Text style={styles.remoteNotificationButtonText}>Entendi</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function SegmentedFilter<T extends string>({ options, value, onChange }: { options: T[]; value: T; onChange: (value: T) => void }) {
   return (
     <View style={styles.segmentedFilter}>
@@ -971,6 +974,51 @@ function PaymentAreaHeader({ paymentArea, onPaymentAreaChange }: { paymentArea: 
     <View style={styles.subTabHeader}>
       <SegmentedFilter options={paymentAreas} value={paymentArea} onChange={onPaymentAreaChange} />
     </View>
+  );
+}
+
+function PaymentOverviewHeader({
+  paymentArea,
+  onPaymentAreaChange,
+  dashboard,
+  onHelpPress,
+}: {
+  paymentArea: PaymentArea;
+  onPaymentAreaChange: (value: PaymentArea) => void;
+  dashboard: DashboardData;
+  onHelpPress: (help: MetricHelp) => void;
+}) {
+  return (
+    <>
+      <PaymentAreaHeader paymentArea={paymentArea} onPaymentAreaChange={onPaymentAreaChange} />
+      <View style={styles.metricGrid}>
+        <MetricCard
+          title={labels.summaryTodayLabel}
+          icon={<Check size={18} color="#4df6a5" />}
+          help={summaryHelp}
+          onHelpPress={onHelpPress}
+          items={[
+            [labels.earnedLabel, formatCurrency(dashboard.summary.earned)],
+            [labels.receivedLabel, formatCurrency(dashboard.summary.received)],
+            [labels.normalLabel, String(dashboard.summary.normalLessons)],
+            [labels.extraLabel, String(dashboard.summary.extraLessons)],
+          ]}
+        />
+        <MetricCard
+          title={labels.futureLabel}
+          icon={<ArrowRight size={18} color="#ffbf5f" />}
+          help={futureHelp}
+          onHelpPress={onHelpPress}
+          items={[
+            [labels.plannedLabel, formatCurrency(dashboard.future.planned)],
+            [labels.futureLessonsLabel, String(dashboard.future.futureLessons)],
+            [labels.totalPlannedLabel, formatCurrency(dashboard.future.totalPlanned)],
+            [labels.totalLessonsLabel, String(dashboard.future.totalLessons)],
+          ]}
+        />
+      </View>
+      <Text style={styles.listHint}>Pagamentos por periodo</Text>
+    </>
   );
 }
 
@@ -1651,11 +1699,11 @@ function LessonListItem({ lesson, onCancel }: { lesson: LessonView; onCancel?: (
   );
 }
 
-function KodlandNextLessonsOverview({ lessons, onOpenMaterial, onEdit }: { lessons: KodlandLessonRecord[]; onOpenMaterial: (url: string) => void; onEdit: (lesson: KodlandLessonRecord) => void }) {
+function KodlandNextLessonsOverview({ lessons, onOpenMaterial }: { lessons: KodlandLessonRecord[]; onOpenMaterial: (url: string) => void }) {
   return (
     <View style={styles.kodlandLessonsBlock}>
       {lessons.map((lesson) => (
-        <KodlandLessonCard key={lesson.id} lesson={lesson} featured onOpenMaterial={onOpenMaterial} onEdit={onEdit} />
+        <KodlandLessonCard key={lesson.id} lesson={lesson} featured onOpenMaterial={onOpenMaterial} />
       ))}
     </View>
   );
@@ -1807,7 +1855,7 @@ function MaterialLessonRow({ lesson, expanded, onPress, onOpenMaterial, onEdit }
   );
 }
 
-function KodlandLessonCard({ lesson, featured = false, onOpenMaterial, onEdit }: { lesson: KodlandLessonRecord; featured?: boolean; onOpenMaterial: (url: string) => void; onEdit: (lesson: KodlandLessonRecord) => void }) {
+function KodlandLessonCard({ lesson, featured = false, onOpenMaterial, onEdit }: { lesson: KodlandLessonRecord; featured?: boolean; onOpenMaterial: (url: string) => void; onEdit?: (lesson: KodlandLessonRecord) => void }) {
   const lessonLabel = lesson.lessonNumber ? `Aula ${lesson.lessonNumber}` : 'Aula';
   return (
     <View style={[styles.kodlandLessonCard, featured && styles.kodlandLessonCardFeatured]}>
@@ -1823,10 +1871,12 @@ function KodlandLessonCard({ lesson, featured = false, onOpenMaterial, onEdit }:
       <View style={styles.materialActions}>
         <MaterialLinkButton label="Slide" url={lesson.slideUrl} onOpen={onOpenMaterial} />
         <MaterialLinkButton label="Roteiro" url={lesson.scriptUrl} onOpen={onOpenMaterial} />
-        <Pressable accessibilityLabel="Editar materiais" style={styles.materialEditButton} onPress={() => onEdit(lesson)}>
-          <Edit3 size={13} color="#75d7ff" />
-          <Text numberOfLines={1} style={styles.materialEditText}>Editar</Text>
-        </Pressable>
+        {onEdit && (
+          <Pressable accessibilityLabel="Editar materiais" style={styles.materialEditButton} onPress={() => onEdit(lesson)}>
+            <Edit3 size={13} color="#75d7ff" />
+            <Text numberOfLines={1} style={styles.materialEditText}>Editar</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -3391,6 +3441,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
+  },
+  remoteNotificationText: {
+    color: '#cfe2ff',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  remoteNotificationButton: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: '#75d7ff',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 16,
+    minHeight: 42,
+  },
+  remoteNotificationButtonText: {
+    color: '#08111f',
+    fontSize: 12,
+    fontWeight: '900',
   },
   modalTitle: {
     color: '#f2f8ff',

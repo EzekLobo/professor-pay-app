@@ -44,6 +44,7 @@ Last updated: 2026-06-08
 
 - Branch `feature/remote-license-control` adds remote blocking through a published CSV sheet. The sheet URL lives in `src/remoteLicense.ts` as `remoteLicenseCsvUrl`; template and setup docs are in `docs/license-control-template.csv` and `docs/license-control.md`. The app checks on launch and then after 1 hour when returning to foreground, caches the last status in `app_settings`, and blocks the main UI without deleting local data.
 - Remote license control is read-only: the app never writes to Google Sheets. It can silently compare the installed app version and local device model labels from `expo-device` against sheet rules, show only a block screen when denied, and show a remote notification once per notification text when allowed.
+- Version 1.8.1 keeps `Resumo` focused on ultimo/proximo pagamento, proximas aulas, turmas, and reset; detailed `Ate hoje`/`Futuro` metrics moved to `Pagamentos`, remote notification uses an in-app modal, and next lesson cards in `Resumo` no longer show material editing.
 
 ## Known Follow-Ups
 

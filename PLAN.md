@@ -28,7 +28,7 @@
   - Aceitação: testes `pytest` equivalentes aos testes atuais passam, incluindo períodos recebidos preservados e valores sem `float`.
   - Depende de: 2.
 
-- [ ] **Tarefa 5 — API de turmas, aulas e dashboard**
+- [x] **Tarefa 5 — API de turmas, aulas e dashboard**
   - Escopo: criar endpoints autenticados de turmas, aulas extras, cancelamentos, dashboard e filtros; documentar OpenAPI.
   - Aceitação: testes de integração exercitam CRUD, filtros, cancelamentos, transações e isolamento por usuário; `/docs` mostra os endpoints.
   - Depende de: 3, 4.
@@ -115,3 +115,14 @@
 - Para as próximas tarefas: serviços podem usar `ClassData`, `LessonData`,
   `build_dashboard`, `lessons_for_class_update` e `deactivate_class_lessons`;
   o domínio não depende de FastAPI nem de sessão SQLAlchemy.
+
+### Tarefa 5 — API de turmas, aulas e dashboard
+
+- Mudou: endpoints autenticados de turmas, aulas extras, cancelamentos, filtros,
+  paginação e dashboard; schemas Pydantic e serviço de adaptação entre ORM e
+  domínio, com testes de integração.
+- Verificado: `uv run pytest` (24 testes), `uv run ruff check .`,
+  `git diff --check` e inspeção do OpenAPI passam.
+- Para as próximas tarefas: os recursos financeiros estão em
+  `app.api.financial` e `app.services.financial`; pagamentos, exportação e reset
+  ainda precisam ser adicionados sem alterar a semântica do dashboard.

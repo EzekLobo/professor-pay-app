@@ -18,7 +18,7 @@
   - Aceitação: uma migração inicial cria o schema em PostgreSQL e SQLite de teste; testes de modelo e integridade passam.
   - Depende de: 1.
 
-- [ ] **Tarefa 3 — Autenticação e segurança da API**
+- [x] **Tarefa 3 — Autenticação e segurança da API**
   - Escopo: implementar registro, login, logout, sessão em cookie HttpOnly, usuário atual, autorização por `user_id`, CORS e tratamento de erros.
   - Aceitação: testes comprovam que senhas são hasheadas, sessão protege endpoints e usuários não acessam dados de terceiros.
   - Depende de: 2.
@@ -96,3 +96,12 @@
 - Para as próximas tarefas: use `app.db.session.get_db` e os modelos em
   `app.models`; dinheiro é `*_cents`, duração é `duration_minutes`, e todas as
   consultas de domínio devem filtrar por `user_id`.
+
+### Tarefa 3 — Autenticação e segurança da API
+
+- Mudou: rotas de registro/login/logout/usuário atual, JWT em cookie HttpOnly,
+  hash bcrypt, dependências de usuário atual e propriedade, CORS e handlers de
+  erro; foram adicionados testes de sessão e isolamento.
+- Verificado: `uv run pytest` (11 testes) e `uv run ruff check .` passam.
+- Para as próximas tarefas: proteja novas rotas com `CurrentUser`, use
+  `get_owned_or_404` para recursos por ID e mantenha o prefixo `/api/v1`.

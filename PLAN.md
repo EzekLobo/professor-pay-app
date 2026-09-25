@@ -23,7 +23,7 @@
   - Aceitação: testes comprovam que senhas são hasheadas, sessão protege endpoints e usuários não acessam dados de terceiros.
   - Depende de: 2.
 
-- [ ] **Tarefa 4 — Domínio financeiro e regras de paridade**
+- [x] **Tarefa 4 — Domínio financeiro e regras de paridade**
   - Escopo: portar cálculos de datas, quinzenas, valores, geração de aulas, edição protegida e desativação de turma para Python.
   - Aceitação: testes `pytest` equivalentes aos testes atuais passam, incluindo períodos recebidos preservados e valores sem `float`.
   - Depende de: 2.
@@ -105,3 +105,13 @@
 - Verificado: `uv run pytest` (11 testes) e `uv run ruff check .` passam.
 - Para as próximas tarefas: proteja novas rotas com `CurrentUser`, use
   `get_owned_or_404` para recursos por ID e mantenha o prefixo `/api/v1`.
+
+### Tarefa 4 — Domínio financeiro e regras de paridade
+
+- Mudou: domínio puro para datas/quinzenas, dinheiro em centavos, geração de
+  aulas, dashboard, filtros, edição e desativação, acompanhado por testes
+  determinísticos de paridade.
+- Verificado: `uv run pytest` (19 testes) e `uv run ruff check .` passam.
+- Para as próximas tarefas: serviços podem usar `ClassData`, `LessonData`,
+  `build_dashboard`, `lessons_for_class_update` e `deactivate_class_lessons`;
+  o domínio não depende de FastAPI nem de sessão SQLAlchemy.

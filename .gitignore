@@ -36,6 +36,14 @@ build-*.log
 
 # local env files
 .env*.local
+.env
+apps/api/.venv/
+__pycache__/
+*.py[cod]
+apps/web/.next/
+apps/web/out/
+apps/web/next-env.d.ts
+coverage/
 
 # typescript
 *.tsbuildinfo

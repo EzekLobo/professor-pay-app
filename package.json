@@ -2,6 +2,9 @@
   "name": "professor-pay-app",
   "version": "1.0.0",
   "main": "index.ts",
+  "workspaces": [
+    "apps/web"
+  ],
   "dependencies": {
     "@expo/ui": "~56.0.14",
     "expo": "~56.0.5",
@@ -25,7 +28,11 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "web:dev": "npm run dev --workspace=@aulapay/web",
+    "web:build": "npm run build --workspace=@aulapay/web",
+    "web:lint": "npm run lint --workspace=@aulapay/web",
+    "web:typecheck": "npm run typecheck --workspace=@aulapay/web"
   },
   "private": true
 }

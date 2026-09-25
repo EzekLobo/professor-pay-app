@@ -1,0 +1,1 @@
+"""AulaPay API package."""

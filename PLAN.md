@@ -13,7 +13,7 @@
   - Aceitação: `docker compose config` é válido; frontend e API têm manifests reproduzíveis; `README.md` descreve a inicialização local.
   - Depende de: nenhuma.
 
-- [ ] **Tarefa 2 — Banco, modelos e migrações**
+- [x] **Tarefa 2 — Banco, modelos e migrações**
   - Escopo: implementar SQLAlchemy/Alembic e as tabelas de usuário, turma, aula e confirmação de pagamento, com UUID, valores em centavos e isolamento por usuário.
   - Aceitação: uma migração inicial cria o schema em PostgreSQL e SQLite de teste; testes de modelo e integridade passam.
   - Depende de: 1.
@@ -85,3 +85,14 @@
 - Para as próximas tarefas: a API fica em `apps/api/app`, usa Python 3.12+ e
   possui um endpoint `GET /health`; o frontend fica em `apps/web`. Docker Desktop
   não estava executando neste ambiente, portanto imagens não foram construídas.
+
+### Tarefa 2 — Banco, modelos e migrações
+
+- Mudou: SQLAlchemy/Alembic, sessão de banco, modelos `User`, `ClassRecord`,
+  `Lesson` e `PaymentConfirmation`, primeira migração e testes de integridade.
+- Verificado: `uv run pytest` (6 testes), `uv run ruff check .` e
+  `uv run alembic upgrade head --sql` passam; teste automatizado aplica a
+  migração em SQLite.
+- Para as próximas tarefas: use `app.db.session.get_db` e os modelos em
+  `app.models`; dinheiro é `*_cents`, duração é `duration_minutes`, e todas as
+  consultas de domínio devem filtrar por `user_id`.

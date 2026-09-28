@@ -159,3 +159,69 @@ def test_openapi_documents_financial_endpoints(client: TestClient) -> None:
     assert "/api/v1/classes" in paths
     assert "/api/v1/lessons/extras" in paths
     assert "/api/v1/dashboard" in paths
+    assert "/api/v1/payments" in paths
+    assert "/api/v1/data/export" in paths
+
+
+def test_payments_confirmation_is_idempotent_and_can_be_reversed(client: TestClient) -> None:
+    register(client, "payments@example.com")
+    create_class(client, lesson_count=1, first_lesson_date="2026-01-07")
+
+    listed = client.get("/api/v1/payments", params={"as_of": "2026-02-02"})
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 1
+    payment = listed.json()["items"][0]
+    assert payment["payment_date"] == "2026-02-01"
+    assert payment["total_cents"] == 10000
+
+    first = client.post("/api/v1/payments/2026-02-01/confirm", json={"note": "Recebido"})
+    second = client.post("/api/v1/payments/2026-02-01/confirm", json={"note": "Ignorado"})
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["note"] == "Recebido"
+    assert second.json()["note"] == "Recebido"
+    with app.state.financial_test_session() as db:
+        assert db.query(PaymentConfirmation).count() == 1
+
+    detail = client.get("/api/v1/payments/2026-02-01", params={"as_of": "2026-02-02"})
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "RECEIVED"
+    assert detail.json()["confirmation_note"] == "Recebido"
+    assert client.get("/api/v1/dashboard", params={"as_of": "2026-01-01"}).json()["received_cents"] == 10000
+    assert client.delete("/api/v1/payments/2026-02-01/confirmation").status_code == 204
+    reverted = client.get("/api/v1/payments/2026-02-01", params={"as_of": "2026-02-02"})
+    assert reverted.json()["status"] == "OVERDUE"
+    assert client.get("/api/v1/dashboard", params={"as_of": "2026-01-01"}).json()["received_cents"] == 0
+
+
+def test_export_and_reset_only_affect_current_owner(client: TestClient) -> None:
+    register(client, "owner-data@example.com")
+    create_class(client, lesson_count=1)
+    client.post("/api/v1/payments/2026-02-01/confirm", json={})
+    exported = client.get("/api/v1/data/export")
+    assert exported.status_code == 200
+    body = exported.json()
+    assert body["schema_version"] == "1.0"
+    assert len(body["classes"]) == 1
+    assert len(body["lessons"]) == 1
+    assert len(body["payment_confirmations"]) == 1
+    assert "password_hash" not in exported.text
+
+    client.post("/api/v1/auth/logout")
+    register(client, "other-data@example.com")
+    create_class(client, name="Outra turma", lesson_count=1)
+    denied = client.request("DELETE", "/api/v1/data", json={"confirmation": "APAGAR", "password": "a-strong-password"})
+    assert denied.status_code == 422
+    wrong_password = client.request("DELETE", "/api/v1/data", json={"confirmation": "RESETAR", "password": "wrong-password"})
+    assert wrong_password.status_code == 401
+    reset = client.request("DELETE", "/api/v1/data", json={"confirmation": "RESETAR", "password": "a-strong-password"})
+    assert reset.status_code == 204
+    assert client.get("/api/v1/classes").json()["total"] == 0
+
+    client.post("/api/v1/auth/logout")
+    register_login = client.post(
+        "/api/v1/auth/login", json={"email": "owner-data@example.com", "password": "a-strong-password"}
+    )
+    assert register_login.status_code == 200
+    assert client.get("/api/v1/classes").json()["total"] == 1
+    assert client.get("/api/v1/data/export").json()["payment_confirmations"]

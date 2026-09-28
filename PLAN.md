@@ -33,7 +33,7 @@
   - Aceitação: testes de integração exercitam CRUD, filtros, cancelamentos, transações e isolamento por usuário; `/docs` mostra os endpoints.
   - Depende de: 3, 4.
 
-- [ ] **Tarefa 6 — API de pagamentos, backup e reset**
+- [x] **Tarefa 6 — API de pagamentos, backup e reset**
   - Escopo: expor listagem/detalhe de pagamentos, confirmação e estorno idempotentes, exportação JSON e reset protegido.
   - Aceitação: totais e status são corretos; confirmação duplicada não duplica registros; reset afeta apenas o dono.
   - Depende de: 5.
@@ -126,3 +126,14 @@
 - Para as próximas tarefas: os recursos financeiros estão em
   `app.api.financial` e `app.services.financial`; pagamentos, exportação e reset
   ainda precisam ser adicionados sem alterar a semântica do dashboard.
+
+### Tarefa 6 — API de pagamentos, backup e reset
+
+- Mudou: listagem/detalhe de pagamentos, confirmação e estorno idempotentes,
+  exportação JSON isolada por usuário e reset transacional protegido por frase e
+  senha; novos schemas e testes de integração foram incluídos.
+- Verificado: `uv run pytest` (26 testes), `uv run ruff check .`,
+  `git diff --check` e checagem dos endpoints OpenAPI passam.
+- Para as próximas tarefas: a exportação `/api/v1/data/export` é a referência
+  do formato web; a importação Expo deve ter versão explícita, prévia e
+  idempotência sem expor hashes nem sessões.

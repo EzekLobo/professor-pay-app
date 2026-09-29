@@ -53,7 +53,7 @@
   - Aceitação: a página consome `/dashboard`, é responsiva e tem testes de componente para os estados principais.
   - Depende de: 5, 8.
 
-- [ ] **Tarefa 10 — Turmas e aulas no frontend**
+- [x] **Tarefa 10 — Turmas e aulas no frontend**
   - Escopo: implementar listagem, formulários, edição/desativação de turmas, histórico, filtros, aulas extras e cancelamento.
   - Aceitação: fluxos mutam a API, atualizam o dashboard e apresentam erros de validação; build e testes passam.
   - Depende de: 5, 8, 9.
@@ -169,3 +169,14 @@
   passam.
 - Para as próximas tarefas: após mutações de turmas/aulas/pagamentos, as telas
   podem recarregar o dashboard; os tipos financeiros ficam em `lib/api.ts`.
+
+### Tarefa 10 — Turmas e aulas no frontend
+
+- Mudou: páginas funcionais de turmas e aulas, cadastro/edição/desativação,
+  filtros, extras e cancelamento, além de contratos API e conversão segura de
+  BRL para centavos com testes.
+- Verificado: testes web (8), lint, typecheck, build e `git diff --check`
+  passam.
+- Para as próximas tarefas: `api.ts` contém os clientes de turmas/aulas e
+  `finance.ts` centraliza formatação e conversão monetária; pagamentos e dados
+  continuam isolados para a tarefa seguinte.

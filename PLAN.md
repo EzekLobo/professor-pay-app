@@ -48,7 +48,7 @@
   - Aceitação: `npm run lint`, `npm run typecheck` e `npm run build` passam; rotas privadas redirecionam usuários não autenticados.
   - Depende de: 1, 3.
 
-- [ ] **Tarefa 9 — Dashboard web**
+- [x] **Tarefa 9 — Dashboard web**
   - Escopo: implementar a página de resumo com cards, progresso, últimos/próximos pagamentos, estados de loading/erro/vazio e locale pt-BR.
   - Aceitação: a página consome `/dashboard`, é responsiva e tem testes de componente para os estados principais.
   - Depende de: 5, 8.
@@ -159,3 +159,13 @@
   passam.
 - Para as próximas tarefas: páginas internas já usam `AuthGuard` + `Shell`; o
   cliente `apps/web/src/lib/api.ts` deve concentrar os novos contratos de API.
+
+### Tarefa 9 — Dashboard web
+
+- Mudou: dashboard responsivo conectado à API, cards de resumo e futuro,
+  pagamentos, progresso, estados de loading/erro/vazio e formatação pt-BR;
+  testes de componente foram adicionados.
+- Verificado: testes web (6), lint, typecheck, build e `git diff --check`
+  passam.
+- Para as próximas tarefas: após mutações de turmas/aulas/pagamentos, as telas
+  podem recarregar o dashboard; os tipos financeiros ficam em `lib/api.ts`.

@@ -9,6 +9,7 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.class_record import ClassRecord
+    from app.models.import_record import ImportRecord
     from app.models.lesson import Lesson
     from app.models.payment_confirmation import PaymentConfirmation
 
@@ -26,3 +27,4 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     payment_confirmations: Mapped[list[PaymentConfirmation]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    import_records: Mapped[list[ImportRecord]] = relationship(back_populates="user", cascade="all, delete-orphan")

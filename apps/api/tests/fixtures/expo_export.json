@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0",
+  "exportId": "expo-fixture-2026-09-28",
+  "exportedAt": "2026-09-28T12:00:00Z",
+  "classes": [{
+    "id": "class-tuesday-20", "name": "Terça 20h", "weekDay": "Terça", "time": "20:00:00",
+    "firstLesson": "2026-05-12", "lessonCount": 2, "durationHours": 1.5, "hourlyRate": 30,
+    "active": true, "createdAt": "2026-05-01T12:00:00Z", "updatedAt": "2026-05-01T12:00:00Z"
+  }],
+  "lessons": [
+    {"id": "class-tuesday-20-lesson-1", "classId": "class-tuesday-20", "className": "Terça 20h", "number": 1, "lessonDate": "2026-05-12", "student": "", "type": "Normal", "durationHours": 1.5, "hourlyRate": 30, "active": true, "canceled": false, "note": ""},
+    {"id": "extra-ana", "classId": null, "className": "Extra", "number": 1, "lessonDate": "2026-05-20", "student": "Ana", "type": "Extra", "durationHours": 1, "hourlyRate": 40, "active": true, "canceled": false, "note": "Reposição"}
+  ],
+  "paymentConfirmations": [{"id": "payment-2026-06-01", "paymentDate": "2026-06-01", "receivedAt": "2026-06-01T12:00:00Z", "note": "Recebido"}]
+}

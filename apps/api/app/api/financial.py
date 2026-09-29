@@ -22,6 +22,7 @@ from app.models import ClassRecord, Lesson, LessonType, PaymentConfirmation
 from app.schemas.classes import ClassCreate, ClassListResponse, ClassResponse, ClassUpdate
 from app.schemas.dashboard import DashboardResponse
 from app.schemas.data import DataExportResponse, ResetDataRequest
+from app.schemas.imports import AulaPayExport, ImportReport
 from app.schemas.lessons import ExtraLessonCreate, LessonListResponse, LessonResponse, LessonStatusFilter
 from app.schemas.payments import (
     PaymentConfirmationRequest,
@@ -30,6 +31,7 @@ from app.schemas.payments import (
     PaymentListResponse,
 )
 from app.services.financial import class_data, lesson_data, lesson_from_data, lesson_response
+from app.services.importing import import_export, preview_import
 
 router = APIRouter(prefix="/api/v1", tags=["financial"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -381,6 +383,19 @@ def export_data(current_user: CurrentUser, db: DbSession) -> dict[str, object]:
             for record in confirmations
         ],
     }
+
+
+@router.post("/data/import/preview", response_model=ImportReport)
+def preview_expo_import(payload: AulaPayExport, current_user: CurrentUser, db: DbSession) -> ImportReport:
+    return preview_import(db, current_user.id, payload)
+
+
+@router.post("/data/import", response_model=ImportReport)
+def import_expo_data(payload: AulaPayExport, current_user: CurrentUser, db: DbSession) -> ImportReport:
+    try:
+        return import_export(db, current_user.id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 @router.delete("/data", status_code=status.HTTP_204_NO_CONTENT)

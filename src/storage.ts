@@ -5,6 +5,7 @@ import { sampleClasses, sampleExtraLessons } from './sampleData';
 import { hasExistingUserData } from './storageInitialization';
 import { resetDatabaseSql } from './storageSql';
 import { ClassRecord, LessonRecord, PaymentConfirmation } from './types';
+import { AulaPayExport, buildAulaPayExport } from './exportContract';
 
 const db = SQLite.openDatabaseSync('aulapay.db');
 const realSeedKey = 'real_seed_2026_05';
@@ -114,6 +115,14 @@ export function loadLessons(): LessonRecord[] {
 
 export function loadConfirmations(): PaymentConfirmation[] {
   return db.getAllSync<PaymentConfirmation>('SELECT * FROM payment_confirmations ORDER BY paymentDate ASC');
+}
+
+/**
+ * Reads the persisted Expo SQLite data without initializing, mutating or sharing it.
+ * The returned object is accepted by POST /api/v1/data/import.
+ */
+export function exportAulaPayData(now = new Date(), random = Math.random): AulaPayExport {
+  return buildAulaPayExport(loadClasses(), loadLessons(), loadConfirmations(), now, random);
 }
 
 export function addClass(input: Omit<ClassRecord, 'createdAt' | 'updatedAt'>) {

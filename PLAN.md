@@ -38,7 +38,7 @@
   - Aceitação: totais e status são corretos; confirmação duplicada não duplica registros; reset afeta apenas o dono.
   - Depende de: 5.
 
-- [ ] **Tarefa 7 — Importação de dados do Expo**
+- [x] **Tarefa 7 — Importação de dados do Expo**
   - Escopo: criar formato JSON versionado, endpoint idempotente com prévia/relatório e exportador não destrutivo no app Expo conforme SDK 56.
   - Aceitação: um fixture de exportação importa turmas, aulas e confirmações uma única vez; arquivo inválido falha sem gravação parcial.
   - Depende de: 6.
@@ -137,3 +137,15 @@
 - Para as próximas tarefas: a exportação `/api/v1/data/export` é a referência
   do formato web; a importação Expo deve ter versão explícita, prévia e
   idempotência sem expor hashes nem sessões.
+
+### Tarefa 7 — Importação de dados do Expo
+
+- Mudou: contrato `AulaPayExport` v1, exportador Expo somente-leitura, prévia e
+  importação autenticada/idempotente, registro de importações, migração, fixture
+  e testes de integração.
+- Verificado: `uv run pytest` (28 testes), `uv run ruff check .`, geração SQL
+  Alembic, `npm.cmd test` (30 testes) e `git diff --check` passam. Os aliases do
+  contrato foram ajustados para eliminar os avisos Pydantic específicos.
+- Para as próximas tarefas: o frontend deve enviar o JSON de `AulaPayExport` aos
+  endpoints `/api/v1/data/import/preview` e `/api/v1/data/import`; o exportador
+  móvel está em `src/storage.ts` como `exportAulaPayData`.

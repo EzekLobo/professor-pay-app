@@ -43,7 +43,7 @@
   - Aceitação: um fixture de exportação importa turmas, aulas e confirmações uma única vez; arquivo inválido falha sem gravação parcial.
   - Depende de: 6.
 
-- [ ] **Tarefa 8 — Base visual e autenticação Next.js**
+- [x] **Tarefa 8 — Base visual e autenticação Next.js**
   - Escopo: inicializar Next.js App Router, tokens visuais, componentes básicos, shell responsivo, cliente de API e telas de login/cadastro/logout.
   - Aceitação: `npm run lint`, `npm run typecheck` e `npm run build` passam; rotas privadas redirecionam usuários não autenticados.
   - Depende de: 1, 3.
@@ -149,3 +149,13 @@
 - Para as próximas tarefas: o frontend deve enviar o JSON de `AulaPayExport` aos
   endpoints `/api/v1/data/import/preview` e `/api/v1/data/import`; o exportador
   móvel está em `src/storage.ts` como `exportAulaPayData`.
+
+### Tarefa 8 — Base visual e autenticação Next.js
+
+- Mudou: tokens e shell responsivo AulaPay, componentes básicos, cliente com
+  cookies incluídos, login, cadastro, logout, `AuthGuard` e placeholders de
+  rotas privadas; testes do cliente de API foram incluídos.
+- Verificado: testes web (2), lint, typecheck, build e `git diff --check`
+  passam.
+- Para as próximas tarefas: páginas internas já usam `AuthGuard` + `Shell`; o
+  cliente `apps/web/src/lib/api.ts` deve concentrar os novos contratos de API.

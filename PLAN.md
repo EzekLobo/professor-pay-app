@@ -88,7 +88,7 @@
     a suíte de API passa com SQLite.
   - Depende de: S1.
 
-- [ ] **Tarefa S3 — Empacotamento e guia PythonAnywhere**
+- [x] **Tarefa S3 — Empacotamento e guia PythonAnywhere**
   - Escopo: remover PostgreSQL do fluxo local padrão, atualizar Compose/variáveis,
     README e operação com instalação, migração, comando ASGI e backup SQLite.
   - Aceitação: documentação permite publicar a API no PythonAnywhere e manter o
@@ -119,6 +119,16 @@
   uma migração explícita em arquivo temporário aninhado foi validada pelo executor.
 - Para as próximas tarefas: S3 deve remover PostgreSQL do fluxo operacional
   padrão e documentar o deploy ASGI no PythonAnywhere.
+
+### SQLite S3 — Empacotamento e guia PythonAnywhere
+
+- Mudou: Compose e variáveis padrão não requerem PostgreSQL; documentação local,
+  operacional e de PythonAnywhere descreve SQLite, ASGI, migrações, backups e
+  limites de concorrência.
+- Verificado: API (`pytest`, 32 testes; Ruff), web (lint, typecheck, 8 testes),
+  `docker compose config --quiet` e diff check passam.
+- Para operação: siga `docs/PYTHONANYWHERE.md`; a API ASGI do PythonAnywhere é
+  experimental e SQLite deve operar com um único processo e baixa concorrência.
 
 ### Tarefa 1 — Fundação do monorepo e ambiente local
 

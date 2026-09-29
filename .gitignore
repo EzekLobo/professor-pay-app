@@ -39,6 +39,8 @@ build-*.log
 .env*.local
 .env
 apps/api/.venv/
+apps/api/data/*.sqlite3
+apps/api/data/*.db
 __pycache__/
 *.py[cod]
 apps/web/.next/

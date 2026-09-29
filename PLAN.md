@@ -68,10 +68,47 @@
   - Aceitação: testes backend/frontend/E2E e builds passam; Compose sobe os serviços; documentação de operação existe.
   - Depende de: 7, 11.
 
+## Migração SQLite para PythonAnywhere
+
+> Decisão: o banco fica em `apps/api/data/aulapay.sqlite3`, no diretório do
+> projeto, mas é ignorado pelo Git. Assim o arquivo persiste no servidor e não
+> vaza dados reais no repositório. Alembic cria o schema no primeiro deploy.
+
+- [x] **Tarefa S1 — Configuração e persistência SQLite**
+  - Escopo: mudar a configuração padrão da API para SQLite por caminho absoluto,
+    criar a pasta de dados versionável sem o banco e adaptar o engine para SQLite.
+  - Aceitação: a API sobe sem PostgreSQL usando um banco arquivo configurável;
+    o arquivo não é rastreado pelo Git e os testes continuam isolados.
+  - Depende de: nenhuma.
+
+- [ ] **Tarefa S2 — Migrações e testes SQLite de produção**
+  - Escopo: garantir que as migrações Alembic e constraints funcionem no banco
+    arquivo, incluindo criação inicial, reinicialização e readiness.
+  - Aceitação: uma base vazia recebe `alembic upgrade head`, `/ready` responde e
+    a suíte de API passa com SQLite.
+  - Depende de: S1.
+
+- [ ] **Tarefa S3 — Empacotamento e guia PythonAnywhere**
+  - Escopo: remover PostgreSQL do fluxo local padrão, atualizar Compose/variáveis,
+    README e operação com instalação, migração, comando ASGI e backup SQLite.
+  - Aceitação: documentação permite publicar a API no PythonAnywhere e manter o
+    arquivo de banco fora do versionamento; frontend e CI seguem válidos.
+  - Depende de: S2.
+
 ## Log de handoff
 
 > Cada tarefa concluída registra arquivos, verificações e interfaces para a
 > próxima tarefa. O commit é feito pelo orquestrador após verificação independente.
+
+### SQLite S1 — Configuração e persistência
+
+- Mudou: SQLite em `apps/api/data/aulapay.sqlite3` tornou-se o padrão por
+  caminho absoluto; engine recebe pragmas de integridade/concor­rência e o
+  diretório de dados é mantido sem versionar os arquivos reais.
+- Verificado: `uv run --isolated pytest` (31 testes), Ruff, diff check e
+  `git check-ignore` do banco passam.
+- Para as próximas tarefas: `DATABASE_URL` continua sendo override para SQLite
+  ou PostgreSQL; S2 deve validar as migrações e readiness no arquivo real.
 
 ### Tarefa 1 — Fundação do monorepo e ambiente local
 

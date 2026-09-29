@@ -58,7 +58,7 @@
   - Aceitação: fluxos mutam a API, atualizam o dashboard e apresentam erros de validação; build e testes passam.
   - Depende de: 5, 8, 9.
 
-- [ ] **Tarefa 11 — Pagamentos, importação e dados no frontend**
+- [x] **Tarefa 11 — Pagamentos, importação e dados no frontend**
   - Escopo: criar páginas de pagamentos, detalhe/confirmação/estorno, importação, exportação e reset com confirmações seguras.
   - Aceitação: os fluxos críticos são funcionais no navegador e não permitem duplicação acidental de ações.
   - Depende de: 6, 7, 10.
@@ -180,3 +180,13 @@
 - Para as próximas tarefas: `api.ts` contém os clientes de turmas/aulas e
   `finance.ts` centraliza formatação e conversão monetária; pagamentos e dados
   continuam isolados para a tarefa seguinte.
+
+### Tarefa 11 — Pagamentos, importação e dados no frontend
+
+- Mudou: página de pagamentos com detalhe/confirmação/estorno protegidos e página
+  de dados com download, preview/importação JSON e reset reforçado; navegação e
+  contratos de API foram ampliados.
+- Verificado: testes web (8), lint, typecheck, build e `git diff --check`
+  passam.
+- Para as próximas tarefas: todos os fluxos de negócio já possuem UI; a etapa
+  final deve focar em automação, E2E, operação e verificação integrada.

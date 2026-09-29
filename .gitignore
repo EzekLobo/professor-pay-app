@@ -23,6 +23,7 @@ expo-env.d.ts
 
 # debug
 npm-debug.*
+npm-*.log
 yarn-debug.*
 yarn-error.*
 .expo-server*.log
@@ -44,6 +45,8 @@ apps/web/.next/
 apps/web/out/
 apps/web/next-env.d.ts
 coverage/
+apps/web/test-results/
+apps/web/playwright-report/
 
 # typescript
 *.tsbuildinfo

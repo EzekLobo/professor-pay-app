@@ -53,3 +53,11 @@ Set-Location apps/api; uv run pytest
 
 O aplicativo Expo atual continua usando os comandos existentes: `npm start` e
 `npm test`.
+
+## Operacao e qualidade
+
+`/health` confirma que a API esta em execucao e `/ready` tambem verifica a
+conexao com PostgreSQL. Execute todas as validacoes locais com `npm run quality`.
+O E2E usa Chromium do Playwright: instale-o com `npx playwright install chromium`
+e rode `npm run web:e2e`. Consulte [docs/OPERATIONS.md](docs/OPERATIONS.md) para
+migracoes, backup, restauracao e limites do deploy.

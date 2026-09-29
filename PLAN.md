@@ -63,7 +63,7 @@
   - Aceitação: os fluxos críticos são funcionais no navegador e não permitem duplicação acidental de ações.
   - Depende de: 6, 7, 10.
 
-- [ ] **Tarefa 12 — Qualidade, E2E e entrega operacional**
+- [x] **Tarefa 12 — Qualidade, E2E e entrega operacional**
   - Escopo: configurar CI, cobertura, Playwright, Dockerfiles de produção, logs, guia de backup/restauração e validação completa.
   - Aceitação: testes backend/frontend/E2E e builds passam; Compose sobe os serviços; documentação de operação existe.
   - Depende de: 7, 11.
@@ -190,3 +190,15 @@
   passam.
 - Para as próximas tarefas: todos os fluxos de negócio já possuem UI; a etapa
   final deve focar em automação, E2E, operação e verificação integrada.
+
+### Tarefa 12 — Qualidade, E2E e entrega operacional
+
+- Mudou: CI GitHub Actions, cobertura Vitest, Playwright, readiness e logs JSON
+  seguros na API, scripts de qualidade, Dockerfiles/Compose e documentação de
+  operação, backup e restauração.
+- Verificado: API (`pytest`, 28 testes; Ruff), web (Vitest, 8 testes; lint,
+  typecheck e build) e Playwright (1 E2E) passam. A configuração Compose é
+  válida; a construção de imagens não faz parte da validação atual por decisão
+  do usuário.
+- Para operação: consulte `docs/OPERATIONS.md`, copie `.env.example` para
+  `.env` e configure segredos/infraestrutura antes de uma publicação externa.

@@ -81,7 +81,7 @@
     o arquivo não é rastreado pelo Git e os testes continuam isolados.
   - Depende de: nenhuma.
 
-- [ ] **Tarefa S2 — Migrações e testes SQLite de produção**
+- [x] **Tarefa S2 — Migrações e testes SQLite de produção**
   - Escopo: garantir que as migrações Alembic e constraints funcionem no banco
     arquivo, incluindo criação inicial, reinicialização e readiness.
   - Aceitação: uma base vazia recebe `alembic upgrade head`, `/ready` responde e
@@ -109,6 +109,16 @@
   `git check-ignore` do banco passam.
 - Para as próximas tarefas: `DATABASE_URL` continua sendo override para SQLite
   ou PostgreSQL; S2 deve validar as migrações e readiness no arquivo real.
+
+### SQLite S2 — Migrações e testes de produção
+
+- Mudou: Alembic cria diretórios do SQLite e aplica pragmas de integridade nas
+  conexões de migração; testes cobrem arquivo, constraints, downgrade/upgrade e
+  readiness após migração.
+- Verificado: `uv run --isolated pytest` (32 testes), Ruff e diff check passam;
+  uma migração explícita em arquivo temporário aninhado foi validada pelo executor.
+- Para as próximas tarefas: S3 deve remover PostgreSQL do fluxo operacional
+  padrão e documentar o deploy ASGI no PythonAnywhere.
 
 ### Tarefa 1 — Fundação do monorepo e ambiente local
 

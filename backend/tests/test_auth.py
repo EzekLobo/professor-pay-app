@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
 from app.db.session import get_db
+from app.core.config import get_settings
 from app.main import app
 from app.models import User
 
@@ -77,6 +78,21 @@ def test_login_and_current_user_require_valid_session(client: TestClient) -> Non
     )
     assert login.status_code == 200
     assert client.get("/api/v1/users/me").json()["id"] == registered["id"]
+
+
+def test_production_login_sets_cross_site_secure_cookie(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    register(client, "production@example.com")
+    client.post("/api/v1/auth/logout")
+    monkeypatch.setattr(get_settings(), "app_env", "production")
+
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "production@example.com", "password": "a-strong-password"},
+    )
+
+    assert response.status_code == 200
+    assert "Secure" in response.headers["set-cookie"]
+    assert "SameSite=none" in response.headers["set-cookie"]
 
 
 def test_each_session_only_exposes_its_own_user(client: TestClient) -> None:

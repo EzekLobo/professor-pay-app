@@ -22,12 +22,16 @@ def normalize_email(email: str) -> str:
 
 def set_session_cookie(response: Response, user: User) -> None:
     settings = get_settings()
+    # The production frontend (Vercel) and API (PythonAnywhere) use distinct
+    # sites.  Credentialed cross-origin requests therefore need a secure,
+    # third-party cookie; localhost keeps the stricter development default.
+    same_site = "none" if settings.cookie_secure else "lax"
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=create_access_token(user.id),
         httponly=True,
         secure=settings.cookie_secure,
-        samesite="lax",
+        samesite=same_site,
         max_age=settings.access_token_expire_minutes * 60,
         path="/",
     )

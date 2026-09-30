@@ -99,8 +99,9 @@ NEXT_PUBLIC_API_URL=https://SEU_USUARIO.pythonanywhere.com/api/v1
 
 Inclua a origem exata do frontend em `CORS_ORIGINS` na API, usando HTTPS em
 produção. Se frontend e API estiverem em domínios diferentes, valide no navegador
-o fluxo de login e os cookies antes de liberar usuários; configurações de cookie
-e domínio exigem que ambos os lados usem HTTPS.
+o fluxo de login e os cookies antes de liberar usuários. Em produção, a API emite
+o cookie seguro com `SameSite=None` para permitir essa comunicação entre Vercel e
+PythonAnywhere; ambos os endereços precisam usar HTTPS.
 
 ## 5. Backup e restauração
 

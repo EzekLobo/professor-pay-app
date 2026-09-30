@@ -95,6 +95,33 @@
     arquivo de banco fora do versionamento; frontend e CI seguem válidos.
   - Depende de: S2.
 
+## Reorganização de diretórios web
+
+> A versão web será exposta diretamente na raiz por `frontend/` e `backend/`.
+> O aplicativo Expo legado continua temporariamente na raiz para não interromper
+> seus comandos e seus dados locais.
+
+- [x] **Tarefa R1 — Mover aplicações para frontend e backend**
+  - Escopo: mover `apps/web` para `frontend` e `apps/api` para `backend` com
+    histórico Git, preservando os conteúdos e o banco SQLite ignorado.
+  - Aceitação: as duas novas pastas existem na raiz, `apps/` deixa de conter as
+    aplicações e não há arquivo de dados SQLite versionado.
+  - Depende de: nenhuma.
+
+- [ ] **Tarefa R2 — Atualizar caminhos, scripts e automação**
+  - Escopo: trocar todas as referências de `apps/web` e `apps/api` em manifests,
+    Docker, CI, documentação e configurações de ferramenta.
+  - Aceitação: scripts raiz, Compose e CI apontam somente para `frontend` e
+    `backend`; não há referências funcionais antigas.
+  - Depende de: R1.
+
+- [ ] **Tarefa R3 — Validar a estrutura reorganizada**
+  - Escopo: executar testes, lint, tipos, builds e uma auditoria de caminhos;
+    ajustar qualquer referência que tenha ficado quebrada.
+  - Aceitação: backend, frontend, E2E e `docker compose config` passam, e a
+    documentação explica a separação entre web e Expo legado.
+  - Depende de: R2.
+
 ## Log de handoff
 
 > Cada tarefa concluída registra arquivos, verificações e interfaces para a
@@ -129,6 +156,16 @@
   `docker compose config --quiet` e diff check passam.
 - Para operação: siga `docs/PYTHONANYWHERE.md`; a API ASGI do PythonAnywhere é
   experimental e SQLite deve operar com um único processo e baixa concorrência.
+
+### Reorganização R1 — Mover aplicações
+
+- Mudou: `apps/web` foi movido para `frontend/` e `apps/api` para `backend/` por
+  renomes Git; o Expo legado foi preservado na raiz e `backend/data/.gitkeep`
+  continua garantindo a pasta de dados.
+- Verificado: 83 arquivos foram detectados como renomes e nenhum arquivo
+  `*.sqlite3` está versionado.
+- Para as próximas tarefas: atualize todos os caminhos de ferramentas e ignore
+  `backend/.venv`, `frontend/.next`, `frontend/next-env.d.ts` e artefatos E2E.
 
 ### Tarefa 1 — Fundação do monorepo e ambiente local
 

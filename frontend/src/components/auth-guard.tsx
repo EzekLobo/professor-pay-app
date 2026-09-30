@@ -1,10 +1,3 @@
 "use client";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
-import { authApi, type User } from "@/lib/api";
-export function AuthGuard({ children }: { children: (user: User) => ReactNode }) {
-  const router = useRouter(); const pathname = usePathname(); const [user, setUser] = useState<User | null>(null); const [checking, setChecking] = useState(true);
-  useEffect(() => { let active = true; authApi.me().then((currentUser) => { if (active) setUser(currentUser); }).catch(() => { if (active) router.replace(`/login?next=${encodeURIComponent(pathname)}`); }).finally(() => { if (active) setChecking(false); }); return () => { active = false; }; }, [pathname, router]);
-  if (checking || user === null) return <main className="auth-page"><p className="muted">Verificando sua sessão…</p></main>;
-  return <>{children(user)}</>;
-}
+import { usePathname, useRouter } from "next/navigation"; import { useEffect, useState, type ReactNode } from "react"; import type { User } from "@/lib/api"; import { subscribeToAuth } from "@/lib/firebase-auth";
+export function AuthGuard({ children }: { children: (user: User) => ReactNode }) { const router = useRouter(); const pathname = usePathname(); const [user, setUser] = useState<User | null>(null); const [checking, setChecking] = useState(true); useEffect(() => { let active = true; let unsubscribe: (() => void) | undefined; try { unsubscribe = subscribeToAuth((currentUser) => { if (!active) return; if (currentUser) setUser(currentUser); else router.replace(`/login?next=${encodeURIComponent(pathname)}`); setChecking(false); }); } catch { if (active) { setChecking(false); router.replace(`/login?next=${encodeURIComponent(pathname)}`); } } return () => { active = false; unsubscribe?.(); }; }, [pathname, router]); if (checking || user === null) return <main className="auth-page"><p className="muted">Verificando sua sessão…</p></main>; return <>{children(user)}</>; }

@@ -296,3 +296,59 @@
   do usuário.
 - Para operação: consulte `docs/OPERATIONS.md`, copie `.env.example` para
   `.env` e configure segredos/infraestrutura antes de uma publicação externa.
+
+## Migração para Vercel + Firebase
+
+Objetivo: executar a aplicação web no Next.js hospedado na Vercel, usando
+Firebase Authentication e Cloud Firestore diretamente no frontend. O FastAPI
+permanece no repositório apenas como apoio para exportação/migração até a
+validação final; não será usado pelo frontend em produção.
+
+### Tarefa F1 — Fundação Firebase no frontend
+
+- [x] Instalar o SDK web `firebase` e configurar variáveis `NEXT_PUBLIC_FIREBASE_*`.
+- [x] Criar cliente Firebase isolado, provedor de autenticação e sincronização
+      segura do usuário autenticado.
+- [x] Migrar login, cadastro, logout e guarda de rotas para Firebase Auth,
+      mantendo os contratos visuais atuais.
+- Verificado: typecheck, Vitest (8 testes) e build web passam. O lint ficou
+  pendente por uma instalação local incompleta do pacote `eslint/config`, sem
+  relação com o código Firebase; deve ser repetido após reinstalar dependências.
+- Nenhuma credencial de serviço ou chave privada foi adicionada ao repositório.
+
+Handoff F1 → F2: `frontend/src/lib/firebase.ts` centraliza a inicialização e
+`frontend/src/lib/firebase-auth.ts` expõe as operações de Auth. A camada de
+dados pode usar `getFirebaseDb()` e manter o tipo `User` de `lib/api.ts` durante
+a transição.
+
+### Tarefa F2 — Repositórios Firestore e fluxos de negócio
+
+- [ ] Substituir o cliente REST por repositórios Firestore para perfil, turmas,
+      aulas, pagamentos, dashboard, importação, exportação e reset.
+- [ ] Portar as regras financeiras puras do backend para o frontend e manter os
+      formatos existentes das páginas para reduzir regressões.
+- [ ] Usar subcoleções por usuário (`users/{uid}/...`) e operações em lote para
+      importações e exclusões.
+- Critérios: testes de unidade dos repositórios e telas passam sem
+  `NEXT_PUBLIC_API_URL` em runtime; build de produção passa.
+
+### Tarefa F3 — Segurança, migração e operação
+
+- [ ] Adicionar `firestore.rules`, índices necessários e testes/emulador quando
+      disponíveis, restringindo cada documento ao próprio `request.auth.uid`.
+- [ ] Documentar a configuração do Firebase, variáveis da Vercel e procedimento
+      de migração do SQLite legado sem versionar service account.
+- [ ] Marcar o FastAPI como legado/migração e remover sua dependência do caminho
+      de execução web.
+- Critérios: regras/configuração revisadas, documentação reproduzível e
+  `git diff --check` limpo.
+
+### Tarefa F4 — Cutover e validação final
+
+- [ ] Executar a suíte completa web (Vitest, lint, typecheck, build) e validar os
+      fluxos autenticados contra um projeto Firebase configurado.
+- [ ] Auditar variáveis, regras e caminhos de deploy da Vercel; registrar
+      pendências que dependam de configuração manual no console Firebase.
+- [ ] Atualizar este plano e a documentação com o estado final da migração.
+- Critérios: frontend funciona sem backend HTTP e todas as verificações
+  automatizadas passam.

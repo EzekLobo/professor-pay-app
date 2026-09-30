@@ -1,5 +1,12 @@
 # Operação do AulaPay Web
 
+## Arquitetura atual
+
+O caminho de produção é Vercel (Next.js) + Firebase Auth/Firestore. A API
+FastAPI e o SQLite descritos abaixo são legado de migração e só devem ser
+iniciados para exportar ou validar dados antigos. Para configurar o caminho
+atual, consulte [FIREBASE.md](FIREBASE.md).
+
 ## Inicialização local
 
 1. Copie `.env.example` para `.env` e substitua `JWT_SECRET_KEY`.

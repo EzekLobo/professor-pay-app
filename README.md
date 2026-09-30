@@ -1,9 +1,11 @@
 # AulaPay
 
 O aplicativo Expo existente permanece na raiz durante a migração. A versão web
-fica em `frontend` (Next.js) e a API em `backend` (FastAPI). Por padrão, a API
-usa o SQLite em `backend/data/aulapay.sqlite3`; esse arquivo local é ignorado
-pelo Git e pode ser copiado para hospedagens simples, como PythonAnywhere.
+fica em `frontend` (Next.js) e usa Firebase Authentication + Cloud Firestore
+diretamente no navegador; a publicação recomendada é na Vercel. A API em
+`backend` (FastAPI) e o SQLite em `backend/data/aulapay.sqlite3` ficam como
+legado para exportar/migrar dados, não como dependência do frontend em produção.
+Consulte [docs/FIREBASE.md](docs/FIREBASE.md) para configurar o projeto.
 
 ## Requisitos
 
@@ -13,11 +15,13 @@ pelo Git e pode ser copiado para hospedagens simples, como PythonAnywhere.
 
 ## Início rápido local
 
-1. Copie o exemplo de variáveis: `Copy-Item .env.example .env`
-2. Troque `JWT_SECRET_KEY` por um segredo longo e aleatório.
-3. Inicie com Docker: `docker compose up --build`
-4. Abra o frontend em http://localhost:3000, a API em http://localhost:8000/health
-   e a documentação em http://localhost:8000/docs.
+1. Copie o exemplo de variáveis: `Copy-Item .env.example .env.local`
+2. Preencha as variáveis `NEXT_PUBLIC_FIREBASE_*` com a configuração Web do
+   Firebase.
+3. Inicie o frontend: `npm run web:dev` e abra http://localhost:3000.
+
+O backend legado ainda pode ser executado separadamente para migração e
+exportação, mas não é necessário para abrir as telas web.
 
 Para encerrar, use `docker compose down`. O banco persiste no arquivo
 `backend/data/aulapay.sqlite3`; `docker compose down -v` não o remove. Não

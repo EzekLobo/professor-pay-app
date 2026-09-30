@@ -341,14 +341,19 @@ backend Python como legado de migração.
 
 ### Tarefa F3 — Segurança, migração e operação
 
-- [ ] Adicionar `firestore.rules`, índices necessários e testes/emulador quando
+- [x] Adicionar `firestore.rules`, índices necessários e testes/emulador quando
       disponíveis, restringindo cada documento ao próprio `request.auth.uid`.
-- [ ] Documentar a configuração do Firebase, variáveis da Vercel e procedimento
+- [x] Documentar a configuração do Firebase, variáveis da Vercel e procedimento
       de migração do SQLite legado sem versionar service account.
-- [ ] Marcar o FastAPI como legado/migração e remover sua dependência do caminho
+- [x] Marcar o FastAPI como legado/migração e remover sua dependência do caminho
       de execução web.
-- Critérios: regras/configuração revisadas, documentação reproduzível e
-  `git diff --check` limpo.
+- Verificado: regras e configuração foram revisadas, documentação reproduzível
+  em `docs/FIREBASE.md` e `git diff --check` passa. A publicação das regras no
+  projeto Firebase é uma ação manual do operador.
+
+Handoff F3 → F4: configure as variáveis Web no Vercel e publique `firestore.rules`
+no projeto Firebase. Depois execute a suíte web e valide login, criação de
+turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 
 ### Tarefa F4 — Cutover e validação final
 

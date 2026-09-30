@@ -323,14 +323,21 @@ a transição.
 
 ### Tarefa F2 — Repositórios Firestore e fluxos de negócio
 
-- [ ] Substituir o cliente REST por repositórios Firestore para perfil, turmas,
+- [x] Substituir o cliente REST por repositórios Firestore para perfil, turmas,
       aulas, pagamentos, dashboard, importação, exportação e reset.
-- [ ] Portar as regras financeiras puras do backend para o frontend e manter os
+- [x] Portar as regras financeiras puras do backend para o frontend e manter os
       formatos existentes das páginas para reduzir regressões.
-- [ ] Usar subcoleções por usuário (`users/{uid}/...`) e operações em lote para
+- [x] Usar subcoleções por usuário (`users/{uid}/...`) e operações em lote para
       importações e exclusões.
-- Critérios: testes de unidade dos repositórios e telas passam sem
-  `NEXT_PUBLIC_API_URL` em runtime; build de produção passa.
+- Verificado: typecheck, Vitest (8 testes) e build web passam; o cliente não
+  monta mais URLs REST nem depende de `NEXT_PUBLIC_API_URL` em runtime.
+- Observação: a validação contra um projeto Firebase real depende das variáveis
+  do console e será feita na etapa F4.
+
+Handoff F2 → F3: `frontend/src/lib/api.ts` contém a fachada compatível com as
+telas e grava em `users/{uid}/classes`, `lessons` e `payments`. A etapa seguinte
+deve publicar as regras Firestore, documentar índices/variáveis e tratar o
+backend Python como legado de migração.
 
 ### Tarefa F3 — Segurança, migração e operação
 

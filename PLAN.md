@@ -115,7 +115,7 @@
     `backend`; não há referências funcionais antigas.
   - Depende de: R1.
 
-- [ ] **Tarefa R3 — Validar a estrutura reorganizada**
+- [x] **Tarefa R3 — Validar a estrutura reorganizada**
   - Escopo: executar testes, lint, tipos, builds e uma auditoria de caminhos;
     ajustar qualquer referência que tenha ficado quebrada.
   - Aceitação: backend, frontend, E2E e `docker compose config` passam, e a

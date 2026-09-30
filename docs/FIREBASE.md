@@ -32,10 +32,27 @@ não precisa ser commitado.
 
 ## Vercel
 
+Crie ou importe um projeto Vercel com este repositório e defina
+**Root Directory** como `frontend`. O Vercel detectará o framework Next.js e
+usará os comandos padrão `npm run build` e `next start`; não configure um
+diretório de saída manualmente. O `frontend/vercel.json` fixa o framework e o
+`package.json` do frontend fixa Node.js 24.x, a mesma versão usada localmente.
+
 Em **Project Settings > Environment Variables**, cadastre as variáveis Web
-para Preview e Production. Depois faça um novo deploy. O frontend não precisa
-de `NEXT_PUBLIC_API_URL` para os fluxos de produção; essa variável só existe
-para compatibilidade com a API Python legada durante a migração.
+abaixo para **Preview** e **Production**, então faça um novo deploy:
+
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+- `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` (opcional)
+
+As variáveis `NEXT_PUBLIC_*` entram no bundle durante o build, portanto uma
+alteração exige novo deploy. O frontend não precisa de `NEXT_PUBLIC_API_URL`
+para os fluxos de produção; essa variável só existe para compatibilidade com a
+API Python legada durante a migração.
 
 ## Migração do SQLite legado
 

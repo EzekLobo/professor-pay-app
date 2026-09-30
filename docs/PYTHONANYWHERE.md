@@ -3,7 +3,7 @@
 Este guia publica somente a API FastAPI. O suporte ASGI do PythonAnywhere é
 beta/experimental; confirme os limites do seu plano antes de usar em produção.
 SQLite é apropriado aqui para baixa concorrência e **um processo da API**. Não
-use múltiplos workers nem disponibilize `apps/api/data` por uma rota estática.
+use múltiplos workers nem disponibilize `backend/data` por uma rota estática.
 
 ## 1. Preparar código e ambiente
 
@@ -18,7 +18,7 @@ python3.12 -m venv /home/SEU_USUARIO/.virtualenvs/aulapay
 source /home/SEU_USUARIO/.virtualenvs/aulapay/bin/activate
 python -m pip install --upgrade pip
 python -m pip install uv
-cd /home/SEU_USUARIO/AulaPay/apps/api
+cd /home/SEU_USUARIO/AulaPay/backend
 uv sync --frozen --no-dev
 ```
 
@@ -35,7 +35,7 @@ banco, pois ele contém dados locais ignorados pelo Git.
 
 ## 2. Configurar ambiente e banco
 
-Crie `apps/api/.env`, que não é versionado:
+Crie `backend/.env`, que não é versionado:
 
 ```dotenv
 APP_ENV=production
@@ -43,7 +43,7 @@ JWT_SECRET_KEY=gere-um-segredo-longo-e-aleatorio
 ACCESS_TOKEN_EXPIRE_MINUTES=480
 CORS_ORIGINS=https://SEU_USUARIO.pythonanywhere.com,https://seu-frontend.example
 # Deixe DATABASE_URL ausente para usar:
-# /home/SEU_USUARIO/AulaPay/apps/api/data/aulapay.sqlite3
+# /home/SEU_USUARIO/AulaPay/backend/data/aulapay.sqlite3
 # Ou use um caminho absoluto fora do checkout:
 # DATABASE_URL=sqlite+pysqlite:////home/SEU_USUARIO/aulapay-data/aulapay.sqlite3
 ```
@@ -51,12 +51,12 @@ CORS_ORIGINS=https://SEU_USUARIO.pythonanywhere.com,https://seu-frontend.example
 Para gerar um segredo, execute `python -c "import secrets; print(secrets.token_urlsafe(48))"` e não o envie ao Git. Crie o schema:
 
 ```bash
-cd /home/SEU_USUARIO/AulaPay/apps/api
+cd /home/SEU_USUARIO/AulaPay/backend
 source /home/SEU_USUARIO/.virtualenvs/aulapay/bin/activate
 alembic upgrade head
 ```
 
-O banco padrão fica em `apps/api/data/aulapay.sqlite3`, ignorado pelo Git. Para
+O banco padrão fica em `backend/data/aulapay.sqlite3`, ignorado pelo Git. Para
 mais isolamento, prefira o `DATABASE_URL` com caminho absoluto fora do checkout;
 garanta que o diretório exista e seja gravável pela sua conta.
 
@@ -68,7 +68,7 @@ o comando `pa`. No Bash console:
 ```bash
 source /home/SEU_USUARIO/.virtualenvs/aulapay/bin/activate
 python -m pip install --upgrade pythonanywhere
-pa website create --domain SEU_USUARIO.pythonanywhere.com --command '/home/SEU_USUARIO/.virtualenvs/aulapay/bin/uvicorn --app-dir /home/SEU_USUARIO/AulaPay/apps/api --uds ${DOMAIN_SOCKET} app.main:app'
+pa website create --domain SEU_USUARIO.pythonanywhere.com --command '/home/SEU_USUARIO/.virtualenvs/aulapay/bin/uvicorn --app-dir /home/SEU_USUARIO/AulaPay/backend --uds ${DOMAIN_SOCKET} app.main:app'
 ```
 
 O valor de `DOMAIN_SOCKET` é fornecido pelo PythonAnywhere: mantenha `${DOMAIN_SOCKET}`
@@ -80,7 +80,7 @@ e o SQLite não dependam do diretório de trabalho. Acompanhe os logs exibidos p
 Após alteração de código, migração ou variáveis, execute:
 
 ```bash
-cd /home/SEU_USUARIO/AulaPay/apps/api
+cd /home/SEU_USUARIO/AulaPay/backend
 source /home/SEU_USUARIO/.virtualenvs/aulapay/bin/activate
 alembic upgrade head
 pa website reload --domain SEU_USUARIO.pythonanywhere.com
@@ -108,7 +108,7 @@ O modo seguro é interromper o processo do site para que a API não escreva dura
 a cópia. Guarde o backup fora do repositório e com permissões privadas:
 
 ```bash
-cp /home/SEU_USUARIO/AulaPay/apps/api/data/aulapay.sqlite3 /home/SEU_USUARIO/backups/aulapay-AAAA-MM-DD.sqlite3
+cp /home/SEU_USUARIO/AulaPay/backend/data/aulapay.sqlite3 /home/SEU_USUARIO/backups/aulapay-AAAA-MM-DD.sqlite3
 ```
 
 Para uma cópia online quando SQLite estiver em WAL, copie o conjunto consistente

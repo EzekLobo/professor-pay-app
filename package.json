@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "workspaces": [
-    "apps/web"
+    "frontend"
   ],
   "dependencies": {
     "@expo/ui": "~56.0.14",
@@ -36,8 +36,8 @@
     "web:test": "npm run test --workspace=@aulapay/web",
     "web:coverage": "npm run test:coverage --workspace=@aulapay/web",
     "web:e2e": "npm run test:e2e --workspace=@aulapay/web",
-    "api:lint": "uv --directory apps/api run ruff check .",
-    "api:test": "uv --directory apps/api run pytest",
+    "api:lint": "uv --directory backend run ruff check .",
+    "api:test": "uv --directory backend run pytest",
     "quality": "npm run web:lint && npm run web:typecheck && npm run web:test && npm run web:build && npm run api:lint && npm run api:test"
   },
   "private": true

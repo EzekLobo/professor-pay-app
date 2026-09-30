@@ -38,17 +38,17 @@ build-*.log
 # local env files
 .env*.local
 .env
-apps/api/.venv/
-apps/api/data/*.sqlite3
-apps/api/data/*.db
+backend/.venv/
+backend/data/*.sqlite3
+backend/data/*.db
 __pycache__/
 *.py[cod]
-apps/web/.next/
-apps/web/out/
-apps/web/next-env.d.ts
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
 coverage/
-apps/web/test-results/
-apps/web/playwright-report/
+frontend/test-results/
+frontend/playwright-report/
 
 # typescript
 *.tsbuildinfo

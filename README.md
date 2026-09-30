@@ -1,8 +1,8 @@
 # AulaPay
 
 O aplicativo Expo existente permanece na raiz durante a migração. A versão web
-fica em `apps/web` (Next.js) e a API em `apps/api` (FastAPI). Por padrão, a API
-usa o SQLite em `apps/api/data/aulapay.sqlite3`; esse arquivo local é ignorado
+fica em `frontend` (Next.js) e a API em `backend` (FastAPI). Por padrão, a API
+usa o SQLite em `backend/data/aulapay.sqlite3`; esse arquivo local é ignorado
 pelo Git e pode ser copiado para hospedagens simples, como PythonAnywhere.
 
 ## Requisitos
@@ -20,7 +20,7 @@ pelo Git e pode ser copiado para hospedagens simples, como PythonAnywhere.
    e a documentação em http://localhost:8000/docs.
 
 Para encerrar, use `docker compose down`. O banco persiste no arquivo
-`apps/api/data/aulapay.sqlite3`; `docker compose down -v` não o remove. Não
+`backend/data/aulapay.sqlite3`; `docker compose down -v` não o remove. Não
 versione, exponha como arquivo estático ou apague esse banco sem um backup.
 
 ## Execução sem Docker
@@ -35,13 +35,13 @@ npm run web:dev
 API:
 
 ```powershell
-Set-Location apps/api
+Set-Location backend
 uv sync --all-groups
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
-Para uma API local, copie `apps/api/.env.example` para `apps/api/.env`. Não é
+Para uma API local, copie `backend/.env.example` para `backend/.env`. Não é
 necessário instalar ou iniciar um servidor de banco: Alembic cria o schema no
 arquivo SQLite padrão. `DATABASE_URL` continua disponível como override, por
 exemplo para um caminho SQLite absoluto ou PostgreSQL.
@@ -52,7 +52,7 @@ exemplo para um caminho SQLite absoluto ou PostgreSQL.
 docker compose config --quiet
 npm run web:lint
 npm run web:typecheck
-Set-Location apps/api; uv run --isolated pytest
+Set-Location backend; uv run --isolated pytest
 ```
 
 O aplicativo Expo atual continua usando os comandos existentes: `npm start` e

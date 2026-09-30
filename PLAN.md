@@ -108,7 +108,7 @@
     aplicações e não há arquivo de dados SQLite versionado.
   - Depende de: nenhuma.
 
-- [ ] **Tarefa R2 — Atualizar caminhos, scripts e automação**
+- [x] **Tarefa R2 — Atualizar caminhos, scripts e automação**
   - Escopo: trocar todas as referências de `apps/web` e `apps/api` em manifests,
     Docker, CI, documentação e configurações de ferramenta.
   - Aceitação: scripts raiz, Compose e CI apontam somente para `frontend` e

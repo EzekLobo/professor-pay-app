@@ -1,7 +1,7 @@
 services:
   api:
     build:
-      context: ./apps/api
+      context: ./backend
       target: development
     environment:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
@@ -11,9 +11,9 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
-      - ./apps/api:/app
+      - ./backend:/app
       # Explicit persistence for the repository-local SQLite data directory.
-      - ./apps/api/data:/app/data
+      - ./backend/data:/app/data
     command: >-
       sh -c "uv run alembic upgrade head && exec uv run uvicorn app.main:app
       --host 0.0.0.0 --port 8000 --reload"
@@ -27,16 +27,16 @@ services:
   web:
     build:
       context: .
-      dockerfile: apps/web/Dockerfile
+      dockerfile: frontend/Dockerfile
       target: development
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
     ports:
       - "3000:3000"
     volumes:
-      - ./apps/web:/app/apps/web
+      - ./frontend:/app/frontend
       - /app/node_modules
-      - /app/apps/web/node_modules
+      - /app/frontend/node_modules
     depends_on:
       api:
         condition: service_healthy

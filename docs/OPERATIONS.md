@@ -11,7 +11,7 @@ uma réplica, execute a migração como etapa única de release para evitar corr
 
 ## Variáveis
 
-Sem `DATABASE_URL`, a API usa `apps/api/data/aulapay.sqlite3`, resolvido a partir
+Sem `DATABASE_URL`, a API usa `backend/data/aulapay.sqlite3`, resolvido a partir
 do código Python e não do diretório atual. Esse arquivo é ignorado pelo Git.
 `DATABASE_URL` continua disponível para um caminho SQLite absoluto ou outro
 banco compatível. `JWT_SECRET_KEY` deve ser longo, aleatório e diferente em cada
@@ -22,7 +22,7 @@ publique `.env`, o arquivo SQLite ou valores de exemplo em produção. Defina
 
 ## Migrações
 
-No diretório `apps/api`, execute `uv run alembic upgrade head`. Gere revisão
+No diretório `backend`, execute `uv run alembic upgrade head`. Gere revisão
 somente após revisar o SQL: `uv run alembic revision --autogenerate -m
 "descricao"`. Não execute downgrade em produção sem backup restaurável e plano
 de reversão.
@@ -30,14 +30,14 @@ de reversão.
 ## Backup e restauração SQLite
 
 Antes de copiar o banco, pare a API para obter uma cópia consistente. Copie o
-arquivo `apps/api/data/aulapay.sqlite3` para um local seguro fora do repositório.
+arquivo `backend/data/aulapay.sqlite3` para um local seguro fora do repositório.
 Se for indispensável fazer uma cópia com a API em execução e o modo WAL estiver
 ativo, copie juntos os três arquivos: `aulapay.sqlite3`, `aulapay.sqlite3-wal` e
 `aulapay.sqlite3-shm`. Não restaure arquivos parciais.
 
 Para restaurar, pare a API, faça uma cópia do banco atual e substitua o conjunto
 de arquivos pelo backup consistente. Em seguida, execute `uv run alembic upgrade
-head` em `apps/api` antes de iniciar a API. Teste restaurações em ambiente
+head` em `backend` antes de iniciar a API. Teste restaurações em ambiente
 isolado. Em produção, defina backup externo, retenção e alerta de falha. O guia
 [PYTHONANYWHERE.md](PYTHONANYWHERE.md) detalha a hospedagem e os comandos.
 

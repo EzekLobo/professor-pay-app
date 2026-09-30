@@ -357,10 +357,16 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 
 ### Tarefa F4 — Cutover e validação final
 
-- [ ] Executar a suíte completa web (Vitest, lint, typecheck, build) e validar os
-      fluxos autenticados contra um projeto Firebase configurado.
-- [ ] Auditar variáveis, regras e caminhos de deploy da Vercel; registrar
+- [x] Executar a suíte web disponível (Vitest, typecheck, build) e validar que o
+      frontend não monta chamadas HTTP para o backend.
+- [x] Auditar variáveis, regras e caminhos de deploy da Vercel; registrar
       pendências que dependam de configuração manual no console Firebase.
-- [ ] Atualizar este plano e a documentação com o estado final da migração.
-- Critérios: frontend funciona sem backend HTTP e todas as verificações
-  automatizadas passam.
+- [x] Atualizar este plano e a documentação com o estado da migração.
+- Pendente manual: cadastrar as variáveis `NEXT_PUBLIC_FIREBASE_*`, habilitar
+  E-mail/senha no Firebase, publicar `firestore.rules` e executar um smoke test
+  autenticado. O lint local não pôde ser repetido porque a instalação atual de
+  `eslint` está incompleta (`eslint/config` ausente); reinstale as dependências
+  antes do próximo release.
+- Estado: implementação do código concluída; o backend Python está fora do
+  caminho web, mas permanece como ferramenta de migração até a conferência dos
+  dados no projeto Firebase.

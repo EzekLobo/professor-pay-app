@@ -41,7 +41,7 @@ export type DataExport = {
   kodland_reviews?: unknown[];
   kodland_lessons?: unknown[];
 };
-export type KodlandGroup = { id: string; external_id: string; title: string; course_name: string; student_count: number; start_date: string; next_lesson_date: string; archived: boolean; local_class_id: string | null; created_at: string };
+export type KodlandGroup = { id: string; external_id: string; title: string; course_id?: string; course_name: string; student_count: number; start_date: string; next_lesson_date: string; archived: boolean; local_class_id: string | null; created_at: string };
 export type KodlandStudent = { id: string; external_id: string; name: string; email: string; phone: string; status: string; progress_summary: string; profile_url: string; external_class_id: string; external_class_name: string; local_note: string; guardian_name: string; guardian_relationship: string; guardian_phone: string; guardian_email: string; guardian_note: string; hidden: boolean; created_at: string };
 export type KodlandReview = { id: string; external_class_id: string; external_class_name: string; external_student_id: string; student_name: string; lesson_id: string; lesson_number: number; lesson_title: string; module_number: string; task_id: string; task_number: number; task_title: string; status_key: string; status_label: string; correction_url: string; created_at: string };
 export type { KodlandLesson } from "@/lib/kodland-lessons";

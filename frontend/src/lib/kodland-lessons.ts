@@ -18,6 +18,15 @@ export type KodlandLesson = {
   created_at?: string;
 };
 
+/** The course lesson endpoint keeps the links that are not present in the group schedule. */
+export type KodlandCourseLesson = {
+  id: string;
+  lesson_number: number;
+  title: string;
+  materials: unknown[];
+  homework: unknown[];
+};
+
 type ObjectValue = Record<string, unknown>;
 
 const objectValue = (value: unknown): ObjectValue => value && typeof value === "object" ? value as ObjectValue : {};
@@ -92,6 +101,60 @@ const toExternalUrl = (value: string, groupId: string, lessonId: string) => {
   if (value.startsWith("/")) return `https://bo.kodland.org${value}`;
   return `https://bo.kodland.org/groups/${groupId}${lessonId ? `#lesson-${lessonId}` : ""}`;
 };
+
+const normalizeTitle = (value: string) => value.toLocaleLowerCase().replace(/[^a-z0-9]+/gi, "");
+const materialTitle = (value: unknown) => readText(objectValue(value), ["title", "name", "label"]);
+const materialUrl = (value: unknown) => findLessonUrl(value, ["link", "url", "href", "file_url", "fileUrl", "download_url", "downloadUrl"]);
+const taskId = (value: unknown) => readText(objectValue(value), ["id", "task_id", "taskId"]);
+const taskTitle = (value: unknown) => readText(objectValue(value), ["title", "name", "task_title", "taskTitle"]);
+
+const courseLessonUrl = (courseId: string, lessonId: string) =>
+  courseId && lessonId ? `https://bo.kodland.org/courses/${encodeURIComponent(courseId)}?lessonId=${encodeURIComponent(lessonId)}` : "";
+
+const taskUrl = (value: unknown) => {
+  const direct = findLessonUrl(value, ["link", "url", "href", "task_url", "taskUrl", "link_to_service", "linkToService"]);
+  if (direct) return direct;
+  const id = taskId(value);
+  return id ? `https://learn.kodland.org/pt/task/${encodeURIComponent(id)}/teacher/do` : "";
+};
+
+/**
+ * Adds the course-level material/task links to lessons coming from a group
+ * schedule. The backoffice exposes those as separate resources, which is why
+ * the group schedule alone cannot populate the cards.
+ */
+export function enrichKodlandLessons(
+  lessons: KodlandLesson[],
+  courseLessons: KodlandCourseLesson[],
+  courseId: string,
+): KodlandLesson[] {
+  return lessons.map((lesson) => {
+    const lessonTitle = normalizeTitle(lesson.title);
+    const catalog = courseLessons.find((candidate) => candidate.id === lesson.id)
+      ?? (lesson.lesson_number > 0 ? courseLessons.find((candidate) => candidate.lesson_number === lesson.lesson_number) : undefined)
+      ?? (lessonTitle ? courseLessons.find((candidate) => normalizeTitle(candidate.title) === lessonTitle) : undefined);
+    if (!catalog) return { ...lesson, external_url: courseLessonUrl(courseId, lesson.id) || lesson.external_url };
+
+    const materials = Array.isArray(catalog.materials) ? catalog.materials : [];
+    const linkedMaterials = materials
+      .map((item) => ({ item, title: materialTitle(item), url: materialUrl(item) }))
+      .filter((item) => item.url);
+    const slides = linkedMaterials.find(({ title, url }) => /slide|apresent|presentation|ppt/i.test(title) || /docs\.google\.com\/presentation/i.test(url));
+    const guide = linkedMaterials.find(({ title, url }) => /roteiro|guia|guide|metod|script|wiki/i.test(title) || /wiki\.kodland/i.test(url));
+    const homework = (Array.isArray(catalog.homework) ? catalog.homework : [])
+      .map((item) => ({ title: taskTitle(item), url: taskUrl(item) }))
+      .find((item) => item.url);
+
+    return {
+      ...lesson,
+      external_url: courseLessonUrl(courseId, catalog.id) || lesson.external_url,
+      slides_url: slides?.url || lesson.slides_url,
+      guide_url: guide?.url || lesson.guide_url,
+      homework_url: homework?.url || lesson.homework_url,
+      homework_title: homework?.title || lesson.homework_title,
+    };
+  });
+}
 
 export type LessonSource = "schedule" | "lessons";
 

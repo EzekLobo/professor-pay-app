@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import { mergeKodlandLessons, type KodlandLesson } from "@/lib/kodland-lessons";
+import { enrichKodlandLessons, mergeKodlandLessons, type KodlandCourseLesson, type KodlandLesson } from "@/lib/kodland-lessons";
 import { parseGuardianContact } from "@/lib/student-profile";
 
 export const runtime = "nodejs";
 
-type Group = { external_id: string; title: string; course_name: string; student_count: number; start_date: string; next_lesson_date: string; archived: boolean };
+type Group = { external_id: string; title: string; course_id: string; course_name: string; student_count: number; start_date: string; next_lesson_date: string; archived: boolean };
 type Student = { id: string; external_id: string; name: string; email: string; phone: string; status: string; progress_summary: string; profile_url: string; guardian_name: string; guardian_relationship: string; guardian_phone: string; guardian_email: string; external_class_id: string; external_class_name: string };
 type Review = { id: string; external_class_id: string; external_class_name: string; external_student_id: string; student_name: string; lesson_id: string; lesson_number: number; lesson_title: string; module_number: string; task_id: string; task_number: number; task_title: string; status_key: string; status_label: string; correction_url: string };
 
@@ -12,7 +12,14 @@ const sso = "https://sso.production.kodland.org/";
 const api = "https://backoffice.kodland.org/api/v2/";
 const text = (value: unknown) => typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
 const record = (value: unknown) => value && typeof value === "object" ? value as Record<string, unknown> : {};
-const list = (value: unknown) => Array.isArray(value) ? value : [];
+const list = (value: unknown) => {
+  if (Array.isArray(value)) return value;
+  const payload = record(value);
+  for (const key of ["results", "items", "data", "lessons", "materials", "tasks"]) {
+    if (Array.isArray(payload[key])) return payload[key] as unknown[];
+  }
+  return [];
+};
 const number = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 
 async function requireFirebaseUser(request: NextRequest) {
@@ -59,7 +66,9 @@ async function groupsForTeacher(teacherId: string, token: string): Promise<Group
     const items = list(payload.results);
     groups.push(...items.map((value) => {
       const item = record(value); const course = record(item.course);
-      return { external_id: text(item.id ?? item.group_id), title: text(item.title ?? item.group_name), course_name: text(course.title ?? item.course_name), student_count: number(item.students_count ?? item.student_count), start_date: text(item.start_timeslot ?? item.start_date), next_lesson_date: text(item.next_lesson_date), archived: Boolean(item.is_archive ?? item.archived) };
+      const courseName = text(course.title ?? item.course_name);
+      const courseId = text(course.id ?? course.course_id ?? item.course_id) || courseName.match(/^\[(\d+)\]/)?.[1] || "";
+      return { external_id: text(item.id ?? item.group_id), title: text(item.title ?? item.group_name), course_id: courseId, course_name: courseName, student_count: number(item.students_count ?? item.student_count), start_date: text(item.start_timeslot ?? item.start_date), next_lesson_date: text(item.next_lesson_date), archived: Boolean(item.is_archive ?? item.archived) };
     }).filter((group) => group.external_id && group.title));
     if (!payload.next || !items.length) break;
   }
@@ -103,12 +112,55 @@ async function reviewsForGroup(group: Group, studentsPayload: unknown, token: st
   } catch { return []; }
 }
 
-async function lessonsForGroup(group: Group, token: string): Promise<KodlandLesson[]> {
+type CourseLessonCache = {
+  catalog: Map<string, Promise<KodlandCourseLesson[]>>;
+  details: Map<string, Promise<KodlandCourseLesson>>;
+};
+
+async function courseLessons(courseId: string, token: string, scheduled: KodlandLesson[], cache: CourseLessonCache): Promise<KodlandCourseLesson[]> {
+  if (!courseId) return [];
+  let catalogPromise = cache.catalog.get(courseId);
+  if (!catalogPromise) {
+    catalogPromise = (async () => {
+    const payload = await getOptional(`lessons/get_lessons_list?course=${encodeURIComponent(courseId)}`, token);
+    return list(payload).map((value): KodlandCourseLesson | null => {
+      const item = record(value);
+      const id = text(item.id ?? item.lesson_id ?? item.lessonId);
+      if (!id) return null;
+      return { id, lesson_number: number(item.lesson_number ?? item.lessonNumber ?? item.number), title: text(item.title ?? item.lesson_title ?? item.name), materials: [], homework: [] };
+    }).filter((value): value is KodlandCourseLesson => Boolean(value));
+    })();
+    cache.catalog.set(courseId, catalogPromise);
+  }
+  const catalog = await catalogPromise;
+  const normalizedTitle = (value: string) => value.toLocaleLowerCase().replace(/[^a-z0-9]+/gi, "");
+  const relevant = scheduled.map((lesson) => catalog.find((candidate) => candidate.id === lesson.id)
+    ?? (lesson.lesson_number > 0 ? catalog.find((candidate) => candidate.lesson_number === lesson.lesson_number) : undefined)
+    ?? catalog.find((candidate) => normalizedTitle(candidate.title) === normalizedTitle(lesson.title))).filter((value, index, values): value is KodlandCourseLesson => Boolean(value) && values.findIndex((item) => item?.id === value?.id) === index);
+  return Promise.all(relevant.map(async (lesson) => {
+    const key = `${courseId}:${lesson.id}`;
+    let details = cache.details.get(key);
+    if (!details) {
+      details = (async () => {
+        const [materials, homework] = await Promise.all([
+          getOptional(`materials?lesson=${encodeURIComponent(lesson.id)}`, token),
+          getOptional(`tasks/get_tasks_list?lesson=${encodeURIComponent(lesson.id)}&is_hw=true`, token),
+        ]);
+        return { ...lesson, materials: list(materials), homework: list(homework) };
+      })();
+      cache.details.set(key, details);
+    }
+    return details;
+  }));
+}
+
+async function lessonsForGroup(group: Group, token: string, cache: CourseLessonCache): Promise<KodlandLesson[]> {
   const [schedule, lessons] = await Promise.all([
     getOptional(`student_groups/${group.external_id}/schedule_view/`, token),
     getOptional(`student_groups/${group.external_id}/lessons/`, token),
   ]);
-  return mergeKodlandLessons(schedule, lessons, group);
+  const merged = mergeKodlandLessons(schedule, lessons, group);
+  return enrichKodlandLessons(merged, await courseLessons(group.course_id, token, merged, cache), group.course_id);
 }
 
 export async function POST(request: NextRequest) {
@@ -120,7 +172,8 @@ export async function POST(request: NextRequest) {
     const groups = await groupsForTeacher(userId(token), token);
     const active = groups.filter((group) => !group.archived);
     const profileCache = new Map<string, ReturnType<typeof parseGuardianContact>>();
-    const snapshots = await Promise.all(active.map(async (group) => { const payload = await get(`student_groups/${group.external_id}/get_students_main_data/`, token); const students = await studentsWithProfiles(studentsFromPayload(payload, group), token, profileCache); return { students, reviews: await reviewsForGroup(group, payload, token), lessons: await lessonsForGroup(group, token) }; }));
+    const courseLessonCache: CourseLessonCache = { catalog: new Map(), details: new Map() };
+    const snapshots = await Promise.all(active.map(async (group) => { const payload = await get(`student_groups/${group.external_id}/get_students_main_data/`, token); const students = await studentsWithProfiles(studentsFromPayload(payload, group), token, profileCache); return { students, reviews: await reviewsForGroup(group, payload, token), lessons: await lessonsForGroup(group, token, courseLessonCache) }; }));
     return Response.json({ groups, students: snapshots.flatMap((item) => item.students), reviews: snapshots.flatMap((item) => item.reviews), lessons: snapshots.flatMap((item) => item.lessons) });
   } catch (error) {
     return Response.json({ message: error instanceof Error ? error.message : "Não foi possível sincronizar com a Kodland." }, { status: 502 });

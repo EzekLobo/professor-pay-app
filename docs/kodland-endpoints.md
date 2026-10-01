@@ -40,6 +40,9 @@ first integration scope.
 | `GET` | `student_groups/{groupId}/schedule_view/` | Group lesson schedule |
 | `GET` | `student_groups/{groupId}/lessons/` | Group lessons |
 | `GET` | `student_groups/{groupId}/lesson/{lessonId}/get_group_progress/` | Lesson task progress by student |
+| `GET` | `lessons/get_lessons_list?course={courseId}` | Course lesson catalog and lesson IDs |
+| `GET` | `materials?lesson={lessonId}` | Slides and teacher guide links attached to a course lesson |
+| `GET` | `tasks/get_tasks_list?lesson={lessonId}&is_hw=true` | Homework tasks attached to a course lesson |
 | `GET` | `students/{studentId}/get_general_info_for_student_backoffice_page/` | Student details; sync only allowlisted safe fields |
 | `GET` | `students/{studentId}/backoffice_groups/` | Groups linked to one student |
 
@@ -120,6 +123,12 @@ create correction items. Task status labels are translated locally in AulaPay;
 raw labels such as `Not graded assignment` must not be shown in the UI. When a
 task does not include `link_to_service`, AulaPay links the review action to the
 group page at `https://bo.kodland.org/groups/{groupId}`.
+
+The course lesson screen keeps the presentation, teacher guide, and homework
+outside the group schedule. AulaPay resolves the course ID from each group,
+loads the course lesson catalog, then reads `materials?lesson=...` and
+`tasks/get_tasks_list?...&is_hw=true`. Only the resulting links and homework
+title are persisted; no task content or financial data is imported.
 
 ## Administrative Endpoints Excluded From Sync
 

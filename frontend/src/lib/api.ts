@@ -35,8 +35,8 @@ const ref = (name: string) => collection(getFirebaseDb(), `${userRoot()}/${name}
 const rows = async (name: string): Promise<Row[]> => (await getDocs(query(ref(name), orderBy("created_at")))).docs.map((item) => ({ ...(item.data() as Row), id: item.id }));
 const isoToday = () => new Date().toISOString().slice(0, 10);
 const now = () => new Date().toISOString();
-const paymentDate = (value: string) => { const d = new Date(`${value}T00:00:00Z`); d.setUTCDate(d.getUTCDate() <= 15 ? 1 : 15); d.setUTCMonth(d.getUTCMonth() + 1); return d.toISOString().slice(0, 10); };
-const period = (value: string) => `${Number(value.slice(8, 10)) <= 15 ? "01 a 15" : "16 a 31"}/${value.slice(5, 7)}/${value.slice(0, 4)}`;
+const paymentDate = (value: string) => { const d = new Date(`${value}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1, 15); return d.toISOString().slice(0, 10); };
+const period = (value: string) => `${value.slice(5, 7)}/${value.slice(0, 4)}`;
 const cents = (row: Row) => Math.round(Number(row.duration_minutes ?? 0) * Number(row.hourly_rate_cents ?? 0) / 60);
 const asLesson = (row: Row, today = isoToday()): Lesson => {
   const date = String(row.lesson_date);

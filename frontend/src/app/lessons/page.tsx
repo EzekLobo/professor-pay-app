@@ -22,7 +22,7 @@ const emptyForm: ExtraForm = {
   student: "",
   lesson_date: "",
   duration_minutes: "60",
-  hourly_rate: "0,00",
+  hourly_rate: "30,00",
   note: "",
 };
 const labels: Record<string, string> = {

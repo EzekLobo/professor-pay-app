@@ -42,7 +42,7 @@ const emptyForm: FormState = {
   first_lesson_date: "",
   lesson_count: "1",
   duration_minutes: "60",
-  hourly_rate: "0,00",
+  hourly_rate: "30,00",
 };
 const toForm = (item: ClassRecord): FormState => ({
   name: item.name,

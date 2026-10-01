@@ -97,11 +97,11 @@ export function getPeriod(lessonDate: string) {
   const date = parseIsoDate(lessonDate);
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const year = date.getFullYear();
-  return date.getDate() <= 15 ? `01 a 15/${month}/${year}` : `16 a 31/${month}/${year}`;
+  return `${month}/${year}`;
 }
 
 export function getPaymentDate(lessonDate: string) {
-  return parseIsoDate(lessonDate).getDate() <= 15 ? nextMonthDate(lessonDate, 1) : nextMonthDate(lessonDate, 15);
+  return nextMonthDate(lessonDate, 15);
 }
 
 export function getLessonValue(lesson: Pick<LessonRecord, 'durationHours' | 'hourlyRate'>) {

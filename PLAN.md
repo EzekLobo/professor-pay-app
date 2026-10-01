@@ -464,5 +464,6 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   responsavel, WhatsApp, perfil, aula anterior/proxima e materiais.
 - Concluido: o estilo de barra lateral responsiva foi restaurado, mantendo o
   titulo centralizado no cabecalho.
-- Verificado: typecheck, lint, testes, build e diff check passam. Publicar e
-  validar o acordeao no alias de producao e o proximo passo.
+- Verificado: typecheck, lint, testes, build e diff check passam; o deploy
+  final foi publicado e o acordeao, modal de sincronizacao e redirecionamento
+  da rota antiga foram conferidos no navegador.

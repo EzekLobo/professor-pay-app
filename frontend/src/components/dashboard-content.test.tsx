@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { DashboardResponse } from "../lib/api";
+import type { DashboardResponse } from "@/lib/api";
 import { DashboardContent } from "./dashboard-content";
 
 const dashboard: DashboardResponse = {
@@ -12,8 +12,8 @@ const dashboard: DashboardResponse = {
 };
 
 describe("DashboardContent", () => {
-  it("exibe o estado de carregamento", () => expect(renderToStaticMarkup(<DashboardContent state="loading" />)).toContain("Carregando resumo financeiro"));
+  it("exibe o estado de carregamento", () => expect(renderToStaticMarkup(<DashboardContent state="loading" />)).toContain("Sincronizando seu resumo financeiro"));
   it("exibe erro e ação de nova tentativa", () => { const markup = renderToStaticMarkup(<DashboardContent state="error" onRetry={vi.fn()} />); expect(markup).toContain("Não foi possível carregar o resumo"); expect(markup).toContain("Tentar novamente"); });
   it("exibe métricas em pt-BR e progresso", () => { const markup = renderToStaticMarkup(<DashboardContent state="ready" dashboard={dashboard} />); expect(markup).toContain("R$ 1.234,50"); expect(markup).toContain("Progresso das turmas"); expect(markup).toContain("40%"); expect(markup).toContain("1 de out. de 2026"); });
-  it("exibe orientação quando não há aulas", () => expect(renderToStaticMarkup(<DashboardContent state="ready" dashboard={{ ...dashboard, total_lessons: 0 }} />)).toContain("Cadastre uma turma ou uma aula extra"));
+  it("exibe ações para iniciar quando não há aulas", () => expect(renderToStaticMarkup(<DashboardContent state="ready" dashboard={{ ...dashboard, total_lessons: 0 }} />)).toContain("Crie uma turma ou registre uma aula extra"));
 });

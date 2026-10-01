@@ -1,1 +1,8 @@
-export const navigation = [{href:"/dashboard",label:"Resumo"},{href:"/payments",label:"Pagamentos"},{href:"/classes",label:"Turmas"},{href:"/lessons",label:"Aulas"},{href:"/data",label:"Dados"}];
+export const navigation = [
+  { href: "/dashboard", label: "Resumo", icon: "◈" },
+  { href: "/payments", label: "Pagamentos", icon: "◌" },
+  { href: "/classes", label: "Turmas", icon: "◇" },
+  { href: "/lessons", label: "Aulas", icon: "✦" },
+];
+
+export const utilityNavigation = { href: "/data", label: "Dados", icon: "◫" };

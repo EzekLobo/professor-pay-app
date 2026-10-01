@@ -15,6 +15,12 @@ export async function loginWithFirebase(email: string, password: string): Promis
   return mapFirebaseUser(credential.user);
 }
 
+export async function reauthenticateWithFirebase(password: string): Promise<void> {
+  const user = getFirebaseAuth().currentUser;
+  if (!user?.email) throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+  await signInWithEmailAndPassword(getFirebaseAuth(), user.email, password);
+}
+
 export function subscribeToAuth(callback: (user: User | null) => void): () => void {
   return onAuthStateChanged(getFirebaseAuth(), (user) => callback(user ? mapFirebaseUser(user) : null));
 }

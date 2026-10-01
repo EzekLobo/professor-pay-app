@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { mergeKodlandLessons, type KodlandLesson } from "@/lib/kodland-lessons";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,10 @@ async function get(path: string, token: string) {
   return response.json();
 }
 
+async function getOptional(path: string, token: string) {
+  try { return await get(path, token); } catch { return null; }
+}
+
 async function groupsForTeacher(teacherId: string, token: string): Promise<Group[]> {
   const groups: Group[] = [];
   for (let page = 1; ; page += 1) {
@@ -85,6 +90,14 @@ async function reviewsForGroup(group: Group, studentsPayload: unknown, token: st
   } catch { return []; }
 }
 
+async function lessonsForGroup(group: Group, token: string): Promise<KodlandLesson[]> {
+  const [schedule, lessons] = await Promise.all([
+    getOptional(`student_groups/${group.external_id}/schedule_view/`, token),
+    getOptional(`student_groups/${group.external_id}/lessons/`, token),
+  ]);
+  return mergeKodlandLessons(schedule, lessons, group);
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!await requireFirebaseUser(request)) return Response.json({ message: "Não autorizado." }, { status: 401 });
@@ -93,8 +106,8 @@ export async function POST(request: NextRequest) {
     const token = await kodlandLogin(body.username, body.password);
     const groups = await groupsForTeacher(userId(token), token);
     const active = groups.filter((group) => !group.archived);
-    const snapshots = await Promise.all(active.map(async (group) => { const payload = await get(`student_groups/${group.external_id}/get_students_main_data/`, token); return { students: studentsFromPayload(payload, group), reviews: await reviewsForGroup(group, payload, token) }; }));
-    return Response.json({ groups, students: snapshots.flatMap((item) => item.students), reviews: snapshots.flatMap((item) => item.reviews) });
+    const snapshots = await Promise.all(active.map(async (group) => { const payload = await get(`student_groups/${group.external_id}/get_students_main_data/`, token); return { students: studentsFromPayload(payload, group), reviews: await reviewsForGroup(group, payload, token), lessons: await lessonsForGroup(group, token) }; }));
+    return Response.json({ groups, students: snapshots.flatMap((item) => item.students), reviews: snapshots.flatMap((item) => item.reviews), lessons: snapshots.flatMap((item) => item.lessons) });
   } catch (error) {
     return Response.json({ message: error instanceof Error ? error.message : "Não foi possível sincronizar com a Kodland." }, { status: 502 });
   }

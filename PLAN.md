@@ -13,7 +13,7 @@ mensagens neutras e não citam o fornecedor externo.
   - Aceitação: typecheck, testes e build passam; último/próximo pagamento abrem
     extrato com aulas, valores e navegação anterior/próximo.
   - Depende de: F4.
-- [ ] R2 — Agenda, aulas e materiais
+- [x] R2 — Agenda, aulas e materiais
   - Escopo: adicionar tipos, sincronização de agenda/aulas e fallback para abrir
     a aula externa quando não houver link de material.
   - Aceitação: aula anterior/próxima aparecem no resumo e detalhes mostram links
@@ -47,6 +47,15 @@ mensagens neutras e não citam o fornecedor externo.
   `npm.cmd run build` passam.
 - Próximo: adicionar agenda/materiais sem reintroduzir dados financeiros de
   alunos.
+
+### Handoff R2
+
+- Mudou: a sincronização passou a consultar agenda e aulas em modo leitura,
+  normalizando datas, horários, títulos e links de slides, roteiro e atividade
+  em uma coleção local; o resumo mostra a próxima aula e até três anteriores.
+- Verificado: `npm.cmd run typecheck`, `npm.cmd run test` (10 testes),
+  `npm.cmd run build` e `git diff --check` passam.
+- Fallback: quando não houver link direto, a ação abre a aula/turma externa.
 
 > Fonte de verdade da migração do AulaPay de Expo/SQLite local para Next.js +
 > FastAPI + PostgreSQL. Cada tarefa é executada, verificada e commitada antes da

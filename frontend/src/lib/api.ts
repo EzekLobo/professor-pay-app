@@ -1,6 +1,7 @@
 import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, setDoc, updateDoc, writeBatch } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { reauthenticateWithFirebase } from "@/lib/firebase-auth";
+import type { KodlandLesson } from "@/lib/kodland-lessons";
 
 export type User = { id: string; name: string; email: string };
 export type DashboardLesson = { id: string; class_id: string | null; class_name_snapshot: string; number: number; lesson_date: string; student: string; type: string; duration_minutes: number; hourly_rate_cents: number; period: string; payment_date: string; value_cents: number; status: string };
@@ -19,7 +20,8 @@ export type DataExport = { schema_version: "1.0"; exported_at: string; user: Use
 export type KodlandGroup = { id: string; external_id: string; title: string; course_name: string; student_count: number; start_date: string; next_lesson_date: string; archived: boolean; local_class_id: string | null; created_at: string };
 export type KodlandStudent = { id: string; external_id: string; name: string; email: string; phone: string; status: string; progress_summary: string; profile_url: string; external_class_id: string; external_class_name: string; local_note: string; hidden: boolean; created_at: string };
 export type KodlandReview = { id: string; external_class_id: string; external_class_name: string; external_student_id: string; student_name: string; lesson_id: string; lesson_number: number; lesson_title: string; module_number: string; task_id: string; task_number: number; task_title: string; status_key: string; status_label: string; correction_url: string; created_at: string };
-type KodlandSnapshot = { groups: Omit<KodlandGroup, "id" | "local_class_id" | "created_at">[]; students: Omit<KodlandStudent, "local_note" | "hidden" | "created_at">[]; reviews: Omit<KodlandReview, "created_at">[] };
+export type { KodlandLesson } from "@/lib/kodland-lessons";
+type KodlandSnapshot = { groups: Omit<KodlandGroup, "id" | "local_class_id" | "created_at">[]; students: Omit<KodlandStudent, "local_note" | "hidden" | "created_at">[]; reviews: Omit<KodlandReview, "created_at">[]; lessons: Omit<KodlandLesson, "created_at">[] };
 export class ApiError extends Error { constructor(public readonly status: number, message: string) { super(message); } }
 
 type Row = { id: string } & Record<string, unknown>;
@@ -104,6 +106,7 @@ export const kodlandApi = {
   groups: async () => ({ items: (await rows("kodland_groups")) as unknown as KodlandGroup[] }),
   students: async () => ({ items: ((await rows("kodland_students")).filter((item) => !item.hidden) as unknown as KodlandStudent[]) }),
   reviews: async () => ({ items: (await rows("kodland_reviews")) as unknown as KodlandReview[] }),
+  lessons: async () => ({ items: (await rows("kodland_lessons")) as unknown as KodlandLesson[] }),
   sync: async (username: string, password: string) => {
     const token = await (authUser() as unknown as { getIdToken: () => Promise<string> }).getIdToken();
     const response = await fetch("/api/kodland/sync", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ username, password }) });
@@ -113,13 +116,16 @@ export const kodlandApi = {
     const oldGroups = await rows("kodland_groups");
     const links = new Map(oldGroups.map((item) => [String(item.external_id), item.local_class_id ?? null]));
     const oldReviews = await rows("kodland_reviews");
+    const oldLessons = await rows("kodland_lessons");
     const batch = writeBatch(getFirebaseDb());
     oldReviews.forEach((item) => batch.delete(doc(ref("kodland_reviews"), String(item.id))));
+    oldLessons.forEach((item) => batch.delete(doc(ref("kodland_lessons"), String(item.id))));
     snapshot.groups.forEach((item) => batch.set(doc(ref("kodland_groups"), item.external_id), { ...item, id: item.external_id, local_class_id: links.get(item.external_id) ?? null, created_at: createdAt }));
     snapshot.students.forEach((item) => batch.set(doc(ref("kodland_students"), item.id), { ...item, local_note: "", hidden: false, created_at: createdAt }));
     snapshot.reviews.forEach((item) => batch.set(doc(ref("kodland_reviews"), item.id), { ...item, created_at: createdAt }));
+    snapshot.lessons.forEach((item) => batch.set(doc(ref("kodland_lessons"), item.id), { ...item, created_at: createdAt }));
     await batch.commit();
-    return { group_count: snapshot.groups.length, student_count: snapshot.students.length, review_count: snapshot.reviews.length };
+    return { group_count: snapshot.groups.length, student_count: snapshot.students.length, review_count: snapshot.reviews.length, lesson_count: snapshot.lessons.length };
   },
   linkGroup: async (externalId: string, localClassId: string | null) => { await updateDoc(doc(ref("kodland_groups"), externalId), { local_class_id: localClassId, updated_at: now() }); },
   updateStudent: async (id: string, payload: Partial<Pick<KodlandStudent, "name" | "email" | "phone" | "status" | "profile_url" | "local_note">>) => { await updateDoc(doc(ref("kodland_students"), id), { ...payload, updated_at: now() }); },
@@ -129,6 +135,6 @@ export const dataApi = {
   export: async (): Promise<DataExport> => ({ schema_version: "1.0", exported_at: now(), user: await authApi.me(), classes: await rows("classes"), lessons: await rows("lessons"), payment_confirmations: await rows("payments") }),
   previewImport: async (payload: unknown): Promise<ImportReport> => { const value = payload as ImportPayload; const exportId = String(value.export_id ?? value.exportId ?? value.exported_at ?? value.exportedAt ?? crypto.randomUUID()); const imported = await getDoc(doc(ref("imports"), exportId)); const classes = importRows(value, "classes"); const lessons = importRows(value, "lessons"); const payments = importRows(value, "payments"); return { export_id: exportId, already_imported: imported.exists(), class_count: classes.length, lesson_count: lessons.length, payment_confirmation_count: payments.length, total_cents: lessons.reduce((total, lesson) => total + cents(lesson), 0), imported_at: imported.data()?.imported_at ? String(imported.data()?.imported_at) : null }; },
   import: async (payload: unknown): Promise<ImportReport> => { const value = payload as ImportPayload; const preview = await dataApi.previewImport(value); if (preview.already_imported) return preview; const batch = writeBatch(getFirebaseDb()); importRows(value, "classes").forEach((item) => batch.set(doc(ref("classes"), String(item.id)), item)); importRows(value, "lessons").forEach((item) => batch.set(doc(ref("lessons"), String(item.id)), item)); importRows(value, "payments").forEach((item) => batch.set(doc(ref("payments"), String(item.id)), item)); batch.set(doc(ref("imports"), preview.export_id), { imported_at: now(), created_at: now() }); await batch.commit(); return { ...preview, imported_at: now() }; },
-  reset: async (password: string) => { if (!password) throw new ApiError(400, "Informe sua senha para confirmar."); await reauthenticateWithFirebase(password); const batch = writeBatch(getFirebaseDb()); for (const name of ["classes", "lessons", "payments", "imports", "kodland_groups", "kodland_students", "kodland_reviews"]) (await rows(name)).forEach((item) => batch.delete(doc(ref(name), String(item.id)))); await batch.commit(); },
+  reset: async (password: string) => { if (!password) throw new ApiError(400, "Informe sua senha para confirmar."); await reauthenticateWithFirebase(password); const batch = writeBatch(getFirebaseDb()); for (const name of ["classes", "lessons", "payments", "imports", "kodland_groups", "kodland_students", "kodland_reviews", "kodland_lessons"]) (await rows(name)).forEach((item) => batch.delete(doc(ref(name), String(item.id)))); await batch.commit(); },
 };
 export const __test = { period, paymentDate, normalizeClass, normalizeLesson, normalizePayment };

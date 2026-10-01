@@ -63,8 +63,9 @@ const classInfo = (group: KodlandGroup) => {
   const parts = group.course_name.match(/\[([^\]]+)\]/g)?.map((value) => value.slice(1, -1)) ?? [];
   const rawCourse = group.course_name.trim();
   const courseName = rawCourse && !["none", "null", "undefined"].includes(rawCourse.toLowerCase()) ? rawCourse : "";
+  const parsedCourse = parts[1]?.trim();
   return {
-    course: parts[1] || courseName || "Curso não informado",
+    course: parsedCourse && !["none", "null", "undefined"].includes(parsedCourse.toLowerCase()) ? parsedCourse : courseName || "Curso não informado",
     duration: parts.find((value) => /min/i.test(value)) ?? "Duração não informada",
     lessons: parts.find((value) => /\bL\b/i.test(value)) ?? "Plano não informado",
     region: parts.find((value) => /brazil|brasil/i.test(value)) ?? "",

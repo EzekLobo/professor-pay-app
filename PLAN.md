@@ -467,3 +467,19 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Verificado: typecheck, lint, testes, build e diff check passam; o deploy
   final foi publicado e o acordeao, modal de sincronizacao e redirecionamento
   da rota antiga foram conferidos no navegador.
+
+### R7 - Materiais no contexto da aula
+
+- Concluido: a sincronizacao passou a identificar o curso de cada turma e
+  consultar o catalogo de aulas, materiais e tarefas de casa associado a cada
+  aula agendada.
+- Concluido: apresentacao, roteiro e atividade de casa agora preenchem os
+  links exibidos nos cards de aula anterior e proxima; a URL da aula aponta
+  para o detalhe correto do curso quando o catalogo estiver disponivel.
+- Concluido: endpoints e comportamento foram registrados em
+  `docs/kodland-endpoints.md`, com teste unitario de uma aula realista.
+- Verificado: typecheck, testes, lint, build e `git diff --check` passam; o
+  commit `3c251a4` foi sincronizado com `master` e o deploy de producao ficou
+  `Ready` no Vercel.
+- Pendente operacional: executar uma nova sincronizacao autenticada para
+  substituir o snapshot antigo e gravar os links no Firestore.

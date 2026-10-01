@@ -1,4 +1,4 @@
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User as FirebaseUser } from "firebase/auth";
+import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User as FirebaseUser } from "firebase/auth";
 import type { User } from "@/lib/api";
 import { getFirebaseAuth } from "@/lib/firebase";
 
@@ -13,6 +13,10 @@ export function mapFirebaseUser(user: FirebaseUser): User {
 export async function loginWithFirebase(email: string, password: string): Promise<User> {
   const credential = await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
   return mapFirebaseUser(credential.user);
+}
+
+export function resetFirebasePassword(email: string): Promise<void> {
+  return sendPasswordResetEmail(getFirebaseAuth(), email.trim());
 }
 
 export async function reauthenticateWithFirebase(password: string): Promise<void> {

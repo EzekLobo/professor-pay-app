@@ -1,5 +1,53 @@
 # Plano de Implementação — AulaPay Web
 
+## Refatoração operacional (execução atual)
+
+Objetivo: aproximar a web da experiência do aplicativo móvel, centralizando
+extrato financeiro, agenda pedagógica, materiais, deveres, correções e contato
+de responsáveis. A integração externa permanece somente leitura; commits usam
+mensagens neutras e não citam o fornecedor externo.
+
+- [x] R1 — Restaurar a base e o dashboard financeiro
+  - Escopo: corrigir a referência quebrada na central pedagógica e transformar
+    os cards de pagamento em extrato modal navegável por competência.
+  - Aceitação: typecheck, testes e build passam; último/próximo pagamento abrem
+    extrato com aulas, valores e navegação anterior/próximo.
+  - Depende de: F4.
+- [ ] R2 — Agenda, aulas e materiais
+  - Escopo: adicionar tipos, sincronização de agenda/aulas e fallback para abrir
+    a aula externa quando não houver link de material.
+  - Aceitação: aula anterior/próxima aparecem no resumo e detalhes mostram links
+    de slides, roteiro, dever ou atalho externo.
+  - Depende de: R1.
+- [ ] R3 — Turmas, alunos e responsáveis
+  - Escopo: refatorar detalhes de turma, contatos locais de responsáveis,
+    WhatsApp com mensagem editável e remoção de dados financeiros de alunos.
+  - Aceitação: contato pode ser editado, mensagem é revisável e o WhatsApp abre
+    com número normalizado; typecheck/build passam.
+  - Depende de: R2.
+- [ ] R4 — Correções, dados e navegação
+  - Escopo: integrar materiais/deveres à fila de correções, incluir novos dados
+    no backup/importação e simplificar o shell das telas.
+  - Aceitação: filtros, estados vazios, backup e importação cobrem os novos
+    registros sem quebrar fluxos existentes.
+  - Depende de: R3.
+- [ ] R5 — Verificação visual e entrega
+  - Escopo: validar cada rota no navegador em desktop e viewport móvel, corrigir
+    incoerências visuais e executar suíte final.
+  - Aceitação: testes, lint, typecheck, build e smoke test navegável passam;
+    commits e sincronização usam mensagens neutras.
+  - Depende de: R4.
+
+### Handoff R1
+
+- Mudou: a central pedagógica deixou de depender de um vínculo financeiro
+  inexistente; o resumo ganhou extrato modal para os pagamentos em destaque e
+  relevantes, com normais/extras, aulas individuais e navegação entre períodos.
+- Verificado: `npm.cmd run typecheck`, `npm.cmd run test` (10 testes) e
+  `npm.cmd run build` passam.
+- Próximo: adicionar agenda/materiais sem reintroduzir dados financeiros de
+  alunos.
+
 > Fonte de verdade da migração do AulaPay de Expo/SQLite local para Next.js +
 > FastAPI + PostgreSQL. Cada tarefa é executada, verificada e commitada antes da
 > próxima. Decisões assumidas: aplicação multiusuário, cadastro aberto somente

@@ -7,6 +7,16 @@ import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
 import { correctionsNavigation, kodlandNavigation, navigation, utilityNavigation } from "@/lib/routes";
 
+const pageTitles: Record<string, string> = {
+  "/dashboard": "Sua rotina Kodland",
+  "/payments": "Pagamentos",
+  "/classes": "Turmas",
+  "/lessons": "Aulas",
+  "/kodland": "Kodland",
+  "/corrections": "Correções",
+  "/data": "Seus dados",
+};
+
 export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -32,10 +42,10 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
       </aside>
       <section className="shell-main">
         <header className="shell-header">
-          <div><p className="header-kicker">PAINEL PESSOAL</p><strong>Olá, {user.name.split(" ")[0]}</strong></div>
+          <h1 className="shell-title">{pageTitles[pathname] ?? "AulaPay"}</h1>
           <div className="header-actions">
             <Link className="mobile-utility-link" href="/data">Dados</Link>
-            <div className="profile-chip"><span>{user.name.slice(0, 1).toUpperCase()}</span><small>{user.email}</small></div>
+            <div className="profile-chip" aria-label={`Perfil de ${user.name}`}><span>{user.name.slice(0, 1).toUpperCase()}</span></div>
           </div>
         </header>
         <main className="page-content">{children}</main>

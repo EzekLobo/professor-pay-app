@@ -2,6 +2,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
+import { Modal } from "@/components/modal";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import {
   ApiError,
@@ -68,6 +69,7 @@ function ClassesContent() {
   const [kodlandGroups, setKodlandGroups] = useState<KodlandGroup[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<ClassRecord | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -130,6 +132,7 @@ function ClassesContent() {
       else await classesApi.create(payload);
       setEditing(null);
       setForm(emptyForm);
+      setFormOpen(false);
       await load();
     } catch (reason) {
       setError(
@@ -164,28 +167,30 @@ function ClassesContent() {
     setEditing(item);
     setForm(toForm(item));
     setError("");
-    document
-      .getElementById("class-form")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setFormOpen(true);
+  }
+  function beginCreate() {
+    setEditing(null);
+    setForm(emptyForm);
+    setError("");
+    setFormOpen(true);
+  }
+  function closeForm() {
+    if (saving) return;
+    setFormOpen(false);
+    setEditing(null);
+    setForm(emptyForm);
+    setError("");
   }
   return (
     <div className="management-grid">
-      <section className="page-heading">
-        <div>
-          <p className="eyebrow">Organização</p>
-          <h1>Turmas</h1>
-          <p className="muted">
-            Cadastre turmas e mantenha o planejamento de aulas atualizado.
-          </p>
-        </div>
-      </section>
-      {error && (
+      {error && !formOpen && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-      <section className="panel" id="class-form">
-        <h2>{editing ? `Editar ${editing.name}` : "Nova turma"}</h2>
+      <Modal open={formOpen} title={editing ? `Editar ${editing.name}` : "Nova turma"} onClose={closeForm}>
+        {error && <p className="form-error" role="alert">{error}</p>}
         <form className="form management-form" onSubmit={submit}>
           <label className="field">
             Nome da turma
@@ -270,17 +275,14 @@ function ClassesContent() {
               <button
                 className="button button-ghost"
                 type="button"
-                onClick={() => {
-                  setEditing(null);
-                  setForm(emptyForm);
-                }}
+                onClick={closeForm}
               >
                 Cancelar edição
               </button>
             )}
           </div>
         </form>
-      </section>
+      </Modal>
       <section className="panel">
         <div className="section-heading"><h2>Turmas Kodland</h2><span className="muted">{kodlandGroups.length} sincronizada{kodlandGroups.length === 1 ? "" : "s"}</span></div>
         {kodlandGroups.length === 0 ? <p className="muted">Sincronize a Kodland para ver suas turmas pedagógicas.</p> : <div className="entity-list">{kodlandGroups.map((group) => { const info = kodlandInfo(group); return <article className="entity-card" key={group.id}><div><div className="entity-title"><h3>{group.title}</h3><StatusBadge tone={group.archived ? "neutral" : "success"}>{group.archived ? "Arquivada" : "Ativa"}</StatusBadge></div><p className="entity-details">{info.course}</p><div className="card-actions"><StatusBadge>{info.duration}</StatusBadge><StatusBadge>{info.lessons}</StatusBadge>{info.region && <StatusBadge>{info.region}</StatusBadge>}<StatusBadge>{group.student_count} aluno(s)</StatusBadge></div><p className="muted">Próxima aula: <strong>{kodlandDate(group.next_lesson_date)}</strong></p></div></article>; })}</div>}
@@ -288,15 +290,16 @@ function ClassesContent() {
       <section className="panel">
         <div className="section-heading">
           <h2>Turmas ativas</h2>
-          <span className="muted">
-            {items.length} cadastrada{items.length === 1 ? "" : "s"}
-          </span>
+          <div className="form-actions">
+            <span className="muted">{items.length} cadastrada{items.length === 1 ? "" : "s"}</span>
+            <Button type="button" onClick={beginCreate}>Nova turma</Button>
+          </div>
         </div>
         {loading ? (
           <p className="muted">Carregando turmas…</p>
         ) : items.length === 0 ? (
           <p className="muted">
-            Nenhuma turma ativa. Use o formulário acima para criar a primeira.
+            Nenhuma turma ativa. Use “Nova turma” para cadastrar a primeira.
           </p>
         ) : (
           <div className="entity-list">

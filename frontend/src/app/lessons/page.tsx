@@ -2,6 +2,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
+import { Modal } from "@/components/modal";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import {
   ApiError,
@@ -40,6 +41,7 @@ function LessonsContent() {
   const [lessons, setLessons] = useState<Lesson[]>([]),
     [filters, setFilters] = useState<LessonFilters>({ page: 1, page_size: 50 }),
     [form, setForm] = useState<ExtraForm>(emptyForm),
+    [formOpen, setFormOpen] = useState(false),
     [loading, setLoading] = useState(true),
     [saving, setSaving] = useState(false),
     [error, setError] = useState("");
@@ -98,6 +100,7 @@ function LessonsContent() {
     try {
       await lessonsApi.createExtra(payload);
       setForm(emptyForm);
+      setFormOpen(false);
       await load();
     } catch (reason) {
       setError(
@@ -123,22 +126,26 @@ function LessonsContent() {
       );
     }
   }
+  function openForm() {
+    setForm(emptyForm);
+    setError("");
+    setFormOpen(true);
+  }
+  function closeForm() {
+    if (saving) return;
+    setFormOpen(false);
+    setForm(emptyForm);
+    setError("");
+  }
   return (
     <div className="management-grid">
-      <section className="page-heading">
-        <p className="eyebrow">Histórico</p>
-        <h1>Aulas</h1>
-        <p className="muted">
-          Consulte aulas de turmas e registre atividades extras.
-        </p>
-      </section>
-      {error && (
+      {error && !formOpen && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-      <section className="panel">
-        <h2>Nova aula extra</h2>
+      <Modal open={formOpen} title="Nova aula extra" onClose={closeForm}>
+        {error && <p className="form-error" role="alert">{error}</p>}
         <form className="form management-form" onSubmit={createExtra}>
           <label className="field">
             Aluno(s)
@@ -195,13 +202,14 @@ function LessonsContent() {
             </Button>
           </div>
         </form>
-      </section>
+      </Modal>
       <section className="panel">
         <div className="section-heading">
           <h2>Histórico de aulas</h2>
-          <span className="muted">
-            {lessons.length} exibida{lessons.length === 1 ? "" : "s"}
-          </span>
+          <div className="form-actions">
+            <span className="muted">{lessons.length} exibida{lessons.length === 1 ? "" : "s"}</span>
+            <Button type="button" onClick={openForm}>Nova aula extra</Button>
+          </div>
         </div>
         <div className="filters">
           <label className="field">

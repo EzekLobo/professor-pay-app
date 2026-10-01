@@ -1,10 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { DashboardResponse } from "@/lib/api";
 import { DashboardContent } from "./dashboard-content";
 
 vi.mock("next/link", () => ({
-  default: ({ href, children }: { href: string; children: unknown }) => <a href={href}>{children}</a>,
+  default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }));
 
 const dashboard: DashboardResponse = {

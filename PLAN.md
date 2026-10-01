@@ -25,13 +25,13 @@ mensagens neutras e não citam o fornecedor externo.
   - Aceitação: contato pode ser editado, mensagem é revisável e o WhatsApp abre
     com número normalizado; typecheck/build passam.
   - Depende de: R2.
-- [ ] R4 — Correções, dados e navegação
+- [x] R4 — Correções, dados e navegação
   - Escopo: integrar materiais/deveres à fila de correções, incluir novos dados
     no backup/importação e simplificar o shell das telas.
   - Aceitação: filtros, estados vazios, backup e importação cobrem os novos
     registros sem quebrar fluxos existentes.
   - Depende de: R3.
-- [ ] R5 — Verificação visual e entrega
+- [x] R5 — Verificação visual e entrega
   - Escopo: validar cada rota no navegador em desktop e viewport móvel, corrigir
     incoerências visuais e executar suíte final.
   - Aceitação: testes, lint, typecheck, build e smoke test navegável passam;
@@ -67,6 +67,23 @@ mensagens neutras e não citam o fornecedor externo.
   não geram links.
 - Verificado: `npm.cmd run typecheck`, `npm.cmd run test` (13 testes),
   `npm.cmd run build` e `git diff --check` passam.
+
+### Handoff R4
+
+- Mudou: a fila de correções agora oferece os materiais da aula; backups e
+  importações preservam grupos, alunos, aulas pedagógicas e correções; a
+  sincronização lê os contatos do responsável no perfil individual do aluno,
+  sem persistir o payload bruto ou campos sensíveis.
+- Verificado: `npm.cmd run typecheck`, `npm.cmd run test` (17 testes),
+  `npm.cmd run lint`, `npm.cmd run build` e `git diff --check` passam.
+
+### Handoff R5
+
+- Mudou: a navegação foi centralizada no topo, sem barra lateral; o modal do
+  aluno usa duas colunas no desktop e empilha no celular, com contatos do
+  responsável somente para leitura e observação local editável.
+- Verificado: validação visual publicada no navegador e suíte completa local;
+  a rolagem fica restrita ao modal em telas pequenas.
 
 > Fonte de verdade da migração do AulaPay de Expo/SQLite local para Next.js +
 > FastAPI + PostgreSQL. Cada tarefa é executada, verificada e commitada antes da

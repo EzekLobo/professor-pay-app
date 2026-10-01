@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
 import { mergeKodlandLessons, type KodlandLesson } from "@/lib/kodland-lessons";
+import { parseGuardianContact } from "@/lib/student-profile";
 
 export const runtime = "nodejs";
 
 type Group = { external_id: string; title: string; course_name: string; student_count: number; start_date: string; next_lesson_date: string; archived: boolean };
-type Student = { id: string; external_id: string; name: string; email: string; phone: string; status: string; progress_summary: string; profile_url: string; external_class_id: string; external_class_name: string };
+type Student = { id: string; external_id: string; name: string; email: string; phone: string; status: string; progress_summary: string; profile_url: string; guardian_name: string; guardian_relationship: string; guardian_phone: string; guardian_email: string; external_class_id: string; external_class_name: string };
 type Review = { id: string; external_class_id: string; external_class_name: string; external_student_id: string; student_name: string; lesson_id: string; lesson_number: number; lesson_title: string; module_number: string; task_id: string; task_number: number; task_title: string; status_key: string; status_label: string; correction_url: string };
 
 const sso = "https://sso.production.kodland.org/";
@@ -70,8 +71,20 @@ function studentsFromPayload(payload: unknown, group: Group): Student[] {
     const item = record(value); const info = record(item.main_info); const externalId = text(info.student_id); const name = text(info.full_name);
     if (!externalId || !name) return [];
     const progress = list(item.progress_info); const current = progress.reduce((sum, item) => sum + number(record(item).module_current_grade), 0); const max = progress.reduce((sum, item) => sum + number(record(item).module_max_grade), 0);
-    return [{ id: `kodland-student-${externalId}`, external_id: externalId, name, email: text(info.email), phone: text(info.phone ?? info.phone_number ?? info.mobile), status: text(info.status), progress_summary: max ? `${current}/${max}` : "", profile_url: text(info.profile_url) || `https://bo.kodland.org/students/${externalId}`, external_class_id: group.external_id, external_class_name: group.title }];
+    return [{ id: `kodland-student-${externalId}`, external_id: externalId, name, email: text(info.email), phone: text(info.phone ?? info.phone_number ?? info.mobile), status: text(info.status), progress_summary: max ? `${current}/${max}` : "", profile_url: text(info.profile_url) || `https://bo.kodland.org/students/${externalId}`, guardian_name: "", guardian_relationship: "", guardian_phone: "", guardian_email: "", external_class_id: group.external_id, external_class_name: group.title }];
   });
+}
+
+async function studentsWithProfiles(students: Student[], token: string, cache: Map<string, ReturnType<typeof parseGuardianContact>>): Promise<Student[]> {
+  return Promise.all(students.map(async (student) => {
+    let guardian = cache.get(student.external_id);
+    if (!guardian) {
+      const profile = await getOptional(`students/${student.external_id}/get_general_info_for_student_backoffice_page/`, token);
+      guardian = parseGuardianContact(profile);
+      cache.set(student.external_id, guardian);
+    }
+    return { ...student, guardian_name: guardian.name, guardian_relationship: guardian.relationship, guardian_phone: guardian.phone, guardian_email: guardian.email };
+  }));
 }
 
 async function reviewsForGroup(group: Group, studentsPayload: unknown, token: string): Promise<Review[]> {
@@ -106,7 +119,8 @@ export async function POST(request: NextRequest) {
     const token = await kodlandLogin(body.username, body.password);
     const groups = await groupsForTeacher(userId(token), token);
     const active = groups.filter((group) => !group.archived);
-    const snapshots = await Promise.all(active.map(async (group) => { const payload = await get(`student_groups/${group.external_id}/get_students_main_data/`, token); return { students: studentsFromPayload(payload, group), reviews: await reviewsForGroup(group, payload, token), lessons: await lessonsForGroup(group, token) }; }));
+    const profileCache = new Map<string, ReturnType<typeof parseGuardianContact>>();
+    const snapshots = await Promise.all(active.map(async (group) => { const payload = await get(`student_groups/${group.external_id}/get_students_main_data/`, token); const students = await studentsWithProfiles(studentsFromPayload(payload, group), token, profileCache); return { students, reviews: await reviewsForGroup(group, payload, token), lessons: await lessonsForGroup(group, token) }; }));
     return Response.json({ groups, students: snapshots.flatMap((item) => item.students), reviews: snapshots.flatMap((item) => item.reviews), lessons: snapshots.flatMap((item) => item.lessons) });
   } catch (error) {
     return Response.json({ message: error instanceof Error ? error.message : "Não foi possível sincronizar com a Kodland." }, { status: 502 });

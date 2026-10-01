@@ -160,7 +160,11 @@ async function lessonsForGroup(group: Group, token: string, cache: CourseLessonC
     getOptional(`student_groups/${group.external_id}/lessons/`, token),
   ]);
   const merged = mergeKodlandLessons(schedule, lessons, group);
-  return enrichKodlandLessons(merged, await courseLessons(group.course_id, token, merged, cache), group.course_id);
+  const ordered = [...merged].sort((a, b) => `${a.lesson_date} ${a.start_time}`.localeCompare(`${b.lesson_date} ${b.start_time}`));
+  const next = ordered.find((lesson) => !lesson.lesson_passed) ?? ordered.at(-1);
+  const previous = ordered.filter((lesson) => lesson.lesson_passed).slice(-3);
+  const materialLessons = [...previous, next].filter((lesson): lesson is KodlandLesson => Boolean(lesson));
+  return enrichKodlandLessons(merged, await courseLessons(group.course_id, token, materialLessons, cache), group.course_id);
 }
 
 export async function POST(request: NextRequest) {

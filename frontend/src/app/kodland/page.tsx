@@ -130,7 +130,7 @@ function KodlandContent() {
       <Modal open={syncOpen} title="Sincronizar dados" onClose={() => !busy && setSyncOpen(false)}>
         <form className="form management-form" onSubmit={sync}>
           <p className="muted">Use seu acesso apenas durante a sincronização. Ele não será salvo neste navegador.</p>
-          <label className="field">Usuário<Input type="email" value={username} onChange={(event) => setUsername(event.target.value)} required autoComplete="username" /></label>
+          <label className="field">Usuário ou e-mail<Input type="text" value={username} onChange={(event) => setUsername(event.target.value)} required autoComplete="username" /></label>
           <label className="field">Senha<Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" /></label>
           <div className="form-actions"><Button type="submit" disabled={busy}>{busy ? "Sincronizando…" : "Sincronizar"}</Button></div>
         </form>

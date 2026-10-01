@@ -53,6 +53,16 @@ const toForm = (item: ClassRecord): FormState => ({
   duration_minutes: String(item.duration_minutes),
   hourly_rate: centsToBrlInput(item.hourly_rate_cents),
 });
+const kodlandInfo = (group: KodlandGroup) => {
+  const parts = group.course_name.match(/\[([^\]]+)\]/g)?.map((value) => value.slice(1, -1)) ?? [];
+  return {
+    course: parts[1] || group.course_name || "Curso não informado",
+    duration: parts.find((value) => /min/i.test(value)) ?? "Duração não informada",
+    lessons: parts.find((value) => /\bL\b/i.test(value)) ?? "Plano não informado",
+    region: parts.find((value) => /brazil|brasil/i.test(value)) ?? "",
+  };
+};
+const kodlandDate = (value: string) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "full", timeStyle: "short" }).format(new Date(value)) : "Agenda não informada";
 function ClassesContent() {
   const [items, setItems] = useState<ClassRecord[]>([]);
   const [kodlandGroups, setKodlandGroups] = useState<KodlandGroup[]>([]);
@@ -273,7 +283,7 @@ function ClassesContent() {
       </section>
       <section className="panel">
         <div className="section-heading"><h2>Turmas Kodland</h2><span className="muted">{kodlandGroups.length} sincronizada{kodlandGroups.length === 1 ? "" : "s"}</span></div>
-        {kodlandGroups.length === 0 ? <p className="muted">Sincronize a Kodland para ver suas turmas pedagógicas.</p> : <div className="entity-list">{kodlandGroups.map((group) => <article className="entity-card" key={group.id}><div><div className="entity-title"><h3>{group.title}</h3><StatusBadge tone={group.archived ? "neutral" : "success"}>{group.archived ? "Arquivada" : "Ativa"}</StatusBadge></div><p className="entity-details">{group.course_name || "Curso não informado"} · {group.student_count} aluno(s)</p><p className="muted">Próxima aula: {group.next_lesson_date || "não informada"}</p></div></article>)}</div>}
+        {kodlandGroups.length === 0 ? <p className="muted">Sincronize a Kodland para ver suas turmas pedagógicas.</p> : <div className="entity-list">{kodlandGroups.map((group) => { const info = kodlandInfo(group); return <article className="entity-card" key={group.id}><div><div className="entity-title"><h3>{group.title}</h3><StatusBadge tone={group.archived ? "neutral" : "success"}>{group.archived ? "Arquivada" : "Ativa"}</StatusBadge></div><p className="entity-details">{info.course}</p><div className="card-actions"><StatusBadge>{info.duration}</StatusBadge><StatusBadge>{info.lessons}</StatusBadge>{info.region && <StatusBadge>{info.region}</StatusBadge>}<StatusBadge>{group.student_count} aluno(s)</StatusBadge></div><p className="muted">Próxima aula: <strong>{kodlandDate(group.next_lesson_date)}</strong></p></div></article>; })}</div>}
       </section>
       <section className="panel">
         <div className="section-heading">

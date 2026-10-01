@@ -19,7 +19,7 @@ mensagens neutras e não citam o fornecedor externo.
   - Aceitação: aula anterior/próxima aparecem no resumo e detalhes mostram links
     de slides, roteiro, dever ou atalho externo.
   - Depende de: R1.
-- [ ] R3 — Turmas, alunos e responsáveis
+- [x] R3 — Turmas, alunos e responsáveis
   - Escopo: refatorar detalhes de turma, contatos locais de responsáveis,
     WhatsApp com mensagem editável e remoção de dados financeiros de alunos.
   - Aceitação: contato pode ser editado, mensagem é revisável e o WhatsApp abre
@@ -56,6 +56,17 @@ mensagens neutras e não citam o fornecedor externo.
 - Verificado: `npm.cmd run typecheck`, `npm.cmd run test` (10 testes),
   `npm.cmd run build` e `git diff --check` passam.
 - Fallback: quando não houver link direto, a ação abre a aula/turma externa.
+
+### Handoff R3
+
+- Mudou: a central pedagógica agora trabalha só com dados de turma/aluno,
+  preserva campos locais durante a sincronização e permite cadastrar nome,
+  parentesco, telefone e observação do responsável.
+- Mudou também: o contato abre uma mensagem editável antes do WhatsApp; números
+  locais, com código do país e prefixo `00` são normalizados e números vazios
+  não geram links.
+- Verificado: `npm.cmd run typecheck`, `npm.cmd run test` (13 testes),
+  `npm.cmd run build` e `git diff --check` passam.
 
 > Fonte de verdade da migração do AulaPay de Expo/SQLite local para Next.js +
 > FastAPI + PostgreSQL. Cada tarefa é executada, verificada e commitada antes da

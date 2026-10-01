@@ -18,7 +18,7 @@ export type PaymentDetail = DashboardPayment & { received_at: string | null; con
 export type ImportReport = { export_id: string; already_imported: boolean; class_count: number; lesson_count: number; payment_confirmation_count: number; total_cents: number; imported_at: string | null };
 export type DataExport = { schema_version: "1.0"; exported_at: string; user: User; classes: unknown[]; lessons: unknown[]; payment_confirmations: unknown[] };
 export type KodlandGroup = { id: string; external_id: string; title: string; course_name: string; student_count: number; start_date: string; next_lesson_date: string; archived: boolean; local_class_id: string | null; created_at: string };
-export type KodlandStudent = { id: string; external_id: string; name: string; email: string; phone: string; status: string; progress_summary: string; profile_url: string; external_class_id: string; external_class_name: string; local_note: string; hidden: boolean; created_at: string };
+export type KodlandStudent = { id: string; external_id: string; name: string; email: string; phone: string; status: string; progress_summary: string; profile_url: string; external_class_id: string; external_class_name: string; local_note: string; guardian_name: string; guardian_relationship: string; guardian_phone: string; guardian_note: string; hidden: boolean; created_at: string };
 export type KodlandReview = { id: string; external_class_id: string; external_class_name: string; external_student_id: string; student_name: string; lesson_id: string; lesson_number: number; lesson_title: string; module_number: string; task_id: string; task_number: number; task_title: string; status_key: string; status_label: string; correction_url: string; created_at: string };
 export type { KodlandLesson } from "@/lib/kodland-lessons";
 type KodlandSnapshot = { groups: Omit<KodlandGroup, "id" | "local_class_id" | "created_at">[]; students: Omit<KodlandStudent, "local_note" | "hidden" | "created_at">[]; reviews: Omit<KodlandReview, "created_at">[]; lessons: Omit<KodlandLesson, "created_at">[] };
@@ -115,20 +115,33 @@ export const kodlandApi = {
     const createdAt = now();
     const oldGroups = await rows("kodland_groups");
     const links = new Map(oldGroups.map((item) => [String(item.external_id), item.local_class_id ?? null]));
+    const oldStudents = await rows("kodland_students");
     const oldReviews = await rows("kodland_reviews");
     const oldLessons = await rows("kodland_lessons");
     const batch = writeBatch(getFirebaseDb());
     oldReviews.forEach((item) => batch.delete(doc(ref("kodland_reviews"), String(item.id))));
     oldLessons.forEach((item) => batch.delete(doc(ref("kodland_lessons"), String(item.id))));
     snapshot.groups.forEach((item) => batch.set(doc(ref("kodland_groups"), item.external_id), { ...item, id: item.external_id, local_class_id: links.get(item.external_id) ?? null, created_at: createdAt }));
-    snapshot.students.forEach((item) => batch.set(doc(ref("kodland_students"), item.id), { ...item, local_note: "", hidden: false, created_at: createdAt }));
+    snapshot.students.forEach((item) => {
+      const previous = oldStudents.find((student) => String(student.id) === item.id);
+      batch.set(doc(ref("kodland_students"), item.id), {
+        ...item,
+        local_note: String(previous?.local_note ?? ""),
+        guardian_name: String(previous?.guardian_name ?? ""),
+        guardian_relationship: String(previous?.guardian_relationship ?? ""),
+        guardian_phone: String(previous?.guardian_phone ?? ""),
+        guardian_note: String(previous?.guardian_note ?? ""),
+        hidden: Boolean(previous?.hidden ?? false),
+        created_at: String(previous?.created_at ?? createdAt),
+      });
+    });
     snapshot.reviews.forEach((item) => batch.set(doc(ref("kodland_reviews"), item.id), { ...item, created_at: createdAt }));
     snapshot.lessons.forEach((item) => batch.set(doc(ref("kodland_lessons"), item.id), { ...item, created_at: createdAt }));
     await batch.commit();
     return { group_count: snapshot.groups.length, student_count: snapshot.students.length, review_count: snapshot.reviews.length, lesson_count: snapshot.lessons.length };
   },
   linkGroup: async (externalId: string, localClassId: string | null) => { await updateDoc(doc(ref("kodland_groups"), externalId), { local_class_id: localClassId, updated_at: now() }); },
-  updateStudent: async (id: string, payload: Partial<Pick<KodlandStudent, "name" | "email" | "phone" | "status" | "profile_url" | "local_note">>) => { await updateDoc(doc(ref("kodland_students"), id), { ...payload, updated_at: now() }); },
+  updateStudent: async (id: string, payload: Partial<Pick<KodlandStudent, "name" | "email" | "phone" | "status" | "profile_url" | "local_note" | "guardian_name" | "guardian_relationship" | "guardian_phone" | "guardian_note">>) => { await updateDoc(doc(ref("kodland_students"), id), { ...payload, updated_at: now() }); },
   hideStudent: async (id: string) => { await updateDoc(doc(ref("kodland_students"), id), { hidden: true, updated_at: now() }); },
 };
 export const dataApi = {

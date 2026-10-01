@@ -5,32 +5,187 @@ import { AuthGuard } from "@/components/auth-guard";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
-import { classesApi, kodlandApi, type ClassRecord, type KodlandGroup, type KodlandStudent } from "@/lib/api";
+import { ApiError, kodlandApi, type KodlandGroup, type KodlandStudent } from "@/lib/api";
+import { whatsappUrl } from "@/lib/whatsapp";
 
-const dateLabel = (value: string) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Não informada";
-const statusTone = (value: string) => /ativo|active|regular/i.test(value) ? "success" as const : /pause|expul|inativ|churn/i.test(value) ? "danger" as const : "warning" as const;
+const formatDate = (value: string) => {
+  if (!value) return "Sem data";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(date);
+};
 
-function Center() {
-  const [groups, setGroups] = useState<KodlandGroup[]>([]), [students, setStudents] = useState<KodlandStudent[]>([]), [classes, setClasses] = useState<ClassRecord[]>([]);
-  const [username, setUsername] = useState(""), [password, setPassword] = useState(""), [message, setMessage] = useState(""), [busy, setBusy] = useState(false), [syncOpen, setSyncOpen] = useState(false);
-  const [group, setGroup] = useState<KodlandGroup | null>(null), [student, setStudent] = useState<KodlandStudent | null>(null), [query, setQuery] = useState(""), [studentQuery, setStudentQuery] = useState("");
-  const load = useCallback(async () => { const [a,b,c] = await Promise.all([kodlandApi.groups(), kodlandApi.students(), classesApi.list()]); setGroups(a.items); setStudents(b.items); setClasses(c.items); }, []);
-  useEffect(() => { queueMicrotask(() => { void load().catch((error: Error) => setMessage(error.message)); }); }, [load]);
-  const visibleGroups = useMemo(() => groups.filter((item) => `${item.title} ${item.course_name}`.toLowerCase().includes(query.toLowerCase())), [groups, query]);
-  const visibleStudents = useMemo(() => students.filter((item) => (!group || item.external_class_id === group.external_id) && `${item.name} ${item.email} ${item.external_class_name}`.toLowerCase().includes(studentQuery.toLowerCase())).sort((a,b) => a.name.localeCompare(b.name)), [students, group, studentQuery]);
-  async function sync(event: FormEvent) { event.preventDefault(); if (!username || !password) return setMessage("Informe usuário e senha da Kodland."); setBusy(true); try { const result = await kodlandApi.sync(username, password); setPassword(""); setSyncOpen(false); setMessage(`${result.group_count} turmas, ${result.student_count} alunos e ${result.review_count} correções atualizados.`); await load(); } catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível sincronizar."); } finally { setBusy(false); } }
-  async function link(value: string) { if (!group) return; await kodlandApi.linkGroup(group.external_id, value || null); await load(); setGroup({...group, local_class_id: value || null}); }
-  async function saveStudent(event: FormEvent) { event.preventDefault(); if (!student?.name.trim()) return; setBusy(true); try { await kodlandApi.updateStudent(student.id, { name: student.name.trim(), email: student.email.trim(), phone: student.phone.trim(), status: student.status.trim(), profile_url: student.profile_url.trim(), local_note: student.local_note.trim() }); await load(); setStudent(null); } finally { setBusy(false); } }
-  async function hideStudent() { if (!student || !window.confirm(`Ocultar ${student.name} da lista local?`)) return; await kodlandApi.hideStudent(student.id); await load(); setStudent(null); }
-  return <div className="management-grid">
-    {message && <p className={message.includes("atualizados") ? "notice" : "form-error"}>{message}</p>}
-    <section className="panel"><div className="section-heading"><div><p className="eyebrow">Central Kodland</p><h2>Gestão pedagógica simplificada</h2><p className="muted">Turmas, alunos, progresso e correções em uma única visão.</p></div><div className="card-actions"><Button type="button" onClick={() => setSyncOpen(true)}>Sincronizar dados</Button><a className="button button-ghost" href="/corrections">Ver correções</a></div></div></section>
-    <section className="metric-grid"><article className="metric-card"><span>Turmas ativas</span><strong>{groups.filter((item) => !item.archived).length}</strong></article><article className="metric-card"><span>Alunos</span><strong>{students.length}</strong></article><article className="metric-card"><span>Correções</span><strong>→</strong><a href="/corrections">Abrir fila</a></article></section>
-    <section className="panel"><div className="section-heading"><div><h2>Turmas</h2><p className="muted">Curso, agenda, alunos e vínculo financeiro.</p></div><Input aria-label="Buscar turma" placeholder="Buscar turma ou curso" value={query} onChange={(e) => setQuery(e.target.value)} /></div><div className="entity-list">{visibleGroups.map((item) => <button className="entity-card kodland-group-card" type="button" key={item.id} onClick={() => {setGroup(item); setStudentQuery("");}}><div><div className="entity-title"><h3>{item.title}</h3><StatusBadge tone={item.archived ? "neutral" : "success"}>{item.archived ? "Arquivada" : "Ativa"}</StatusBadge></div><p className="entity-details">{item.course_name || "Curso não informado"}</p><p className="muted">{students.filter((value) => value.external_class_id === item.external_id).length || item.student_count} aluno(s) · Próxima aula: {dateLabel(item.next_lesson_date)}</p></div><span className="button button-ghost">Abrir</span></button>)}</div>{!visibleGroups.length && <p className="muted">Nenhuma turma encontrada.</p>}</section>
-    <section className="panel"><div className="section-heading"><div><h2>{group ? `Alunos — ${group.title}` : "Alunos"}</h2><p className="muted">Clique para consultar contato, progresso e observações locais.</p></div>{group && <button className="button button-ghost" type="button" onClick={() => setGroup(null)}>Todas as turmas</button>}</div><Input aria-label="Buscar aluno" placeholder="Buscar aluno, e-mail ou turma" value={studentQuery} onChange={(e) => setStudentQuery(e.target.value)} /><div className="entity-list kodland-students">{visibleStudents.map((item) => <button className="entity-card kodland-student-card" type="button" key={item.id} onClick={() => setStudent(item)}><div><div className="entity-title"><h3>{item.name}</h3>{item.status && <StatusBadge tone={statusTone(item.status)}>{item.status}</StatusBadge>}</div><p className="entity-details">{item.external_class_name} · Progresso: {item.progress_summary || "não informado"}</p><p className="muted">{item.email || item.phone || "Contato não informado"}</p></div><span className="button button-ghost">Detalhes</span></button>)}</div>{!visibleStudents.length && <p className="muted">Nenhum aluno encontrado.</p>}</section>
-    <Modal open={syncOpen} title="Sincronizar com a Kodland" onClose={() => !busy && setSyncOpen(false)}><p className="muted">O acesso é usado somente nesta sincronização e não é salvo pelo AulaPay.</p><form className="form management-form" onSubmit={sync}><label className="field">Usuário Kodland<Input value={username} autoComplete="username" onChange={(e) => setUsername(e.target.value)} /></label><label className="field">Senha Kodland<Input type="password" value={password} autoComplete="current-password" onChange={(e) => setPassword(e.target.value)} /></label><div className="form-actions"><Button disabled={busy}>{busy ? "Sincronizando…" : "Sincronizar agora"}</Button></div></form></Modal>
-    <Modal open={Boolean(group)} title={group?.title ?? "Turma"} onClose={() => setGroup(null)}>{group && <div className="form"><p className="entity-details">{group.course_name || "Curso não informado"}</p><p className="muted">Início: {dateLabel(group.start_date)}<br />Próxima aula: {dateLabel(group.next_lesson_date)}</p><label className="field">Vínculo com turma financeira<select className="input" value={group.local_class_id ?? ""} onChange={(e) => void link(e.target.value)}><option value="">Sem vínculo</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><p className="muted">Crie uma turma financeira na área Turmas antes de vinculá-la.</p></div>}</Modal>
-    <Modal open={Boolean(student)} title={student?.name ?? "Aluno"} onClose={() => setStudent(null)}>{student && <form className="form management-form" onSubmit={saveStudent}><p className="muted field-wide">Turma: {student.external_class_name}<br />Progresso: {student.progress_summary || "não informado"}</p><label className="field">Nome<Input value={student.name} onChange={(e) => setStudent({...student, name: e.target.value})} /></label><label className="field">Status<Input value={student.status} onChange={(e) => setStudent({...student, status: e.target.value})} /></label><label className="field">E-mail<Input type="email" value={student.email} onChange={(e) => setStudent({...student, email: e.target.value})} /></label><label className="field">Telefone<Input value={student.phone} onChange={(e) => setStudent({...student, phone: e.target.value})} /></label><label className="field field-wide">Observação local<Input value={student.local_note} onChange={(e) => setStudent({...student, local_note: e.target.value})} /></label><div className="form-actions"><Button disabled={busy}>Salvar dados locais</Button>{student.phone && <a className="button button-ghost" target="_blank" rel="noreferrer" href={`https://wa.me/${student.phone.replace(/\D/g, "")}`}>WhatsApp</a>}{student.profile_url && <a className="button button-ghost" target="_blank" rel="noreferrer" href={student.profile_url}>Perfil Kodland</a>}<button className="button button-danger" type="button" onClick={() => void hideStudent()}>Ocultar</button></div></form>}</Modal>
-  </div>;
+const initialStudent = (student: KodlandStudent) => ({
+  name: student.name,
+  email: student.email,
+  phone: student.phone,
+  local_note: student.local_note,
+  guardian_name: student.guardian_name,
+  guardian_relationship: student.guardian_relationship,
+  guardian_phone: student.guardian_phone,
+  guardian_note: student.guardian_note,
+});
+
+function KodlandContent() {
+  const [groups, setGroups] = useState<KodlandGroup[]>([]);
+  const [students, setStudents] = useState<KodlandStudent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
+  const [selectedStudent, setSelectedStudent] = useState<KodlandStudent | null>(null);
+  const [studentForm, setStudentForm] = useState<ReturnType<typeof initialStudent> | null>(null);
+  const [contactStudent, setContactStudent] = useState<KodlandStudent | null>(null);
+  const [message, setMessage] = useState("");
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [groupResult, studentResult] = await Promise.all([kodlandApi.groups(), kodlandApi.students()]);
+      setGroups(groupResult.items);
+      setStudents(studentResult.items);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível carregar os dados.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
+  const visibleStudents = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return students.filter((student) => {
+      if (selectedGroup && student.external_class_id !== selectedGroup) return false;
+      if (!normalized) return true;
+      return [student.name, student.email, student.phone, student.guardian_name, student.guardian_phone].some((value) => value.toLowerCase().includes(normalized));
+    });
+  }, [query, selectedGroup, students]);
+
+  const openStudent = (student: KodlandStudent) => {
+    setSelectedStudent(student);
+    setStudentForm(initialStudent(student));
+  };
+
+  const updateStudentForm = (field: keyof NonNullable<typeof studentForm>, value: string) => {
+    setStudentForm((current) => current ? { ...current, [field]: value } : current);
+  };
+
+  async function saveStudent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedStudent || !studentForm) return;
+    setBusy(true);
+    setError("");
+    try {
+      await kodlandApi.updateStudent(selectedStudent.id, studentForm);
+      setStudents((current) => current.map((item) => item.id === selectedStudent.id ? { ...item, ...studentForm } : item));
+      setSelectedStudent((current) => current ? { ...current, ...studentForm } : current);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Não foi possível salvar os dados do aluno.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openContact(student: KodlandStudent) {
+    setContactStudent(student);
+    setMessage(`Olá! Tudo bem? Sou o professor de ${student.name}. Gostaria de falar sobre as próximas atividades.`);
+  }
+
+  async function sync(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!username.trim() || !password) return;
+    setBusy(true);
+    setError("");
+    try {
+      await kodlandApi.sync(username.trim(), password);
+      setUsername("");
+      setPassword("");
+      setSyncOpen(false);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Não foi possível sincronizar os dados.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const studentCountByGroup = (groupId: string) => students.filter((student) => student.external_class_id === groupId).length;
+  const contactPhone = contactStudent?.guardian_phone || contactStudent?.phone || "";
+  const contactLabel = contactStudent?.guardian_phone ? "WhatsApp responsável" : "WhatsApp aluno";
+  const contactLink = whatsappUrl(contactPhone, message);
+
+  return (
+    <div className="management-grid">
+      <Modal open={syncOpen} title="Sincronizar dados" onClose={() => !busy && setSyncOpen(false)}>
+        <form className="form management-form" onSubmit={sync}>
+          <p className="muted">Use seu acesso apenas durante a sincronização. Ele não será salvo neste navegador.</p>
+          <label className="field">Usuário<Input type="email" value={username} onChange={(event) => setUsername(event.target.value)} required autoComplete="username" /></label>
+          <label className="field">Senha<Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" /></label>
+          <div className="form-actions"><Button type="submit" disabled={busy}>{busy ? "Sincronizando…" : "Sincronizar"}</Button></div>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(selectedStudent)} title={selectedStudent?.name || "Aluno"} onClose={() => setSelectedStudent(null)}>
+        {studentForm && <form className="form management-form" onSubmit={saveStudent}>
+          <div className="form-grid">
+            <label className="field">Nome<Input value={studentForm.name} onChange={(event) => updateStudentForm("name", event.target.value)} required /></label>
+            <label className="field">E-mail<Input type="email" value={studentForm.email} onChange={(event) => updateStudentForm("email", event.target.value)} /></label>
+            <label className="field">WhatsApp do aluno<Input value={studentForm.phone} onChange={(event) => updateStudentForm("phone", event.target.value)} /></label>
+            <label className="field">Observação<Input value={studentForm.local_note} onChange={(event) => updateStudentForm("local_note", event.target.value)} /></label>
+          </div>
+          <h3>Contato do responsável</h3>
+          <div className="form-grid">
+            <label className="field">Nome<Input value={studentForm.guardian_name} onChange={(event) => updateStudentForm("guardian_name", event.target.value)} /></label>
+            <label className="field">Parentesco<Input value={studentForm.guardian_relationship} onChange={(event) => updateStudentForm("guardian_relationship", event.target.value)} /></label>
+            <label className="field">WhatsApp<Input value={studentForm.guardian_phone} onChange={(event) => updateStudentForm("guardian_phone", event.target.value)} /></label>
+            <label className="field">Observação<Input value={studentForm.guardian_note} onChange={(event) => updateStudentForm("guardian_note", event.target.value)} /></label>
+          </div>
+          <div className="form-actions">
+            <Button type="submit" disabled={busy}>{busy ? "Salvando…" : "Salvar dados locais"}</Button>
+            <button className="button button-ghost" type="button" onClick={() => selectedStudent && openContact(selectedStudent)} disabled={!studentForm.guardian_phone && !studentForm.phone}>{studentForm.guardian_phone ? "WhatsApp responsável" : "WhatsApp aluno"}</button>
+            {selectedStudent?.profile_url && <a className="button button-ghost" href={selectedStudent.profile_url} target="_blank" rel="noreferrer">Abrir perfil</a>}
+          </div>
+        </form>}
+      </Modal>
+
+      <Modal open={Boolean(contactStudent)} title={contactLabel} onClose={() => setContactStudent(null)}>
+        <div className="form management-form">
+          <p className="muted">Revise a mensagem antes de abrir o WhatsApp.</p>
+          <label className="field">Mensagem<textarea className="input" rows={6} value={message} onChange={(event) => setMessage(event.target.value)} /></label>
+          {contactLink ? <a className="button button-primary" href={contactLink} target="_blank" rel="noreferrer">Abrir conversa</a> : <p className="form-error">Cadastre um número de WhatsApp para continuar.</p>}
+        </div>
+      </Modal>
+
+      <section className="panel">
+        <div className="section-heading"><div><p className="eyebrow">Central pedagógica</p><h2>Turmas e alunos</h2></div><Button type="button" onClick={() => setSyncOpen(true)}>Sincronizar</Button></div>
+        <div className="toolbar"><Input placeholder="Buscar turma ou aluno" value={query} onChange={(event) => setQuery(event.target.value)} /><select className="input" value={selectedGroup} onChange={(event) => setSelectedGroup(event.target.value)}><option value="">Todas as turmas</option>{groups.map((group) => <option value={group.external_id} key={group.id}>{group.title}</option>)}</select></div>
+        {error && <p className="form-error" role="alert">{error}</p>}
+      </section>
+
+      {loading ? <section className="panel"><p className="muted">Carregando…</p></section> : <>
+        <section className="panel">
+          <div className="section-heading"><h2>Turmas</h2><span className="muted">{groups.length}</span></div>
+          {groups.length === 0 ? <p className="muted">Nenhuma turma sincronizada.</p> : <div className="entity-list">{groups.filter((group) => !selectedGroup || group.external_id === selectedGroup).filter((group) => !query.trim() || group.title.toLowerCase().includes(query.trim().toLowerCase()) || group.course_name.toLowerCase().includes(query.trim().toLowerCase())).map((group) => <article className="entity-card" key={group.id}><div><div className="entity-title"><h3>{group.title}</h3><StatusBadge tone={group.archived ? "neutral" : "success"}>{group.archived ? "Arquivada" : "Ativa"}</StatusBadge></div><p className="entity-details">{group.course_name || "Curso não informado"}</p><p className="muted">{studentCountByGroup(group.external_id)} aluno(s) · Próxima aula: {formatDate(group.next_lesson_date)}</p></div></article>)}</div>}
+        </section>
+        <section className="panel">
+          <div className="section-heading"><h2>Alunos</h2><span className="muted">{visibleStudents.length}</span></div>
+          {visibleStudents.length === 0 ? <p className="muted">Nenhum aluno encontrado.</p> : <div className="entity-list">{visibleStudents.map((student) => <article className="entity-card" key={student.id}><div><div className="entity-title"><h3>{student.name}</h3><StatusBadge tone={student.status.toLowerCase().includes("active") ? "success" : "neutral"}>{student.status || "Sem status"}</StatusBadge></div><p className="entity-details">{student.external_class_name || "Turma não informada"} · {student.progress_summary || "Progresso não informado"}</p>{student.guardian_name && <p className="muted">Responsável: {student.guardian_name}{student.guardian_relationship ? ` (${student.guardian_relationship})` : ""}</p>}</div><div className="card-actions"><button className="button button-ghost" type="button" onClick={() => openContact(student)} disabled={!student.guardian_phone && !student.phone}>{student.guardian_phone ? "WhatsApp responsável" : "WhatsApp aluno"}</button><button className="button button-primary" type="button" onClick={() => openStudent(student)}>Detalhes</button></div></article>)}</div>}
+        </section>
+      </>}
+    </div>
+  );
 }
-export default function KodlandPage() { return <AuthGuard>{(user) => <Shell user={user}><Center /></Shell>}</AuthGuard>; }
+
+export default function KodlandPage() {
+  return <AuthGuard>{(user) => <Shell user={user}><KodlandContent /></Shell>}</AuthGuard>;
+}

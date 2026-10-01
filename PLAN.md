@@ -455,3 +455,14 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Estado: implementação do código concluída; o backend Python está fora do
   caminho web, mas permanece como ferramenta de migração até a conferência dos
   dados no projeto Firebase.
+
+### R6 - Centralizacao de turmas e acompanhamento pedagogico
+
+- Concluido: a tela pedagogica duplicada saiu da navegacao; a rota antiga
+  redireciona para Turmas.
+- Concluido: cada turma abre em acordeao com alunos, progresso, contato do
+  responsavel, WhatsApp, perfil, aula anterior/proxima e materiais.
+- Concluido: o estilo de barra lateral responsiva foi restaurado, mantendo o
+  titulo centralizado no cabecalho.
+- Verificado: typecheck, lint, testes, build e diff check passam. Publicar e
+  validar o acordeao no alias de producao e o proximo passo.

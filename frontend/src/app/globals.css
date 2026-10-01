@@ -197,7 +197,30 @@ select:focus-visible {
   text-align: center;
 }
 .app-shell {
+  display: grid;
   min-height: 100vh;
+  grid-template-columns: 258px minmax(0, 1fr);
+}
+.sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  height: 100vh;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  padding: 28px 16px 18px;
+  background: linear-gradient(180deg, #0a1221, #070d19);
+}
+.sidebar-caption {
+  margin: 37px 12px 11px;
+  color: var(--subtle);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+.nav {
+  display: grid;
+  gap: 6px;
 }
 .nav-link {
   display: flex;
@@ -247,6 +270,11 @@ select:focus-visible {
   background: rgb(255 123 137 / 9%);
   color: #ffabb4;
 }
+.sidebar-bottom {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+}
 .shell-main {
   min-width: 0;
 }
@@ -260,29 +288,15 @@ select:focus-visible {
   background: rgb(5 9 20 / 70%);
   backdrop-filter: blur(16px);
 }
-.top-nav {
-  border-bottom: 1px solid rgb(33 59 95 / 70%);
-  padding: 0 clamp(22px, 4vw, 56px);
-  background: rgb(5 9 20 / 72%);
-  backdrop-filter: blur(16px);
+.header-greeting {
+  min-width: 0;
 }
-.top-nav-links {
-  display: flex;
-  max-width: 1280px;
-  min-height: 56px;
-  align-items: center;
-  gap: 6px;
-  margin: 0 auto;
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-.top-nav .nav-link {
-  flex: 0 0 auto;
-  min-height: 38px;
-  padding: 8px 12px;
-}
-.top-nav .nav-link-active {
-  box-shadow: inset 0 -3px var(--primary);
+.header-kicker {
+  margin-bottom: 3px;
+  color: var(--primary);
+  font-size: 0.6rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
 }
 .shell-title {
   grid-column: 2;
@@ -314,14 +328,13 @@ select:focus-visible {
   color: var(--primary);
   font-weight: 900;
 }
-.profile-name {
-  display: inline-block;
-  max-width: 160px;
+.profile-chip small {
+  max-width: 190px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
 }
 .page-content {
@@ -762,6 +775,119 @@ select:focus-visible {
   color: #c6d7ed;
   font-size: 0.84rem;
 }
+.accordion-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+.group-accordion {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #0b172a;
+}
+.group-accordion-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px 18px;
+  cursor: pointer;
+  list-style: none;
+}
+.group-accordion-summary::-webkit-details-marker {
+  display: none;
+}
+.group-accordion-summary > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+.group-accordion-summary small,
+.student-row > div:first-child span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.group-summary-meta,
+.group-facts,
+.lesson-materials,
+.student-list-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.group-summary-meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.group-accordion[open] .group-accordion-summary {
+  border-bottom: 1px solid var(--border);
+  background: #10213a;
+}
+.group-accordion-body {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+}
+.group-facts {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+.lesson-materials {
+  display: grid;
+  gap: 9px;
+}
+.lesson-material-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #1d3556;
+  border-radius: 12px;
+  padding: 12px;
+  background: #091326;
+}
+.lesson-material-card > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+.lesson-material-card span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.button-small {
+  padding: 8px 10px;
+  font-size: 0.75rem;
+}
+.student-list-heading {
+  justify-content: space-between;
+  border-top: 1px solid rgb(33 59 95 / 55%);
+  padding-top: 14px;
+}
+.student-list-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.student-list {
+  display: grid;
+  gap: 8px;
+}
+.student-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid rgb(33 59 95 / 55%);
+  padding: 12px 0 0;
+}
+.student-row > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
 .card-actions {
   display: flex;
   flex-shrink: 0;
@@ -814,27 +940,59 @@ select:focus-visible {
 @media (max-width: 720px) {
   .app-shell {
     display: block;
+    padding-bottom: 70px;
+  }
+  .sidebar {
+    position: fixed;
+    z-index: 20;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    height: 64px;
+    display: block;
+    overflow-x: auto;
+    border-top: 1px solid var(--border);
+    border-right: 0;
+    padding: 6px 4px;
+    background: #091222;
+  }
+  .sidebar > .brand,
+  .sidebar-caption,
+  .sidebar-bottom {
+    display: none;
+  }
+  .nav {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(74px, 1fr));
+    height: 100%;
+    gap: 2px;
   }
   .shell-header {
     min-height: 68px;
     padding: 12px 18px;
   }
-  .profile-name {
+  .profile-chip small {
     display: none;
+  }
+  .header-greeting strong {
+    font-size: 0.9rem;
   }
   .shell-title {
     font-size: 0.96rem;
   }
-  .top-nav {
-    padding: 0 12px;
+  .nav-link {
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    border-radius: 10px;
+    padding: 4px;
+    font-size: 0.65rem;
+    text-align: center;
   }
-  .top-nav-links {
-    min-height: 52px;
-    gap: 4px;
-  }
-  .top-nav .nav-link {
-    padding: 7px 10px;
-    font-size: 0.78rem;
+  .nav-link > span:first-child {
+    height: 18px;
+    font-size: 1rem;
   }
   .page-content {
     padding: 26px 17px;
@@ -893,6 +1051,17 @@ select:focus-visible {
   .card-actions .button,
   .form-actions .button {
     width: auto;
+  }
+  .group-accordion-summary,
+  .student-row,
+  .lesson-material-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .group-summary-meta,
+  .lesson-material-card .card-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
   .auth-card {
     padding: 28px 24px;

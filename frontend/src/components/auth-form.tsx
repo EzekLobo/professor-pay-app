@@ -1,3 +1,64 @@
 "use client";
-import Link from "next/link"; import { useRouter, useSearchParams } from "next/navigation"; import { FormEvent, useState } from "react"; import { FirebaseError } from "firebase/app"; import { registerWithFirebase, loginWithFirebase } from "@/lib/firebase-auth"; import { Button, Input } from "@/components/ui";
-export function AuthForm({ mode }: { mode: "login" | "register" }) { const router = useRouter(); const searchParams = useSearchParams(); const [error, setError] = useState<string>(); const [submitting, setSubmitting] = useState(false); const isRegister = mode === "register"; async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setError(undefined); setSubmitting(true); const data = new FormData(event.currentTarget); const email = String(data.get("email")); const password = String(data.get("password")); try { if (isRegister) await registerWithFirebase(String(data.get("name")), email, password); else await loginWithFirebase(email, password); router.replace(searchParams.get("next")?.startsWith("/") ? searchParams.get("next")! : "/dashboard"); } catch (cause) { const code = cause instanceof FirebaseError ? cause.code : ""; setError(code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password" ? "E-mail ou senha inválidos." : code === "auth/email-already-in-use" ? "Este e-mail já está cadastrado." : code === "auth/weak-password" ? "A senha precisa ter pelo menos 6 caracteres." : "Não foi possível entrar agora. Tente novamente."); } finally { setSubmitting(false); } } return <main className="auth-page"><section className="auth-card"><Link href="/login" className="brand"><span className="brand-mark">A</span>AulaPay</Link><h1>{isRegister ? "Crie sua conta" : "Bem-vindo de volta"}</h1><p className="muted">{isRegister ? "Comece a organizar suas aulas e recebimentos." : "Entre para acompanhar sua vida financeira."}</p><form className="form" onSubmit={submit}>{isRegister && <label className="field">Nome<Input name="name" required autoComplete="name" maxLength={120} /></label>}<label className="field">E-mail<Input name="email" type="email" required autoComplete="email" /></label><label className="field">Senha<Input name="password" type="password" required minLength={isRegister ? 12 : 1} autoComplete={isRegister ? "new-password" : "current-password"} />{isRegister && <small>Use pelo menos 12 caracteres.</small>}</label>{error && <p className="form-error" role="alert">{error}</p>}<Button type="submit" disabled={submitting}>{submitting ? "Aguarde…" : isRegister ? "Criar conta" : "Entrar"}</Button></form><p className="auth-footer">{isRegister ? "Já tem uma conta?" : "Ainda não tem conta?"} <Link className="text-link" href={isRegister ? "/login" : "/register"}>{isRegister ? "Entrar" : "Criar conta"}</Link></p></section></main>; }
+
+import { FirebaseError } from "firebase/app";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { type FormEvent, useState } from "react";
+import { Button, Input } from "@/components/ui";
+import { loginWithFirebase } from "@/lib/firebase-auth";
+
+export function AuthForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [error, setError] = useState<string>();
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(undefined);
+    setSubmitting(true);
+
+    const data = new FormData(event.currentTarget);
+    const email = String(data.get("email"));
+    const password = String(data.get("password"));
+
+    try {
+      await loginWithFirebase(email, password);
+      router.replace(searchParams.get("next")?.startsWith("/") ? searchParams.get("next")! : "/dashboard");
+    } catch (cause) {
+      const code = cause instanceof FirebaseError ? cause.code : "";
+      setError(
+        code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password"
+          ? "E-mail ou senha inválidos."
+          : "Não foi possível entrar agora. Tente novamente.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="auth-page">
+      <section className="auth-card">
+        <Link href="/login" className="brand">
+          <span className="brand-mark">A</span>AulaPay
+        </Link>
+        <h1>Bem-vindo de volta</h1>
+        <p className="muted">Entre para acompanhar sua vida financeira.</p>
+        <form className="form" onSubmit={submit}>
+          <label className="field">
+            E-mail
+            <Input name="email" type="email" required autoComplete="email" />
+          </label>
+          <label className="field">
+            Senha
+            <Input name="password" type="password" required autoComplete="current-password" />
+          </label>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <Button type="submit" disabled={submitting}>{submitting ? "Aguarde…" : "Entrar"}</Button>
+        </form>
+        <p className="auth-footer">O acesso é liberado pelo administrador.</p>
+      </section>
+    </main>
+  );
+}

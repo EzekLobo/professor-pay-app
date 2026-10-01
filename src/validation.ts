@@ -2,7 +2,6 @@ import { isValidIsoDate } from './calculations';
 
 export type ClassFormInput = {
   name: string;
-  weekDay: string;
   time: string;
   firstLesson: string;
   lessonCount: string;
@@ -23,7 +22,6 @@ export function parseDecimal(value: string) {
 
 export function validateClassForm(input: ClassFormInput): string | null {
   if (!input.name.trim()) return 'Informe o nome da turma.';
-  if (!input.weekDay.trim()) return 'Informe o dia da semana.';
   if (!input.time.trim()) return 'Informe o horário.';
   if (!isValidIsoDate(input.firstLesson)) return 'Informe uma data de início válida no formato AAAA-MM-DD.';
   if (!Number.isInteger(Number(input.lessonCount)) || Number(input.lessonCount) < 1) return 'Informe uma quantidade de aulas válida.';

@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { DashboardResponse } from "@/lib/api";
 import { DashboardContent } from "./dashboard-content";
 
+vi.mock("next/link", () => ({
+  default: ({ href, children }: { href: string; children: unknown }) => <a href={href}>{children}</a>,
+}));
+
 const dashboard: DashboardResponse = {
   today: "2026-09-29", earned_cents: 123450, received_cents: 50000, normal_lessons: 8, extra_lessons: 2,
   normal_earned_cents: 100000, extra_earned_cents: 23450, planned_cents: 15000, future_lessons: 1,

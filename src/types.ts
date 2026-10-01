@@ -36,6 +36,72 @@ export type PaymentConfirmation = {
   note: string;
 };
 
+export type StudentRecord = {
+  id: string;
+  externalId: string;
+  name: string;
+  email: string;
+  phone: string;
+  status: string;
+  progressSummary: string;
+  profileUrl: string;
+  localNote: string;
+  locallyEdited: boolean;
+  deletedAt: string;
+  primaryClassId: string | null;
+  rawDataJson: string;
+  updatedAt: string;
+};
+
+export type KodlandGroupRecord = {
+  externalId: string;
+  title: string;
+  courseName: string;
+  studentCount: number;
+  startDate: string;
+  nextLessonDate: string;
+  archived: boolean;
+  rawDataJson: string;
+  localClassId: string | null;
+  confirmed: boolean;
+  updatedAt: string;
+};
+
+export type ClassStudentRecord = {
+  classId: string;
+  studentId: string;
+  externalClassId: string;
+  externalClassName: string;
+  confirmed: boolean;
+  updatedAt: string;
+};
+
+export type StudentWithClass = StudentRecord & {
+  classId: string | null;
+  externalClassId: string | null;
+  externalClassName: string | null;
+  confirmed: boolean;
+};
+
+export type PendingReviewRecord = {
+  id: string;
+  externalClassId: string;
+  externalClassName: string;
+  externalStudentId: string;
+  studentName: string;
+  lessonId: string;
+  lessonNumber: number;
+  lessonTitle: string;
+  moduleNumber: string;
+  taskId: string;
+  taskNumber: number;
+  taskTitle: string;
+  statusKey: string;
+  statusLabel: string;
+  correctionUrl: string;
+  updatedAt: string;
+};
+
 export type LessonView = LessonRecord & {
   period: string;
   paymentDate: string;

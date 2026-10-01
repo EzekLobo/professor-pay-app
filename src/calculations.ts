@@ -1,8 +1,18 @@
 import { ClassProgress, ClassRecord, DashboardData, LessonRecord, LessonView, PaymentConfirmation, PaymentView } from './types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const weekDayLabels = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 export type LessonFilter = 'Todas' | 'Turmas' | 'Extras';
+
+export type ClassLessonHistoryGroup = {
+  classId: string;
+  className: string;
+  lessons: LessonView[];
+  lessonCount: number;
+  total: number;
+  latestLessonDate: string;
+};
 
 export function todayIso() {
   const now = new Date();
@@ -21,6 +31,11 @@ export function parseIsoDate(value: string) {
   return new Date(year, month - 1, day);
 }
 
+export function toPickerDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 12));
+}
+
 export function isValidIsoDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
@@ -31,9 +46,37 @@ export function isValidIsoDate(value: string) {
 }
 
 export function addDays(value: string, days: number) {
-  const date = parseIsoDate(value);
-  date.setDate(date.getDate() + days);
-  return toIsoDate(date);
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return toUtcIsoDate(date);
+}
+
+export function fromPickerDate(date: Date) {
+  const isUtcMidnight =
+    date.getUTCHours() === 0 &&
+    date.getUTCMinutes() === 0 &&
+    date.getUTCSeconds() === 0 &&
+    date.getUTCMilliseconds() === 0;
+  return isUtcMidnight ? toUtcIsoDate(date) : toIsoDate(date);
+}
+
+export function toPickerIsoDate(date: Date) {
+  return fromPickerDate(date);
+}
+
+function toUtcIsoDate(date: Date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getWeekDayLabel(value: string) {
+  return weekDayLabels[parseIsoDate(value).getDay()];
+}
+
+export function isIsoDateOnWeekDay(value: string, weekDay: string) {
+  return getWeekDayLabel(value) === weekDay;
 }
 
 function nextMonthDate(value: string, day: 1 | 15) {
@@ -211,6 +254,32 @@ export function filterLessonHistoryByKind(lessons: LessonView[], filter: LessonF
   return filterLessonsByKind(lessons, filter)
     .filter((lesson) => lesson.lessonDate <= today)
     .sort((a, b) => b.lessonDate.localeCompare(a.lessonDate));
+}
+
+export function groupClassLessonHistory(lessons: LessonView[]): ClassLessonHistoryGroup[] {
+  const groups = new Map<string, LessonView[]>();
+  lessons
+    .filter((lesson) => lesson.type === 'Normal')
+    .forEach((lesson) => {
+      const key = lesson.classId ?? lesson.className;
+      const group = groups.get(key) ?? [];
+      group.push(lesson);
+      groups.set(key, group);
+    });
+
+  return [...groups.entries()]
+    .map(([classId, group]) => {
+      const ordered = [...group].sort((a, b) => b.lessonDate.localeCompare(a.lessonDate));
+      return {
+        classId,
+        className: ordered[0]?.className ?? '',
+        lessons: ordered,
+        lessonCount: ordered.length,
+        total: sumLessons(ordered),
+        latestLessonDate: ordered[0]?.lessonDate ?? '',
+      };
+    })
+    .sort((a, b) => b.latestLessonDate.localeCompare(a.latestLessonDate) || a.className.localeCompare(b.className, 'pt-BR', { sensitivity: 'base' }));
 }
 
 export function relevantPayments(payments: PaymentView[], today: string) {

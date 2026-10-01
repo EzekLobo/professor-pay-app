@@ -16,6 +16,10 @@ export type LessonFilters = { type?: "NORMAL" | "EXTRA"; status?: "ACTIVE" | "CA
 export type PaymentDetail = DashboardPayment & { received_at: string | null; confirmation_note: string | null };
 export type ImportReport = { export_id: string; already_imported: boolean; class_count: number; lesson_count: number; payment_confirmation_count: number; total_cents: number; imported_at: string | null };
 export type DataExport = { schema_version: "1.0"; exported_at: string; user: User; classes: unknown[]; lessons: unknown[]; payment_confirmations: unknown[] };
+export type KodlandGroup = { id: string; external_id: string; title: string; course_name: string; student_count: number; start_date: string; next_lesson_date: string; archived: boolean; local_class_id: string | null; created_at: string };
+export type KodlandStudent = { id: string; external_id: string; name: string; email: string; phone: string; status: string; progress_summary: string; profile_url: string; external_class_id: string; external_class_name: string; local_note: string; hidden: boolean; created_at: string };
+export type KodlandReview = { id: string; external_class_id: string; external_class_name: string; external_student_id: string; student_name: string; lesson_id: string; lesson_number: number; lesson_title: string; module_number: string; task_id: string; task_number: number; task_title: string; status_key: string; status_label: string; correction_url: string; created_at: string };
+type KodlandSnapshot = { groups: Omit<KodlandGroup, "id" | "local_class_id" | "created_at">[]; students: Omit<KodlandStudent, "local_note" | "hidden" | "created_at">[]; reviews: Omit<KodlandReview, "created_at">[] };
 export class ApiError extends Error { constructor(public readonly status: number, message: string) { super(message); } }
 
 type Row = { id: string } & Record<string, unknown>;
@@ -96,10 +100,35 @@ export const lessonsApi = {
 };
 const paymentDetail = async (date: string): Promise<PaymentDetail> => { const dashboard = await dashboardApi.get(); const payment = dashboard.payments.find((item) => item.payment_date === date); if (!payment) throw new ApiError(404, "Pagamento não encontrado."); const confirmation = (await rows("payments")).find((item) => item.payment_date === date); return { ...payment, received_at: confirmation ? String(confirmation.received_at) : null, confirmation_note: confirmation ? String(confirmation.note ?? "") : null }; };
 export const paymentsApi = { list: async () => { const items = (await dashboardApi.get()).payments; return { items, total: items.length }; }, get: paymentDetail, confirm: async (date: string, note = "") => { const payment = await paymentDetail(date); await setDoc(doc(ref("payments"), date), { payment_date: date, received_at: now(), note, created_at: now() }); return { payment: { ...payment, status: "RECEIVED" }, received_at: now(), note }; }, reverse: async (date: string) => { await deleteDoc(doc(ref("payments"), date)); } };
+export const kodlandApi = {
+  groups: async () => ({ items: (await rows("kodland_groups")) as unknown as KodlandGroup[] }),
+  students: async () => ({ items: ((await rows("kodland_students")).filter((item) => !item.hidden) as unknown as KodlandStudent[]) }),
+  reviews: async () => ({ items: (await rows("kodland_reviews")) as unknown as KodlandReview[] }),
+  sync: async (username: string, password: string) => {
+    const token = await (authUser() as unknown as { getIdToken: () => Promise<string> }).getIdToken();
+    const response = await fetch("/api/kodland/sync", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ username, password }) });
+    const snapshot = await response.json() as KodlandSnapshot & { message?: string };
+    if (!response.ok) throw new ApiError(response.status, snapshot.message ?? "Não foi possível sincronizar com a Kodland.");
+    const createdAt = now();
+    const oldGroups = await rows("kodland_groups");
+    const links = new Map(oldGroups.map((item) => [String(item.external_id), item.local_class_id ?? null]));
+    const oldReviews = await rows("kodland_reviews");
+    const batch = writeBatch(getFirebaseDb());
+    oldReviews.forEach((item) => batch.delete(doc(ref("kodland_reviews"), String(item.id))));
+    snapshot.groups.forEach((item) => batch.set(doc(ref("kodland_groups"), item.external_id), { ...item, id: item.external_id, local_class_id: links.get(item.external_id) ?? null, created_at: createdAt }));
+    snapshot.students.forEach((item) => batch.set(doc(ref("kodland_students"), item.id), { ...item, local_note: "", hidden: false, created_at: createdAt }));
+    snapshot.reviews.forEach((item) => batch.set(doc(ref("kodland_reviews"), item.id), { ...item, created_at: createdAt }));
+    await batch.commit();
+    return { group_count: snapshot.groups.length, student_count: snapshot.students.length, review_count: snapshot.reviews.length };
+  },
+  linkGroup: async (externalId: string, localClassId: string | null) => { await updateDoc(doc(ref("kodland_groups"), externalId), { local_class_id: localClassId, updated_at: now() }); },
+  updateStudent: async (id: string, payload: Partial<Pick<KodlandStudent, "name" | "email" | "phone" | "status" | "profile_url" | "local_note">>) => { await updateDoc(doc(ref("kodland_students"), id), { ...payload, updated_at: now() }); },
+  hideStudent: async (id: string) => { await updateDoc(doc(ref("kodland_students"), id), { hidden: true, updated_at: now() }); },
+};
 export const dataApi = {
   export: async (): Promise<DataExport> => ({ schema_version: "1.0", exported_at: now(), user: await authApi.me(), classes: await rows("classes"), lessons: await rows("lessons"), payment_confirmations: await rows("payments") }),
   previewImport: async (payload: unknown): Promise<ImportReport> => { const value = payload as ImportPayload; const exportId = String(value.export_id ?? value.exportId ?? value.exported_at ?? value.exportedAt ?? crypto.randomUUID()); const imported = await getDoc(doc(ref("imports"), exportId)); const classes = importRows(value, "classes"); const lessons = importRows(value, "lessons"); const payments = importRows(value, "payments"); return { export_id: exportId, already_imported: imported.exists(), class_count: classes.length, lesson_count: lessons.length, payment_confirmation_count: payments.length, total_cents: lessons.reduce((total, lesson) => total + cents(lesson), 0), imported_at: imported.data()?.imported_at ? String(imported.data()?.imported_at) : null }; },
   import: async (payload: unknown): Promise<ImportReport> => { const value = payload as ImportPayload; const preview = await dataApi.previewImport(value); if (preview.already_imported) return preview; const batch = writeBatch(getFirebaseDb()); importRows(value, "classes").forEach((item) => batch.set(doc(ref("classes"), String(item.id)), item)); importRows(value, "lessons").forEach((item) => batch.set(doc(ref("lessons"), String(item.id)), item)); importRows(value, "payments").forEach((item) => batch.set(doc(ref("payments"), String(item.id)), item)); batch.set(doc(ref("imports"), preview.export_id), { imported_at: now(), created_at: now() }); await batch.commit(); return { ...preview, imported_at: now() }; },
-  reset: async (password: string) => { if (!password) throw new ApiError(400, "Informe sua senha para confirmar."); await reauthenticateWithFirebase(password); const batch = writeBatch(getFirebaseDb()); for (const name of ["classes", "lessons", "payments", "imports"]) (await rows(name)).forEach((item) => batch.delete(doc(ref(name), String(item.id)))); await batch.commit(); },
+  reset: async (password: string) => { if (!password) throw new ApiError(400, "Informe sua senha para confirmar."); await reauthenticateWithFirebase(password); const batch = writeBatch(getFirebaseDb()); for (const name of ["classes", "lessons", "payments", "imports", "kodland_groups", "kodland_students", "kodland_reviews"]) (await rows(name)).forEach((item) => batch.delete(doc(ref(name), String(item.id)))); await batch.commit(); },
 };
 export const __test = { period, paymentDate, normalizeClass, normalizeLesson, normalizePayment };

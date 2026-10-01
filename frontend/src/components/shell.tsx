@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
-import { navigation, utilityNavigation } from "@/lib/routes";
+import { correctionsNavigation, kodlandNavigation, navigation, utilityNavigation } from "@/lib/routes";
 
 export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pathname = usePathname();
@@ -26,7 +26,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
           {navigation.map((item) => <Link className={`nav-link${isActive(item.href) ? " nav-link-active" : ""}`} href={item.href} key={item.href}><span aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>)}
         </nav>
         <div className="sidebar-bottom">
-          <Link className={`nav-link utility-link${isActive(utilityNavigation.href) ? " nav-link-active" : ""}`} href={utilityNavigation.href}><span aria-hidden="true">{utilityNavigation.icon}</span><span>{utilityNavigation.label}</span></Link>
+          {[correctionsNavigation, kodlandNavigation, utilityNavigation].map((item) => <Link className={`nav-link utility-link${isActive(item.href) ? " nav-link-active" : ""}`} href={item.href} key={item.href}><span aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>)}
           <button className="logout-button" onClick={logout}><span aria-hidden="true">↗</span> Sair</button>
         </div>
       </aside>

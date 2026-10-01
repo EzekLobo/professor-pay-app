@@ -8,6 +8,8 @@
   "dependencies": {
     "@expo/ui": "~56.0.14",
     "expo": "~56.0.5",
+    "expo-clipboard": "~56.0.3",
+    "expo-secure-store": "~56.0.4",
     "expo-sqlite": "^56.0.4",
     "expo-status-bar": "~56.0.4",
     "lucide-react-native": "^1.16.0",
@@ -27,6 +29,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "apk": "powershell -ExecutionPolicy Bypass -File ./scripts/build-apk.ps1",
+    "apk:install": "powershell -ExecutionPolicy Bypass -File ./scripts/build-apk.ps1 -InstallEmulator",
     "test": "vitest run",
     "test:watch": "vitest",
     "web:dev": "npm run dev --workspace=@aulapay/web",

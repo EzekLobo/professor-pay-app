@@ -1,0 +1,17 @@
+{
+  "cli": {
+    "version": ">= 19.1.0"
+  },
+  "build": {
+    "apk": {
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "apk-debug": {
+      "android": {
+        "gradleCommand": ":app:assembleDebug"
+      }
+    }
+  }
+}

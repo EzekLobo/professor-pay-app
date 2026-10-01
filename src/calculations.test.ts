@@ -3,12 +3,18 @@ import {
   buildDashboard,
   filterLessonHistoryByKind,
   filterLessonsByKind,
+  fromPickerDate,
   generateLessonsForClass,
   getLessonValue,
   getPaymentDate,
   getPeriod,
+  getWeekDayLabel,
+  groupClassLessonHistory,
+  isIsoDateOnWeekDay,
   isValidIsoDate,
   relevantPayments,
+  toPickerDate,
+  toPickerIsoDate,
 } from './calculations';
 import { sampleClasses, sampleExtraLessons } from './sampleData';
 import { ClassRecord, LessonRecord, PaymentConfirmation } from './types';
@@ -62,8 +68,52 @@ describe('lesson generation', () => {
     expect(lessons[1].lessonDate).toBe('2026-05-11');
   });
 
+  it('adds lessons in seven-day steps that keep the same weekday', () => {
+    const lessons = generateLessonsForClass({ ...baseClass, firstLesson: '2026-04-20', lessonCount: 3 });
+
+    expect(lessons.map((item) => item.lessonDate)).toEqual(['2026-04-20', '2026-04-27', '2026-05-04']);
+    expect(lessons.every((item) => getWeekDayLabel(item.lessonDate) === 'Segunda')).toBe(true);
+  });
+
   it('generates one lesson when lesson count is one', () => {
     expect(generateLessonsForClass({ ...baseClass, lessonCount: 1 })).toHaveLength(1);
+  });
+});
+
+describe('weekday helpers', () => {
+  it('identifies the weekday for ISO dates', () => {
+    expect(getWeekDayLabel('2026-04-19')).toBe('Domingo');
+    expect(getWeekDayLabel('2026-04-20')).toBe('Segunda');
+  });
+
+  it('checks whether an ISO date falls on the selected weekday', () => {
+    expect(isIsoDateOnWeekDay('2026-04-20', 'Segunda')).toBe(true);
+    expect(isIsoDateOnWeekDay('2026-04-19', 'Segunda')).toBe(false);
+  });
+
+  it('keeps picker UTC-midnight dates on the selected calendar day', () => {
+    expect(toPickerIsoDate(new Date('2026-04-20T00:00:00.000Z'))).toBe('2026-04-20');
+  });
+
+  it('keeps UTC-midnight picker selections on the selected calendar day', () => {
+    expect(fromPickerDate(new Date('2026-05-20T00:00:00.000Z'))).toBe('2026-05-20');
+  });
+
+  it('keeps local picker selections on the selected calendar day', () => {
+    expect(fromPickerDate(new Date(2026, 4, 20))).toBe('2026-05-20');
+  });
+
+  it('sends picker dates at a safe time on the requested calendar day', () => {
+    const date = toPickerDate('2026-05-20');
+
+    expect(date.getUTCFullYear()).toBe(2026);
+    expect(date.getUTCMonth()).toBe(4);
+    expect(date.getUTCDate()).toBe(20);
+    expect(date.getUTCHours()).toBe(12);
+  });
+
+  it('derives the class weekday from the selected start date', () => {
+    expect(getWeekDayLabel('2026-05-20')).toBe('Quarta');
   });
 });
 
@@ -173,6 +223,27 @@ describe('money and dashboard calculations', () => {
     expect(filterLessonHistoryByKind(dashboard.lessons, 'Todas', dashboard.today).map((item) => item.id)).toEqual(['past-new', 'past-old']);
     expect(filterLessonHistoryByKind(dashboard.lessons, 'Turmas', dashboard.today).map((item) => item.id)).toEqual(['past-old']);
     expect(filterLessonHistoryByKind(dashboard.lessons, 'Extras', dashboard.today).map((item) => item.id)).toEqual(['past-new']);
+  });
+
+  it('groups class lesson history by class with newest class first', () => {
+    const dashboard = buildDashboard(
+      [baseClass, { ...baseClass, id: 'class-2', name: 'Quinta 20h' }],
+      [
+        lesson({ id: 'a-old', classId: 'class-1', className: 'Segunda 19h', type: 'Normal', lessonDate: '2026-05-04', durationHours: 2, hourlyRate: 30 }),
+        lesson({ id: 'b-new', classId: 'class-2', className: 'Quinta 20h', type: 'Normal', lessonDate: '2026-05-12', durationHours: 1, hourlyRate: 40 }),
+        lesson({ id: 'a-new', classId: 'class-1', className: 'Segunda 19h', type: 'Normal', lessonDate: '2026-05-10', durationHours: 1.5, hourlyRate: 30 }),
+        lesson({ id: 'extra', classId: null, className: 'Extra', type: 'Extra', lessonDate: '2026-05-11' }),
+      ],
+      [],
+      '2026-05-20',
+    );
+
+    const groups = groupClassLessonHistory(filterLessonHistoryByKind(dashboard.lessons, 'Turmas', dashboard.today));
+
+    expect(groups.map((group) => group.className)).toEqual(['Quinta 20h', 'Segunda 19h']);
+    expect(groups[0]).toMatchObject({ lessonCount: 1, latestLessonDate: '2026-05-12', total: 40 });
+    expect(groups[1]).toMatchObject({ lessonCount: 2, latestLessonDate: '2026-05-10', total: 105 });
+    expect(groups[1].lessons.map((item) => item.id)).toEqual(['a-new', 'a-old']);
   });
 
   it('keeps only current payment history and the next future payment visible', () => {

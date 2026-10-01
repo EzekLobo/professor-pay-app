@@ -1,19 +1,22 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 export function Modal({
   open,
   title,
   onClose,
   children,
+  className = "",
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
+  className?: string;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -25,8 +28,8 @@ export function Modal({
   return (
     <dialog
       ref={dialogRef}
-      className="modal-dialog"
-      aria-labelledby="modal-title"
+      className={`modal-dialog ${className}`.trim()}
+      aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -36,7 +39,7 @@ export function Modal({
       }}
     >
       <div className="modal-heading">
-        <h2 id="modal-title">{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button className="button button-ghost" type="button" onClick={onClose}>
           Fechar
         </button>

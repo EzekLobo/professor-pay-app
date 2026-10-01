@@ -22,6 +22,7 @@ const initialStudent = (student: KodlandStudent) => ({
   guardian_name: student.guardian_name,
   guardian_relationship: student.guardian_relationship,
   guardian_phone: student.guardian_phone,
+  guardian_email: student.guardian_email,
   guardian_note: student.guardian_note,
 });
 
@@ -135,22 +136,36 @@ function KodlandContent() {
         </form>
       </Modal>
 
-      <Modal open={Boolean(selectedStudent)} title={selectedStudent?.name || "Aluno"} onClose={() => setSelectedStudent(null)}>
-        {studentForm && <form className="form management-form" onSubmit={saveStudent}>
-          <div className="form-grid">
-            <label className="field">Nome<Input value={studentForm.name} onChange={(event) => updateStudentForm("name", event.target.value)} required /></label>
-            <label className="field">E-mail<Input type="email" value={studentForm.email} onChange={(event) => updateStudentForm("email", event.target.value)} /></label>
-            <label className="field">WhatsApp do aluno<Input value={studentForm.phone} onChange={(event) => updateStudentForm("phone", event.target.value)} /></label>
-            <label className="field">Observação<Input value={studentForm.local_note} onChange={(event) => updateStudentForm("local_note", event.target.value)} /></label>
+      <Modal open={Boolean(selectedStudent)} title={selectedStudent?.name || "Aluno"} className="student-modal" onClose={() => setSelectedStudent(null)}>
+        {studentForm && <form className="form student-form" onSubmit={saveStudent}>
+          <div className="student-form-layout">
+            <section className="student-section" aria-labelledby="student-data-title">
+              <div className="student-section-heading">
+                <h3 id="student-data-title">Dados do aluno</h3>
+                <span className="student-summary">{selectedStudent?.progress_summary || "Progresso não informado"}</span>
+              </div>
+              <div className="student-fields">
+                <label className="field">Nome<Input value={studentForm.name} onChange={(event) => updateStudentForm("name", event.target.value)} required /></label>
+                <label className="field">E-mail<Input type="email" value={studentForm.email} onChange={(event) => updateStudentForm("email", event.target.value)} /></label>
+                <label className="field">WhatsApp do aluno<Input value={studentForm.phone} onChange={(event) => updateStudentForm("phone", event.target.value)} /></label>
+                <label className="field">Observação<Input value={studentForm.local_note} onChange={(event) => updateStudentForm("local_note", event.target.value)} /></label>
+              </div>
+            </section>
+            <section className="student-section" aria-labelledby="guardian-data-title">
+              <div className="student-section-heading">
+                <h3 id="guardian-data-title">Contato do responsável</h3>
+                <span className="student-summary">Sincronizado do perfil</span>
+              </div>
+              <div className="student-fields">
+                <label className="field">Nome<Input value={studentForm.guardian_name} readOnly aria-readonly="true" /></label>
+                <label className="field">Parentesco<Input value={studentForm.guardian_relationship} readOnly aria-readonly="true" /></label>
+                <label className="field">WhatsApp<Input value={studentForm.guardian_phone} readOnly aria-readonly="true" /></label>
+                <label className="field">E-mail<Input type="email" value={studentForm.guardian_email} readOnly aria-readonly="true" /></label>
+                <label className="field">Observação<Input value={studentForm.guardian_note} onChange={(event) => updateStudentForm("guardian_note", event.target.value)} /></label>
+              </div>
+            </section>
           </div>
-          <h3>Contato do responsável</h3>
-          <div className="form-grid">
-            <label className="field">Nome<Input value={studentForm.guardian_name} onChange={(event) => updateStudentForm("guardian_name", event.target.value)} /></label>
-            <label className="field">Parentesco<Input value={studentForm.guardian_relationship} onChange={(event) => updateStudentForm("guardian_relationship", event.target.value)} /></label>
-            <label className="field">WhatsApp<Input value={studentForm.guardian_phone} onChange={(event) => updateStudentForm("guardian_phone", event.target.value)} /></label>
-            <label className="field">Observação<Input value={studentForm.guardian_note} onChange={(event) => updateStudentForm("guardian_note", event.target.value)} /></label>
-          </div>
-          <div className="form-actions">
+          <div className="form-actions student-form-actions">
             <Button type="submit" disabled={busy}>{busy ? "Salvando…" : "Salvar dados locais"}</Button>
             <button className="button button-ghost" type="button" onClick={() => selectedStudent && openContact(selectedStudent)} disabled={!studentForm.guardian_phone && !studentForm.phone}>{studentForm.guardian_phone ? "WhatsApp responsável" : "WhatsApp aluno"}</button>
             {selectedStudent?.profile_url && <a className="button button-ghost" href={selectedStudent.profile_url} target="_blank" rel="noreferrer">Abrir perfil</a>}

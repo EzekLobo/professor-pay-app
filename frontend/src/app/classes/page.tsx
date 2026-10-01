@@ -61,8 +61,10 @@ const toForm = (item: ClassRecord): FormState => ({
 
 const classInfo = (group: KodlandGroup) => {
   const parts = group.course_name.match(/\[([^\]]+)\]/g)?.map((value) => value.slice(1, -1)) ?? [];
+  const rawCourse = group.course_name.trim();
+  const courseName = rawCourse && !["none", "null", "undefined"].includes(rawCourse.toLowerCase()) ? rawCourse : "";
   return {
-    course: parts[1] || group.course_name || "Curso não informado",
+    course: parts[1] || courseName || "Curso não informado",
     duration: parts.find((value) => /min/i.test(value)) ?? "Duração não informada",
     lessons: parts.find((value) => /\bL\b/i.test(value)) ?? "Plano não informado",
     region: parts.find((value) => /brazil|brasil/i.test(value)) ?? "",
@@ -337,7 +339,7 @@ function ClassesContent() {
         <div><p className="eyebrow">Acompanhamento pedagógico</p><h2>Turmas e alunos</h2><p className="muted">Abra uma turma para ver alunos, responsáveis, agenda e materiais.</p></div>
         <Button type="button" onClick={() => setSyncOpen(true)}>Sincronizar dados</Button>
       </div>
-      {loading ? <p className="muted">Carregando turmas…</p> : groups.length === 0 ? <p className="muted">Nenhuma turma sincronizada. Use “Sincronizar dados” para importar suas turmas.</p> : <div className="accordion-list">{groups.map((group, index) => <GroupAccordion key={group.id} group={group} students={students.filter((student) => student.external_class_id === group.external_id)} lessons={lessons.filter((lesson) => lesson.external_class_id === group.external_id)} reviews={reviews} openByDefault={index === 0} />)}</div>}
+      {loading ? <p className="muted">Carregando turmas…</p> : groups.length === 0 ? <p className="muted">Nenhuma turma sincronizada. Use “Sincronizar dados” para importar suas turmas.</p> : <div className="accordion-list">{groups.map((group) => <GroupAccordion key={group.id} group={group} students={students.filter((student) => student.external_class_id === group.external_id)} lessons={lessons.filter((lesson) => lesson.external_class_id === group.external_id)} reviews={reviews} openByDefault={false} />)}</div>}
     </section>
 
     <section className="panel">

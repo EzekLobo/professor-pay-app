@@ -1,14 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { DashboardResponse } from "@/lib/api";
 import { DashboardContent } from "./dashboard-content";
-
-vi.mock("next/link", () => ({
-  default: ({ href, children }: { href: string; children: ReactNode }) => (
-    <a href={href}>{children}</a>
-  ),
-}));
 
 const dashboard: DashboardResponse = {
   today: "2026-09-29",
@@ -60,13 +53,13 @@ describe("DashboardContent", () => {
     expect(markup).toContain("Não foi possível carregar o resumo");
     expect(markup).toContain("Tentar novamente");
   });
-  it("exibe métricas em pt-BR e progresso", () => {
+  it("exibe apenas as competências em destaque", () => {
     const markup = renderToStaticMarkup(
       <DashboardContent state="ready" dashboard={dashboard} />,
     );
-    expect(markup).toContain("R$ 1.234,50");
-    expect(markup).toContain("Progresso das turmas");
-    expect(markup).toContain("40%");
+    expect(markup).toContain("Competências em destaque");
+    expect(markup).toContain("Próximo");
+    expect(markup).toContain("R$ 250,00");
     expect(markup).toContain("1 de out. de 2026");
   });
   it("orienta a sincronização quando não há aulas", () =>

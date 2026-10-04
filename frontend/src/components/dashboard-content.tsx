@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Modal } from "./modal";
 import { StatusBadge } from "./ui";
 import type { DashboardPayment, DashboardResponse } from "@/lib/api";
@@ -36,7 +35,6 @@ export type DashboardContentProps =
 
 export function DashboardContent(props: DashboardContentProps) {
   const [statementDate, setStatementDate] = useState<string | null>(null);
-
   if (props.state === "loading")
     return (
       <section className="dashboard-state" aria-busy="true">
@@ -76,152 +74,34 @@ export function DashboardContent(props: DashboardContentProps) {
   const openStatement = (payment: DashboardPayment | null) =>
     setStatementDate(payment?.payment_date ?? null);
   const moveStatement = (step: number) => {
-    const nextIndex = selectedIndex + step;
-    const nextPayment = dashboard.payments[nextIndex];
-    if (nextPayment) setStatementDate(nextPayment.payment_date);
+    const next = dashboard.payments[selectedIndex + step];
+    if (next) setStatementDate(next.payment_date);
   };
 
   return (
     <div className="dashboard-grid">
-      <section className="dashboard-heading">
-        <div>
-          <p className="eyebrow">RESUMO FINANCEIRO</p>
-          <h1>Visão geral</h1>
-          <p className="muted">Atualizado em {formatDate(dashboard.today)}</p>
-        </div>
-      </section>
-      <section className="metric-grid" aria-label="Métricas financeiras">
-        <Metric
-          label="Total ganho"
-          value={money(dashboard.earned_cents)}
-          detail={`${dashboard.total_lessons} aulas registradas`}
-        />
-        <Metric
-          label="Recebido"
-          value={money(dashboard.received_cents)}
-          detail="Pagamentos processados"
-          success
-        />
-        <Metric
-          label="Aulas normais"
-          value={money(dashboard.normal_earned_cents)}
-          detail={`${dashboard.normal_lessons} realizadas`}
-        />
-        <Metric
-          label="Aulas extras"
-          value={money(dashboard.extra_earned_cents)}
-          detail={`${dashboard.extra_lessons} realizadas`}
-        />
-      </section>
-      <section className="future-card">
-        <div>
-          <p className="eyebrow">PLANEJAMENTO FUTURO</p>
-          <strong>{money(dashboard.planned_cents)}</strong>
-          <p className="muted">
-            {dashboard.future_lessons} aulas futuras · Total planejado:{" "}
-            {money(dashboard.total_planned_cents)}
-          </p>
-        </div>
-      </section>
       <section className="panel payment-panel">
         <div className="section-heading">
           <div>
-            <h2>Pagamentos em destaque</h2>
-            <p className="muted">
-              Abra um período para conferir o extrato das aulas.
-            </p>
+            <p className="eyebrow">RESUMO FINANCEIRO</p>
+            <h2>Competências em destaque</h2>
+            <p className="muted">Mês anterior e próximo pagamento previsto.</p>
           </div>
-          <Link className="button button-ghost" href="/payments">
-            Ver todos
-          </Link>
         </div>
         <div className="payment-summary">
           <PaymentHighlight
-            label="Último pagamento"
+            label="Anterior"
             payment={dashboard.last_payment}
             empty="Nenhum pagamento anterior"
             onOpen={openStatement}
           />
           <PaymentHighlight
-            label="Próximo pagamento"
+            label="Próximo"
             payment={dashboard.next_payment}
             empty="Nenhum pagamento previsto"
             onOpen={openStatement}
           />
         </div>
-      </section>
-      <section className="panel progress-panel">
-        <div className="section-heading">
-          <h2>Progresso das turmas</h2>
-          <Link className="button button-ghost" href="/classes">
-            Gerenciar
-          </Link>
-        </div>
-        {dashboard.progress.length ? (
-          <div className="progress-list">
-            {dashboard.progress.map((item) => (
-              <div className="progress-item" key={item.class_id}>
-                <div>
-                  <strong>{item.name}</strong>
-                  <span>
-                    {item.completed} de {item.lesson_count} aulas
-                  </span>
-                </div>
-                <div
-                  className="progress-track"
-                  role="progressbar"
-                  aria-label={`Progresso de ${item.name}`}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={item.percent}
-                >
-                  <span style={{ width: `${item.percent}%` }} />
-                </div>
-                <b>{item.percent}%</b>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="muted">Nenhuma turma ativa com progresso.</p>
-        )}
-      </section>
-      <section className="panel relevant-payments">
-        <div className="section-heading">
-          <div>
-            <h2>Pagamentos relevantes</h2>
-            <p className="muted">Últimos e próximos períodos do seu extrato.</p>
-          </div>
-          <Link className="button button-ghost" href="/payments">
-            Detalhes
-          </Link>
-        </div>
-        {dashboard.payments.length ? (
-          <div className="payment-list">
-            {dashboard.payments.slice(0, 5).map((item) => (
-              <button
-                className="payment-row payment-row-button"
-                type="button"
-                onClick={() => openStatement(item)}
-                key={item.payment_date}
-              >
-                <div>
-                  <strong>{formatDate(item.payment_date)}</strong>
-                  <span>
-                    {item.lesson_count} aulas · {item.period}
-                  </span>
-                </div>
-                <div>
-                  <strong>{money(item.total_cents)}</strong>
-                  <StatusBadge tone={paymentTone(item.status)}>
-                    {paymentStatus(item.status)}
-                  </StatusBadge>
-                </div>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="muted">Ainda não há pagamentos relevantes.</p>
-        )}
       </section>
       <Modal
         open={Boolean(selectedPayment)}
@@ -240,26 +120,6 @@ export function DashboardContent(props: DashboardContentProps) {
         )}
       </Modal>
     </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  detail,
-  success = false,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  success?: boolean;
-}) {
-  return (
-    <article className={`metric-card${success ? " metric-success" : ""}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-    </article>
   );
 }
 
@@ -386,11 +246,6 @@ function PaymentStatement({
         >
           Próximo →
         </button>
-      </div>
-      <div className="form-actions">
-        <Link className="button button-primary" href="/payments">
-          Gerenciar recebimento
-        </Link>
       </div>
     </div>
   );

@@ -95,8 +95,8 @@ function Content() {
         <p className="eyebrow">Financeiro</p>
         <h1>Pagamentos</h1>
         <p className="muted">
-          Aulas agrupadas por mês. Previsão de pagamento no dia 15 do mês
-          seguinte.
+          Projeção pelo cronograma Kodland e aulas extras. Pagamento previsto
+          para o dia 15 do mês seguinte.
         </p>
       </section>
       {error && <p className="form-error">{error}</p>}
@@ -119,7 +119,7 @@ function Content() {
           <p className="muted">Carregando…</p>
         ) : items.length === 0 ? (
           <p className="muted">
-            Nenhuma aula remunerável foi registrada ainda.
+            Sincronize a Kodland para importar o cronograma das turmas.
           </p>
         ) : (
           <div className="entity-list">

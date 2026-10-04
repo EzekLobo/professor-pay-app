@@ -24,6 +24,16 @@ function Content() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const estimatedCents = items
+    .filter((item) => item.status !== "RECEIVED")
+    .reduce((total, item) => total + item.total_cents, 0);
+  const paidCents = items
+    .filter((item) => item.status === "RECEIVED")
+    .reduce((total, item) => total + item.total_cents, 0);
+  const estimatedCount = items.filter(
+    (item) => item.status !== "RECEIVED",
+  ).length;
+  const paidCount = items.filter((item) => item.status === "RECEIVED").length;
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -81,12 +91,36 @@ function Content() {
   }
   return (
     <div className="management-grid">
+      <section className="page-heading">
+        <p className="eyebrow">Financeiro</p>
+        <h1>Pagamentos</h1>
+        <p className="muted">
+          Aulas agrupadas por mês. Previsão de pagamento no dia 15 do mês
+          seguinte.
+        </p>
+      </section>
       {error && <p className="form-error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
+      <section className="metric-grid payment-metric-grid">
+        <article className="metric-card">
+          <span>Estimativa a receber</span>
+          <strong>{formatMoney(estimatedCents)}</strong>
+          <small>{estimatedCount} competência(s) ainda não recebida(s)</small>
+        </article>
+        <article className="metric-card metric-success">
+          <span>Já recebido</span>
+          <strong>{formatMoney(paidCents)}</strong>
+          <small>{paidCount} competência(s) confirmada(s)</small>
+        </article>
+      </section>
       <section className="panel">
         <h2>Competências mensais</h2>
         {loading ? (
           <p className="muted">Carregando…</p>
+        ) : items.length === 0 ? (
+          <p className="muted">
+            Nenhuma aula remunerável foi registrada ainda.
+          </p>
         ) : (
           <div className="entity-list">
             {items.map((p) => (

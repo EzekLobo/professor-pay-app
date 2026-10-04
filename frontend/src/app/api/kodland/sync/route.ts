@@ -1,75 +1,218 @@
 import { NextRequest } from "next/server";
-import { enrichKodlandLessons, mergeKodlandLessons, type KodlandCourseLesson, type KodlandLesson } from "@/lib/kodland-lessons";
+import {
+  enrichKodlandLessons,
+  mergeKodlandLessons,
+  type KodlandCourseLesson,
+  type KodlandLesson,
+} from "@/lib/kodland-lessons";
 import { parseGuardianContact } from "@/lib/student-profile";
 
 export const runtime = "nodejs";
 
-type Group = { external_id: string; title: string; course_id: string; course_name: string; student_count: number; start_date: string; next_lesson_date: string; archived: boolean };
-type Student = { id: string; external_id: string; name: string; email: string; phone: string; status: string; progress_summary: string; profile_url: string; guardian_name: string; guardian_relationship: string; guardian_phone: string; guardian_email: string; external_class_id: string; external_class_name: string };
-type Review = { id: string; external_class_id: string; external_class_name: string; external_student_id: string; student_name: string; lesson_id: string; lesson_number: number; lesson_title: string; module_number: string; task_id: string; task_number: number; task_title: string; status_key: string; status_label: string; correction_url: string };
+type Group = {
+  external_id: string;
+  title: string;
+  course_id: string;
+  course_name: string;
+  student_count: number;
+  start_date: string;
+  next_lesson_date: string;
+  archived: boolean;
+};
+type Student = {
+  id: string;
+  external_id: string;
+  name: string;
+  email: string;
+  phone: string;
+  status: string;
+  progress_summary: string;
+  profile_url: string;
+  guardian_name: string;
+  guardian_relationship: string;
+  guardian_phone: string;
+  guardian_email: string;
+  external_class_id: string;
+  external_class_name: string;
+};
+type Review = {
+  id: string;
+  external_class_id: string;
+  external_class_name: string;
+  external_student_id: string;
+  student_name: string;
+  lesson_id: string;
+  lesson_number: number;
+  lesson_title: string;
+  module_number: string;
+  task_id: string;
+  task_number: number;
+  task_title: string;
+  status_key: string;
+  status_label: string;
+  correction_url: string;
+};
+type ExtraLesson = {
+  id: string;
+  external_student_id: string;
+  student_name: string;
+  external_class_id: string;
+  external_class_name: string;
+  lesson_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  completed: boolean;
+};
 
 const sso = "https://sso.production.kodland.org/";
 const api = "https://backoffice.kodland.org/api/v2/";
-const text = (value: unknown) => typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
-const record = (value: unknown) => value && typeof value === "object" ? value as Record<string, unknown> : {};
+const text = (value: unknown) =>
+  typeof value === "string" || typeof value === "number"
+    ? String(value).trim()
+    : "";
+const record = (value: unknown) =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 const list = (value: unknown) => {
   if (Array.isArray(value)) return value;
   const payload = record(value);
-  for (const key of ["results", "items", "data", "lessons", "materials", "tasks"]) {
+  for (const key of [
+    "results",
+    "items",
+    "data",
+    "lessons",
+    "materials",
+    "tasks",
+  ]) {
     if (Array.isArray(payload[key])) return payload[key] as unknown[];
   }
   return [];
 };
-const number = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
+const number = (value: unknown) =>
+  Number.isFinite(Number(value)) ? Number(value) : 0;
+const flag = (value: unknown) =>
+  value === true || value === 1 || value === "1" || value === "true";
+const dateOnly = (value: unknown) =>
+  text(value).match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
+const timeOnly = (value: unknown) =>
+  text(value)
+    .match(/\b\d{1,2}:\d{2}(?::\d{2})?\b/)?.[0]
+    .slice(0, 5) ?? "";
 
 async function requireFirebaseUser(request: NextRequest) {
-  const idToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const idToken = request.headers
+    .get("authorization")
+    ?.replace(/^Bearer\s+/i, "");
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   if (!idToken || !apiKey) return null;
-  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken }), cache: "no-store" });
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken }),
+      cache: "no-store",
+    },
+  );
   if (!response.ok) return null;
-  const payload = await response.json() as { users?: Array<{ localId?: string }> };
+  const payload = (await response.json()) as {
+    users?: Array<{ localId?: string }>;
+  };
   return payload.users?.[0]?.localId ?? null;
 }
 
 function userId(token: string) {
   const payload = token.split(".")[1];
   if (!payload) throw new Error("A sessão da Kodland é inválida.");
-  const decoded = JSON.parse(Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")) as { user_id?: string | number };
-  if (decoded.user_id === undefined) throw new Error("A sessão da Kodland não informa o professor.");
+  const decoded = JSON.parse(
+    Buffer.from(
+      payload.replace(/-/g, "+").replace(/_/g, "/"),
+      "base64",
+    ).toString("utf8"),
+  ) as { user_id?: string | number };
+  if (decoded.user_id === undefined)
+    throw new Error("A sessão da Kodland não informa o professor.");
   return String(decoded.user_id);
 }
 
 async function kodlandLogin(username: string, password: string) {
   const form = new URLSearchParams({ username: username.trim(), password });
-  const response = await fetch(`${sso}login`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: form, cache: "no-store" });
-  if (!response.ok) throw new Error(response.status === 401 ? "Usuário ou senha da Kodland inválidos." : "Não foi possível entrar na Kodland.");
-  const payload = await response.json() as { access_token?: string };
-  if (!payload.access_token) throw new Error("A Kodland não retornou uma sessão válida.");
+  const response = await fetch(`${sso}login`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: form,
+    cache: "no-store",
+  });
+  if (!response.ok)
+    throw new Error(
+      response.status === 401
+        ? "Usuário ou senha da Kodland inválidos."
+        : "Não foi possível entrar na Kodland.",
+    );
+  const payload = (await response.json()) as { access_token?: string };
+  if (!payload.access_token)
+    throw new Error("A Kodland não retornou uma sessão válida.");
   return payload.access_token;
 }
 
 async function get(path: string, token: string) {
-  const response = await fetch(`${api}${path}`, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
-  if (!response.ok) throw new Error(response.status === 401 ? "A sessão da Kodland expirou. Tente novamente." : "A Kodland não respondeu como esperado.");
+  const response = await fetch(`${api}${path}`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok)
+    throw new Error(
+      response.status === 401
+        ? "A sessão da Kodland expirou. Tente novamente."
+        : "A Kodland não respondeu como esperado.",
+    );
   return response.json();
 }
 
 async function getOptional(path: string, token: string) {
-  try { return await get(path, token); } catch { return null; }
+  try {
+    return await get(path, token);
+  } catch {
+    return null;
+  }
 }
 
-async function groupsForTeacher(teacherId: string, token: string): Promise<Group[]> {
+async function groupsForTeacher(
+  teacherId: string,
+  token: string,
+): Promise<Group[]> {
   const groups: Group[] = [];
   for (let page = 1; ; page += 1) {
-    const payload = record(await get(`teachers/${teacherId}/get_teachers_groups/?page=${page}&page_size=100`, token));
+    const payload = record(
+      await get(
+        `teachers/${teacherId}/get_teachers_groups/?page=${page}&page_size=100`,
+        token,
+      ),
+    );
     const items = list(payload.results);
-    groups.push(...items.map((value) => {
-      const item = record(value); const course = record(item.course);
-      const courseName = text(course.title ?? item.course_name);
-      const courseId = text(course.id ?? course.course_id ?? item.course_id) || courseName.match(/^\[(\d+)\]/)?.[1] || "";
-      return { external_id: text(item.id ?? item.group_id), title: text(item.title ?? item.group_name), course_id: courseId, course_name: courseName, student_count: number(item.students_count ?? item.student_count), start_date: text(item.start_timeslot ?? item.start_date), next_lesson_date: text(item.next_lesson_date), archived: Boolean(item.is_archive ?? item.archived) };
-    }).filter((group) => group.external_id && group.title));
+    groups.push(
+      ...items
+        .map((value) => {
+          const item = record(value);
+          const course = record(item.course);
+          const courseName = text(course.title ?? item.course_name);
+          const courseId =
+            text(course.id ?? course.course_id ?? item.course_id) ||
+            courseName.match(/^\[(\d+)\]/)?.[1] ||
+            "";
+          return {
+            external_id: text(item.id ?? item.group_id),
+            title: text(item.title ?? item.group_name),
+            course_id: courseId,
+            course_name: courseName,
+            student_count: number(item.students_count ?? item.student_count),
+            start_date: text(item.start_timeslot ?? item.start_date),
+            next_lesson_date: text(item.next_lesson_date),
+            archived: Boolean(item.is_archive ?? item.archived),
+          };
+        })
+        .filter((group) => group.external_id && group.title),
+    );
     if (!payload.next || !items.length) break;
   }
   return groups;
@@ -77,39 +220,233 @@ async function groupsForTeacher(teacherId: string, token: string): Promise<Group
 
 function studentsFromPayload(payload: unknown, group: Group): Student[] {
   return list(payload).flatMap((value) => {
-    const item = record(value); const info = record(item.main_info); const externalId = text(info.student_id); const name = text(info.full_name);
+    const item = record(value);
+    const info = record(item.main_info);
+    const externalId = text(info.student_id);
+    const name = text(info.full_name);
     if (!externalId || !name) return [];
-    const progress = list(item.progress_info); const current = progress.reduce((sum, item) => sum + number(record(item).module_current_grade), 0); const max = progress.reduce((sum, item) => sum + number(record(item).module_max_grade), 0);
-    return [{ id: `kodland-student-${externalId}`, external_id: externalId, name, email: text(info.email), phone: text(info.phone ?? info.phone_number ?? info.mobile), status: text(info.status), progress_summary: max ? `${current}/${max}` : "", profile_url: text(info.profile_url) || `https://bo.kodland.org/students/${externalId}`, guardian_name: "", guardian_relationship: "", guardian_phone: "", guardian_email: "", external_class_id: group.external_id, external_class_name: group.title }];
+    const progress = list(item.progress_info);
+    const current = progress.reduce(
+      (sum, item) => sum + number(record(item).module_current_grade),
+      0,
+    );
+    const max = progress.reduce(
+      (sum, item) => sum + number(record(item).module_max_grade),
+      0,
+    );
+    return [
+      {
+        id: `kodland-student-${externalId}`,
+        external_id: externalId,
+        name,
+        email: text(info.email),
+        phone: text(info.phone ?? info.phone_number ?? info.mobile),
+        status: text(info.status),
+        progress_summary: max ? `${current}/${max}` : "",
+        profile_url:
+          text(info.profile_url) ||
+          `https://bo.kodland.org/students/${externalId}`,
+        guardian_name: "",
+        guardian_relationship: "",
+        guardian_phone: "",
+        guardian_email: "",
+        external_class_id: group.external_id,
+        external_class_name: group.title,
+      },
+    ];
   });
 }
 
-async function studentsWithProfiles(students: Student[], token: string, cache: Map<string, ReturnType<typeof parseGuardianContact>>): Promise<Student[]> {
-  return Promise.all(students.map(async (student) => {
-    let guardian = cache.get(student.external_id);
-    if (!guardian) {
-      const profile = await getOptional(`students/${student.external_id}/get_general_info_for_student_backoffice_page/`, token);
-      guardian = parseGuardianContact(profile);
-      cache.set(student.external_id, guardian);
-    }
-    return { ...student, guardian_name: guardian.name, guardian_relationship: guardian.relationship, guardian_phone: guardian.phone, guardian_email: guardian.email };
-  }));
+async function studentsWithProfiles(
+  students: Student[],
+  token: string,
+  cache: Map<string, ReturnType<typeof parseGuardianContact>>,
+): Promise<Student[]> {
+  return Promise.all(
+    students.map(async (student) => {
+      let guardian = cache.get(student.external_id);
+      if (!guardian) {
+        const profile = await getOptional(
+          `students/${student.external_id}/get_general_info_for_student_backoffice_page/`,
+          token,
+        );
+        guardian = parseGuardianContact(profile);
+        cache.set(student.external_id, guardian);
+      }
+      return {
+        ...student,
+        guardian_name: guardian.name,
+        guardian_relationship: guardian.relationship,
+        guardian_phone: guardian.phone,
+        guardian_email: guardian.email,
+      };
+    }),
+  );
 }
 
-async function reviewsForGroup(group: Group, studentsPayload: unknown, token: string): Promise<Review[]> {
+/** Extra lessons are shown on the student's agenda and become billable only after Kodland marks them as completed. */
+function extrasFromStudentAgenda(
+  payload: unknown,
+  student: Student,
+): ExtraLesson[] {
+  return list(payload).flatMap((value, index) => {
+    const item = record(value);
+    const kind = text(
+      item.lesson_type ??
+        item.lessonType ??
+        item.type ??
+        item.category ??
+        item.kind,
+    ).toLowerCase();
+    const isExtra =
+      flag(
+        item.is_extra ?? item.isExtra ?? item.additional ?? item.is_additional,
+      ) || /extra|additional|individual/.test(kind);
+    const lessonDate = dateOnly(
+      item.lesson_date ??
+        item.lessonDate ??
+        item.date ??
+        item.start_at ??
+        item.startAt ??
+        item.datetime,
+    );
+    const status = text(item.status ?? item.lesson_status ?? item.state);
+    const completed =
+      flag(
+        item.completed ??
+          item.is_completed ??
+          item.lesson_passed ??
+          item.passed,
+      ) ||
+      /completed|complete|passed|done|finished|held/.test(status.toLowerCase());
+    const externalId = text(
+      item.id ??
+        item.lesson_id ??
+        item.lessonId ??
+        item.event_id ??
+        item.eventId,
+    );
+    if (!isExtra || !lessonDate || !externalId) return [];
+    return [
+      {
+        id: `kodland-extra-${student.external_id}-${externalId || index + 1}`,
+        external_student_id: student.external_id,
+        student_name: student.name,
+        external_class_id: student.external_class_id,
+        external_class_name: student.external_class_name,
+        lesson_date: lessonDate,
+        start_time: timeOnly(
+          item.start_time ??
+            item.startTime ??
+            item.start_at ??
+            item.startAt ??
+            item.datetime,
+        ),
+        end_time: timeOnly(
+          item.end_time ??
+            item.endTime ??
+            item.end_at ??
+            item.endAt ??
+            item.finish_at ??
+            item.finishAt,
+        ),
+        status,
+        completed,
+      },
+    ];
+  });
+}
+
+async function extrasForStudents(
+  students: Student[],
+  token: string,
+): Promise<ExtraLesson[]> {
+  const snapshots = await Promise.all(
+    students.map(async (student) => {
+      const agenda = await getOptional(
+        `students/${student.external_id}/schedule_view/`,
+        token,
+      );
+      return agenda ? extrasFromStudentAgenda(agenda, student) : [];
+    }),
+  );
+  return snapshots.flat();
+}
+
+async function reviewsForGroup(
+  group: Group,
+  studentsPayload: unknown,
+  token: string,
+): Promise<Review[]> {
   try {
-    const lessons = list(await get(`student_groups/${group.external_id}/lessons/`, token)).filter((value) => record(value).lesson_passed === true);
-    const results = await Promise.all(lessons.map(async (value) => {
-      const lesson = record(value); const lessonId = text(lesson.lesson_id ?? lesson.id);
-      const progress = record(await get(`student_groups/${group.external_id}/lesson/${lessonId}/get_group_progress/`, token));
-      const tasks = new Map(list(progress.lesson_tasks).map((value) => { const task = record(value); return [text(task.id ?? task.task_id), task]; }));
-      return list(progress.students_progress).flatMap((value) => {
-        const student = record(value); const studentId = text(student.student_id); const studentName = text(student.student_name);
-        return list(student.tasks_data).flatMap((value) => { const data = record(value); const status = text(data.task_status_key); const task = tasks.get(text(data.task_id)); if (!studentId || !studentName || !task || !["TASK_SUBMITTED", "TASK_SUBMITTED_LATE"].includes(status)) return []; const taskId = text(task.id ?? task.task_id); const link = text(task.link_to_service ?? task.url); return [{ id: `${group.external_id}-${studentId}-${lessonId}-${taskId}`, external_class_id: group.external_id, external_class_name: group.title, external_student_id: studentId, student_name: studentName, lesson_id: lessonId, lesson_number: number(lesson.lesson_number ?? lesson.number), lesson_title: text(lesson.lesson_title ?? lesson.title), module_number: "", task_id: taskId, task_number: number(task.number ?? task.task_number), task_title: text(task.title ?? task.task_title), status_key: status, status_label: status === "TASK_SUBMITTED_LATE" ? "Entregue com atraso" : "Entregue", correction_url: /^https?:\/\//.test(link) ? link : `https://bo.kodland.org${link || `/groups/${group.external_id}`}` }]; });
-      });
-    }));
+    const lessons = list(
+      await get(`student_groups/${group.external_id}/lessons/`, token),
+    ).filter((value) => record(value).lesson_passed === true);
+    const results = await Promise.all(
+      lessons.map(async (value) => {
+        const lesson = record(value);
+        const lessonId = text(lesson.lesson_id ?? lesson.id);
+        const progress = record(
+          await get(
+            `student_groups/${group.external_id}/lesson/${lessonId}/get_group_progress/`,
+            token,
+          ),
+        );
+        const tasks = new Map(
+          list(progress.lesson_tasks).map((value) => {
+            const task = record(value);
+            return [text(task.id ?? task.task_id), task];
+          }),
+        );
+        return list(progress.students_progress).flatMap((value) => {
+          const student = record(value);
+          const studentId = text(student.student_id);
+          const studentName = text(student.student_name);
+          return list(student.tasks_data).flatMap((value) => {
+            const data = record(value);
+            const status = text(data.task_status_key);
+            const task = tasks.get(text(data.task_id));
+            if (
+              !studentId ||
+              !studentName ||
+              !task ||
+              !["TASK_SUBMITTED", "TASK_SUBMITTED_LATE"].includes(status)
+            )
+              return [];
+            const taskId = text(task.id ?? task.task_id);
+            const link = text(task.link_to_service ?? task.url);
+            return [
+              {
+                id: `${group.external_id}-${studentId}-${lessonId}-${taskId}`,
+                external_class_id: group.external_id,
+                external_class_name: group.title,
+                external_student_id: studentId,
+                student_name: studentName,
+                lesson_id: lessonId,
+                lesson_number: number(lesson.lesson_number ?? lesson.number),
+                lesson_title: text(lesson.lesson_title ?? lesson.title),
+                module_number: "",
+                task_id: taskId,
+                task_number: number(task.number ?? task.task_number),
+                task_title: text(task.title ?? task.task_title),
+                status_key: status,
+                status_label:
+                  status === "TASK_SUBMITTED_LATE"
+                    ? "Entregue com atraso"
+                    : "Entregue",
+                correction_url: /^https?:\/\//.test(link)
+                  ? link
+                  : `https://bo.kodland.org${link || `/groups/${group.external_id}`}`,
+              },
+            ];
+          });
+        });
+      }),
+    );
     return results.flat();
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 type CourseLessonCache = {
@@ -117,69 +454,178 @@ type CourseLessonCache = {
   details: Map<string, Promise<KodlandCourseLesson>>;
 };
 
-async function courseLessons(courseId: string, token: string, scheduled: KodlandLesson[], cache: CourseLessonCache): Promise<KodlandCourseLesson[]> {
+async function courseLessons(
+  courseId: string,
+  token: string,
+  scheduled: KodlandLesson[],
+  cache: CourseLessonCache,
+): Promise<KodlandCourseLesson[]> {
   if (!courseId) return [];
   let catalogPromise = cache.catalog.get(courseId);
   if (!catalogPromise) {
     catalogPromise = (async () => {
-    const payload = await getOptional(`lessons/get_lessons_list?course=${encodeURIComponent(courseId)}`, token);
-    return list(payload).map((value): KodlandCourseLesson | null => {
-      const item = record(value);
-      const id = text(item.id ?? item.lesson_id ?? item.lessonId);
-      if (!id) return null;
-      return { id, lesson_number: number(item.lesson_number ?? item.lessonNumber ?? item.number), title: text(item.title ?? item.lesson_title ?? item.name), materials: [], homework: [] };
-    }).filter((value): value is KodlandCourseLesson => Boolean(value));
+      const payload = await getOptional(
+        `lessons/get_lessons_list?course=${encodeURIComponent(courseId)}`,
+        token,
+      );
+      return list(payload)
+        .map((value): KodlandCourseLesson | null => {
+          const item = record(value);
+          const id = text(item.id ?? item.lesson_id ?? item.lessonId);
+          if (!id) return null;
+          return {
+            id,
+            lesson_number: number(
+              item.lesson_number ?? item.lessonNumber ?? item.number,
+            ),
+            title: text(item.title ?? item.lesson_title ?? item.name),
+            materials: [],
+            homework: [],
+          };
+        })
+        .filter((value): value is KodlandCourseLesson => Boolean(value));
     })();
     cache.catalog.set(courseId, catalogPromise);
   }
   const catalog = await catalogPromise;
-  const normalizedTitle = (value: string) => value.toLocaleLowerCase().replace(/[^a-z0-9]+/gi, "");
-  const relevant = scheduled.map((lesson) => catalog.find((candidate) => candidate.id === lesson.id)
-    ?? (lesson.lesson_number > 0 ? catalog.find((candidate) => candidate.lesson_number === lesson.lesson_number) : undefined)
-    ?? catalog.find((candidate) => normalizedTitle(candidate.title) === normalizedTitle(lesson.title))).filter((value, index, values): value is KodlandCourseLesson => Boolean(value) && values.findIndex((item) => item?.id === value?.id) === index);
-  return Promise.all(relevant.map(async (lesson) => {
-    const key = `${courseId}:${lesson.id}`;
-    let details = cache.details.get(key);
-    if (!details) {
-      details = (async () => {
-        const [materials, homework] = await Promise.all([
-          getOptional(`materials?lesson=${encodeURIComponent(lesson.id)}`, token),
-          getOptional(`tasks/get_tasks_list?lesson=${encodeURIComponent(lesson.id)}&is_hw=true`, token),
-        ]);
-        return { ...lesson, materials: list(materials), homework: list(homework) };
-      })();
-      cache.details.set(key, details);
-    }
-    return details;
-  }));
+  const normalizedTitle = (value: string) =>
+    value.toLocaleLowerCase().replace(/[^a-z0-9]+/gi, "");
+  const relevant = scheduled
+    .map(
+      (lesson) =>
+        catalog.find((candidate) => candidate.id === lesson.id) ??
+        (lesson.lesson_number > 0
+          ? catalog.find(
+              (candidate) => candidate.lesson_number === lesson.lesson_number,
+            )
+          : undefined) ??
+        catalog.find(
+          (candidate) =>
+            normalizedTitle(candidate.title) === normalizedTitle(lesson.title),
+        ),
+    )
+    .filter(
+      (value, index, values): value is KodlandCourseLesson =>
+        Boolean(value) &&
+        values.findIndex((item) => item?.id === value?.id) === index,
+    );
+  return Promise.all(
+    relevant.map(async (lesson) => {
+      const key = `${courseId}:${lesson.id}`;
+      let details = cache.details.get(key);
+      if (!details) {
+        details = (async () => {
+          const [materials, homework] = await Promise.all([
+            getOptional(
+              `materials?lesson=${encodeURIComponent(lesson.id)}`,
+              token,
+            ),
+            getOptional(
+              `tasks/get_tasks_list?lesson=${encodeURIComponent(lesson.id)}&is_hw=true`,
+              token,
+            ),
+          ]);
+          return {
+            ...lesson,
+            materials: list(materials),
+            homework: list(homework),
+          };
+        })();
+        cache.details.set(key, details);
+      }
+      return details;
+    }),
+  );
 }
 
-async function lessonsForGroup(group: Group, token: string, cache: CourseLessonCache): Promise<KodlandLesson[]> {
+async function lessonsForGroup(
+  group: Group,
+  token: string,
+  cache: CourseLessonCache,
+): Promise<KodlandLesson[]> {
   const [schedule, lessons] = await Promise.all([
     getOptional(`student_groups/${group.external_id}/schedule_view/`, token),
     getOptional(`student_groups/${group.external_id}/lessons/`, token),
   ]);
   const merged = mergeKodlandLessons(schedule, lessons, group);
-  const ordered = [...merged].sort((a, b) => `${a.lesson_date} ${a.start_time}`.localeCompare(`${b.lesson_date} ${b.start_time}`));
-  const next = ordered.find((lesson) => !lesson.lesson_passed) ?? ordered.at(-1);
+  const ordered = [...merged].sort((a, b) =>
+    `${a.lesson_date} ${a.start_time}`.localeCompare(
+      `${b.lesson_date} ${b.start_time}`,
+    ),
+  );
+  const next =
+    ordered.find((lesson) => !lesson.lesson_passed) ?? ordered.at(-1);
   const previous = ordered.filter((lesson) => lesson.lesson_passed).slice(-3);
-  const materialLessons = [...previous, next].filter((lesson): lesson is KodlandLesson => Boolean(lesson));
-  return enrichKodlandLessons(merged, await courseLessons(group.course_id, token, materialLessons, cache), group.course_id);
+  const materialLessons = [...previous, next].filter(
+    (lesson): lesson is KodlandLesson => Boolean(lesson),
+  );
+  return enrichKodlandLessons(
+    merged,
+    await courseLessons(group.course_id, token, materialLessons, cache),
+    group.course_id,
+  );
 }
 
 export async function POST(request: NextRequest) {
   try {
-    if (!await requireFirebaseUser(request)) return Response.json({ message: "Não autorizado." }, { status: 401 });
-    const body = await request.json() as { username?: string; password?: string };
-    if (!body.username?.trim() || !body.password) return Response.json({ message: "Informe usuário e senha da Kodland." }, { status: 400 });
+    if (!(await requireFirebaseUser(request)))
+      return Response.json({ message: "Não autorizado." }, { status: 401 });
+    const body = (await request.json()) as {
+      username?: string;
+      password?: string;
+    };
+    if (!body.username?.trim() || !body.password)
+      return Response.json(
+        { message: "Informe usuário e senha da Kodland." },
+        { status: 400 },
+      );
     const token = await kodlandLogin(body.username, body.password);
     const groups = await groupsForTeacher(userId(token), token);
     const active = groups.filter((group) => !group.archived);
-    const profileCache = new Map<string, ReturnType<typeof parseGuardianContact>>();
-    const courseLessonCache: CourseLessonCache = { catalog: new Map(), details: new Map() };
-    const snapshots = await Promise.all(active.map(async (group) => { const payload = await get(`student_groups/${group.external_id}/get_students_main_data/`, token); const students = await studentsWithProfiles(studentsFromPayload(payload, group), token, profileCache); return { students, reviews: await reviewsForGroup(group, payload, token), lessons: await lessonsForGroup(group, token, courseLessonCache) }; }));
-    return Response.json({ groups, students: snapshots.flatMap((item) => item.students), reviews: snapshots.flatMap((item) => item.reviews), lessons: snapshots.flatMap((item) => item.lessons) });
+    const profileCache = new Map<
+      string,
+      ReturnType<typeof parseGuardianContact>
+    >();
+    const courseLessonCache: CourseLessonCache = {
+      catalog: new Map(),
+      details: new Map(),
+    };
+    const snapshots = await Promise.all(
+      active.map(async (group) => {
+        const payload = await get(
+          `student_groups/${group.external_id}/get_students_main_data/`,
+          token,
+        );
+        const students = await studentsWithProfiles(
+          studentsFromPayload(payload, group),
+          token,
+          profileCache,
+        );
+        return {
+          students,
+          reviews: await reviewsForGroup(group, payload, token),
+          lessons: await lessonsForGroup(group, token, courseLessonCache),
+        };
+      }),
+    );
+    const students = snapshots.flatMap((item) => item.students);
+    const extraLessons = await extrasForStudents(students, token);
+    return Response.json({
+      groups,
+      students,
+      reviews: snapshots.flatMap((item) => item.reviews),
+      lessons: snapshots.flatMap((item) => item.lessons),
+      extra_lessons: extraLessons,
+    });
   } catch (error) {
-    return Response.json({ message: error instanceof Error ? error.message : "Não foi possível sincronizar com a Kodland." }, { status: 502 });
+    return Response.json(
+      {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível sincronizar com a Kodland.",
+      },
+      { status: 502 },
+    );
   }
 }

@@ -85,4 +85,32 @@ describe("Firestore financial helpers", () => {
       total_cents: 4500,
     });
   });
+
+  it("contabiliza apenas aulas extras concluídas da Kodland", () => {
+    const dashboard = __test.dashboardFrom([], [], [], [], [], "2026-10-04", [
+      {
+        id: "extra-1",
+        student_name: "Ana",
+        external_class_name: "Roblox",
+        lesson_date: "2026-10-03",
+        start_time: "18:00",
+        end_time: "19:00",
+        completed: true,
+        created_at: "2026-10-01",
+      },
+      {
+        id: "extra-2",
+        student_name: "Ana",
+        external_class_name: "Roblox",
+        lesson_date: "2026-10-05",
+        start_time: "18:00",
+        end_time: "19:00",
+        completed: false,
+        created_at: "2026-10-01",
+      },
+    ]);
+
+    expect(dashboard.extra_lessons).toBe(1);
+    expect(dashboard.extra_earned_cents).toBe(3000);
+  });
 });

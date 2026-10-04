@@ -134,6 +134,7 @@ export type DataExport = {
   kodland_students?: unknown[];
   kodland_reviews?: unknown[];
   kodland_lessons?: unknown[];
+  kodland_extra_lessons?: unknown[];
 };
 export type KodlandGroup = {
   id: string;
@@ -186,12 +187,26 @@ export type KodlandReview = {
   correction_url: string;
   created_at: string;
 };
+export type KodlandExtraLesson = {
+  id: string;
+  external_student_id: string;
+  student_name: string;
+  external_class_id: string;
+  external_class_name: string;
+  lesson_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  completed: boolean;
+  created_at: string;
+};
 export type { KodlandLesson } from "@/lib/kodland-lessons";
 type KodlandSnapshot = {
   groups: Omit<KodlandGroup, "id" | "local_class_id" | "created_at">[];
   students: Omit<KodlandStudent, "local_note" | "hidden" | "created_at">[];
   reviews: Omit<KodlandReview, "created_at">[];
   lessons: Omit<KodlandLesson, "created_at">[];
+  extra_lessons: Omit<KodlandExtraLesson, "created_at">[];
 };
 export class ApiError extends Error {
   constructor(
@@ -361,6 +376,41 @@ const kodlandFinancialLessons = (
   return [...fromSchedule, ...inferred];
 };
 
+const kodlandExtraFinancialLessons = (
+  extraLessons: Row[],
+  today: string,
+): Lesson[] =>
+  extraLessons
+    .filter((item) => item.completed === true)
+    .flatMap((item) => {
+      const lessonDate = dateOnly(item.lesson_date);
+      if (!lessonDate) return [];
+      const start = minutesFromTime(item.start_time);
+      const end = minutesFromTime(item.end_time);
+      const duration =
+        start !== null && end !== null && end > start ? end - start : 60;
+      return [
+        asLesson(
+          {
+            id: String(item.id),
+            class_id: null,
+            class_name_snapshot: `Extra · ${String(item.external_class_name ?? "Kodland")}`,
+            number: 1,
+            lesson_date: lessonDate,
+            student: String(item.student_name ?? ""),
+            type: "EXTRA",
+            duration_minutes: duration,
+            hourly_rate_cents: 3000,
+            active: true,
+            canceled: false,
+            note: "Aula extra concluída na Kodland",
+            created_at: String(item.created_at ?? now()),
+          },
+          today,
+        ),
+      ];
+    });
+
 const dashboardFrom = (
   classRows: Row[],
   lessonRows: Row[],
@@ -368,10 +418,12 @@ const dashboardFrom = (
   kodlandGroups: Row[] = [],
   kodlandLessons: Row[] = [],
   today = isoToday(),
+  kodlandExtraLessons: Row[] = [],
 ): DashboardResponse => {
   const lessons = [
     ...lessonRows.map((row) => asLesson(row, today)),
     ...kodlandFinancialLessons(kodlandGroups, kodlandLessons, classRows, today),
+    ...kodlandExtraFinancialLessons(kodlandExtraLessons, today),
   ];
   const billable = lessons.filter((item) => item.active && !item.canceled);
   const groups = new Map<string, Lesson[]>();
@@ -586,7 +638,11 @@ const importRows = (
 };
 
 type PedagogicalCollection =
-  "kodland_groups" | "kodland_students" | "kodland_reviews" | "kodland_lessons";
+  | "kodland_groups"
+  | "kodland_students"
+  | "kodland_reviews"
+  | "kodland_lessons"
+  | "kodland_extra_lessons";
 
 const pedagogicalValues = (
   payload: ImportPayload,
@@ -663,6 +719,8 @@ export const dashboardApi = {
       await rows("payments"),
       await rows("kodland_groups"),
       await rows("kodland_lessons"),
+      isoToday(),
+      await rows("kodland_extra_lessons"),
     ),
 };
 export const classesApi = {
@@ -855,6 +913,11 @@ export const kodlandApi = {
   lessons: async () => ({
     items: (await rows("kodland_lessons")) as unknown as KodlandLesson[],
   }),
+  extraLessons: async () => ({
+    items: (await rows(
+      "kodland_extra_lessons",
+    )) as unknown as KodlandExtraLesson[],
+  }),
   sync: async (username: string, password: string) => {
     const token = await (
       authUser() as unknown as { getIdToken: () => Promise<string> }
@@ -886,6 +949,7 @@ export const kodlandApi = {
     const oldStudents = await rows("kodland_students");
     const oldReviews = await rows("kodland_reviews");
     const oldLessons = await rows("kodland_lessons");
+    const oldExtraLessons = await rows("kodland_extra_lessons");
     const batch = writeBatch(getFirebaseDb());
     oldReviews.forEach((item) =>
       batch.delete(doc(ref("kodland_reviews"), String(item.id))),
@@ -940,12 +1004,28 @@ export const kodlandApi = {
         created_at: createdAt,
       }),
     );
+    oldExtraLessons
+      .filter((item) => item.completed !== true)
+      .forEach((item) =>
+        batch.delete(doc(ref("kodland_extra_lessons"), String(item.id))),
+      );
+    snapshot.extra_lessons.forEach((item) => {
+      const previous = oldExtraLessons.find(
+        (lesson) => String(lesson.id) === item.id,
+      );
+      batch.set(doc(ref("kodland_extra_lessons"), item.id), {
+        ...item,
+        created_at: String(previous?.created_at ?? createdAt),
+        updated_at: createdAt,
+      });
+    });
     await batch.commit();
     return {
       group_count: snapshot.groups.length,
       student_count: snapshot.students.length,
       review_count: snapshot.reviews.length,
       lesson_count: snapshot.lessons.length,
+      extra_lesson_count: snapshot.extra_lessons.length,
     };
   },
   linkGroup: async (externalId: string, localClassId: string | null) => {
@@ -997,6 +1077,7 @@ export const dataApi = {
     kodland_students: await rows("kodland_students"),
     kodland_reviews: await rows("kodland_reviews"),
     kodland_lessons: await rows("kodland_lessons"),
+    kodland_extra_lessons: await rows("kodland_extra_lessons"),
   }),
   previewImport: async (payload: unknown): Promise<ImportReport> => {
     const value = payload as ImportPayload;
@@ -1057,6 +1138,9 @@ export const dataApi = {
     importPedagogicalRows(value, "kodland_lessons").forEach((item) =>
       batch.set(doc(ref("kodland_lessons"), String(item.id)), item),
     );
+    importPedagogicalRows(value, "kodland_extra_lessons").forEach((item) =>
+      batch.set(doc(ref("kodland_extra_lessons"), String(item.id)), item),
+    );
     batch.set(doc(ref("imports"), preview.export_id), {
       imported_at: now(),
       created_at: now(),
@@ -1077,6 +1161,7 @@ export const dataApi = {
       "kodland_students",
       "kodland_reviews",
       "kodland_lessons",
+      "kodland_extra_lessons",
     ])
       (await rows(name)).forEach((item) =>
         batch.delete(doc(ref(name), String(item.id))),

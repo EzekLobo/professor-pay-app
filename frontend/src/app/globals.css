@@ -517,6 +517,64 @@ select:focus-visible {
   margin: 0;
   font-size: 1.1rem;
 }
+.weekly-schedule {
+  overflow: hidden;
+}
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(118px, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+  overflow-x: auto;
+}
+.week-day {
+  min-height: 210px;
+  padding: 10px;
+  border: 1px solid #1d3556;
+  border-radius: 12px;
+  background: rgb(8 18 34 / 54%);
+}
+.week-day header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  padding-bottom: 9px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.week-day header strong {
+  color: var(--text);
+}
+.week-slot {
+  display: grid;
+  gap: 3px;
+  margin-top: 8px;
+  border-left: 3px solid var(--primary);
+  border-radius: 8px;
+  padding: 8px;
+  background: #102442;
+}
+.week-slot-extra {
+  border-left-color: var(--warning);
+  background: #2a2115;
+}
+.week-slot time,
+.week-slot span,
+.week-empty {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.week-slot strong {
+  overflow: hidden;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.week-empty {
+  margin: 22px 0 0;
+  text-align: center;
+}
 .payment-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1015,6 +1073,9 @@ select:focus-visible {
   .management-form,
   .filters {
     grid-template-columns: 1fr;
+  }
+  .week-grid {
+    grid-template-columns: repeat(7, 138px);
   }
   .panel {
     padding: 18px;

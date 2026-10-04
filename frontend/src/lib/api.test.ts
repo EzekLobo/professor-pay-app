@@ -59,6 +59,7 @@ describe("Firestore financial helpers", () => {
           external_id: "62934",
           title: "Roblox SEG-19",
           course_name: "[1192]Roblox[90 min][40 L]",
+          start_date: "2026-10-05T19:00:00-03:00",
           archived: false,
           created_at: "2026-09-01",
         },
@@ -77,12 +78,13 @@ describe("Firestore financial helpers", () => {
       "2026-10-04",
     );
 
-    expect(dashboard.payments).toHaveLength(1);
-    expect(dashboard.payments[0]).toMatchObject({
+    expect(
+      dashboard.payments.find((payment) => payment.period === "10/2026"),
+    ).toMatchObject({
       period: "10/2026",
       payment_date: "2026-11-15",
-      lesson_count: 1,
-      total_cents: 4500,
+      lesson_count: 4,
+      total_cents: 18000,
     });
   });
 
@@ -112,5 +114,59 @@ describe("Firestore financial helpers", () => {
 
     expect(dashboard.extra_lessons).toBe(1);
     expect(dashboard.extra_earned_cents).toBe(3000);
+  });
+
+  it("completa a recorrência semanal e ignora substituições", () => {
+    const groups = [
+      {
+        id: "mon",
+        external_id: "mon",
+        title: "Segunda",
+        course_name: "[90 min][40 L]",
+        start_date: "2026-03-02",
+        archived: false,
+        created_at: "2026-03-01",
+      },
+      {
+        id: "tue",
+        external_id: "tue",
+        title: "Terça",
+        course_name: "[90 min][40 L]",
+        start_date: "2026-03-03",
+        archived: false,
+        created_at: "2026-03-01",
+      },
+      {
+        id: "thu",
+        external_id: "thu",
+        title: "Quinta",
+        course_name: "[90 min][40 L]",
+        start_date: "2026-03-05",
+        archived: false,
+        created_at: "2026-03-01",
+      },
+    ];
+    const dashboard = __test.dashboardFrom(
+      [],
+      [],
+      [],
+      groups,
+      [
+        {
+          id: "sub",
+          external_class_id: "thu",
+          lesson_date: "2026-04-02",
+          status: "Substituição",
+          created_at: "2026-03-01",
+        },
+      ],
+      "2026-04-01",
+    );
+    const april = dashboard.payments.find(
+      (payment) => payment.period === "04/2026",
+    );
+
+    // Abril teria 13 encontros semanais das três turmas; a substituição não entra no orçamento.
+    expect(april).toMatchObject({ lesson_count: 12, total_cents: 54000 });
   });
 });

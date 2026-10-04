@@ -306,74 +306,101 @@ const kodlandFinancialLessons = (
   const byGroup = new Map(
     activeGroups.map((group) => [String(group.external_id ?? group.id), group]),
   );
-  const scheduledGroups = new Set<string>();
-  const fromSchedule = scheduled.flatMap((item) => {
+  const byGroupAndDate = new Map<string, Row[]>();
+  scheduled.forEach((item) => {
     const groupId = String(item.external_class_id ?? "");
-    const group = byGroup.get(groupId);
     const lessonDate = dateOnly(item.lesson_date);
-    if (!group || !lessonDate) return [];
-    scheduledGroups.add(groupId);
-    const start = minutesFromTime(item.start_time);
-    const end = minutesFromTime(item.end_time);
+    if (!byGroup.has(groupId) || !lessonDate) return;
+    const key = `${groupId}:${lessonDate}`;
+    byGroupAndDate.set(key, [...(byGroupAndDate.get(key) ?? []), item]);
+  });
+  const isSubstitution = (item: Row) =>
+    /substitu|replacement/i.test(
+      String(item.financial_status ?? item.status ?? item.note ?? ""),
+    );
+  const toFinancialLesson = (
+    group: Row,
+    groupId: string,
+    lessonDate: string,
+    number: number,
+    event?: Row,
+  ) => {
+    const start = minutesFromTime(event?.start_time);
+    const end = minutesFromTime(event?.end_time);
     const duration =
       start !== null && end !== null && end > start
         ? end - start
         : courseDuration(group.course_name);
-    return [
-      asLesson(
-        {
-          id: `kodland-${groupId}-${String(item.id)}`,
-          class_id: `kodland:${groupId}`,
-          class_name_snapshot: String(group.title),
-          number: Number(item.lesson_number ?? 1),
-          lesson_date: lessonDate,
-          student: "",
-          type: "NORMAL",
-          duration_minutes: duration,
-          hourly_rate_cents: 3000,
-          active: true,
-          canceled: false,
-          note: "Cronograma Kodland",
-          created_at: String(item.created_at ?? now()),
-        },
-        today,
-      ),
-    ];
-  });
+    return asLesson(
+      {
+        id: event
+          ? `kodland-${groupId}-${String(event.id)}`
+          : `kodland-${groupId}-forecast-${number}`,
+        class_id: `kodland:${groupId}`,
+        class_name_snapshot: String(group.title),
+        number: Number(event?.lesson_number ?? number),
+        lesson_date: lessonDate,
+        student: "",
+        type: "NORMAL",
+        duration_minutes: duration,
+        hourly_rate_cents: 3000,
+        active: true,
+        canceled: false,
+        note: event ? "Cronograma Kodland" : "Previsão semanal Kodland",
+        created_at: String(event?.created_at ?? group.created_at ?? now()),
+      },
+      today,
+    );
+  };
 
-  // Some groups expose only their first time slot. Keep the forecast useful
-  // until Kodland returns individual calendar events for them.
-  const inferred = activeGroups.flatMap((group) => {
+  return activeGroups.flatMap((group) => {
     const groupId = String(group.external_id ?? group.id);
     const firstDate =
       dateOnly(group.start_date) || dateOnly(group.next_lesson_date);
-    const count = courseLessonCount(group.course_name);
-    if (scheduledGroups.has(groupId) || !firstDate || !count) return [];
+    const count = courseLessonCount(group.course_name) || 52;
+    if (!firstDate) return [];
     const first = new Date(`${firstDate}T00:00:00Z`);
-    return Array.from({ length: count }, (_, index) => {
+    const recurringDates = new Set<string>();
+    const recurring = Array.from({ length: count }, (_, index) => {
       const date = new Date(first);
       date.setUTCDate(date.getUTCDate() + index * 7);
-      return asLesson(
-        {
-          id: `kodland-${groupId}-forecast-${index + 1}`,
-          class_id: `kodland:${groupId}`,
-          class_name_snapshot: String(group.title),
-          number: index + 1,
-          lesson_date: date.toISOString().slice(0, 10),
-          student: "",
-          type: "NORMAL",
-          duration_minutes: courseDuration(group.course_name),
-          hourly_rate_cents: 3000,
-          active: true,
-          canceled: false,
-          note: "Previsão pelo cronograma Kodland",
-          created_at: String(group.created_at ?? now()),
-        },
-        today,
+      const lessonDate = date.toISOString().slice(0, 10);
+      recurringDates.add(lessonDate);
+      const events = byGroupAndDate.get(`${groupId}:${lessonDate}`) ?? [];
+      if (events.some(isSubstitution)) return null;
+      return toFinancialLesson(
+        group,
+        groupId,
+        lessonDate,
+        index + 1,
+        events[0],
       );
     });
+    const rescheduled = scheduled
+      .filter((item) => String(item.external_class_id ?? "") === groupId)
+      .flatMap((item) => {
+        const lessonDate = dateOnly(item.lesson_date);
+        if (
+          !lessonDate ||
+          recurringDates.has(lessonDate) ||
+          isSubstitution(item)
+        )
+          return [];
+        return [
+          toFinancialLesson(
+            group,
+            groupId,
+            lessonDate,
+            Number(item.lesson_number ?? 1),
+            item,
+          ),
+        ];
+      });
+    return [
+      ...recurring.filter((lesson): lesson is Lesson => Boolean(lesson)),
+      ...rescheduled,
+    ];
   });
-  return [...fromSchedule, ...inferred];
 };
 
 const kodlandExtraFinancialLessons = (
@@ -918,6 +945,12 @@ export const kodlandApi = {
       "kodland_extra_lessons",
     )) as unknown as KodlandExtraLesson[],
   }),
+  updateLessonFinancialStatus: async (id: string, status: string) => {
+    await updateDoc(doc(ref("kodland_lessons"), id), {
+      financial_status: status,
+      updated_at: now(),
+    });
+  },
   sync: async (username: string, password: string) => {
     const token = await (
       authUser() as unknown as { getIdToken: () => Promise<string> }
@@ -1001,6 +1034,10 @@ export const kodlandApi = {
     snapshot.lessons.forEach((item) =>
       batch.set(doc(ref("kodland_lessons"), item.id), {
         ...item,
+        financial_status: String(
+          oldLessons.find((lesson) => String(lesson.id) === item.id)
+            ?.financial_status ?? "",
+        ),
         created_at: createdAt,
       }),
     );

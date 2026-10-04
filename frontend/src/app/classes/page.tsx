@@ -126,9 +126,11 @@ const lessonLinks = (lesson: KodlandLesson | undefined) =>
 function LessonMaterials({
   lesson,
   label,
+  onFinancialStatusChange,
 }: {
   lesson: KodlandLesson;
   label: string;
+  onFinancialStatusChange: (lesson: KodlandLesson, status: string) => void;
 }) {
   const links = lessonLinks(lesson);
   return (
@@ -168,6 +170,17 @@ function LessonMaterials({
             Abrir aula
           </a>
         )}
+        <select
+          className="input button-small"
+          aria-label={`Status financeiro de ${lesson.title || "aula"}`}
+          value={lesson.financial_status ?? ""}
+          onChange={(event) =>
+            onFinancialStatusChange(lesson, event.target.value)
+          }
+        >
+          <option value="">Contabilizar</option>
+          <option value="SUBSTITUTION">Substituição</option>
+        </select>
       </div>
     </div>
   );
@@ -179,12 +192,14 @@ function GroupAccordion({
   lessons,
   reviews,
   openByDefault,
+  onFinancialStatusChange,
 }: {
   group: KodlandGroup;
   students: KodlandStudent[];
   lessons: KodlandLesson[];
   reviews: KodlandReview[];
   openByDefault: boolean;
+  onFinancialStatusChange: (lesson: KodlandLesson, status: string) => void;
 }) {
   const info = classInfo(group);
   const orderedLessons = [...lessons].sort(
@@ -236,13 +251,18 @@ function GroupAccordion({
         {(nextLesson || previousLesson) && (
           <div className="lesson-materials">
             {nextLesson && (
-              <LessonMaterials lesson={nextLesson} label="Próxima aula" />
+              <LessonMaterials
+                lesson={nextLesson}
+                label="Próxima aula"
+                onFinancialStatusChange={onFinancialStatusChange}
+              />
             )}
             {previousLesson &&
               (!nextLesson || previousLesson.id !== nextLesson.id) && (
                 <LessonMaterials
                   lesson={previousLesson}
                   label="Aula anterior"
+                  onFinancialStatusChange={onFinancialStatusChange}
                 />
               )}
           </div>
@@ -402,6 +422,23 @@ function ClassesContent() {
       );
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function updateLessonFinancialStatus(
+    lesson: KodlandLesson,
+    status: string,
+  ) {
+    try {
+      setError("");
+      await kodlandApi.updateLessonFinancialStatus(lesson.id, status);
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível atualizar o status da aula.",
+      );
     }
   }
 
@@ -694,6 +731,9 @@ function ClassesContent() {
                 )}
                 reviews={reviews}
                 openByDefault={false}
+                onFinancialStatusChange={(lesson, status) =>
+                  void updateLessonFinancialStatus(lesson, status)
+                }
               />
             ))}
           </div>

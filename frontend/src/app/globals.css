@@ -714,7 +714,8 @@ select:focus-visible {
 }
 .management-grid > .page-heading,
 .management-grid > .form-error,
-.management-grid > .notice {
+.management-grid > .notice,
+.management-grid > .metric-grid {
   grid-column: 1/-1;
 }
 .management-grid > .panel {

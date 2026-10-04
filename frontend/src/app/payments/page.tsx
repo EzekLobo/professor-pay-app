@@ -34,6 +34,10 @@ function Content() {
     (item) => item.status !== "RECEIVED",
   ).length;
   const paidCount = items.filter((item) => item.status === "RECEIVED").length;
+  const today = new Date().toISOString().slice(0, 10);
+  const previousPayment =
+    items.filter((item) => item.payment_date <= today).at(-1) ?? null;
+  const nextPayment = items.find((item) => item.payment_date > today) ?? null;
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -101,6 +105,20 @@ function Content() {
       </section>
       {error && <p className="form-error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
+      <section className="payment-summary" aria-label="Pagamentos em destaque">
+        <PaymentHighlight
+          label="Anterior"
+          payment={previousPayment}
+          empty="Nenhum pagamento anterior"
+          onOpen={open}
+        />
+        <PaymentHighlight
+          label="Próximo"
+          payment={nextPayment}
+          empty="Nenhum pagamento previsto"
+          onOpen={open}
+        />
+      </section>
       <section className="metric-grid payment-metric-grid">
         <article className="metric-card">
           <span>Estimativa a receber</span>
@@ -190,6 +208,42 @@ function Content() {
     </div>
   );
 }
+
+function PaymentHighlight({
+  label,
+  payment,
+  empty,
+  onOpen,
+}: {
+  label: string;
+  payment: DashboardPayment | null;
+  empty: string;
+  onOpen: (date: string) => Promise<void>;
+}) {
+  return (
+    <button
+      className="payment-highlight payment-highlight-button"
+      type="button"
+      disabled={!payment}
+      onClick={() => payment && void onOpen(payment.payment_date)}
+    >
+      <span>{label}</span>
+      <strong>{payment ? formatMoney(payment.total_cents) : empty}</strong>
+      {payment ? (
+        <>
+          <small>
+            Competência {payment.period} · vence{" "}
+            {formatDate(payment.payment_date)}
+          </small>
+          <StatusBadge tone={tone(payment.status)}>
+            {status(payment.status)}
+          </StatusBadge>
+        </>
+      ) : null}
+    </button>
+  );
+}
+
 export default function PaymentsPage() {
   return (
     <AuthGuard>

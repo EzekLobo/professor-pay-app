@@ -715,8 +715,15 @@ select:focus-visible {
 .management-grid > .page-heading,
 .management-grid > .form-error,
 .management-grid > .notice,
-.management-grid > .metric-grid {
+.management-grid > .metric-grid,
+.management-grid > .payment-summary {
   grid-column: 1/-1;
+}
+.payment-metric-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.payment-metric-grid .metric-card {
+  min-height: 118px;
 }
 .management-grid > .panel {
   grid-column: 1/-1;

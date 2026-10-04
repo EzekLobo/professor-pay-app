@@ -49,10 +49,10 @@ const weekDay = (value: string) => {
   const date = new Date(`${dateOnly(value)}T12:00:00`);
   return Number.isNaN(date.getTime()) ? -1 : (date.getDay() + 6) % 7;
 };
-const currentWeek = () => {
+const currentWeek = (offset = 0) => {
   const start = new Date();
   start.setHours(12, 0, 0, 0);
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7) + offset * 7);
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
@@ -71,7 +71,10 @@ function WeekSchedule({
   lessons: KodlandLesson[];
   extraLessons: KodlandExtraLesson[];
 }) {
-  const days = currentWeek();
+  const [weekOffset, setWeekOffset] = useState(0);
+  const days = currentWeek(weekOffset);
+  const weekState =
+    weekOffset === 0 ? "Atual" : weekOffset < 0 ? "Passada" : "Próxima";
   const range = new Set(days.map(isoDate));
   const active = groups.filter((group) => !group.archived);
   const entries: ScheduleEntry[] = lessons
@@ -125,11 +128,26 @@ function WeekSchedule({
   return (
     <section className="panel weekly-schedule">
       <div className="section-heading">
-        <div>
-          <p className="eyebrow">AGENDA DA SEMANA</p>
-          <h2>Grade de horários</h2>
+        <h2>Grade de horários</h2>
+        <div className="week-navigation" aria-label="Navegação semanal">
+          <button
+            className="button secondary compact"
+            type="button"
+            onClick={() => setWeekOffset((value) => value - 1)}
+            aria-label="Semana anterior"
+          >
+            ←
+          </button>
+          <span className="week-state">{weekState}</span>
+          <button
+            className="button secondary compact"
+            type="button"
+            onClick={() => setWeekOffset((value) => value + 1)}
+            aria-label="Próxima semana"
+          >
+            →
+          </button>
         </div>
-        <span className="muted">Turmas e extras sincronizadas</span>
       </div>
       <div
         className="week-grid"
@@ -189,43 +207,20 @@ function KodlandSummary({
   extraLessons: KodlandExtraLesson[];
 }) {
   const active = groups.filter((group) => !group.archived);
-  const next = active
-    .filter((group) => group.next_lesson_date)
-    .sort((a, b) => a.next_lesson_date.localeCompare(b.next_lesson_date))[0];
-  const today = new Date().toISOString().slice(0, 10);
-  const nextLesson = [...lessons]
-    .sort((a, b) =>
-      `${a.lesson_date} ${a.start_time}`.localeCompare(
-        `${b.lesson_date} ${b.start_time}`,
-      ),
-    )
-    .find((lesson) => lesson.lesson_date >= today);
   return (
     <div className="dashboard-grid">
       <section className="metric-grid kodland-metrics">
         <article className="metric-card">
-          <span>Turmas ativas</span>
+          <span>Turmas</span>
           <strong>{active.length}</strong>
-          <small>{groups.length} no total</small>
         </article>
         <article className="metric-card metric-success">
           <span>Alunos</span>
           <strong>{students.length}</strong>
-          <small>Em suas turmas</small>
         </article>
         <article className="metric-card">
-          <span>Correções pendentes</span>
+          <span>Correções</span>
           <strong>{reviews.length}</strong>
-          <small>Atividades entregues</small>
-        </article>
-        <article className="metric-card">
-          <span>Próxima aula</span>
-          <strong>{nextLesson?.title ?? next?.title ?? "—"}</strong>
-          <small>
-            {nextLesson?.lesson_date ||
-              next?.next_lesson_date ||
-              "Sem agenda informada"}
-          </small>
         </article>
       </section>
       <WeekSchedule
@@ -283,7 +278,6 @@ function DashboardPageContent() {
   if (!dashboard) return <DashboardContent state="loading" />;
   return (
     <>
-      <DashboardContent state="ready" dashboard={dashboard} />
       <KodlandSummary
         groups={groups}
         students={students}
@@ -291,6 +285,7 @@ function DashboardPageContent() {
         lessons={lessons}
         extraLessons={extraLessons}
       />
+      <DashboardContent state="ready" dashboard={dashboard} />
     </>
   );
 }

@@ -83,9 +83,7 @@ export function DashboardContent(props: DashboardContentProps) {
       <section className="panel payment-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">RESUMO FINANCEIRO</p>
-            <h2>Competências em destaque</h2>
-            <p className="muted">Mês anterior e próximo pagamento previsto.</p>
+            <h2>Resumo financeiro</h2>
           </div>
         </div>
         <div className="payment-summary">

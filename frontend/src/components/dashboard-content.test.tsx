@@ -53,11 +53,12 @@ describe("DashboardContent", () => {
     expect(markup).toContain("Não foi possível carregar o resumo");
     expect(markup).toContain("Tentar novamente");
   });
-  it("exibe apenas as competências em destaque", () => {
+  it("exibe apenas o resumo financeiro", () => {
     const markup = renderToStaticMarkup(
       <DashboardContent state="ready" dashboard={dashboard} />,
     );
-    expect(markup).toContain("Competências em destaque");
+    expect(markup).toContain("Resumo financeiro");
+    expect(markup).not.toContain("Competências em destaque");
     expect(markup).toContain("Próximo");
     expect(markup).toContain("R$ 250,00");
     expect(markup).toContain("1 de out. de 2026");

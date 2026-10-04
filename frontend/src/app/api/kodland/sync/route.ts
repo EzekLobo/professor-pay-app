@@ -81,12 +81,23 @@ const list = (value: unknown) => {
     "items",
     "data",
     "lessons",
+    "events",
+    "schedule",
+    "timetable",
+    "slots",
     "materials",
     "tasks",
   ]) {
     if (Array.isArray(payload[key])) return payload[key] as unknown[];
   }
   return [];
+};
+const scheduleItems = (value: unknown, depth = 0): unknown[] => {
+  const items = list(value);
+  if (items.length || depth >= 2) return items;
+  return Object.values(record(value)).flatMap((item) =>
+    Array.isArray(item) ? item : scheduleItems(item, depth + 1),
+  );
 };
 const number = (value: unknown) =>
   Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -289,42 +300,60 @@ function extrasFromStudentAgenda(
   payload: unknown,
   student: Student,
 ): ExtraLesson[] {
-  return list(payload).flatMap((value, index) => {
+  return scheduleItems(payload).flatMap((value, index) => {
     const item = record(value);
+    const nested = record(item.lesson ?? item.event ?? item.lesson_data);
+    const event = { ...nested, ...item };
     const kind = text(
-      item.lesson_type ??
-        item.lessonType ??
-        item.type ??
-        item.category ??
-        item.kind,
+      event.lesson_type ??
+        event.lessonType ??
+        event.type ??
+        event.category ??
+        event.kind ??
+        event.event_type ??
+        event.eventType ??
+        event.schedule_type ??
+        event.scheduleType,
     ).toLowerCase();
     const isExtra =
       flag(
-        item.is_extra ?? item.isExtra ?? item.additional ?? item.is_additional,
-      ) || /extra|additional|individual/.test(kind);
+        event.is_extra ??
+          event.isExtra ??
+          event.is_extra_lesson ??
+          event.isExtraLesson ??
+          event.additional ??
+          event.is_additional ??
+          event.isAdditional ??
+          event.individual ??
+          event.is_individual ??
+          event.isIndividual,
+      ) ||
+      /extra|additional|individual/.test(
+        `${kind} ${text(event.status ?? event.lesson_status ?? event.state)}`.toLowerCase(),
+      );
     const lessonDate = dateOnly(
-      item.lesson_date ??
-        item.lessonDate ??
-        item.date ??
-        item.start_at ??
-        item.startAt ??
-        item.datetime,
+      event.lesson_date ??
+        event.lessonDate ??
+        event.date ??
+        event.start_at ??
+        event.startAt ??
+        event.datetime,
     );
-    const status = text(item.status ?? item.lesson_status ?? item.state);
+    const status = text(event.status ?? event.lesson_status ?? event.state);
     const completed =
       flag(
-        item.completed ??
-          item.is_completed ??
-          item.lesson_passed ??
-          item.passed,
+        event.completed ??
+          event.is_completed ??
+          event.lesson_passed ??
+          event.passed,
       ) ||
       /completed|complete|passed|done|finished|held/.test(status.toLowerCase());
     const externalId = text(
-      item.id ??
-        item.lesson_id ??
-        item.lessonId ??
-        item.event_id ??
-        item.eventId,
+      event.id ??
+        event.lesson_id ??
+        event.lessonId ??
+        event.event_id ??
+        event.eventId,
     );
     if (!isExtra || !lessonDate || !externalId) return [];
     return [
@@ -336,19 +365,19 @@ function extrasFromStudentAgenda(
         external_class_name: student.external_class_name,
         lesson_date: lessonDate,
         start_time: timeOnly(
-          item.start_time ??
-            item.startTime ??
-            item.start_at ??
-            item.startAt ??
-            item.datetime,
+          event.start_time ??
+            event.startTime ??
+            event.start_at ??
+            event.startAt ??
+            event.datetime,
         ),
         end_time: timeOnly(
-          item.end_time ??
-            item.endTime ??
-            item.end_at ??
-            item.endAt ??
-            item.finish_at ??
-            item.finishAt,
+          event.end_time ??
+            event.endTime ??
+            event.end_at ??
+            event.endAt ??
+            event.finish_at ??
+            event.finishAt,
         ),
         status,
         completed,
@@ -359,18 +388,85 @@ function extrasFromStudentAgenda(
 
 async function extrasForStudents(
   students: Student[],
+  teacherId: string,
   token: string,
 ): Promise<ExtraLesson[]> {
-  const snapshots = await Promise.all(
-    students.map(async (student) => {
-      const agenda = await getOptional(
-        `students/${student.external_id}/schedule_view/`,
-        token,
-      );
-      return agenda ? extrasFromStudentAgenda(agenda, student) : [];
-    }),
+  const [snapshots, teacherSchedule] = await Promise.all([
+    Promise.all(
+      students.map(async (student) => {
+        const agenda = await getOptional(
+          `students/${student.external_id}/schedule_view/`,
+          token,
+        );
+        return agenda ? extrasFromStudentAgenda(agenda, student) : [];
+      }),
+    ),
+    getOptional(`teacher_timetables/${teacherId}`, token),
+  ]);
+  const byStudentId = new Map(
+    students.map((student) => [student.external_id, student]),
   );
-  return snapshots.flat();
+  const knownGroupIds = new Set(
+    students.map((student) => student.external_class_id),
+  );
+  const fromTeacherSchedule = scheduleItems(teacherSchedule).flatMap(
+    (value) => {
+      const item = record(value);
+      const nested = record(item.lesson ?? item.event ?? item.lesson_data);
+      const event = { ...nested, ...item };
+      const studentId = text(
+        event.student_id ??
+          event.studentId ??
+          record(event.student).id ??
+          record(event.student).student_id,
+      );
+      const groupId = text(
+        event.group_id ??
+          event.groupId ??
+          event.student_group_id ??
+          event.studentGroupId ??
+          event.class_id ??
+          event.classId,
+      );
+      const student = byStudentId.get(studentId);
+      const kind = text(
+        event.lesson_type ??
+          event.lessonType ??
+          event.type ??
+          event.category ??
+          event.kind ??
+          event.event_type ??
+          event.eventType,
+      );
+      const explicitlyExtra =
+        flag(
+          event.is_extra ??
+            event.isExtra ??
+            event.is_extra_lesson ??
+            event.isExtraLesson ??
+            event.additional ??
+            event.is_additional ??
+            event.isAdditional ??
+            event.individual ??
+            event.is_individual ??
+            event.isIndividual,
+        ) ||
+        /extra|additional|individual/.test(
+          `${kind} ${text(event.status)}`.toLowerCase(),
+        );
+      if (!student || (!explicitlyExtra && knownGroupIds.has(groupId)))
+        return [];
+      return extrasFromStudentAgenda([{ ...event, is_extra: true }], student);
+    },
+  );
+  return Array.from(
+    new Map(
+      [...snapshots.flat(), ...fromTeacherSchedule].map((lesson) => [
+        lesson.id,
+        lesson,
+      ]),
+    ).values(),
+  );
 }
 
 async function reviewsForGroup(
@@ -609,7 +705,11 @@ export async function POST(request: NextRequest) {
       }),
     );
     const students = snapshots.flatMap((item) => item.students);
-    const extraLessons = await extrasForStudents(students, token);
+    const extraLessons = await extrasForStudents(
+      students,
+      userId(token),
+      token,
+    );
     return Response.json({
       groups,
       students,

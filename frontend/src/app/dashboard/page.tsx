@@ -28,6 +28,14 @@ const dateOnly = (value: string) =>
   value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
 const timeOnly = (value: string) =>
   value.match(/\b\d{1,2}:\d{2}/)?.[0]?.padStart(5, "0") ?? "";
+const groupTime = (group: KodlandGroup) => {
+  const direct = timeOnly(group.start_date) || timeOnly(group.next_lesson_date);
+  if (direct && direct !== "00:00") return direct;
+  const match = group.title.match(/[-_](\d{1,2})(?::(\d{2}))?$/);
+  return match
+    ? `${match[1].padStart(2, "0")}:${(match[2] ?? "00").padStart(2, "0")}`
+    : direct || "—";
+};
 const weekDay = (value: string) => {
   const date = new Date(`${dateOnly(value)}T12:00:00`);
   return Number.isNaN(date.getTime()) ? -1 : (date.getDay() + 6) % 7;
@@ -74,12 +82,12 @@ function WeekSchedule({
   const groupsWithEvent = new Set(entries.map((entry) => entry.title));
   active.forEach((group) => {
     const day = weekDay(group.start_date || group.next_lesson_date);
-    const time = timeOnly(group.start_date) || timeOnly(group.next_lesson_date);
+    const time = groupTime(group);
     if (day < 0 || groupsWithEvent.has(group.title)) return;
     entries.push({
       id: `recurring-${group.id}`,
       day,
-      time: time || "—",
+      time,
       title: group.title,
       detail: "Turma semanal",
       extra: false,

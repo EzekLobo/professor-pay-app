@@ -19,7 +19,8 @@ const dayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 type ScheduleEntry = {
   id: string;
   day: number;
-  time: string;
+  start: string;
+  end: string;
   title: string;
   detail: string;
   extra: boolean;
@@ -28,6 +29,14 @@ const dateOnly = (value: string) =>
   value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
 const timeOnly = (value: string) =>
   value.match(/\b\d{1,2}:\d{2}/)?.[0]?.padStart(5, "0") ?? "";
+const addMinutes = (time: string, minutes: number) => {
+  const [hour, minute] = time.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return "—";
+  const total = hour * 60 + minute + minutes;
+  return `${String(Math.floor((total % 1440) / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+};
+const courseDuration = (group: KodlandGroup) =>
+  Number(group.course_name.match(/\[(\d+)\s*min\]/i)?.[1] ?? 90);
 const groupTime = (group: KodlandGroup) => {
   const direct = timeOnly(group.start_date) || timeOnly(group.next_lesson_date);
   if (direct && direct !== "00:00") return direct;
@@ -74,7 +83,10 @@ function WeekSchedule({
     .map((lesson) => ({
       id: `lesson-${lesson.id}`,
       day: weekDay(lesson.lesson_date),
-      time: timeOnly(lesson.start_time) || "—",
+      start: timeOnly(lesson.start_time) || "—",
+      end:
+        timeOnly(lesson.end_time) ||
+        addMinutes(timeOnly(lesson.start_time), 90),
       title: lesson.external_class_name,
       detail: lesson.title || "Aula",
       extra: false,
@@ -82,12 +94,13 @@ function WeekSchedule({
   const groupsWithEvent = new Set(entries.map((entry) => entry.title));
   active.forEach((group) => {
     const day = weekDay(group.start_date || group.next_lesson_date);
-    const time = groupTime(group);
+    const start = groupTime(group);
     if (day < 0 || groupsWithEvent.has(group.title)) return;
     entries.push({
       id: `recurring-${group.id}`,
       day,
-      time,
+      start,
+      end: addMinutes(start, courseDuration(group)),
       title: group.title,
       detail: "Turma semanal",
       extra: false,
@@ -99,7 +112,10 @@ function WeekSchedule({
       entries.push({
         id: `extra-${lesson.id}`,
         day: weekDay(lesson.lesson_date),
-        time: timeOnly(lesson.start_time) || "—",
+        start: timeOnly(lesson.start_time) || "—",
+        end:
+          timeOnly(lesson.end_time) ||
+          addMinutes(timeOnly(lesson.start_time), 60),
         title: lesson.student_name || "Aula extra",
         detail: lesson.completed ? "Extra concluída" : "Aula extra",
         extra: true,
@@ -123,7 +139,7 @@ function WeekSchedule({
         {days.map((date, day) => {
           const dayEntries = entries
             .filter((entry) => entry.day === day)
-            .sort((a, b) => a.time.localeCompare(b.time));
+            .sort((a, b) => a.start.localeCompare(b.start));
           return (
             <section className="week-day" role="gridcell" key={isoDate(date)}>
               <header>
@@ -141,7 +157,9 @@ function WeekSchedule({
                     className={`week-slot${entry.extra ? " week-slot-extra" : ""}`}
                     key={entry.id}
                   >
-                    <time>{entry.time}</time>
+                    <time>
+                      {entry.start} – {entry.end}
+                    </time>
                     <strong>{entry.title}</strong>
                     <span>{entry.detail}</span>
                   </article>

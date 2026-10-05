@@ -483,3 +483,40 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   `Ready` no Vercel.
 - Pendente operacional: executar uma nova sincronizacao autenticada para
   substituir o snapshot antigo e gravar os links no Firestore.
+
+### R8 - Importação segura de cursos sob demanda
+
+- [x] R8.1 — Contrato e importador seguro
+  - Escopo: criar um endpoint autenticado para importar um curso por ID a partir
+    da fonte oficial, com catálogo permitido, validação estrita, limite de
+    requisições concorrentes e sem persistir credenciais.
+  - Aceitação: requisições sem autenticação, curso inválido ou URL fora da lista
+    permitida falham; a resposta contém apenas aulas e links HTTPS permitidos.
+  - Depende de: R7.
+- [ ] R8.2 — Persistência isolada e cliente
+  - Escopo: salvar cursos importados e suas aulas apenas no namespace Firebase
+    do usuário atual, preservando turmas/aulas sincronizadas existentes.
+  - Aceitação: importar o mesmo curso atualiza somente registros da própria
+    origem; dados de turmas não são removidos; typecheck e testes passam.
+  - Depende de: R8.1.
+- [ ] R8.3 — Seleção e acompanhamento na tela de Aulas
+  - Escopo: adicionar modal “Importar curso” com catálogo Roblox, Scratch,
+    Python e outro ID validado; mostrar progresso, resultado e atualização.
+  - Aceitação: usuário escolhe um curso, informa credenciais somente no envio e
+    visualiza as aulas/materiais importados por curso.
+  - Depende de: R8.2.
+- [ ] R8.4 — Verificação, publicação e validação visual
+  - Escopo: executar suíte completa, revisar a segurança no diff, publicar e
+    validar a interface no navegador sem usar credenciais do usuário.
+  - Aceitação: typecheck, testes, lint e build passam; deploy fica pronto; o
+    modal e os estados de importação aparecem corretamente.
+  - Depende de: R8.3.
+
+#### Handoff R8.1
+
+- Mudou: `POST /api/courses/import` autentica o usuário, aceita apenas curso
+  permitido e credenciais efêmeras, limita 80 aulas e quatro consultas de
+  materiais simultâneas. Links retornados usam HTTPS e hosts permitidos.
+- Catálogo: Roblox (1192) e Scratch (1183) são confirmados; Python depende do
+  ID oficial em `COURSE_IMPORT_CATALOG`, sem usar valor inventado.
+- Verificado: typecheck, lint, `course-import.test.ts` (5 testes) e diff check.

@@ -967,7 +967,10 @@ export async function POST(request: NextRequest) {
       pendingDetails: [],
       activeDetails: 0,
     };
-    const snapshots = await Promise.all(
+    // Keep the teacher calendar ahead of the full course-material import. The
+    // calendar is what drives availability and booked extras, while the
+    // material import can make hundreds of auxiliary requests.
+    const groupsWithStudents = await Promise.all(
       active.map(async (group) => {
         const payload = await get(
           `student_groups/${group.external_id}/get_students_main_data/`,
@@ -979,18 +982,25 @@ export async function POST(request: NextRequest) {
           profileCache,
         );
         return {
+          group,
+          payload,
           students,
-          reviews: await reviewsForGroup(group, payload, token),
-          lessons: await lessonsForGroup(group, token, courseLessonCache),
         };
       }),
     );
-    const students = snapshots.flatMap((item) => item.students);
+    const students = groupsWithStudents.flatMap((item) => item.students);
     const teacherId = userId(token);
     const [extraSnapshot, availabilityPayload] = await Promise.all([
       extrasForStudents(students, teacherId, token),
       getOptional(`teacher_timetables/${teacherId}`, token),
     ]);
+    const snapshots = await Promise.all(
+      groupsWithStudents.map(async ({ group, payload, students }) => ({
+        students,
+        reviews: await reviewsForGroup(group, payload, token),
+        lessons: await lessonsForGroup(group, token, courseLessonCache),
+      })),
+    );
     return Response.json({
       groups,
       students,

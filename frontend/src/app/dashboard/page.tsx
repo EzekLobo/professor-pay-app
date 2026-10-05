@@ -66,6 +66,11 @@ const currentWeek = (offset = 0) => {
 };
 const isoDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const moduleLabel = (lesson?: KodlandLesson) => {
+  if (lesson?.module_number) return lesson.module_number;
+  const courseModule = lesson?.title.match(/[MМ]\s*(\d+)\s*\.\s*L/i)?.[1];
+  return courseModule ? `Módulo ${courseModule}` : "Não informado";
+};
 
 function WeekSchedule({
   groups,
@@ -243,7 +248,7 @@ function WeekSchedule({
           <div className="lesson-details">
             <div className="lesson-detail-grid">
               <div><span>Turma</span><strong>{group?.title ?? selectedLesson?.external_class_name}</strong></div>
-              <div><span>Módulo</span><strong>{selectedLesson?.module_number || "Não informado"}</strong></div>
+              <div><span>Módulo</span><strong>{moduleLabel(selectedLesson)}</strong></div>
               <div><span>Aula</span><strong>{selectedLesson?.lesson_number || "Não informada"}</strong></div>
               <div><span>Horário</span><strong>{selectedEntry.start} – {selectedEntry.end}</strong></div>
               <div><span>Assunto</span><strong>{selectedLesson?.title || selectedLesson?.theme || "Aula semanal"}</strong></div>

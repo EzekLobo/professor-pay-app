@@ -169,4 +169,32 @@ describe("Firestore financial helpers", () => {
     // Abril teria 13 encontros semanais das três turmas; a substituição não entra no orçamento.
     expect(april).toMatchObject({ lesson_count: 12, total_cents: 54000 });
   });
+
+  it("normaliza aulas importadas em uma colecao separada da agenda sincronizada", () => {
+    const result = __test.normalizeImportedCourseResult({
+      course: { id: "roblox", name: "Roblox", lesson_count: 1 },
+      lessons: [{
+        id: "20849",
+        lesson_number: 3,
+        title: "Construindo o jogo",
+        module_number: "1",
+        external_url: "https://bo.kodland.org/courses/1192?lessonId=20849",
+        slides_url: "https://docs.google.com/presentation/d/example",
+        guide_url: "https://wiki.kodland.org/example",
+        homework_url: "https://learn.kodland.org/pt/task/1/teacher/do",
+        homework_title: "Atividade",
+      }],
+    });
+
+    expect(result.course).toMatchObject({ id: "roblox", lesson_count: 1 });
+    expect(__test.importedLessonDocumentId("roblox", result.lessons[0].id)).toBe("roblox--20849");
+    expect(result.lessons[0]).not.toHaveProperty("password");
+  });
+
+  it("rejeita resposta de importacao fora do catalogo permitido", () => {
+    expect(() => __test.normalizeImportedCourseResult({
+      course: { id: "arbitrary", name: "Outro", lesson_count: 0 },
+      lessons: [],
+    })).toThrow("curso importado");
+  });
 });

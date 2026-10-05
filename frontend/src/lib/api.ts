@@ -136,6 +136,8 @@ export type DataExport = {
   kodland_lessons?: unknown[];
   kodland_extra_lessons?: unknown[];
   kodland_availability?: unknown[];
+  imported_courses?: unknown[];
+  imported_course_lessons?: unknown[];
 };
 export type KodlandGroup = {
   id: string;
@@ -207,6 +209,43 @@ export type KodlandAvailability = {
   start_time: string;
   end_time: string;
   created_at: string;
+};
+export type ImportedCourse = {
+  id: string;
+  name: string;
+  lesson_count: number;
+  source: "course_import";
+  imported_at: string;
+  updated_at: string;
+  created_at: string;
+};
+export type ImportedCourseLesson = {
+  id: string;
+  course_id: string;
+  source_lesson_id: string;
+  source: "course_import";
+  lesson_number: number;
+  title: string;
+  module_number: string;
+  external_url: string;
+  slides_url: string;
+  guide_url: string;
+  homework_url: string;
+  homework_title: string;
+  created_at: string;
+  updated_at: string;
+};
+export type CourseImportInput = {
+  courseId: "roblox" | "scratch" | "python";
+  username: string;
+  password: string;
+};
+export type CourseImportResult = {
+  course: Pick<ImportedCourse, "id" | "name" | "lesson_count">;
+  lessons: Array<
+    Omit<ImportedCourseLesson, "id" | "course_id" | "source" | "source_lesson_id" | "created_at" | "updated_at">
+    & { id: string }
+  >;
 };
 export type { KodlandLesson } from "@/lib/kodland-lessons";
 type KodlandSnapshot = {
@@ -734,6 +773,60 @@ const importPedagogicalRows = (
     normalizePedagogicalRow(item, name),
   );
 
+const importedLessonDocumentId = (courseId: string, lessonId: string) =>
+  `${courseId}--${encodeURIComponent(lessonId)}`;
+
+/**
+ * The route has already filtered provider values. This second boundary keeps
+ * Firestore documents predictable even if a malformed response reaches the
+ * browser, and deliberately has no fields for credentials or provider tokens.
+ */
+const normalizeImportedCourseResult = (value: unknown): CourseImportResult => {
+  if (!value || typeof value !== "object")
+    throw new ApiError(400, "A resposta da importacao e invalida.");
+  const payload = value as Record<string, unknown>;
+  const course = payload.course;
+  if (!course || typeof course !== "object")
+    throw new ApiError(400, "O curso importado e invalido.");
+  const courseData = course as Record<string, unknown>;
+  const id = String(courseData.id ?? "");
+  const name = String(courseData.name ?? "").trim();
+  const lessonCount = Number(courseData.lesson_count ?? 0);
+  if (!/^(roblox|scratch|python)$/.test(id) || !name || !Number.isInteger(lessonCount) || lessonCount < 0 || lessonCount > 80)
+    throw new ApiError(400, "O curso importado e invalido.");
+  const rawLessons = Array.isArray(payload.lessons) ? payload.lessons : [];
+  if (rawLessons.length !== lessonCount || rawLessons.length > 80)
+    throw new ApiError(400, "A lista de aulas importadas e invalida.");
+  const url = (item: Record<string, unknown>, key: string) => {
+    const value = item[key];
+    return typeof value === "string" && /^https:\/\//i.test(value) && value.length <= 4096
+      ? value
+      : "";
+  };
+  const lessons = rawLessons.map((entry) => {
+    if (!entry || typeof entry !== "object")
+      throw new ApiError(400, "A lista de aulas importadas e invalida.");
+    const item = entry as Record<string, unknown>;
+    const sourceId = String(item.id ?? "").trim();
+    const title = String(item.title ?? "").trim();
+    const lessonNumber = Number(item.lesson_number ?? 0);
+    if (!sourceId || sourceId.length > 256 || !title || title.length > 512 || !Number.isFinite(lessonNumber))
+      throw new ApiError(400, "A lista de aulas importadas e invalida.");
+    return {
+      id: sourceId,
+      lesson_number: lessonNumber,
+      title,
+      module_number: String(item.module_number ?? "").slice(0, 128),
+      external_url: url(item, "external_url"),
+      slides_url: url(item, "slides_url"),
+      guide_url: url(item, "guide_url"),
+      homework_url: url(item, "homework_url"),
+      homework_title: String(item.homework_title ?? "").slice(0, 512),
+    };
+  });
+  return { course: { id: id as CourseImportInput["courseId"], name, lesson_count: lessonCount }, lessons };
+};
+
 export const authApi = {
   me: async (): Promise<User> => {
     const user = authUser();
@@ -1127,6 +1220,66 @@ export const kodlandApi = {
     });
   },
 };
+export const courseImportApi = {
+  courses: async () => ({
+    items: (await rows("imported_courses")) as unknown as ImportedCourse[],
+  }),
+  lessons: async (courseId?: string) => ({
+    items: (await rows("imported_course_lessons"))
+      .filter((item) => !courseId || item.course_id === courseId)
+      .map((item) => item as unknown as ImportedCourseLesson),
+  }),
+  import: async (input: CourseImportInput): Promise<CourseImportResult> => {
+    const user = authUser() as unknown as { getIdToken: () => Promise<string> };
+    const response = await fetch("/api/courses/import", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${await user.getIdToken()}`,
+      },
+      // Credentials are sent only to the import request and never persisted.
+      body: JSON.stringify(input),
+    });
+    const payload = await response.json() as Record<string, unknown>;
+    if (!response.ok)
+      throw new ApiError(response.status, String(payload.message ?? "Nao foi possivel importar o curso."));
+    const result = normalizeImportedCourseResult(payload);
+    const timestamp = now();
+    const [existing, importedCourses] = await Promise.all([
+      rows("imported_course_lessons"),
+      rows("imported_courses"),
+    ]);
+    const previousCourse = importedCourses.find((course) => course.id === result.course.id);
+    const batch = writeBatch(getFirebaseDb());
+
+    // Only entries created by this course-import source are replaced. The
+    // synchronized schedule remains in kodland_lessons and is never touched.
+    existing
+      .filter((lesson) => lesson.course_id === result.course.id && lesson.source === "course_import")
+      .forEach((lesson) => batch.delete(doc(ref("imported_course_lessons"), String(lesson.id))));
+    batch.set(doc(ref("imported_courses"), result.course.id), {
+      ...result.course,
+      source: "course_import",
+      imported_at: timestamp,
+      updated_at: timestamp,
+      created_at: String(previousCourse?.created_at ?? timestamp),
+    });
+    result.lessons.forEach((lesson) => {
+      const id = importedLessonDocumentId(result.course.id, lesson.id);
+      batch.set(doc(ref("imported_course_lessons"), id), {
+        ...lesson,
+        id,
+        source_lesson_id: lesson.id,
+        course_id: result.course.id,
+        source: "course_import",
+        created_at: timestamp,
+        updated_at: timestamp,
+      });
+    });
+    await batch.commit();
+    return result;
+  },
+};
 export const dataApi = {
   export: async (): Promise<DataExport> => ({
     schema_version: "1.0",
@@ -1140,6 +1293,8 @@ export const dataApi = {
     kodland_reviews: await rows("kodland_reviews"),
     kodland_lessons: await rows("kodland_lessons"),
     kodland_extra_lessons: await rows("kodland_extra_lessons"),
+    imported_courses: await rows("imported_courses"),
+    imported_course_lessons: await rows("imported_course_lessons"),
   }),
   previewImport: async (payload: unknown): Promise<ImportReport> => {
     const value = payload as ImportPayload;
@@ -1224,6 +1379,8 @@ export const dataApi = {
       "kodland_reviews",
       "kodland_lessons",
       "kodland_extra_lessons",
+      "imported_courses",
+      "imported_course_lessons",
     ])
       (await rows(name)).forEach((item) =>
         batch.delete(doc(ref(name), String(item.id))),
@@ -1240,4 +1397,6 @@ export const __test = {
   normalizePayment,
   normalizePedagogicalRow,
   importPedagogicalRows,
+  normalizeImportedCourseResult,
+  importedLessonDocumentId,
 };

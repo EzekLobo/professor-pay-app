@@ -499,7 +499,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   - Aceitação: importar o mesmo curso atualiza somente registros da própria
     origem; dados de turmas não são removidos; typecheck e testes passam.
   - Depende de: R8.1.
-- [ ] R8.3 — Seleção e acompanhamento na tela de Aulas
+- [x] R8.3 — Seleção e acompanhamento na tela de Aulas
   - Escopo: adicionar modal “Importar curso” com catálogo Roblox, Scratch,
     Python e outro ID validado; mostrar progresso, resultado e atualização.
   - Aceitação: usuário escolhe um curso, informa credenciais somente no envio e
@@ -528,3 +528,12 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Reimportação substitui somente itens `source: course_import` do curso alvo;
   `kodland_lessons` e os dados sincronizados não são alterados.
 - Verificado: typecheck, suíte Vitest (32 testes) e diff check.
+
+#### Handoff R8.3
+
+- Mudou: a tela Aulas ganhou modal de importação com Roblox e Scratch, campos
+  temporários de credenciais, feedback de progresso/erro e cursos importados em
+  acordeão com os materiais disponíveis.
+- Segurança: Python aparece desabilitado até um ID oficial ser configurado; não
+  há campo de URL livre ou ID arbitrário no cliente.
+- Verificado: typecheck, suíte Vitest (32 testes), lint, build e diff check.

@@ -8,9 +8,9 @@
 
 - Em `/lessons`, cada aula abre um modal sob demanda com tarefas em sala, lição de casa, slides e roteiro; a lista mantém apenas identificação e o atalho “Ver materiais”.
 
-- A grade usa o número da próxima aula da turma e payloads de cronograma aninhados para ligar o cartão recorrente ao material correto, em vez de mostrar um link genérico do curso.
+- A grade usa o índice global (posição 1-based no catálogo do curso) separado do número local da aula dentro do módulo; assim, uma ocorrência M7L28 associa à 28ª aula do curso, cujo título pedagógico pode ser M7.L4.
 
-- O modal de materiais é compartilhado entre a grade e `/lessons`. A sincronização guarda o número, título e URL da próxima aula; a grade associa pelo índice global, ID ou título e usa o horário/data da sessão como apoio. O seletor do catálogo fica como contingência somente quando o cronograma não traz vínculo.
+- O modal de materiais é compartilhado entre a grade e `/lessons`. A sincronização numera o catálogo em ordem global, extrai o índice dos eventos de cronograma e preserva o código local MxLy no título; a grade associa por índice global, ID ou título e usa data/horário como apoio. O seletor fica como contingência somente quando o cronograma não traz vínculo.
 
 - O resumo permite abrir os blocos azuis de turma em um modal com turma, módulo, aula e atalhos para slides, roteiro, atividade e aula. A tela `/lessons` lista as aulas sincronizadas agrupadas por curso e turma.
 

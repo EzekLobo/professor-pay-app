@@ -111,7 +111,7 @@ function WeekSchedule({
         timeOnly(lesson.end_time) ||
         addMinutes(timeOnly(lesson.start_time), 90),
       title: lesson.external_class_name,
-      detail: `Aula ${lesson.lesson_number || "—"}${lesson.title ? ` · ${lesson.title}` : ""}`,
+      detail: `Aula ${(lesson.course_index ?? lesson.lesson_number) || "—"}${lesson.title ? ` · ${lesson.title}` : ""}`,
       extra: false,
       lesson,
       group: groups.find((group) => group.external_id === lesson.external_class_id),
@@ -144,7 +144,7 @@ function WeekSchedule({
     )[0];
     const scheduledAtSlot = allGroupLessons.filter(
       (lesson) =>
-        lesson.lesson_number > 0 &&
+        (lesson.course_index ?? lesson.lesson_number) > 0 &&
         timeOnly(lesson.start_time) === start &&
         Boolean(dateOnly(lesson.lesson_date)),
     );
@@ -156,11 +156,10 @@ function WeekSchedule({
         b.lesson_date.localeCompare(a.lesson_date),
       )[0];
     const nearestLesson =
-      allGroupLessons.find(
-        (lesson) =>
-          group.next_lesson_number &&
-          lesson.lesson_number === group.next_lesson_number,
-      ) ??
+      // A dated event from the teacher calendar is the same occurrence shown
+      // in the platform grid (e.g. M7L28), so it takes precedence over the
+      // group's generic “next lesson”, which may refer to a later module.
+      nextScheduledAtSlot ??
       allGroupLessons.find(
         (lesson) => linkedLessonId && lesson.id === linkedLessonId,
       ) ??
@@ -169,7 +168,11 @@ function WeekSchedule({
           nextLessonTitle &&
           normalizeLessonTitle(lesson.title) === nextLessonTitle,
       ) ??
-      nextScheduledAtSlot ??
+      allGroupLessons.find(
+        (lesson) =>
+          group.next_lesson_number &&
+          lesson.course_index === group.next_lesson_number,
+      ) ??
       nearestByDate;
     entries.push({
       id: `recurring-${group.id}`,
@@ -178,7 +181,7 @@ function WeekSchedule({
       end: addMinutes(start, courseDuration(group)),
       title: group.title,
       detail: nearestLesson
-        ? `Aula ${nearestLesson.lesson_number} · ${nearestLesson.title}`
+        ? `Aula ${nearestLesson.course_index ?? nearestLesson.lesson_number} · ${nearestLesson.title}`
         : "Turma semanal",
       extra: false,
       lesson: nearestLesson,
@@ -298,7 +301,8 @@ function WeekSchedule({
               )
               .sort(
                 (a, b) =>
-                  a.lesson_number - b.lesson_number ||
+                  (a.course_index ?? a.lesson_number) -
+                    (b.course_index ?? b.lesson_number) ||
                   a.lesson_date.localeCompare(b.lesson_date),
               )
           : [];

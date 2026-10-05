@@ -4,6 +4,8 @@ export type KodlandLesson = {
   external_class_name: string;
   module_number?: string;
   lesson_number: number;
+  /** One-based position in the full course catalog, distinct from module-local lesson_number. */
+  course_index?: number;
   title: string;
   theme: string;
   lesson_date: string;
@@ -31,8 +33,11 @@ export function kodlandLessonLocation(lesson: {
   const moduleNumber =
     lesson.module_number?.match(/\d+/)?.[0] ??
     lesson.title.match(/[M\u041c]\s*(\d+)\s*\.?\s*L\s*\d+/i)?.[1];
+  const moduleLessonNumber = lesson.title.match(
+    /[M\u041c]\s*\d+\s*\.?\s*L\s*(\d+)/i,
+  )?.[1];
   if (moduleNumber && lesson.lesson_number)
-    return `M${moduleNumber}L${lesson.lesson_number}`;
+    return `M${moduleNumber}L${moduleLessonNumber ?? lesson.lesson_number}`;
   return lesson.lesson_number ? `Aula ${lesson.lesson_number}` : "Aula";
 }
 
@@ -40,6 +45,7 @@ export function kodlandLessonLocation(lesson: {
 export type KodlandCourseLesson = {
   id: string;
   lesson_number: number;
+  course_index?: number;
   title: string;
   materials: unknown[];
   homework: unknown[];
@@ -218,6 +224,11 @@ export function enrichKodlandLessons(
     const lessonTitle = normalizeTitle(lesson.title);
     const catalog =
       courseLessons.find((candidate) => candidate.id === lesson.id) ??
+      (lesson.course_index && lesson.course_index > 0
+        ? courseLessons.find(
+            (candidate) => candidate.course_index === lesson.course_index,
+          )
+        : undefined) ??
       (lesson.lesson_number > 0
         ? courseLessons.find(
             (candidate) => candidate.lesson_number === lesson.lesson_number,
@@ -264,6 +275,9 @@ export function enrichKodlandLessons(
 
     return {
       ...lesson,
+      course_index: catalog.course_index || lesson.course_index,
+      lesson_number: catalog.lesson_number || lesson.lesson_number,
+      title: catalog.title || lesson.title,
       external_url:
         courseLessonUrl(courseId, catalog.id) || lesson.external_url,
       slides_url: slides?.url || lesson.slides_url,
@@ -296,6 +310,20 @@ export function parseKodlandLessonsPayload(
         item.lessonInfo,
     );
     const lessonItem = { ...item, ...nestedLesson };
+    const lessonCode = [
+      lessonItem.lesson_code,
+      lessonItem.lessonCode,
+      lessonItem.lesson_label,
+      lessonItem.lessonLabel,
+      lessonItem.display_name,
+      lessonItem.displayName,
+      item.lesson,
+    ]
+      .map(text)
+      .map((value) =>
+        value.match(/^\s*[M\u041c]\s*(\d+)\s*\.?\s*L\s*(\d+)\s*$/i),
+      )
+      .find(Boolean);
     const id = readText(item, [
       "lesson_id",
       "lessonId",
@@ -305,7 +333,7 @@ export function parseKodlandLessonsPayload(
       "eventId",
       "id",
     ]) || readText(nestedLesson, ["lesson_id", "lessonId", "id"]);
-    const lessonNumber = number(
+    const explicitLessonNumber = number(
       lessonItem.lesson_number ??
         lessonItem.lessonNumber ??
         lessonItem.lesson_no ??
@@ -317,10 +345,21 @@ export function parseKodlandLessonsPayload(
         lessonItem.lessonIndex ??
         lessonItem.lesson_order ??
         lessonItem.lessonOrder ??
-        (typeof item.lesson === "number" || typeof item.lesson === "string"
+        (typeof item.lesson === "number"
           ? item.lesson
           : undefined),
     );
+    // The schedule displays a global course index such as M7L28. Prefer that
+    // explicit code for schedule events; course-catalog rows may instead use
+    // module-local labels (for example M7.L4) alongside a global lesson number.
+    const lessonNumber =
+      source === "schedule" && lessonCode
+        ? number(lessonCode[2])
+        : explicitLessonNumber;
+    const courseIndex =
+      source === "schedule"
+        ? number(lessonCode?.[2]) || explicitLessonNumber
+        : 0;
     const moduleNumber = readText(lessonItem, [
       "module_number",
       "moduleNumber",
@@ -398,6 +437,7 @@ export function parseKodlandLessonsPayload(
         external_class_name: group.title,
         module_number: moduleNumber,
         lesson_number: lessonNumber,
+        ...(courseIndex > 0 ? { course_index: courseIndex } : {}),
         title: title || (source === "schedule" ? "Aula agendada" : "Aula"),
         theme,
         lesson_date: date,

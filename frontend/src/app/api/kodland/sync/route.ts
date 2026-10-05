@@ -895,7 +895,8 @@ async function courseLessons(
             classroom: [],
           };
         })
-        .filter((value): value is KodlandCourseLesson => Boolean(value));
+        .filter((value): value is KodlandCourseLesson => Boolean(value))
+        .map((lesson, index) => ({ ...lesson, course_index: index + 1 }));
     })();
     cache.catalog.set(courseId, catalogPromise);
   }
@@ -960,6 +961,7 @@ async function lessonsForGroup(
         id: lesson.id,
         external_class_id: group.external_id,
         external_class_name: group.title,
+        course_index: lesson.course_index,
         lesson_number: lesson.lesson_number,
         title: lesson.title || "Aula",
         theme: "",
@@ -981,13 +983,27 @@ async function lessonsForGroup(
     const catalogLesson = catalog.find(
       (item) =>
         item.id === lesson.id ||
-        (item.lesson_number > 0 && item.lesson_number === lesson.lesson_number),
+        (lesson.course_index &&
+          item.course_index === lesson.course_index) ||
+        (!lesson.course_index &&
+          item.lesson_number > 0 &&
+          item.lesson_number === lesson.lesson_number),
     );
     const key = catalogLesson?.id ?? lesson.id;
     const previous = catalogLessons.get(key);
     catalogLessons.set(
       key,
-      previous ? { ...previous, ...lesson, id: key } : { ...lesson, id: key },
+      previous
+        ? {
+            ...previous,
+            ...lesson,
+            id: key,
+            course_index: previous.course_index || lesson.course_index,
+            lesson_number: previous.lesson_number || lesson.lesson_number,
+            title: previous.title || lesson.title,
+            module_number: previous.module_number || lesson.module_number,
+          }
+        : { ...lesson, id: key },
     );
   });
   return enrichKodlandLessons(

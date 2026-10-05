@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { enrichKodlandLessons, type KodlandLesson } from "@/lib/kodland-lessons";
+import {
+  enrichKodlandLessons,
+  kodlandLessonLocation,
+  parseKodlandLessonsPayload,
+  type KodlandLesson,
+} from "@/lib/kodland-lessons";
 
 const lesson: KodlandLesson = {
   id: "20849",
@@ -46,5 +51,57 @@ describe("enrichKodlandLessons", () => {
         url: "https://learn.kodland.org/pt/task/135016/teacher/do",
       },
     ]);
+  });
+
+  it("uses the global lesson index displayed by the schedule code", () => {
+    const [scheduled] = parseKodlandLessonsPayload(
+      [{
+        id: "calendar-event-28",
+        lesson: "M7L28",
+        module_number: 7,
+        title: "BRA2037_QUI-20",
+        date: "2026-10-08",
+        start_time: "20:00",
+        end_time: "21:30",
+      }],
+      { external_id: "62934", title: "BRA2037_QUI-20" },
+      "schedule",
+    );
+
+    expect(scheduled.course_index).toBe(28);
+    expect(scheduled.lesson_number).toBe(28);
+    expect(kodlandLessonLocation(scheduled)).toBe("M7L28");
+
+    const [matched] = enrichKodlandLessons(
+      [scheduled],
+      [{
+        id: "20831",
+        lesson_number: 4,
+        course_index: 28,
+        title: "M7.L4 Promovendo nossos jogos",
+        materials: [
+          { title: "Slides M7L4", link: "https://docs.google.com/presentation/d/lesson28/edit" },
+        ],
+        homework: [],
+        classroom: [],
+      }],
+      "1192",
+    );
+    expect(matched.slides_url).toContain("lesson28");
+    expect(matched.external_url).toContain("lessonId=20831");
+    expect(kodlandLessonLocation(matched)).toBe("M7L4");
+
+    const [localizedTitle] = parseKodlandLessonsPayload(
+      [{
+        id: "calendar-event-28b",
+        module_number: 7,
+        lesson_number: 28,
+        title: "M7.L4 Promovendo nossos jogos",
+        date: "2026-10-08",
+      }],
+      { external_id: "62934", title: "BRA2037_QUI-20" },
+      "schedule",
+    );
+    expect(localizedTitle.course_index).toBe(28);
   });
 });

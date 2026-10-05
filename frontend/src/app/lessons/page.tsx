@@ -358,7 +358,7 @@ function LessonsContent() {
             {courseGroups.map((group) => {
               const groupedLessons = courseLessons
                 .filter((lesson) => lesson.external_class_id === group.external_id)
-                .sort((a, b) => a.lesson_number - b.lesson_number || a.lesson_date.localeCompare(b.lesson_date));
+                .sort((a, b) => (a.course_index ?? a.lesson_number) - (b.course_index ?? b.lesson_number) || a.lesson_date.localeCompare(b.lesson_date));
               return (
                 <details className="course-card" key={group.id}>
                   <summary>
@@ -374,7 +374,7 @@ function LessonsContent() {
                         source: group.title,
                       })}>
                         <div>
-                          <strong>Aula {lesson.lesson_number || "—"}: {lesson.title || lesson.theme || "Aula"}</strong>
+                          <strong>Aula {(lesson.course_index ?? lesson.lesson_number) || "—"}: {lesson.title || lesson.theme || "Aula"}</strong>
                           <span>{lesson.lesson_date ? formatDate(lesson.lesson_date) : "Data a confirmar"}</span>
                         </div>
                         <span className="course-lesson-hint">Ver materiais</span>

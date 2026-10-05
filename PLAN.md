@@ -493,7 +493,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   - Aceitação: requisições sem autenticação, curso inválido ou URL fora da lista
     permitida falham; a resposta contém apenas aulas e links HTTPS permitidos.
   - Depende de: R7.
-- [ ] R8.2 — Persistência isolada e cliente
+- [x] R8.2 — Persistência isolada e cliente
   - Escopo: salvar cursos importados e suas aulas apenas no namespace Firebase
     do usuário atual, preservando turmas/aulas sincronizadas existentes.
   - Aceitação: importar o mesmo curso atualiza somente registros da própria
@@ -520,3 +520,11 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Catálogo: Roblox (1192) e Scratch (1183) são confirmados; Python depende do
   ID oficial em `COURSE_IMPORT_CATALOG`, sem usar valor inventado.
 - Verificado: typecheck, lint, `course-import.test.ts` (5 testes) e diff check.
+
+#### Handoff R8.2
+
+- Mudou: `courseImportApi` persiste cursos em `imported_courses` e aulas em
+  `imported_course_lessons`, sempre abaixo do usuário autenticado.
+- Reimportação substitui somente itens `source: course_import` do curso alvo;
+  `kodland_lessons` e os dados sincronizados não são alterados.
+- Verificado: typecheck, suíte Vitest (32 testes) e diff check.

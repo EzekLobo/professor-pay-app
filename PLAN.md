@@ -505,7 +505,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   - Aceitação: usuário escolhe um curso, informa credenciais somente no envio e
     visualiza as aulas/materiais importados por curso.
   - Depende de: R8.2.
-- [ ] R8.4 — Verificação, publicação e validação visual
+- [x] R8.4 — Verificação, publicação e validação visual
   - Escopo: executar suíte completa, revisar a segurança no diff, publicar e
     validar a interface no navegador sem usar credenciais do usuário.
   - Aceitação: typecheck, testes, lint e build passam; deploy fica pronto; o
@@ -537,3 +537,11 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Segurança: Python aparece desabilitado até um ID oficial ser configurado; não
   há campo de URL livre ou ID arbitrário no cliente.
 - Verificado: typecheck, suíte Vitest (32 testes), lint, build e diff check.
+
+#### Handoff R8.4
+
+- Verificado: typecheck, suíte Vitest (32 testes), lint, build e diff check
+  completos passam. O endpoint de importação integra a rota de produção sem
+  depender de URL livre ou de persistência de credenciais.
+- Publicação e validação visual: conferir modal e estados na tela Aulas após o
+  deploy; a importação efetiva requer credenciais próprias do usuário no envio.

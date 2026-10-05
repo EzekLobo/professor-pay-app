@@ -237,7 +237,7 @@ function KodlandSummary({
           <strong>{students.length}</strong>
         </article>
         <article className="metric-card">
-          <span>Correções</span>
+          <span>Correções pendentes</span>
           <strong>{reviews.length}</strong>
         </article>
       </section>

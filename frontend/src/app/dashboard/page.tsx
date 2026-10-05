@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { DashboardContent } from "@/components/dashboard-content";
-import { Modal } from "@/components/modal";
+import {
+  LessonMaterialModal,
+  type LessonMaterialDetails,
+} from "@/components/lesson-material-modal";
 import { Shell } from "@/components/shell";
 import {
   dashboardApi,
@@ -90,6 +93,7 @@ function WeekSchedule({
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
+  const [selectedCatalogLessonId, setSelectedCatalogLessonId] = useState("");
   const days = currentWeek(weekOffset);
   const weekState =
     weekOffset === 0 ? "Atual" : weekOffset < 0 ? "Passada" : "Próxima";
@@ -238,7 +242,10 @@ function WeekSchedule({
                       type="button"
                       className={`${className} week-slot-action`}
                       key={entry.id}
-                      onClick={() => setSelectedEntry(entry)}
+                      onClick={() => {
+                        setSelectedCatalogLessonId("");
+                        setSelectedEntry(entry);
+                      }}
                       aria-label={`Abrir detalhes de ${entry.title}, ${entry.detail}`}
                     >
                       {contents}
@@ -254,45 +261,79 @@ function WeekSchedule({
           );
         })}
       </div>
-      <Modal
-        open={Boolean(selectedEntry)}
-        title={selectedEntry ? `${selectedEntry.group?.title ?? selectedEntry.lesson?.external_class_name ?? "Aula"} · ${lessonLocation(selectedEntry.lesson)}` : "Materiais da aula"}
-        onClose={() => setSelectedEntry(null)}
-      >
-        {selectedEntry && (() => {
-          const selectedLesson = selectedEntry.lesson;
-          const location = lessonLocation(selectedLesson);
-          return (
-          <div className="lesson-details">
-            <div className="lesson-overview">
-              <span className="lesson-location">{lessonLocation(selectedLesson)}</span>
-              <strong>{selectedLesson?.title || selectedLesson?.theme || "Aula semanal"}</strong>
-            </div>
-            {selectedLesson?.theme && selectedLesson.theme !== selectedLesson.title && (
-              <p className="muted">{selectedLesson.theme}</p>
+      {(() => {
+        const groupLessons = selectedEntry?.group
+          ? lessons
+              .filter(
+                (lesson) =>
+                  lesson.external_class_id === selectedEntry.group?.external_id,
+              )
+              .sort(
+                (a, b) =>
+                  a.lesson_number - b.lesson_number ||
+                  a.lesson_date.localeCompare(b.lesson_date),
+              )
+          : [];
+        const selectedLesson =
+          selectedEntry?.lesson ??
+          groupLessons.find((lesson) => lesson.id === selectedCatalogLessonId);
+        const materialDetails: LessonMaterialDetails | null = selectedLesson
+          ? {
+              ...selectedLesson,
+              classroom_tasks: selectedLesson.classroom_tasks ?? [],
+              location: lessonLocation(selectedLesson),
+              source: selectedEntry?.group?.title ?? selectedLesson.external_class_name,
+            }
+          : null;
+        const title = selectedEntry
+          ? `${selectedEntry.group?.title ?? selectedEntry.title} · ${selectedLesson ? lessonLocation(selectedLesson) : "Escolha a aula"}`
+          : "Materiais da aula";
+        return (
+          <LessonMaterialModal
+            open={Boolean(selectedEntry)}
+            title={title}
+            lesson={materialDetails}
+            onClose={() => {
+              setSelectedEntry(null);
+              setSelectedCatalogLessonId("");
+            }}
+          >
+            {selectedEntry && !selectedLesson && (
+              <section className="lesson-material-section">
+                <h3>Aulas desta turma</h3>
+                <p className="muted">
+                  O cronograma informa a turma e o horário, mas não indica qual
+                  aula do curso corresponde a este encontro. Selecione a aula
+                  para ver as tarefas, a lição de casa, os slides e o roteiro.
+                </p>
+                {groupLessons.length ? (
+                  <label className="field">
+                    Aula
+                    <select
+                      className="input"
+                      value={selectedCatalogLessonId}
+                      onChange={(event) =>
+                        setSelectedCatalogLessonId(event.target.value)
+                      }
+                    >
+                      <option value="">Selecione uma aula</option>
+                      {groupLessons.map((lesson) => (
+                        <option key={lesson.id} value={lesson.id}>
+                          {lessonLocation(lesson)} · {lesson.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="muted">
+                    Nenhuma aula sincronizada foi encontrada para esta turma.
+                  </p>
+                )}
+              </section>
             )}
-            <section className="lesson-material-section">
-              <h3>Tarefas em sala</h3>
-              {selectedLesson?.classroom_tasks?.length ? <ul className="lesson-resource-list">
-                {selectedLesson.classroom_tasks.map((task) => <li key={task.url}><a href={task.url} target="_blank" rel="noreferrer">{task.title || `Tarefa em sala ${location}`}</a></li>)}
-              </ul> : <p className="muted">Nenhuma tarefa em sala foi encontrada para esta aula.</p>}
-            </section>
-            <section className="lesson-material-section">
-              <h3>Lição de casa</h3>
-              {selectedLesson?.homework_url ? <ul className="lesson-resource-list"><li><a href={selectedLesson.homework_url} target="_blank" rel="noreferrer">{selectedLesson.homework_title || `Lição de casa ${location}`}</a></li></ul> : <p className="muted">Nenhuma lição de casa foi encontrada para esta aula.</p>}
-            </section>
-            <section className="lesson-material-section">
-              <h3>Guias de estudo</h3>
-              {selectedLesson?.slides_url || selectedLesson?.guide_url ? <ul className="lesson-resource-list">
-                {selectedLesson?.slides_url && <li><a href={selectedLesson.slides_url} target="_blank" rel="noreferrer">Slides {location}</a></li>}
-                {selectedLesson?.guide_url && <li><a href={selectedLesson.guide_url} target="_blank" rel="noreferrer">Roteiro {location}</a></li>}
-              </ul> : <p className="muted">Slides e roteiro não foram encontrados.</p>}
-            </section>
-            {selectedLesson?.external_url && <a className="button secondary" href={selectedLesson.external_url} target="_blank" rel="noreferrer">Abrir aula na plataforma</a>}
-          </div>
-          );
-        })()}
-      </Modal>
+          </LessonMaterialModal>
+        );
+      })()}
     </section>
   );
 }

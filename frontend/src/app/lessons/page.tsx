@@ -3,6 +3,10 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Modal } from "@/components/modal";
+import {
+  LessonMaterialModal,
+  type LessonMaterialDetails,
+} from "@/components/lesson-material-modal";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import {
   ApiError,
@@ -61,17 +65,6 @@ const courseChoices: Array<{
   },
 ];
 
-type MaterialDetails = Pick<
-  KodlandLesson,
-  | "title"
-  | "slides_url"
-  | "guide_url"
-  | "homework_url"
-  | "homework_title"
-  | "external_url"
-  | "classroom_tasks"
-> & { location: string; source: string };
-
 const lessonLocation = (lesson: {
   title: string;
   module_number?: string;
@@ -82,33 +75,6 @@ const lessonLocation = (lesson: {
   const moduleValue = lesson.module_number?.match(/\d+/)?.[0];
   return moduleValue ? `M${moduleValue}L${lesson.lesson_number}` : `Aula ${lesson.lesson_number}`;
 };
-
-function LessonMaterialModal({
-  lesson,
-  onClose,
-}: {
-  lesson: MaterialDetails | null;
-  onClose: () => void;
-}) {
-  return <Modal open={Boolean(lesson)} title={lesson ? `${lesson.source} · ${lesson.location}` : "Materiais da aula"} onClose={onClose}>
-    {lesson && <div className="lesson-details">
-      <div className="lesson-overview"><span className="lesson-location">{lesson.location}</span><strong>{lesson.title}</strong></div>
-      <section className="lesson-material-section">
-        <h3>Tarefas em sala</h3>
-        {lesson.classroom_tasks.length ? <ul className="lesson-resource-list">{lesson.classroom_tasks.map((task) => <li key={task.url}><a href={task.url} target="_blank" rel="noreferrer">{task.title || `Tarefa em sala ${lesson.location}`}</a></li>)}</ul> : <p className="muted">Nenhuma tarefa em sala foi encontrada para esta aula.</p>}
-      </section>
-      <section className="lesson-material-section">
-        <h3>Lição de casa</h3>
-        {lesson.homework_url ? <ul className="lesson-resource-list"><li><a href={lesson.homework_url} target="_blank" rel="noreferrer">{lesson.homework_title || `Lição de casa ${lesson.location}`}</a></li></ul> : <p className="muted">Nenhuma lição de casa foi encontrada para esta aula.</p>}
-      </section>
-      <section className="lesson-material-section">
-        <h3>Guias de estudo</h3>
-        {lesson.slides_url || lesson.guide_url ? <ul className="lesson-resource-list">{lesson.slides_url && <li><a href={lesson.slides_url} target="_blank" rel="noreferrer">Slides {lesson.location}</a></li>}{lesson.guide_url && <li><a href={lesson.guide_url} target="_blank" rel="noreferrer">Roteiro {lesson.location}</a></li>}</ul> : <p className="muted">Slides e roteiro não foram encontrados.</p>}
-      </section>
-      {lesson.external_url && <a className="button secondary" href={lesson.external_url} target="_blank" rel="noreferrer">Abrir aula na plataforma</a>}
-    </div>}
-  </Modal>;
-}
 
 function LessonsContent() {
   const [lessons, setLessons] = useState<Lesson[]>([]),
@@ -125,7 +91,7 @@ function LessonsContent() {
     [importPassword, setImportPassword] = useState(""),
     [importing, setImporting] = useState(false),
     [importNotice, setImportNotice] = useState(""),
-    [selectedMaterial, setSelectedMaterial] = useState<MaterialDetails | null>(null),
+    [selectedMaterial, setSelectedMaterial] = useState<LessonMaterialDetails | null>(null),
     [loading, setLoading] = useState(true),
     [saving, setSaving] = useState(false),
     [error, setError] = useState("");
@@ -379,7 +345,12 @@ function LessonsContent() {
           <div className="form-actions"><Button type="submit" disabled={importing}>{importing ? "Importando…" : "Importar curso"}</Button></div>
         </form>
       </Modal>
-      <LessonMaterialModal lesson={selectedMaterial} onClose={() => setSelectedMaterial(null)} />
+      <LessonMaterialModal
+        open={Boolean(selectedMaterial)}
+        title={selectedMaterial ? `${selectedMaterial.source} · ${selectedMaterial.location}` : "Materiais da aula"}
+        lesson={selectedMaterial}
+        onClose={() => setSelectedMaterial(null)}
+      />
       <section className="panel">
         <div className="section-heading">
           <div>

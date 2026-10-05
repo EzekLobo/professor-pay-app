@@ -255,7 +255,14 @@ type KodlandSnapshot = {
   lessons: Omit<KodlandLesson, "created_at">[];
   extra_lessons: Omit<KodlandExtraLesson, "created_at">[];
   availability: Omit<KodlandAvailability, "created_at">[];
+  extra_lessons_synced?: boolean;
+  availability_synced?: boolean;
 };
+
+const kodlandLessonDocumentId = (lesson: {
+  id: string;
+  external_class_id: string;
+}) => `group-${lesson.external_class_id}-lesson-${lesson.id}`;
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -1140,40 +1147,57 @@ export const kodlandApi = {
         created_at: createdAt,
       }),
     );
-    snapshot.lessons.forEach((item) =>
-      batch.set(doc(ref("kodland_lessons"), item.id), {
+    snapshot.lessons.forEach((item) => {
+      const documentId = kodlandLessonDocumentId(item);
+      const previous = oldLessons.find(
+        (lesson) =>
+          String(lesson.id) === documentId ||
+          (String(lesson.id) === item.id &&
+            String(lesson.external_class_id) === item.external_class_id),
+      ) as Partial<KodlandLesson> | undefined;
+      batch.set(doc(ref("kodland_lessons"), documentId), {
         ...item,
-        financial_status: String(
-          oldLessons.find((lesson) => String(lesson.id) === item.id)
-            ?.financial_status ?? "",
-        ),
-        created_at: createdAt,
-      }),
-    );
-    oldExtraLessons
-      .filter((item) => item.completed !== true)
-      .forEach((item) =>
-        batch.delete(doc(ref("kodland_extra_lessons"), String(item.id))),
-      );
-    snapshot.extra_lessons.forEach((item) => {
-      const previous = oldExtraLessons.find(
-        (lesson) => String(lesson.id) === item.id,
-      );
-      batch.set(doc(ref("kodland_extra_lessons"), item.id), {
-        ...item,
+        id: documentId,
+        financial_status: String(previous?.financial_status ?? ""),
+        slides_url: item.slides_url || previous?.slides_url || "",
+        guide_url: item.guide_url || previous?.guide_url || "",
+        homework_url: item.homework_url || previous?.homework_url || "",
+        homework_title: item.homework_title || previous?.homework_title || "",
+        classroom_tasks:
+          item.classroom_tasks?.length
+            ? item.classroom_tasks
+            : previous?.classroom_tasks ?? [],
         created_at: String(previous?.created_at ?? createdAt),
-        updated_at: createdAt,
       });
     });
-    oldAvailability.forEach((item) =>
-      batch.delete(doc(ref("kodland_availability"), String(item.id))),
-    );
-    snapshot.availability.forEach((item) =>
-      batch.set(doc(ref("kodland_availability"), item.id), {
-        ...item,
-        created_at: createdAt,
-      }),
-    );
+    if (snapshot.extra_lessons_synced !== false) {
+      oldExtraLessons
+        .filter((item) => item.completed !== true)
+        .forEach((item) =>
+          batch.delete(doc(ref("kodland_extra_lessons"), String(item.id))),
+        );
+      snapshot.extra_lessons.forEach((item) => {
+        const previous = oldExtraLessons.find(
+          (lesson) => String(lesson.id) === item.id,
+        );
+        batch.set(doc(ref("kodland_extra_lessons"), item.id), {
+          ...item,
+          created_at: String(previous?.created_at ?? createdAt),
+          updated_at: createdAt,
+        });
+      });
+    }
+    if (snapshot.availability_synced !== false) {
+      oldAvailability.forEach((item) =>
+        batch.delete(doc(ref("kodland_availability"), String(item.id))),
+      );
+      snapshot.availability.forEach((item) =>
+        batch.set(doc(ref("kodland_availability"), item.id), {
+          ...item,
+          created_at: createdAt,
+        }),
+      );
+    }
     await batch.commit();
     return {
       group_count: snapshot.groups.length,

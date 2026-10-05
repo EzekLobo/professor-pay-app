@@ -70,6 +70,10 @@ type Availability = {
   start_time: string;
   end_time: string;
 };
+type SyncCollection<T> = {
+  items: T[];
+  source_available: boolean;
+};
 
 const sso = "https://sso.production.kodland.org/";
 const api = "https://backoffice.kodland.org/api/v2/";
@@ -609,7 +613,7 @@ async function extrasForStudents(
   students: Student[],
   teacherId: string,
   token: string,
-): Promise<ExtraLesson[]> {
+): Promise<SyncCollection<ExtraLesson>> {
   const [snapshots, teacherSchedule, teacherExtraPayloads] = await Promise.all([
     Promise.all(
       students.map(async (student) => {
@@ -688,17 +692,23 @@ async function extrasForStudents(
       return extrasFromStudentAgenda([{ ...event, is_extra: true }], student);
     },
   );
-  return Array.from(
-    new Map(
-      [
-        ...teacherExtraPayloads.flatMap((payload) =>
-          extrasFromTeacherAgenda(payload, students),
-        ),
-        ...snapshots.flat(),
-        ...fromTeacherSchedule,
-      ].map((lesson) => [lesson.id, lesson]),
-    ).values(),
-  );
+  return {
+    items: Array.from(
+      new Map(
+        [
+          ...teacherExtraPayloads.flatMap((payload) =>
+            extrasFromTeacherAgenda(payload, students),
+          ),
+          ...snapshots.flat(),
+          ...fromTeacherSchedule,
+        ].map((lesson) => [lesson.id, lesson]),
+      ).values(),
+    ),
+    source_available:
+      teacherSchedule !== undefined ||
+      teacherExtraPayloads.some((payload) => payload !== undefined) ||
+      snapshots.some((items) => items.length > 0),
+  };
 }
 
 async function reviewsForGroup(
@@ -780,7 +790,25 @@ async function reviewsForGroup(
 type CourseLessonCache = {
   catalog: Map<string, Promise<KodlandCourseLesson[]>>;
   details: Map<string, Promise<KodlandCourseLesson>>;
+  pendingDetails: Array<() => void>;
+  activeDetails: number;
 };
+
+async function withLessonDetailSlot<T>(
+  cache: CourseLessonCache,
+  work: () => Promise<T>,
+): Promise<T> {
+  if (cache.activeDetails >= 2) {
+    await new Promise<void>((resolve) => cache.pendingDetails.push(resolve));
+  }
+  cache.activeDetails += 1;
+  try {
+    return await work();
+  } finally {
+    cache.activeDetails -= 1;
+    cache.pendingDetails.shift()?.();
+  }
+}
 
 async function courseLessons(
   courseId: string,
@@ -818,8 +846,8 @@ async function courseLessons(
   const catalog = await catalogPromise;
   const all = async <T, R>(values: T[], work: (value: T) => Promise<R>) => {
     const results: R[] = [];
-    for (let index = 0; index < values.length; index += 4) {
-      results.push(...(await Promise.all(values.slice(index, index + 4).map(work))));
+    for (let index = 0; index < values.length; index += 2) {
+      results.push(...(await Promise.all(values.slice(index, index + 2).map(work))));
     }
     return results;
   };
@@ -829,7 +857,7 @@ async function courseLessons(
       const key = `${courseId}:${lesson.id}`;
       let details = cache.details.get(key);
       if (!details) {
-        details = (async () => {
+        details = withLessonDetailSlot(cache, async () => {
           const [materials, homework, classroom] = await Promise.all([
             getOptional(
               `materials?lesson=${encodeURIComponent(lesson.id)}`,
@@ -850,7 +878,7 @@ async function courseLessons(
             homework: list(homework),
             classroom: list(classroom),
           };
-        })();
+        });
         cache.details.set(key, details);
       }
       return details;
@@ -936,6 +964,8 @@ export async function POST(request: NextRequest) {
     const courseLessonCache: CourseLessonCache = {
       catalog: new Map(),
       details: new Map(),
+      pendingDetails: [],
+      activeDetails: 0,
     };
     const snapshots = await Promise.all(
       active.map(async (group) => {
@@ -957,7 +987,7 @@ export async function POST(request: NextRequest) {
     );
     const students = snapshots.flatMap((item) => item.students);
     const teacherId = userId(token);
-    const [extraLessons, availabilityPayload] = await Promise.all([
+    const [extraSnapshot, availabilityPayload] = await Promise.all([
       extrasForStudents(students, teacherId, token),
       getOptional(`teacher_timetables/${teacherId}`, token),
     ]);
@@ -966,8 +996,10 @@ export async function POST(request: NextRequest) {
       students,
       reviews: snapshots.flatMap((item) => item.reviews),
       lessons: snapshots.flatMap((item) => item.lessons),
-      extra_lessons: extraLessons,
+      extra_lessons: extraSnapshot.items,
+      extra_lessons_synced: extraSnapshot.source_available,
       availability: availabilityFromTeacherTimetable(availabilityPayload),
+      availability_synced: availabilityPayload !== undefined,
     });
   } catch (error) {
     return Response.json(

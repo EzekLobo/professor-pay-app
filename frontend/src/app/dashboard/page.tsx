@@ -121,7 +121,11 @@ function WeekSchedule({
     if (day < 0 || groupsWithEvent.has(group.title)) return;
     const referenceDate = dateOnly(group.next_lesson_date || group.start_date);
     const nearestLesson = lessons
-      .filter((lesson) => lesson.external_class_id === group.external_id)
+      .filter(
+        (lesson) =>
+          lesson.external_class_id === group.external_id &&
+          Boolean(dateOnly(lesson.lesson_date)),
+      )
       .sort(
         (a, b) =>
           Math.abs(Date.parse(dateOnly(a.lesson_date)) - Date.parse(referenceDate)) -

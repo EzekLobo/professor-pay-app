@@ -21,6 +21,27 @@ const students = [
 ];
 
 describe("extrasFromTeacherAgenda", () => {
+  it("imports the provider payload and converts UTC hours to teacher time", () => {
+    const [extra] = extrasFromTeacherAgenda(
+      [
+        {
+          extra_lesson_id: 9901,
+          start_time: "2026-10-07T22:00:00Z",
+          end_time: "2026-10-07T23:00:00Z",
+          student_full_name: "Lucas Martin",
+        },
+      ],
+      students,
+    );
+    expect(extra).toMatchObject({
+      id: "kodland-extra-9901",
+      student_name: "Lucas Martin",
+      lesson_date: "2026-10-07",
+      start_time: "19:00",
+      end_time: "20:00",
+      completed: false,
+    });
+  });
   it("queries the current and upcoming teacher-calendar weeks", () => {
     expect(
       teacherCalendarWeekDates(new Date("2026-10-07T12:00:00.000Z")),

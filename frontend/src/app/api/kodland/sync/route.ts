@@ -381,7 +381,8 @@ function extrasFromStudentAgenda(
       ) ||
       /completed|complete|passed|done|finished|held/.test(status.toLowerCase());
     const externalId = text(
-      event.id ??
+      event.extra_lesson_id ??
+        event.id ??
         event.lesson_id ??
         event.lessonId ??
         event.event_id ??
@@ -436,21 +437,52 @@ export function extrasFromTeacherAgenda(
     const nested = record(item.lesson ?? item.event ?? item.lesson_data);
     const event = { ...nested, ...item };
     const externalId = text(
-      event.id ??
+      event.extra_lesson_id ??
+        event.id ??
         event.lesson_id ??
         event.lessonId ??
         event.event_id ??
         event.eventId,
     );
     const start = text(
-      event.start ??
+      event.start_time ??
+        event.start ??
         event.start_at ??
         event.startAt ??
         event.datetime ??
         event.lesson_date ??
         event.date,
     );
-    const lessonDate = dateOnly(start);
+    const calendarTimestamp = (value: unknown) => {
+      const raw = text(value);
+      if (!raw) return { date: "", time: "" };
+      // The provider's calendar converts its UTC timestamps to teacher time.
+      if (event.start_time && /^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+        const date = new Date(
+          /[Zz]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw}Z`,
+        );
+        if (!Number.isNaN(date.getTime())) {
+          const parts = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/Sao_Paulo",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hourCycle: "h23",
+          }).formatToParts(date);
+          const part = (type: string) =>
+            parts.find((item) => item.type === type)?.value ?? "";
+          return {
+            date: `${part("year")}-${part("month")}-${part("day")}`,
+            time: `${part("hour")}:${part("minute")}`,
+          };
+        }
+      }
+      return { date: dateOnly(raw), time: timeOnly(raw) };
+    };
+    const startLocal = calendarTimestamp(start);
+    const lessonDate = startLocal.date;
     if (!externalId || !lessonDate) return [];
     const studentId = text(
       event.student_id ??
@@ -459,7 +491,8 @@ export function extrasFromTeacherAgenda(
         record(event.student).student_id,
     );
     const titleName = text(
-      event.student_name ??
+      event.student_full_name ??
+        event.student_name ??
         event.studentName ??
         record(event.student).full_name ??
         record(event.student).name ??
@@ -499,14 +532,15 @@ export function extrasFromTeacherAgenda(
         external_class_id: classId,
         external_class_name: className,
         lesson_date: lessonDate,
-        start_time: timeOnly(start),
-        end_time: timeOnly(
-          event.end ??
+        start_time: startLocal.time,
+        end_time: calendarTimestamp(
+          event.end_time ??
+            event.end ??
             event.end_at ??
             event.endAt ??
             event.finish_at ??
             event.finishAt,
-        ),
+        ).time,
         status,
         completed:
           flag(

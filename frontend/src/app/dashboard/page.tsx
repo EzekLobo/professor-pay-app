@@ -249,6 +249,7 @@ function WeekSchedule({
           const selectedLesson = selectedEntry.lesson;
           const group = selectedEntry.group;
           const courseUrl = selectedLesson?.external_url || (group?.course_id ? `https://bo.kodland.org/courses/${group.course_id}` : "");
+          const location = lessonLocation(selectedLesson);
           return (
           <div className="lesson-details">
             <div className="lesson-overview">
@@ -260,19 +261,18 @@ function WeekSchedule({
             )}
             <section className="lesson-material-section">
               <h3>Tarefas em sala</h3>
-              {courseUrl ? <a className="button secondary" href={courseUrl} target="_blank" rel="noreferrer">Ver tarefas da aula</a> : <p className="muted">Material não disponível.</p>}
+              {courseUrl ? <ul className="lesson-resource-list"><li><a href={courseUrl} target="_blank" rel="noreferrer">Tarefas em sala {location}</a></li></ul> : <p className="muted">Material não disponível.</p>}
             </section>
             <section className="lesson-material-section">
               <h3>Lição de casa</h3>
-              {selectedLesson?.homework_url ? <a className="button secondary" href={selectedLesson.homework_url} target="_blank" rel="noreferrer">{selectedLesson.homework_title || "Abrir lição de casa"}</a> : <p className="muted">Nenhuma lição de casa sincronizada.</p>}
+              {selectedLesson?.homework_url ? <ul className="lesson-resource-list"><li><a href={selectedLesson.homework_url} target="_blank" rel="noreferrer">{selectedLesson.homework_title || `Lição de casa ${location}`}</a></li></ul> : <p className="muted">Nenhuma lição de casa sincronizada.</p>}
             </section>
             <section className="lesson-material-section">
               <h3>Guias de estudo</h3>
-              <div className="form-actions lesson-material-actions">
-                {selectedLesson?.slides_url && <a className="button secondary" href={selectedLesson.slides_url} target="_blank" rel="noreferrer">Slides</a>}
-                {selectedLesson?.guide_url && <a className="button secondary" href={selectedLesson.guide_url} target="_blank" rel="noreferrer">Roteiro</a>}
-                {!selectedLesson?.slides_url && !selectedLesson?.guide_url && <p className="muted">Slides e roteiro não foram encontrados.</p>}
-              </div>
+              {selectedLesson?.slides_url || selectedLesson?.guide_url ? <ul className="lesson-resource-list">
+                {selectedLesson?.slides_url && <li><a href={selectedLesson.slides_url} target="_blank" rel="noreferrer">Slides {location}</a></li>}
+                {selectedLesson?.guide_url && <li><a href={selectedLesson.guide_url} target="_blank" rel="noreferrer">Roteiro {location}</a></li>}
+              </ul> : <p className="muted">Slides e roteiro não foram encontrados.</p>}
             </section>
           </div>
           );

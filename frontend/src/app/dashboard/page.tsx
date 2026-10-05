@@ -120,25 +120,24 @@ function WeekSchedule({
     const start = groupTime(group);
     if (day < 0 || groupsWithEvent.has(group.title)) return;
     const referenceDate = dateOnly(group.next_lesson_date || group.start_date);
-    const groupLessons = lessons
-      .filter(
-        (lesson) =>
-          lesson.external_class_id === group.external_id &&
-          Boolean(dateOnly(lesson.lesson_date)),
-      );
+    const allGroupLessons = lessons.filter(
+      (lesson) => lesson.external_class_id === group.external_id,
+    );
+    const groupLessons = allGroupLessons.filter((lesson) =>
+      Boolean(dateOnly(lesson.lesson_date)),
+    );
     const nearestLesson =
       groupLessons.find(
         (lesson) =>
           group.next_lesson_number &&
           lesson.lesson_number === group.next_lesson_number,
-      ) ?? groupLessons
+      ) ?? [...groupLessons]
       .sort(
         (a, b) =>
           Math.abs(Date.parse(dateOnly(a.lesson_date)) - Date.parse(referenceDate)) -
           Math.abs(Date.parse(dateOnly(b.lesson_date)) - Date.parse(referenceDate)),
-      )[0] ?? lessons.find(
+      )[0] ?? allGroupLessons.find(
         (lesson) =>
-          lesson.external_class_id === group.external_id &&
           group.next_lesson_number &&
           lesson.lesson_number === group.next_lesson_number,
       );
@@ -257,7 +256,7 @@ function WeekSchedule({
       </div>
       <Modal
         open={Boolean(selectedEntry)}
-        title={selectedEntry ? `${selectedEntry.group?.title ?? selectedEntry.lesson?.external_class_name ?? "Detalhes da turma"} · ${selectedEntry.start} – ${selectedEntry.end}` : "Detalhes da turma"}
+        title={selectedEntry ? `${selectedEntry.group?.title ?? selectedEntry.lesson?.external_class_name ?? "Aula"} · ${lessonLocation(selectedEntry.lesson)}` : "Materiais da aula"}
         onClose={() => setSelectedEntry(null)}
       >
         {selectedEntry && (() => {
@@ -280,7 +279,7 @@ function WeekSchedule({
             </section>
             <section className="lesson-material-section">
               <h3>Lição de casa</h3>
-              {selectedLesson?.homework_url ? <ul className="lesson-resource-list"><li><a href={selectedLesson.homework_url} target="_blank" rel="noreferrer">{selectedLesson.homework_title || `Lição de casa ${location}`}</a></li></ul> : <p className="muted">Nenhuma lição de casa sincronizada.</p>}
+              {selectedLesson?.homework_url ? <ul className="lesson-resource-list"><li><a href={selectedLesson.homework_url} target="_blank" rel="noreferrer">{selectedLesson.homework_title || `Lição de casa ${location}`}</a></li></ul> : <p className="muted">Nenhuma lição de casa foi encontrada para esta aula.</p>}
             </section>
             <section className="lesson-material-section">
               <h3>Guias de estudo</h3>
@@ -289,6 +288,7 @@ function WeekSchedule({
                 {selectedLesson?.guide_url && <li><a href={selectedLesson.guide_url} target="_blank" rel="noreferrer">Roteiro {location}</a></li>}
               </ul> : <p className="muted">Slides e roteiro não foram encontrados.</p>}
             </section>
+            {selectedLesson?.external_url && <a className="button secondary" href={selectedLesson.external_url} target="_blank" rel="noreferrer">Abrir aula na plataforma</a>}
           </div>
           );
         })()}

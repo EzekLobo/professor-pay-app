@@ -10,6 +10,8 @@
 
 - A grade usa o número da próxima aula da turma e payloads de cronograma aninhados para ligar o cartão recorrente ao material correto, em vez de mostrar um link genérico do curso.
 
+- O modal aberto pela grade segue a mesma estrutura de detalhes de `/lessons` e só apresenta materiais quando há vínculo com a aula exata.
+
 - O resumo permite abrir os blocos azuis de turma em um modal com turma, módulo, aula e atalhos para slides, roteiro, atividade e aula. A tela `/lessons` lista as aulas sincronizadas agrupadas por curso e turma.
 
 - A sincronização pedagógica importa grupos, alunos, revisões e aulas no Firestore.

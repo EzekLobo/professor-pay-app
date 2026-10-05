@@ -17,8 +17,11 @@ export type KodlandLesson = {
   guide_url: string;
   homework_url: string;
   homework_title: string;
+  classroom_tasks: LessonTask[];
   created_at?: string;
 };
+
+export type LessonTask = { title: string; url: string };
 
 /** The course lesson endpoint keeps the links that are not present in the group schedule. */
 export type KodlandCourseLesson = {
@@ -27,6 +30,7 @@ export type KodlandCourseLesson = {
   title: string;
   materials: unknown[];
   homework: unknown[];
+  classroom?: unknown[];
 };
 
 type ObjectValue = Record<string, unknown>;
@@ -229,6 +233,11 @@ export function enrichKodlandLessons(
     const homework = (Array.isArray(catalog.homework) ? catalog.homework : [])
       .map((item) => ({ title: taskTitle(item), url: taskUrl(item) }))
       .find((item) => item.url);
+    const classroomTasks = (Array.isArray(catalog.classroom)
+      ? catalog.classroom
+      : [])
+      .map((item) => ({ title: taskTitle(item), url: taskUrl(item) }))
+      .filter((item): item is LessonTask => Boolean(item.url));
 
     return {
       ...lesson,
@@ -238,6 +247,9 @@ export function enrichKodlandLessons(
       guide_url: guide?.url || lesson.guide_url,
       homework_url: homework?.url || lesson.homework_url,
       homework_title: homework?.title || lesson.homework_title,
+      classroom_tasks: classroomTasks.length
+        ? classroomTasks
+        : lesson.classroom_tasks,
     };
   });
 }
@@ -381,6 +393,7 @@ export function parseKodlandLessonsPayload(
           "activity_title",
           "task_title",
         ]),
+        classroom_tasks: [],
       },
     ];
   });
@@ -421,6 +434,10 @@ export function mergeKodlandLessons(
             guide_url: lesson.guide_url || previous.guide_url,
             homework_url: lesson.homework_url || previous.homework_url,
             homework_title: lesson.homework_title || previous.homework_title,
+            classroom_tasks:
+              lesson.classroom_tasks.length
+                ? lesson.classroom_tasks
+                : previous.classroom_tasks,
           }
         : lesson,
     );

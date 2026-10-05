@@ -1,5 +1,7 @@
 # Estado atual
 
+- A sincronização pedagógica materializa todas as aulas do catálogo de cada curso por turma e salva tarefas em sala, lições de casa, slides e roteiros; as consultas de detalhes são limitadas a quatro simultâneas.
+
 - O resumo permite abrir os blocos azuis de turma em um modal com turma, módulo, aula e atalhos para slides, roteiro, atividade e aula. A tela `/lessons` lista as aulas sincronizadas agrupadas por curso e turma.
 
 - A sincronização pedagógica importa grupos, alunos, revisões e aulas no Firestore.

@@ -261,7 +261,9 @@ function WeekSchedule({
             )}
             <section className="lesson-material-section">
               <h3>Tarefas em sala</h3>
-              {courseUrl ? <ul className="lesson-resource-list"><li><a href={courseUrl} target="_blank" rel="noreferrer">Tarefas em sala {location}</a></li></ul> : <p className="muted">Material não disponível.</p>}
+              {selectedLesson?.classroom_tasks?.length ? <ul className="lesson-resource-list">
+                {selectedLesson.classroom_tasks.map((task) => <li key={task.url}><a href={task.url} target="_blank" rel="noreferrer">{task.title || `Tarefa em sala ${location}`}</a></li>)}
+              </ul> : courseUrl ? <ul className="lesson-resource-list"><li><a href={courseUrl} target="_blank" rel="noreferrer">Tarefas em sala {location}</a></li></ul> : <p className="muted">Material não disponível.</p>}
             </section>
             <section className="lesson-material-section">
               <h3>Lição de casa</h3>

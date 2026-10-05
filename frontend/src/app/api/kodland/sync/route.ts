@@ -785,7 +785,6 @@ type CourseLessonCache = {
 async function courseLessons(
   courseId: string,
   token: string,
-  scheduled: KodlandLesson[],
   cache: CourseLessonCache,
 ): Promise<KodlandCourseLesson[]> {
   if (!courseId) return [];
@@ -809,6 +808,7 @@ async function courseLessons(
             title: text(item.title ?? item.lesson_title ?? item.name),
             materials: [],
             homework: [],
+            classroom: [],
           };
         })
         .filter((value): value is KodlandCourseLesson => Boolean(value));
@@ -816,34 +816,21 @@ async function courseLessons(
     cache.catalog.set(courseId, catalogPromise);
   }
   const catalog = await catalogPromise;
-  const normalizedTitle = (value: string) =>
-    value.toLocaleLowerCase().replace(/[^a-z0-9]+/gi, "");
-  const relevant = scheduled
-    .map(
-      (lesson) =>
-        catalog.find((candidate) => candidate.id === lesson.id) ??
-        (lesson.lesson_number > 0
-          ? catalog.find(
-              (candidate) => candidate.lesson_number === lesson.lesson_number,
-            )
-          : undefined) ??
-        catalog.find(
-          (candidate) =>
-            normalizedTitle(candidate.title) === normalizedTitle(lesson.title),
-        ),
-    )
-    .filter(
-      (value, index, values): value is KodlandCourseLesson =>
-        Boolean(value) &&
-        values.findIndex((item) => item?.id === value?.id) === index,
-    );
-  return Promise.all(
-    relevant.map(async (lesson) => {
+  const all = async <T, R>(values: T[], work: (value: T) => Promise<R>) => {
+    const results: R[] = [];
+    for (let index = 0; index < values.length; index += 4) {
+      results.push(...(await Promise.all(values.slice(index, index + 4).map(work))));
+    }
+    return results;
+  };
+  return all(
+    catalog,
+    async (lesson) => {
       const key = `${courseId}:${lesson.id}`;
       let details = cache.details.get(key);
       if (!details) {
         details = (async () => {
-          const [materials, homework] = await Promise.all([
+          const [materials, homework, classroom] = await Promise.all([
             getOptional(
               `materials?lesson=${encodeURIComponent(lesson.id)}`,
               token,
@@ -852,17 +839,22 @@ async function courseLessons(
               `tasks/get_tasks_list?lesson=${encodeURIComponent(lesson.id)}&is_hw=true`,
               token,
             ),
+            getOptional(
+              `tasks/get_tasks_list?lesson=${encodeURIComponent(lesson.id)}&is_hw=false`,
+              token,
+            ),
           ]);
           return {
             ...lesson,
             materials: list(materials),
             homework: list(homework),
+            classroom: list(classroom),
           };
         })();
         cache.details.set(key, details);
       }
       return details;
-    }),
+    },
   );
 }
 
@@ -876,20 +868,47 @@ async function lessonsForGroup(
     getOptional(`student_groups/${group.external_id}/lessons/`, token),
   ]);
   const merged = mergeKodlandLessons(schedule, lessons, group);
-  const ordered = [...merged].sort((a, b) =>
-    `${a.lesson_date} ${a.start_time}`.localeCompare(
-      `${b.lesson_date} ${b.start_time}`,
-    ),
+  const catalog = await courseLessons(group.course_id, token, cache);
+  const catalogLessons = new Map<string, KodlandLesson>(
+    catalog.map((lesson) => [
+      lesson.id,
+      {
+        id: lesson.id,
+        external_class_id: group.external_id,
+        external_class_name: group.title,
+        lesson_number: lesson.lesson_number,
+        title: lesson.title || "Aula",
+        theme: "",
+        lesson_date: "",
+        start_time: "",
+        end_time: "",
+        status: "",
+        lesson_passed: false,
+        external_url: "",
+        slides_url: "",
+        guide_url: "",
+        homework_url: "",
+        homework_title: "",
+        classroom_tasks: [],
+      },
+    ]),
   );
-  const next =
-    ordered.find((lesson) => !lesson.lesson_passed) ?? ordered.at(-1);
-  const previous = ordered.filter((lesson) => lesson.lesson_passed).slice(-3);
-  const materialLessons = [...previous, next].filter(
-    (lesson): lesson is KodlandLesson => Boolean(lesson),
-  );
+  merged.forEach((lesson) => {
+    const catalogLesson = catalog.find(
+      (item) =>
+        item.id === lesson.id ||
+        (item.lesson_number > 0 && item.lesson_number === lesson.lesson_number),
+    );
+    const key = catalogLesson?.id ?? lesson.id;
+    const previous = catalogLessons.get(key);
+    catalogLessons.set(
+      key,
+      previous ? { ...previous, ...lesson, id: key } : { ...lesson, id: key },
+    );
+  });
   return enrichKodlandLessons(
-    merged,
-    await courseLessons(group.course_id, token, materialLessons, cache),
+    [...catalogLessons.values()],
+    catalog,
     group.course_id,
   );
 }

@@ -18,6 +18,7 @@ const lesson: KodlandLesson = {
   guide_url: "",
   homework_url: "",
   homework_title: "",
+  classroom_tasks: [],
 };
 
 describe("enrichKodlandLessons", () => {
@@ -31,6 +32,7 @@ describe("enrichKodlandLessons", () => {
         { title: "M8L1", link: "https://wiki.kodland.org/s/lesson-guide" },
       ],
       homework: [{ id: 135019, title: "Completando o mapa" }],
+      classroom: [{ id: 135016, title: "Vamos ajudar o chefe!" }],
     }], "1192");
 
     expect(result.external_url).toBe("https://bo.kodland.org/courses/1192?lessonId=20849");
@@ -38,5 +40,11 @@ describe("enrichKodlandLessons", () => {
     expect(result.guide_url).toContain("wiki.kodland.org");
     expect(result.homework_url).toBe("https://learn.kodland.org/pt/task/135019/teacher/do");
     expect(result.homework_title).toBe("Completando o mapa");
+    expect(result.classroom_tasks).toEqual([
+      {
+        title: "Vamos ajudar o chefe!",
+        url: "https://learn.kodland.org/pt/task/135016/teacher/do",
+      },
+    ]);
   });
 });

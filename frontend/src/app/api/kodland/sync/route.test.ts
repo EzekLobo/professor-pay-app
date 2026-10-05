@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extrasFromTeacherAgenda } from "./route";
+import { extrasFromTeacherAgenda, teacherCalendarWeekDates } from "./route";
 
 const students = [
   {
@@ -21,6 +21,12 @@ const students = [
 ];
 
 describe("extrasFromTeacherAgenda", () => {
+  it("queries the current and upcoming teacher-calendar weeks", () => {
+    expect(
+      teacherCalendarWeekDates(new Date("2026-10-07T12:00:00.000Z")),
+    ).toEqual(["2026-09-28", "2026-10-05", "2026-10-12", "2026-10-19"]);
+  });
+
   it("imports the event shape used by the teacher timetable", () => {
     const [extra] = extrasFromTeacherAgenda(
       [

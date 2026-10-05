@@ -119,6 +119,28 @@ const timeOnly = (value: unknown) => {
   );
 };
 
+/**
+ * The calendar endpoint is week-scoped when a date is supplied. Request the
+ * adjacent weeks as well so an upcoming extra does not disappear simply
+ * because the provider's implicit "current week" is calculated in UTC.
+ */
+export function teacherCalendarWeekDates(reference = new Date()) {
+  const monday = new Date(
+    Date.UTC(
+      reference.getUTCFullYear(),
+      reference.getUTCMonth(),
+      reference.getUTCDate(),
+    ),
+  );
+  const day = monday.getUTCDay() || 7;
+  monday.setUTCDate(monday.getUTCDate() - day + 1);
+  return [-1, 0, 1, 2].map((weekOffset) => {
+    const date = new Date(monday);
+    date.setUTCDate(date.getUTCDate() + weekOffset * 7);
+    return date.toISOString().slice(0, 10);
+  });
+}
+
 async function requireFirebaseUser(request: NextRequest) {
   const idToken = request.headers
     .get("authorization")
@@ -506,7 +528,7 @@ async function extrasForStudents(
   teacherId: string,
   token: string,
 ): Promise<ExtraLesson[]> {
-  const [snapshots, teacherSchedule, teacherExtras] = await Promise.all([
+  const [snapshots, teacherSchedule, teacherExtraPayloads] = await Promise.all([
     Promise.all(
       students.map(async (student) => {
         const agenda = await getOptional(
@@ -517,9 +539,15 @@ async function extrasForStudents(
       }),
     ),
     getOptional(`teacher_timetables/${teacherId}`, token),
-    getOptional(
-      `teachers/${teacherId}/get_teacher_extra_lessons_timetable/`,
-      token,
+    Promise.all(
+      [undefined, ...teacherCalendarWeekDates()].map((date) =>
+        getOptional(
+          `teachers/${teacherId}/get_teacher_extra_lessons_timetable/${
+            date ? `?date=${date}` : ""
+          }`,
+          token,
+        ),
+      ),
     ),
   ]);
   const byStudentId = new Map(
@@ -581,7 +609,9 @@ async function extrasForStudents(
   return Array.from(
     new Map(
       [
-        ...extrasFromTeacherAgenda(teacherExtras, students),
+        ...teacherExtraPayloads.flatMap((payload) =>
+          extrasFromTeacherAgenda(payload, students),
+        ),
         ...snapshots.flat(),
         ...fromTeacherSchedule,
       ].map((lesson) => [lesson.id, lesson]),

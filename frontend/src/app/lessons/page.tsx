@@ -7,7 +7,10 @@ import { Button, Input, StatusBadge } from "@/components/ui";
 import {
   ApiError,
   lessonsApi,
+  kodlandApi,
   type ExtraLessonPayload,
+  type KodlandGroup,
+  type KodlandLesson,
   type Lesson,
   type LessonFilters,
 } from "@/lib/api";
@@ -39,6 +42,8 @@ const tone = (status: string) =>
       : ("success" as const);
 function LessonsContent() {
   const [lessons, setLessons] = useState<Lesson[]>([]),
+    [courseGroups, setCourseGroups] = useState<KodlandGroup[]>([]),
+    [courseLessons, setCourseLessons] = useState<KodlandLesson[]>([]),
     [filters, setFilters] = useState<LessonFilters>({ page: 1, page_size: 50 }),
     [form, setForm] = useState<ExtraForm>(emptyForm),
     [formOpen, setFormOpen] = useState(false),
@@ -50,7 +55,14 @@ function LessonsContent() {
       setLoading(true);
       setError("");
       try {
-        setLessons((await lessonsApi.list(next)).items);
+        const [history, groups, syncedLessons] = await Promise.all([
+          lessonsApi.list(next),
+          kodlandApi.groups(),
+          kodlandApi.lessons(),
+        ]);
+        setLessons(history.items);
+        setCourseGroups(groups.items.filter((group) => !group.archived));
+        setCourseLessons(syncedLessons.items);
       } catch (reason) {
         setError(
           reason instanceof Error
@@ -203,6 +215,50 @@ function LessonsContent() {
           </div>
         </form>
       </Modal>
+      <section className="panel">
+        <div className="section-heading">
+          <div>
+            <h2>Aulas por curso</h2>
+            <p className="muted">Materiais das aulas sincronizadas para cada turma.</p>
+          </div>
+        </div>
+        {loading ? (
+          <p className="muted">Carregando cursos…</p>
+        ) : courseGroups.length === 0 ? (
+          <p className="muted">Nenhuma turma ativa foi sincronizada.</p>
+        ) : (
+          <div className="course-list">
+            {courseGroups.map((group) => {
+              const groupedLessons = courseLessons
+                .filter((lesson) => lesson.external_class_id === group.external_id)
+                .sort((a, b) => a.lesson_number - b.lesson_number || a.lesson_date.localeCompare(b.lesson_date));
+              return (
+                <details className="course-card" key={group.id}>
+                  <summary>
+                    <span><strong>{group.course_name || "Curso"}</strong><small>{group.title}</small></span>
+                    <b>{groupedLessons.length} aula{groupedLessons.length === 1 ? "" : "s"}</b>
+                  </summary>
+                  <div className="course-lessons">
+                    {groupedLessons.length ? groupedLessons.map((lesson) => (
+                      <article className="course-lesson" key={lesson.id}>
+                        <div>
+                          <strong>Aula {lesson.lesson_number || "—"}: {lesson.title || lesson.theme || "Aula"}</strong>
+                          <span>{lesson.lesson_date ? formatDate(lesson.lesson_date) : "Data a confirmar"}</span>
+                        </div>
+                        <div className="lesson-links">
+                          {lesson.slides_url && <a href={lesson.slides_url} target="_blank" rel="noreferrer">Slides</a>}
+                          {lesson.guide_url && <a href={lesson.guide_url} target="_blank" rel="noreferrer">Roteiro</a>}
+                          {lesson.external_url && <a href={lesson.external_url} target="_blank" rel="noreferrer">Abrir</a>}
+                        </div>
+                      </article>
+                    )) : <p className="muted">Ainda não há aulas desta turma no último snapshot.</p>}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        )}
+      </section>
       <section className="panel">
         <div className="section-heading">
           <h2>Histórico de aulas</h2>

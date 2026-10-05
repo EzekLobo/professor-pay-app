@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { DashboardContent } from "@/components/dashboard-content";
+import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import {
   dashboardApi,
@@ -26,6 +27,7 @@ type ScheduleEntry = {
   detail: string;
   extra: boolean;
   availability?: boolean;
+  lesson?: KodlandLesson;
 };
 const dateOnly = (value: string) =>
   value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
@@ -76,6 +78,7 @@ function WeekSchedule({
   availability: KodlandAvailability[];
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedLesson, setSelectedLesson] = useState<KodlandLesson | null>(null);
   const days = currentWeek(weekOffset);
   const weekState =
     weekOffset === 0 ? "Atual" : weekOffset < 0 ? "Passada" : "Próxima";
@@ -95,8 +98,9 @@ function WeekSchedule({
         timeOnly(lesson.end_time) ||
         addMinutes(timeOnly(lesson.start_time), 90),
       title: lesson.external_class_name,
-      detail: lesson.title || "Aula",
+      detail: `Aula ${lesson.lesson_number || "—"}${lesson.title ? ` · ${lesson.title}` : ""}`,
       extra: false,
+      lesson,
     }));
   const groupsWithEvent = new Set(entries.map((entry) => entry.title));
   active.forEach((group) => {
@@ -186,18 +190,27 @@ function WeekSchedule({
                 </span>
               </header>
               {dayEntries.length ? (
-                dayEntries.map((entry) => (
-                  <article
-                    className={`week-slot${entry.extra ? " week-slot-extra" : ""}${entry.availability ? " week-slot-availability" : ""}`}
-                    key={entry.id}
-                  >
-                    <time>
-                      {entry.start} – {entry.end}
-                    </time>
+                dayEntries.map((entry) => {
+                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.availability ? " week-slot-availability" : ""}`;
+                  const contents = <>
+                    <time>{entry.start} – {entry.end}</time>
                     <strong>{entry.title}</strong>
                     <span>{entry.detail}</span>
-                  </article>
-                ))
+                  </>;
+                  return entry.lesson ? (
+                    <button
+                      type="button"
+                      className={`${className} week-slot-action`}
+                      key={entry.id}
+                      onClick={() => setSelectedLesson(entry.lesson ?? null)}
+                      aria-label={`Abrir detalhes de ${entry.title}, ${entry.detail}`}
+                    >
+                      {contents}
+                    </button>
+                  ) : (
+                    <article className={className} key={entry.id}>{contents}</article>
+                  );
+                })
               ) : (
                 <p className="week-empty">Sem aula</p>
               )}
@@ -205,6 +218,32 @@ function WeekSchedule({
           );
         })}
       </div>
+      <Modal
+        open={Boolean(selectedLesson)}
+        title={selectedLesson?.external_class_name ?? "Detalhes da turma"}
+        onClose={() => setSelectedLesson(null)}
+      >
+        {selectedLesson && (
+          <div className="lesson-details">
+            <div className="lesson-detail-grid">
+              <div><span>Turma</span><strong>{selectedLesson.external_class_name}</strong></div>
+              <div><span>Módulo</span><strong>{selectedLesson.module_number || "Não informado"}</strong></div>
+              <div><span>Aula</span><strong>{selectedLesson.lesson_number || "—"}</strong></div>
+              <div><span>Data e horário</span><strong>{dateOnly(selectedLesson.lesson_date)} · {timeOnly(selectedLesson.start_time)} – {timeOnly(selectedLesson.end_time)}</strong></div>
+              <div><span>Assunto</span><strong>{selectedLesson.title || selectedLesson.theme || "Aula agendada"}</strong></div>
+            </div>
+            {selectedLesson.theme && selectedLesson.theme !== selectedLesson.title && (
+              <p className="muted">{selectedLesson.theme}</p>
+            )}
+            <div className="form-actions lesson-material-actions">
+              {selectedLesson.slides_url && <a className="button secondary" href={selectedLesson.slides_url} target="_blank" rel="noreferrer">Slides</a>}
+              {selectedLesson.guide_url && <a className="button secondary" href={selectedLesson.guide_url} target="_blank" rel="noreferrer">Roteiro</a>}
+              {selectedLesson.homework_url && <a className="button secondary" href={selectedLesson.homework_url} target="_blank" rel="noreferrer">Atividade</a>}
+              {selectedLesson.external_url && <a className="button" href={selectedLesson.external_url} target="_blank" rel="noreferrer">Abrir aula</a>}
+            </div>
+          </div>
+        )}
+      </Modal>
     </section>
   );
 }

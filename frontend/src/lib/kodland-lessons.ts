@@ -2,6 +2,7 @@ export type KodlandLesson = {
   id: string;
   external_class_id: string;
   external_class_name: string;
+  module_number?: string;
   lesson_number: number;
   title: string;
   theme: string;
@@ -266,6 +267,13 @@ export function parseKodlandLessonsPayload(
         item.lesson_index ??
         item.lessonIndex,
     );
+    const moduleNumber = readText(item, [
+      "module_number",
+      "moduleNumber",
+      "module",
+      "module_name",
+      "moduleName",
+    ]);
     const date = readDate(item);
     const title = readText(item, [
       "lesson_title",
@@ -334,6 +342,7 @@ export function parseKodlandLessonsPayload(
         id: lessonId,
         external_class_id: group.external_id,
         external_class_name: group.title,
+        module_number: moduleNumber,
         lesson_number: lessonNumber,
         title: title || (source === "schedule" ? "Aula agendada" : "Aula"),
         theme,

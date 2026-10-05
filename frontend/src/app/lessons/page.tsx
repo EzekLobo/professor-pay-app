@@ -61,14 +61,54 @@ const courseChoices: Array<{
   },
 ];
 
-const materialLinks = (lesson: Pick<ImportedCourseLesson, "slides_url" | "guide_url" | "homework_url" | "external_url">) => (
-  <div className="lesson-links">
-    {lesson.slides_url && <a href={lesson.slides_url} target="_blank" rel="noreferrer">Slides</a>}
-    {lesson.guide_url && <a href={lesson.guide_url} target="_blank" rel="noreferrer">Roteiro</a>}
-    {lesson.homework_url && <a href={lesson.homework_url} target="_blank" rel="noreferrer">Atividade</a>}
-    {lesson.external_url && <a href={lesson.external_url} target="_blank" rel="noreferrer">Abrir</a>}
-  </div>
-);
+type MaterialDetails = Pick<
+  KodlandLesson,
+  | "title"
+  | "slides_url"
+  | "guide_url"
+  | "homework_url"
+  | "homework_title"
+  | "external_url"
+  | "classroom_tasks"
+> & { location: string; source: string };
+
+const lessonLocation = (lesson: {
+  title: string;
+  module_number?: string;
+  lesson_number: number;
+}) => {
+  const match = lesson.title.match(/[M\u041c]\s*(\d+)\s*\.?\s*L\s*(\d+)/i);
+  if (match) return `M${match[1]}L${match[2]}`;
+  const moduleValue = lesson.module_number?.match(/\d+/)?.[0];
+  return moduleValue ? `M${moduleValue}L${lesson.lesson_number}` : `Aula ${lesson.lesson_number}`;
+};
+
+function LessonMaterialModal({
+  lesson,
+  onClose,
+}: {
+  lesson: MaterialDetails | null;
+  onClose: () => void;
+}) {
+  return <Modal open={Boolean(lesson)} title={lesson ? `${lesson.source} · ${lesson.location}` : "Materiais da aula"} onClose={onClose}>
+    {lesson && <div className="lesson-details">
+      <div className="lesson-overview"><span className="lesson-location">{lesson.location}</span><strong>{lesson.title}</strong></div>
+      <section className="lesson-material-section">
+        <h3>Tarefas em sala</h3>
+        {lesson.classroom_tasks.length ? <ul className="lesson-resource-list">{lesson.classroom_tasks.map((task) => <li key={task.url}><a href={task.url} target="_blank" rel="noreferrer">{task.title || `Tarefa em sala ${lesson.location}`}</a></li>)}</ul> : <p className="muted">Nenhuma tarefa em sala foi encontrada para esta aula.</p>}
+      </section>
+      <section className="lesson-material-section">
+        <h3>Lição de casa</h3>
+        {lesson.homework_url ? <ul className="lesson-resource-list"><li><a href={lesson.homework_url} target="_blank" rel="noreferrer">{lesson.homework_title || `Lição de casa ${lesson.location}`}</a></li></ul> : <p className="muted">Nenhuma lição de casa foi encontrada para esta aula.</p>}
+      </section>
+      <section className="lesson-material-section">
+        <h3>Guias de estudo</h3>
+        {lesson.slides_url || lesson.guide_url ? <ul className="lesson-resource-list">{lesson.slides_url && <li><a href={lesson.slides_url} target="_blank" rel="noreferrer">Slides {lesson.location}</a></li>}{lesson.guide_url && <li><a href={lesson.guide_url} target="_blank" rel="noreferrer">Roteiro {lesson.location}</a></li>}</ul> : <p className="muted">Slides e roteiro não foram encontrados.</p>}
+      </section>
+      {lesson.external_url && <a className="button secondary" href={lesson.external_url} target="_blank" rel="noreferrer">Abrir aula na plataforma</a>}
+    </div>}
+  </Modal>;
+}
 
 function LessonsContent() {
   const [lessons, setLessons] = useState<Lesson[]>([]),
@@ -85,6 +125,7 @@ function LessonsContent() {
     [importPassword, setImportPassword] = useState(""),
     [importing, setImporting] = useState(false),
     [importNotice, setImportNotice] = useState(""),
+    [selectedMaterial, setSelectedMaterial] = useState<MaterialDetails | null>(null),
     [loading, setLoading] = useState(true),
     [saving, setSaving] = useState(false),
     [error, setError] = useState("");
@@ -338,6 +379,7 @@ function LessonsContent() {
           <div className="form-actions"><Button type="submit" disabled={importing}>{importing ? "Importando…" : "Importar curso"}</Button></div>
         </form>
       </Modal>
+      <LessonMaterialModal lesson={selectedMaterial} onClose={() => setSelectedMaterial(null)} />
       <section className="panel">
         <div className="section-heading">
           <div>
@@ -364,17 +406,18 @@ function LessonsContent() {
                   </summary>
                   <div className="course-lessons">
                     {groupedLessons.length ? groupedLessons.map((lesson) => (
-                      <article className="course-lesson" key={lesson.id}>
+                      <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedMaterial({
+                        ...lesson,
+                        classroom_tasks: lesson.classroom_tasks ?? [],
+                        location: lessonLocation(lesson),
+                        source: group.title,
+                      })}>
                         <div>
                           <strong>Aula {lesson.lesson_number || "—"}: {lesson.title || lesson.theme || "Aula"}</strong>
                           <span>{lesson.lesson_date ? formatDate(lesson.lesson_date) : "Data a confirmar"}</span>
                         </div>
-                        <div className="lesson-links">
-                          {lesson.slides_url && <a href={lesson.slides_url} target="_blank" rel="noreferrer">Slides</a>}
-                          {lesson.guide_url && <a href={lesson.guide_url} target="_blank" rel="noreferrer">Roteiro</a>}
-                          {lesson.external_url && <a href={lesson.external_url} target="_blank" rel="noreferrer">Abrir</a>}
-                        </div>
-                      </article>
+                        <span className="course-lesson-hint">Ver materiais</span>
+                      </button>
                     )) : <p className="muted">Ainda não há aulas desta turma no último snapshot.</p>}
                   </div>
                 </details>
@@ -397,10 +440,15 @@ function LessonsContent() {
               return <details className="course-card" key={course.id}>
                 <summary><span><strong>{course.name}</strong><small>Atualizado em {course.updated_at ? formatDate(course.updated_at) : "data não informada"}</small></span><b>{lessonsForCourse.length} aula{lessonsForCourse.length === 1 ? "" : "s"}</b></summary>
                 <div className="course-lessons">
-                  {lessonsForCourse.map((lesson) => <article className="course-lesson" key={lesson.id}>
+                  {lessonsForCourse.map((lesson) => <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedMaterial({
+                    ...lesson,
+                    classroom_tasks: lesson.classroom_tasks ?? [],
+                    location: lessonLocation(lesson),
+                    source: course.name,
+                  })}>
                     <div><strong>{lesson.module_number ? `Módulo ${lesson.module_number} · ` : ""}Aula {lesson.lesson_number}: {lesson.title}</strong></div>
-                    {materialLinks(lesson)}
-                  </article>)}
+                    <span className="course-lesson-hint">Ver materiais</span>
+                  </button>)}
                 </div>
               </details>;
             })}

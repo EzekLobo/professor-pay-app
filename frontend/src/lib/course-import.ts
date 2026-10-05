@@ -1,4 +1,4 @@
-import { findLessonUrl, type KodlandCourseLesson } from "@/lib/kodland-lessons";
+import { findLessonUrl, type KodlandCourseLesson, type LessonTask } from "@/lib/kodland-lessons";
 
 export const MATERIAL_HOSTS = new Set([
   "bo.kodland.org",
@@ -118,6 +118,7 @@ export type ImportedCourseLesson = {
   guide_url: string;
   homework_url: string;
   homework_title: string;
+  classroom_tasks: LessonTask[];
 };
 
 export function courseLessonFromSource(
@@ -144,6 +145,17 @@ export function courseLessonFromSource(
       };
     })
     .find((value) => allowedMaterialUrl(value.url));
+  const classroom_tasks = (lesson.classroom ?? [])
+    .map((value) => {
+      const item = record(value);
+      const direct = materialUrl(value);
+      const taskId = text(item.id ?? item.task_id ?? item.taskId);
+      return {
+        title: text(item.title ?? item.name ?? item.task_title),
+        url: direct || (taskId ? `https://learn.kodland.org/pt/task/${encodeURIComponent(taskId)}/teacher/do` : ""),
+      };
+    })
+    .filter((task): task is LessonTask => Boolean(allowedMaterialUrl(task.url)));
   return {
     id: lesson.id,
     lesson_number: lesson.lesson_number,
@@ -154,6 +166,7 @@ export function courseLessonFromSource(
     guide_url: guide?.url ?? "",
     homework_url: homework?.url ? allowedMaterialUrl(homework.url) : "",
     homework_title: homework?.title ?? "",
+    classroom_tasks,
   };
 }
 

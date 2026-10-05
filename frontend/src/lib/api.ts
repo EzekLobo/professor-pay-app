@@ -232,6 +232,7 @@ export type ImportedCourseLesson = {
   guide_url: string;
   homework_url: string;
   homework_title: string;
+  classroom_tasks: Array<{ title: string; url: string }>;
   created_at: string;
   updated_at: string;
 };
@@ -829,6 +830,16 @@ const normalizeImportedCourseResult = (value: unknown): CourseImportResult => {
       guide_url: url(item, "guide_url"),
       homework_url: url(item, "homework_url"),
       homework_title: String(item.homework_title ?? "").slice(0, 512),
+      classroom_tasks: Array.isArray(item.classroom_tasks)
+        ? item.classroom_tasks.flatMap((entry) => {
+            if (!entry || typeof entry !== "object") return [];
+            const task = entry as Record<string, unknown>;
+            const taskUrl = url(task, "url");
+            return taskUrl
+              ? [{ title: String(task.title ?? "").slice(0, 512), url: taskUrl }]
+              : [];
+          })
+        : [],
     };
   });
   return { course: { id: id as CourseImportInput["courseId"], name, lesson_count: lessonCount }, lessons };

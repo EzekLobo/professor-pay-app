@@ -661,6 +661,9 @@ select:focus-visible {
 .course-card summary b { color: var(--primary); font-size: .8rem; }
 .course-lessons { display: grid; gap: 8px; padding: 0 14px 14px; }
 .course-lesson { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.course-lesson-action { width: 100%; color: inherit; text-align: left; cursor: pointer; }
+.course-lesson-action:hover, .course-lesson-action:focus-visible { border-color: var(--primary); background: rgb(12 29 52 / 88%); }
+.course-lesson-hint { color: var(--primary); font-size: .8rem; font-weight: 800; white-space: nowrap; }
 .lesson-links { display: flex; flex-wrap: wrap; gap: 10px; }
 .lesson-links a { color: var(--primary); font-size: .8rem; font-weight: 800; }
 .course-import-options {

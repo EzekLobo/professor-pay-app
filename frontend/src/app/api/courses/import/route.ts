@@ -100,11 +100,17 @@ function catalogLessons(value: unknown): KodlandCourseLesson[] {
 }
 
 async function detailsForLesson(courseLesson: KodlandCourseLesson, token: string) {
-  const [materials, homework] = await Promise.all([
+  const [materials, homework, classroom] = await Promise.all([
     get(`materials?lesson=${encodeURIComponent(courseLesson.id)}`, token),
     get(`tasks/get_tasks_list?lesson=${encodeURIComponent(courseLesson.id)}&is_hw=true`, token),
+    get(`tasks/get_tasks_list?lesson=${encodeURIComponent(courseLesson.id)}&is_hw=false`, token),
   ]);
-  return { ...courseLesson, materials: sourceList(materials), homework: sourceList(homework) };
+  return {
+    ...courseLesson,
+    materials: sourceList(materials),
+    homework: sourceList(homework),
+    classroom: sourceList(classroom),
+  };
 }
 
 export async function POST(request: NextRequest) {

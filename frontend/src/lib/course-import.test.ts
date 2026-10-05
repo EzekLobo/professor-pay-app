@@ -41,11 +41,15 @@ describe("course import security contract", () => {
         { title: "Roteiro", link: "https://evil.test/guide" },
       ],
       homework: [{ id: "12", title: "Atividade" }],
+      classroom: [{ id: "11", title: "Tarefa em sala" }],
     });
     expect(lesson.external_url).toContain("https://bo.kodland.org/courses/1192");
     expect(lesson.slides_url).toContain("https://docs.google.com/");
     expect(lesson.guide_url).toBe("");
     expect(lesson.homework_url).toContain("https://learn.kodland.org/");
+    expect(lesson.classroom_tasks).toEqual([
+      { title: "Tarefa em sala", url: "https://learn.kodland.org/pt/task/11/teacher/do" },
+    ]);
   });
 
   it("bounds concurrent requests", async () => {

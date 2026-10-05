@@ -23,6 +23,7 @@ import {
   type LessonFilters,
 } from "@/lib/api";
 import { brlToCents, formatDate, formatMoney } from "@/lib/finance";
+import { kodlandLessonLocation } from "@/lib/kodland-lessons";
 type ExtraForm = {
   student: string;
   lesson_date: string;
@@ -64,17 +65,6 @@ const courseChoices: Array<{
     available: false,
   },
 ];
-
-const lessonLocation = (lesson: {
-  title: string;
-  module_number?: string;
-  lesson_number: number;
-}) => {
-  const match = lesson.title.match(/[M\u041c]\s*(\d+)\s*\.?\s*L\s*(\d+)/i);
-  if (match) return `M${match[1]}L${match[2]}`;
-  const moduleValue = lesson.module_number?.match(/\d+/)?.[0];
-  return moduleValue ? `M${moduleValue}L${lesson.lesson_number}` : `Aula ${lesson.lesson_number}`;
-};
 
 function LessonsContent() {
   const [lessons, setLessons] = useState<Lesson[]>([]),
@@ -380,7 +370,7 @@ function LessonsContent() {
                       <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedMaterial({
                         ...lesson,
                         classroom_tasks: lesson.classroom_tasks ?? [],
-                        location: lessonLocation(lesson),
+                        location: kodlandLessonLocation(lesson),
                         source: group.title,
                       })}>
                         <div>
@@ -414,7 +404,7 @@ function LessonsContent() {
                   {lessonsForCourse.map((lesson) => <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedMaterial({
                     ...lesson,
                     classroom_tasks: lesson.classroom_tasks ?? [],
-                    location: lessonLocation(lesson),
+                    location: kodlandLessonLocation(lesson),
                     source: course.name,
                   })}>
                     <div><strong>{lesson.module_number ? `Módulo ${lesson.module_number} · ` : ""}Aula {lesson.lesson_number}: {lesson.title}</strong></div>

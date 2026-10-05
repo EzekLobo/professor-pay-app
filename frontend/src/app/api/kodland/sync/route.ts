@@ -18,6 +18,9 @@ type Group = {
   start_date: string;
   next_lesson_date: string;
   next_lesson_number: number;
+  next_lesson_id: string;
+  next_lesson_title: string;
+  next_lesson_url: string;
   archived: boolean;
 };
 type Student = {
@@ -290,6 +293,28 @@ async function groupsForTeacher(
         .map((value) => {
           const item = record(value);
           const course = record(item.course);
+          const nextLessonValue =
+            item.next_lesson ??
+            item.nextLesson ??
+            item.next_lesson_info ??
+            item.nextLessonInfo;
+          const nextLesson = record(nextLessonValue);
+          const nextLessonUrl = text(
+            item.next_lesson_url ??
+              item.nextLessonUrl ??
+              nextLesson.url ??
+              nextLesson.link ??
+              nextLesson.external_url ??
+              nextLesson.externalUrl,
+          );
+          const linkedLessonId = (() => {
+            try {
+              return new URL(nextLessonUrl, "https://bo.kodland.org")
+                .searchParams.get("lessonId") ?? "";
+            } catch {
+              return "";
+            }
+          })();
           const courseName = text(course.title ?? item.course_name);
           const courseId =
             text(course.id ?? course.course_id ?? item.course_id) ||
@@ -305,9 +330,34 @@ async function groupsForTeacher(
             next_lesson_date: text(item.next_lesson_date),
             next_lesson_number: number(
               item.next_lesson_number ?? item.nextLessonNumber ??
-                record(item.next_lesson ?? item.nextLesson).lesson_number ??
-                record(item.next_lesson ?? item.nextLesson).number,
+                nextLesson.lesson_number ?? nextLesson.lessonNumber ??
+                nextLesson.lesson_no ?? nextLesson.lessonNo ??
+                nextLesson.course_lesson_number ??
+                nextLesson.courseLessonNumber ??
+                nextLesson.number ?? nextLesson.lesson_index ??
+                nextLesson.lessonIndex ?? nextLesson.lesson_order ??
+                nextLesson.lessonOrder,
             ),
+            next_lesson_id: text(
+              item.next_lesson_id ??
+                item.nextLessonId ??
+                nextLesson.lesson_id ??
+                nextLesson.lessonId ??
+                nextLesson.id ??
+                linkedLessonId,
+            ),
+            next_lesson_title: text(
+              item.next_lesson_title ??
+                item.nextLessonTitle ??
+                item.next_lesson_name ??
+                item.nextLessonName ??
+                nextLesson.lesson_title ??
+                nextLesson.lessonTitle ??
+                nextLesson.title ??
+                nextLesson.name ??
+                (typeof nextLessonValue === "string" ? nextLessonValue : ""),
+            ),
+            next_lesson_url: nextLessonUrl,
             archived: Boolean(item.is_archive ?? item.archived),
           };
         })

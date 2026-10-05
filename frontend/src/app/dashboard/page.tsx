@@ -11,14 +11,15 @@ import { Shell } from "@/components/shell";
 import {
   dashboardApi,
   kodlandApi,
-  type DashboardResponse,
   type KodlandExtraLesson,
   type KodlandAvailability,
   type KodlandGroup,
   type KodlandLesson,
   type KodlandReview,
   type KodlandStudent,
+  type DashboardResponse,
 } from "@/lib/api";
+import { kodlandLessonLocation } from "@/lib/kodland-lessons";
 
 const dayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 type ScheduleEntry = {
@@ -35,6 +36,11 @@ type ScheduleEntry = {
 };
 const dateOnly = (value: string) =>
   value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
+const normalizeLessonTitle = (value: string) =>
+  value
+    .toLocaleLowerCase()
+    .replace(/м/g, "m")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
 const timeOnly = (value: string) =>
   value.match(/\b\d{1,2}:\d{2}/)?.[0]?.padStart(5, "0") ?? "";
 const addMinutes = (time: string, minutes: number) => {
@@ -69,16 +75,8 @@ const currentWeek = (offset = 0) => {
 };
 const isoDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-const lessonLocation = (lesson?: KodlandLesson) => {
-  const match = lesson?.title.match(/[M\u041c]\s*(\d+)\s*\.?\s*L\s*(\d+)/i);
-  if (match) return `M${match[1]}L${match[2]}`;
-  const moduleNumber = lesson?.module_number?.match(/\d+/)?.[0];
-  return moduleNumber && lesson?.lesson_number
-    ? `M${moduleNumber}L${lesson.lesson_number}`
-    : lesson?.lesson_number
-      ? `Aula ${lesson.lesson_number}`
-      : "Aula não informada";
-};
+const lessonLocation = (lesson?: KodlandLesson) =>
+  lesson ? kodlandLessonLocation(lesson) : "Aula não informada";
 
 function WeekSchedule({
   groups,
@@ -130,28 +128,58 @@ function WeekSchedule({
     const groupLessons = allGroupLessons.filter((lesson) =>
       Boolean(dateOnly(lesson.lesson_date)),
     );
+    const nextLessonTitle = normalizeLessonTitle(group.next_lesson_title ?? "");
+    const linkedLessonId =
+      group.next_lesson_id ||
+      group.next_lesson_url?.match(/[?&]lessonId=(\d+)/i)?.[1] ||
+      "";
+    const nearestByDate = [...groupLessons].sort(
+      (a, b) =>
+        Math.abs(
+          Date.parse(dateOnly(a.lesson_date)) - Date.parse(referenceDate),
+        ) -
+        Math.abs(
+          Date.parse(dateOnly(b.lesson_date)) - Date.parse(referenceDate),
+      ),
+    )[0];
+    const scheduledAtSlot = allGroupLessons.filter(
+      (lesson) =>
+        lesson.lesson_number > 0 &&
+        timeOnly(lesson.start_time) === start &&
+        Boolean(dateOnly(lesson.lesson_date)),
+    );
+    const nextScheduledAtSlot =
+      scheduledAtSlot
+        .filter((lesson) => dateOnly(lesson.lesson_date) >= isoDate(new Date()))
+        .sort((a, b) => a.lesson_date.localeCompare(b.lesson_date))[0] ??
+      [...scheduledAtSlot].sort((a, b) =>
+        b.lesson_date.localeCompare(a.lesson_date),
+      )[0];
     const nearestLesson =
-      groupLessons.find(
+      allGroupLessons.find(
         (lesson) =>
           group.next_lesson_number &&
           lesson.lesson_number === group.next_lesson_number,
-      ) ?? [...groupLessons]
-      .sort(
-        (a, b) =>
-          Math.abs(Date.parse(dateOnly(a.lesson_date)) - Date.parse(referenceDate)) -
-          Math.abs(Date.parse(dateOnly(b.lesson_date)) - Date.parse(referenceDate)),
-      )[0] ?? allGroupLessons.find(
+      ) ??
+      allGroupLessons.find(
+        (lesson) => linkedLessonId && lesson.id === linkedLessonId,
+      ) ??
+      allGroupLessons.find(
         (lesson) =>
-          group.next_lesson_number &&
-          lesson.lesson_number === group.next_lesson_number,
-      );
+          nextLessonTitle &&
+          normalizeLessonTitle(lesson.title) === nextLessonTitle,
+      ) ??
+      nextScheduledAtSlot ??
+      nearestByDate;
     entries.push({
       id: `recurring-${group.id}`,
       day,
       start,
       end: addMinutes(start, courseDuration(group)),
       title: group.title,
-      detail: "Turma semanal",
+      detail: nearestLesson
+        ? `Aula ${nearestLesson.lesson_number} · ${nearestLesson.title}`
+        : "Turma semanal",
       extra: false,
       lesson: nearestLesson,
       group,

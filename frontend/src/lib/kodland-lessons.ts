@@ -23,6 +23,19 @@ export type KodlandLesson = {
 
 export type LessonTask = { title: string; url: string };
 
+export function kodlandLessonLocation(lesson: {
+  title: string;
+  module_number?: string;
+  lesson_number: number;
+}) {
+  const moduleNumber =
+    lesson.module_number?.match(/\d+/)?.[0] ??
+    lesson.title.match(/[M\u041c]\s*(\d+)\s*\.?\s*L\s*\d+/i)?.[1];
+  if (moduleNumber && lesson.lesson_number)
+    return `M${moduleNumber}L${lesson.lesson_number}`;
+  return lesson.lesson_number ? `Aula ${lesson.lesson_number}` : "Aula";
+}
+
 /** The course lesson endpoint keeps the links that are not present in the group schedule. */
 export type KodlandCourseLesson = {
   id: string;
@@ -273,6 +286,16 @@ export function parseKodlandLessonsPayload(
 ): KodlandLesson[] {
   return lessonItems(payload).flatMap((value, index) => {
     const item = objectValue(value);
+    const nestedLesson = objectValue(
+      item.lesson ??
+        item.lesson_data ??
+        item.lessonData ??
+        item.course_lesson ??
+        item.courseLesson ??
+        item.lesson_info ??
+        item.lessonInfo,
+    );
+    const lessonItem = { ...item, ...nestedLesson };
     const id = readText(item, [
       "lesson_id",
       "lessonId",
@@ -281,23 +304,32 @@ export function parseKodlandLessonsPayload(
       "event_id",
       "eventId",
       "id",
-    ]);
+    ]) || readText(nestedLesson, ["lesson_id", "lessonId", "id"]);
     const lessonNumber = number(
-      item.lesson_number ??
-        item.lessonNumber ??
-        item.number ??
-        item.lesson_index ??
-        item.lessonIndex,
+      lessonItem.lesson_number ??
+        lessonItem.lessonNumber ??
+        lessonItem.lesson_no ??
+        lessonItem.lessonNo ??
+        lessonItem.course_lesson_number ??
+        lessonItem.courseLessonNumber ??
+        lessonItem.number ??
+        lessonItem.lesson_index ??
+        lessonItem.lessonIndex ??
+        lessonItem.lesson_order ??
+        lessonItem.lessonOrder ??
+        (typeof item.lesson === "number" || typeof item.lesson === "string"
+          ? item.lesson
+          : undefined),
     );
-    const moduleNumber = readText(item, [
+    const moduleNumber = readText(lessonItem, [
       "module_number",
       "moduleNumber",
       "module",
       "module_name",
       "moduleName",
     ]);
-    const date = readDate(item);
-    const title = readText(item, [
+    const date = readDate(lessonItem);
+    const title = readText(lessonItem, [
       "lesson_title",
       "lessonTitle",
       "title",
@@ -305,7 +337,7 @@ export function parseKodlandLessonsPayload(
       "theme",
       "lesson_theme",
     ]);
-    const theme = readText(item, [
+    const theme = readText(lessonItem, [
       "theme",
       "lesson_theme",
       "lessonTheme",
@@ -315,7 +347,7 @@ export function parseKodlandLessonsPayload(
     const lessonId =
       id ||
       `${group.external_id}-${date || "lesson"}-${lessonNumber || index + 1}`;
-    const slidesUrl = findLessonUrl(item, [
+    const slidesUrl = findLessonUrl(lessonItem, [
       "slides_url",
       "slide_url",
       "slides",
@@ -325,7 +357,7 @@ export function parseKodlandLessonsPayload(
       "link_to_slides",
       "link_to_presentation",
     ]);
-    const guideUrl = findLessonUrl(item, [
+    const guideUrl = findLessonUrl(lessonItem, [
       "guide_url",
       "script_url",
       "lesson_plan_url",
@@ -337,7 +369,7 @@ export function parseKodlandLessonsPayload(
       "scenario_url",
       "script",
     ]);
-    const homeworkUrl = findLessonUrl(item, [
+    const homeworkUrl = findLessonUrl(lessonItem, [
       "homework_url",
       "homework_link",
       "assignment_url",
@@ -350,7 +382,7 @@ export function parseKodlandLessonsPayload(
       "activity",
       "task",
     ]);
-    const direct = findLessonUrl(item, [
+    const direct = findLessonUrl(lessonItem, [
       "lesson_url",
       "lesson_link",
       "view_url",
@@ -369,7 +401,7 @@ export function parseKodlandLessonsPayload(
         title: title || (source === "schedule" ? "Aula agendada" : "Aula"),
         theme,
         lesson_date: date,
-        start_time: readTime(item, [
+        start_time: readTime(lessonItem, [
           "start_time",
           "startTime",
           "start_at",
@@ -377,7 +409,7 @@ export function parseKodlandLessonsPayload(
           "datetime",
           "start_datetime",
         ]),
-        end_time: readTime(item, [
+        end_time: readTime(lessonItem, [
           "end_time",
           "endTime",
           "end_at",
@@ -385,18 +417,18 @@ export function parseKodlandLessonsPayload(
           "finish_at",
           "finishAt",
         ]),
-        status: readText(item, ["status", "lesson_status", "state"]),
+        status: readText(lessonItem, ["status", "lesson_status", "state"]),
         lesson_passed: booleanValue(
-          item.lesson_passed ??
-            item.lessonPassed ??
-            item.passed ??
-            item.completed,
+          lessonItem.lesson_passed ??
+            lessonItem.lessonPassed ??
+            lessonItem.passed ??
+            lessonItem.completed,
         ),
         external_url: toExternalUrl(direct, group.external_id, lessonId),
         slides_url: slidesUrl,
         guide_url: guideUrl,
         homework_url: homeworkUrl,
-        homework_title: readText(item, [
+        homework_title: readText(lessonItem, [
           "homework_title",
           "homeworkTitle",
           "assignment_title",

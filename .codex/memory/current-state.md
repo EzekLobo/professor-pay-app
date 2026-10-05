@@ -10,7 +10,7 @@
 
 - A grade usa o número da próxima aula da turma e payloads de cronograma aninhados para ligar o cartão recorrente ao material correto, em vez de mostrar um link genérico do curso.
 
-- O modal de materiais é compartilhado entre a grade e `/lessons`. Na grade, usa a aula identificada pelo cronograma; se um cartão recorrente não trouxer número/data de aula, oferece o catálogo daquela turma para abrir o mesmo detalhe sem presumir uma aula arbitrária.
+- O modal de materiais é compartilhado entre a grade e `/lessons`. A sincronização guarda o número, título e URL da próxima aula; a grade associa pelo índice global, ID ou título e usa o horário/data da sessão como apoio. O seletor do catálogo fica como contingência somente quando o cronograma não traz vínculo.
 
 - O resumo permite abrir os blocos azuis de turma em um modal com turma, módulo, aula e atalhos para slides, roteiro, atividade e aula. A tela `/lessons` lista as aulas sincronizadas agrupadas por curso e turma.
 

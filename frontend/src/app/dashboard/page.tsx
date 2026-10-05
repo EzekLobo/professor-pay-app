@@ -120,17 +120,28 @@ function WeekSchedule({
     const start = groupTime(group);
     if (day < 0 || groupsWithEvent.has(group.title)) return;
     const referenceDate = dateOnly(group.next_lesson_date || group.start_date);
-    const nearestLesson = lessons
+    const groupLessons = lessons
       .filter(
         (lesson) =>
           lesson.external_class_id === group.external_id &&
           Boolean(dateOnly(lesson.lesson_date)),
-      )
+      );
+    const nearestLesson =
+      groupLessons.find(
+        (lesson) =>
+          group.next_lesson_number &&
+          lesson.lesson_number === group.next_lesson_number,
+      ) ?? groupLessons
       .sort(
         (a, b) =>
           Math.abs(Date.parse(dateOnly(a.lesson_date)) - Date.parse(referenceDate)) -
           Math.abs(Date.parse(dateOnly(b.lesson_date)) - Date.parse(referenceDate)),
-      )[0];
+      )[0] ?? lessons.find(
+        (lesson) =>
+          lesson.external_class_id === group.external_id &&
+          group.next_lesson_number &&
+          lesson.lesson_number === group.next_lesson_number,
+      );
     entries.push({
       id: `recurring-${group.id}`,
       day,
@@ -251,8 +262,6 @@ function WeekSchedule({
       >
         {selectedEntry && (() => {
           const selectedLesson = selectedEntry.lesson;
-          const group = selectedEntry.group;
-          const courseUrl = selectedLesson?.external_url || (group?.course_id ? `https://bo.kodland.org/courses/${group.course_id}` : "");
           const location = lessonLocation(selectedLesson);
           return (
           <div className="lesson-details">
@@ -267,7 +276,7 @@ function WeekSchedule({
               <h3>Tarefas em sala</h3>
               {selectedLesson?.classroom_tasks?.length ? <ul className="lesson-resource-list">
                 {selectedLesson.classroom_tasks.map((task) => <li key={task.url}><a href={task.url} target="_blank" rel="noreferrer">{task.title || `Tarefa em sala ${location}`}</a></li>)}
-              </ul> : courseUrl ? <ul className="lesson-resource-list"><li><a href={courseUrl} target="_blank" rel="noreferrer">Tarefas em sala {location}</a></li></ul> : <p className="muted">Material não disponível.</p>}
+              </ul> : <p className="muted">Nenhuma tarefa em sala foi encontrada para esta aula.</p>}
             </section>
             <section className="lesson-material-section">
               <h3>Lição de casa</h3>

@@ -64,6 +64,16 @@ const list = (value: unknown): unknown[] => {
   }
   return [];
 };
+const lessonItems = (value: unknown, depth = 0): unknown[] => {
+  const direct = list(value);
+  if (direct.length) return direct.flatMap((item) => Array.isArray(item) ? lessonItems(item, depth + 1) : [item]);
+  if (depth >= 3 || !value || typeof value !== "object") return [];
+  return Object.values(objectValue(value)).flatMap((item) =>
+    Array.isArray(item) || (item && typeof item === "object")
+      ? lessonItems(item, depth + 1)
+      : [],
+  );
+};
 
 const aliases = (values: string[]) =>
   new Set(values.map((value) => value.toLowerCase().replace(/[- ]/g, "_")));
@@ -261,7 +271,7 @@ export function parseKodlandLessonsPayload(
   group: { external_id: string; title: string },
   source: LessonSource = "lessons",
 ): KodlandLesson[] {
-  return list(payload).flatMap((value, index) => {
+  return lessonItems(payload).flatMap((value, index) => {
     const item = objectValue(value);
     const id = readText(item, [
       "lesson_id",

@@ -17,6 +17,7 @@ type Group = {
   student_count: number;
   start_date: string;
   next_lesson_date: string;
+  next_lesson_number: number;
   archived: boolean;
 };
 type Student = {
@@ -302,6 +303,11 @@ async function groupsForTeacher(
             student_count: number(item.students_count ?? item.student_count),
             start_date: text(item.start_timeslot ?? item.start_date),
             next_lesson_date: text(item.next_lesson_date),
+            next_lesson_number: number(
+              item.next_lesson_number ?? item.nextLessonNumber ??
+                record(item.next_lesson ?? item.nextLesson).lesson_number ??
+                record(item.next_lesson ?? item.nextLesson).number,
+            ),
             archived: Boolean(item.is_archive ?? item.archived),
           };
         })

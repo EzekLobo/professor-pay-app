@@ -148,6 +148,7 @@ export type KodlandGroup = {
   student_count: number;
   start_date: string;
   next_lesson_date: string;
+  next_lesson_number?: number;
   archived: boolean;
   local_class_id: string | null;
   created_at: string;

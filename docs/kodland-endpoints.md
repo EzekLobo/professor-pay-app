@@ -85,6 +85,7 @@ Recommended synchronization sequence:
 | `GET` | `special_group_lessons/{lessonId}/attendance/` | Attendance for a special lesson |
 | `GET` | `teacher_timetables/{teacherId}` | Teacher availability |
 | `GET` | `teachers/{teacherId}/get_teacher_timetable` | Initializes teacher availability when absent |
+| `GET` | `teachers/{teacherId}/get_teacher_extra_lessons_timetable/?date={date}` | Scheduled extra lessons shown in the teacher calendar |
 | `GET` | `teachers/{teacherId}/get_teachers_courses` | Teacher courses |
 | `GET` | `courses?has_groups_for_teacher={teacherId}` | Courses with groups for a teacher |
 | `GET` | `groups/types` | Group types |

@@ -94,7 +94,12 @@ const list = (value: unknown) => {
 };
 const scheduleItems = (value: unknown, depth = 0): unknown[] => {
   const items = list(value);
-  if (items.length || depth >= 2) return items;
+  if (items.length) {
+    return items.flatMap((item) =>
+      Array.isArray(item) ? scheduleItems(item, depth + 1) : [item],
+    );
+  }
+  if (depth >= 2) return [];
   return Object.values(record(value)).flatMap((item) =>
     Array.isArray(item) ? item : scheduleItems(item, depth + 1),
   );
@@ -105,10 +110,14 @@ const flag = (value: unknown) =>
   value === true || value === 1 || value === "1" || value === "true";
 const dateOnly = (value: unknown) =>
   text(value).match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
-const timeOnly = (value: unknown) =>
-  text(value)
-    .match(/\b\d{1,2}:\d{2}(?::\d{2})?\b/)?.[0]
-    .slice(0, 5) ?? "";
+const timeOnly = (value: unknown) => {
+  const raw = text(value);
+  return (
+    raw.match(/T(\d{1,2}:\d{2})/)?.[1] ??
+    raw.match(/\b\d{1,2}:\d{2}(?::\d{2})?\b/)?.[0]?.slice(0, 5) ??
+    ""
+  );
+};
 
 async function requireFirebaseUser(request: NextRequest) {
   const idToken = request.headers
@@ -335,6 +344,7 @@ function extrasFromStudentAgenda(
       event.lesson_date ??
         event.lessonDate ??
         event.date ??
+        event.start ??
         event.start_at ??
         event.startAt ??
         event.datetime,
@@ -367,6 +377,7 @@ function extrasFromStudentAgenda(
         start_time: timeOnly(
           event.start_time ??
             event.startTime ??
+            event.start ??
             event.start_at ??
             event.startAt ??
             event.datetime,
@@ -374,6 +385,7 @@ function extrasFromStudentAgenda(
         end_time: timeOnly(
           event.end_time ??
             event.endTime ??
+            event.end ??
             event.end_at ??
             event.endAt ??
             event.finish_at ??
@@ -386,12 +398,115 @@ function extrasFromStudentAgenda(
   });
 }
 
+/** The teacher calendar is the source of truth for upcoming extras. */
+export function extrasFromTeacherAgenda(
+  payload: unknown,
+  students: Student[],
+): ExtraLesson[] {
+  const byStudentId = new Map(
+    students.map((student) => [student.external_id, student]),
+  );
+  const byName = new Map(
+    students.map((student) => [student.name.toLocaleLowerCase(), student]),
+  );
+  return scheduleItems(payload).flatMap((value, index) => {
+    const item = record(value);
+    const nested = record(item.lesson ?? item.event ?? item.lesson_data);
+    const event = { ...nested, ...item };
+    const externalId = text(
+      event.id ??
+        event.lesson_id ??
+        event.lessonId ??
+        event.event_id ??
+        event.eventId,
+    );
+    const start = text(
+      event.start ??
+        event.start_at ??
+        event.startAt ??
+        event.datetime ??
+        event.lesson_date ??
+        event.date,
+    );
+    const lessonDate = dateOnly(start);
+    if (!externalId || !lessonDate) return [];
+    const studentId = text(
+      event.student_id ??
+        event.studentId ??
+        record(event.student).id ??
+        record(event.student).student_id,
+    );
+    const titleName = text(
+      event.student_name ??
+        event.studentName ??
+        record(event.student).full_name ??
+        record(event.student).name ??
+        event.title ??
+        event.name,
+    ).replace(/^[-–—\s]+/, "");
+    const student =
+      byStudentId.get(studentId) ?? byName.get(titleName.toLocaleLowerCase());
+    const group = record(event.group ?? event.student_group ?? event.class);
+    const classId =
+      text(
+        event.group_id ??
+          event.groupId ??
+          event.student_group_id ??
+          event.studentGroupId ??
+          group.id,
+      ) ||
+      student?.external_class_id ||
+      "";
+    const className =
+      text(
+        event.group_name ??
+          event.groupName ??
+          event.student_group_name ??
+          event.studentGroupName ??
+          group.title ??
+          group.name,
+      ) ||
+      student?.external_class_name ||
+      "Aula extra";
+    const status = text(event.status ?? event.lesson_status ?? event.state);
+    return [
+      {
+        id: `kodland-extra-${externalId || index + 1}`,
+        external_student_id: student?.external_id ?? studentId,
+        student_name: student?.name || titleName || "Aula extra",
+        external_class_id: classId,
+        external_class_name: className,
+        lesson_date: lessonDate,
+        start_time: timeOnly(start),
+        end_time: timeOnly(
+          event.end ??
+            event.end_at ??
+            event.endAt ??
+            event.finish_at ??
+            event.finishAt,
+        ),
+        status,
+        completed:
+          flag(
+            event.completed ??
+              event.is_completed ??
+              event.lesson_passed ??
+              event.passed,
+          ) ||
+          /completed|complete|passed|done|finished|held/.test(
+            status.toLowerCase(),
+          ),
+      },
+    ];
+  });
+}
+
 async function extrasForStudents(
   students: Student[],
   teacherId: string,
   token: string,
 ): Promise<ExtraLesson[]> {
-  const [snapshots, teacherSchedule] = await Promise.all([
+  const [snapshots, teacherSchedule, teacherExtras] = await Promise.all([
     Promise.all(
       students.map(async (student) => {
         const agenda = await getOptional(
@@ -402,6 +517,10 @@ async function extrasForStudents(
       }),
     ),
     getOptional(`teacher_timetables/${teacherId}`, token),
+    getOptional(
+      `teachers/${teacherId}/get_teacher_extra_lessons_timetable/`,
+      token,
+    ),
   ]);
   const byStudentId = new Map(
     students.map((student) => [student.external_id, student]),
@@ -461,10 +580,11 @@ async function extrasForStudents(
   );
   return Array.from(
     new Map(
-      [...snapshots.flat(), ...fromTeacherSchedule].map((lesson) => [
-        lesson.id,
-        lesson,
-      ]),
+      [
+        ...extrasFromTeacherAgenda(teacherExtras, students),
+        ...snapshots.flat(),
+        ...fromTeacherSchedule,
+      ].map((lesson) => [lesson.id, lesson]),
     ).values(),
   );
 }

@@ -645,6 +645,29 @@ select:focus-visible {
 .course-lesson { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .lesson-links { display: flex; flex-wrap: wrap; gap: 10px; }
 .lesson-links a { color: var(--primary); font-size: .8rem; font-weight: 800; }
+.course-import-options {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.course-import-options legend { margin-bottom: 8px; font-weight: 800; }
+.course-import-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid #1d3556;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.course-import-option:has(input:checked) { border-color: var(--primary); background: rgb(68 206 255 / 8%); }
+.course-import-option:has(input:disabled) { cursor: not-allowed; opacity: .58; }
+.course-import-option input { margin-top: 3px; }
+.course-import-option strong,
+.course-import-option small { display: block; }
+.course-import-option small { color: var(--muted); font-size: .78rem; }
 @media (max-width: 560px) {
   .lesson-detail-grid { grid-template-columns: 1fr; }
   .course-lesson { align-items: flex-start; flex-direction: column; }

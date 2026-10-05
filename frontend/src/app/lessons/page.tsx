@@ -6,9 +6,13 @@ import { Modal } from "@/components/modal";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import {
   ApiError,
+  courseImportApi,
   lessonsApi,
   kodlandApi,
+  type CourseImportInput,
   type ExtraLessonPayload,
+  type ImportedCourse,
+  type ImportedCourseLesson,
   type KodlandGroup,
   type KodlandLesson,
   type Lesson,
@@ -40,13 +44,47 @@ const tone = (status: string) =>
     : status === "FUTURE"
       ? ("warning" as const)
       : ("success" as const);
+
+const courseChoices: Array<{
+  id: CourseImportInput["courseId"];
+  name: string;
+  description: string;
+  available: boolean;
+}> = [
+  { id: "roblox", name: "Roblox", description: "Curso oficial", available: true },
+  { id: "scratch", name: "Scratch", description: "Curso oficial", available: true },
+  {
+    id: "python",
+    name: "Python",
+    description: "Disponível ao configurar o ID oficial do curso",
+    available: false,
+  },
+];
+
+const materialLinks = (lesson: Pick<ImportedCourseLesson, "slides_url" | "guide_url" | "homework_url" | "external_url">) => (
+  <div className="lesson-links">
+    {lesson.slides_url && <a href={lesson.slides_url} target="_blank" rel="noreferrer">Slides</a>}
+    {lesson.guide_url && <a href={lesson.guide_url} target="_blank" rel="noreferrer">Roteiro</a>}
+    {lesson.homework_url && <a href={lesson.homework_url} target="_blank" rel="noreferrer">Atividade</a>}
+    {lesson.external_url && <a href={lesson.external_url} target="_blank" rel="noreferrer">Abrir</a>}
+  </div>
+);
+
 function LessonsContent() {
   const [lessons, setLessons] = useState<Lesson[]>([]),
     [courseGroups, setCourseGroups] = useState<KodlandGroup[]>([]),
     [courseLessons, setCourseLessons] = useState<KodlandLesson[]>([]),
+    [importedCourses, setImportedCourses] = useState<ImportedCourse[]>([]),
+    [importedLessons, setImportedLessons] = useState<ImportedCourseLesson[]>([]),
     [filters, setFilters] = useState<LessonFilters>({ page: 1, page_size: 50 }),
     [form, setForm] = useState<ExtraForm>(emptyForm),
     [formOpen, setFormOpen] = useState(false),
+    [importOpen, setImportOpen] = useState(false),
+    [selectedCourse, setSelectedCourse] = useState<CourseImportInput["courseId"]>("roblox"),
+    [importUsername, setImportUsername] = useState(""),
+    [importPassword, setImportPassword] = useState(""),
+    [importing, setImporting] = useState(false),
+    [importNotice, setImportNotice] = useState(""),
     [loading, setLoading] = useState(true),
     [saving, setSaving] = useState(false),
     [error, setError] = useState("");
@@ -55,14 +93,18 @@ function LessonsContent() {
       setLoading(true);
       setError("");
       try {
-        const [history, groups, syncedLessons] = await Promise.all([
+        const [history, groups, syncedLessons, courses, imported] = await Promise.all([
           lessonsApi.list(next),
           kodlandApi.groups(),
           kodlandApi.lessons(),
+          courseImportApi.courses(),
+          courseImportApi.lessons(),
         ]);
         setLessons(history.items);
         setCourseGroups(groups.items.filter((group) => !group.archived));
         setCourseLessons(syncedLessons.items);
+        setImportedCourses(courses.items);
+        setImportedLessons(imported.items);
       } catch (reason) {
         setError(
           reason instanceof Error
@@ -149,9 +191,57 @@ function LessonsContent() {
     setForm(emptyForm);
     setError("");
   }
+  function openImport() {
+    setError("");
+    setImportNotice("");
+    setImportUsername("");
+    setImportPassword("");
+    setSelectedCourse("roblox");
+    setImportOpen(true);
+  }
+  function closeImport() {
+    if (importing) return;
+    setImportOpen(false);
+    // Never retain credentials after the dialog is closed.
+    setImportUsername("");
+    setImportPassword("");
+    setError("");
+  }
+  async function importCourse(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const choice = courseChoices.find((course) => course.id === selectedCourse);
+    if (!choice?.available) {
+      setError("Este curso ainda precisa ter o ID oficial configurado.");
+      return;
+    }
+    if (!importUsername.trim() || !importPassword) {
+      setError("Informe suas credenciais temporárias para importar o curso.");
+      return;
+    }
+    setError("");
+    setImportNotice("");
+    setImporting(true);
+    try {
+      const result = await courseImportApi.import({
+        courseId: selectedCourse,
+        username: importUsername.trim(),
+        password: importPassword,
+      });
+      setImportNotice(`${result.course.name}: ${result.lessons.length} aulas importadas.`);
+      setImportUsername("");
+      setImportPassword("");
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível importar o curso.");
+    } finally {
+      // Password is deliberately cleared whether the provider accepted it or not.
+      setImportPassword("");
+      setImporting(false);
+    }
+  }
   return (
     <div className="management-grid">
-      {error && !formOpen && (
+      {error && !formOpen && !importOpen && (
         <p className="form-error" role="alert">
           {error}
         </p>
@@ -215,12 +305,46 @@ function LessonsContent() {
           </div>
         </form>
       </Modal>
+      <Modal open={importOpen} title="Importar curso" onClose={closeImport}>
+        <p className="muted">Escolha um curso oficial. As credenciais são usadas apenas nesta importação e não são salvas.</p>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        {importNotice && <p className="notice" role="status">{importNotice}</p>}
+        <form className="form management-form" onSubmit={importCourse}>
+          <fieldset className="course-import-options" disabled={importing}>
+            <legend>Curso</legend>
+            {courseChoices.map((course) => (
+              <label className="course-import-option" key={course.id}>
+                <input
+                  type="radio"
+                  name="course"
+                  value={course.id}
+                  checked={selectedCourse === course.id}
+                  disabled={!course.available}
+                  onChange={() => setSelectedCourse(course.id)}
+                />
+                <span><strong>{course.name}</strong><small>{course.description}</small></span>
+              </label>
+            ))}
+          </fieldset>
+          <label className="field">
+            Usuário ou e-mail da plataforma
+            <Input autoComplete="username" value={importUsername} onChange={(event) => setImportUsername(event.target.value)} required disabled={importing} />
+          </label>
+          <label className="field">
+            Senha temporária
+            <Input type="password" autoComplete="current-password" value={importPassword} onChange={(event) => setImportPassword(event.target.value)} required disabled={importing} />
+          </label>
+          <p className="muted">Por segurança, não é possível informar uma URL livre. Outros cursos precisam ser cadastrados com um ID oficial permitido.</p>
+          <div className="form-actions"><Button type="submit" disabled={importing}>{importing ? "Importando…" : "Importar curso"}</Button></div>
+        </form>
+      </Modal>
       <section className="panel">
         <div className="section-heading">
           <div>
             <h2>Aulas por curso</h2>
             <p className="muted">Materiais das aulas sincronizadas para cada turma.</p>
           </div>
+          <Button type="button" onClick={openImport}>Importar curso</Button>
         </div>
         {loading ? (
           <p className="muted">Carregando cursos…</p>
@@ -259,6 +383,30 @@ function LessonsContent() {
           </div>
         )}
       </section>
+      {importedCourses.length > 0 && (
+        <section className="panel">
+          <div className="section-heading">
+            <div><h2>Cursos importados</h2><p className="muted">Materiais importados sob demanda para sua conta.</p></div>
+            <Button type="button" onClick={openImport}>Importar outro curso</Button>
+          </div>
+          <div className="course-list">
+            {importedCourses.map((course) => {
+              const lessonsForCourse = importedLessons
+                .filter((lesson) => lesson.course_id === course.id)
+                .sort((a, b) => a.lesson_number - b.lesson_number || a.title.localeCompare(b.title));
+              return <details className="course-card" key={course.id}>
+                <summary><span><strong>{course.name}</strong><small>Atualizado em {course.updated_at ? formatDate(course.updated_at) : "data não informada"}</small></span><b>{lessonsForCourse.length} aula{lessonsForCourse.length === 1 ? "" : "s"}</b></summary>
+                <div className="course-lessons">
+                  {lessonsForCourse.map((lesson) => <article className="course-lesson" key={lesson.id}>
+                    <div><strong>{lesson.module_number ? `Módulo ${lesson.module_number} · ` : ""}Aula {lesson.lesson_number}: {lesson.title}</strong></div>
+                    {materialLinks(lesson)}
+                  </article>)}
+                </div>
+              </details>;
+            })}
+          </div>
+        </section>
+      )}
       <section className="panel">
         <div className="section-heading">
           <h2>Histórico de aulas</h2>

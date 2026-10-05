@@ -66,10 +66,15 @@ const currentWeek = (offset = 0) => {
 };
 const isoDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-const moduleLabel = (lesson?: KodlandLesson) => {
-  if (lesson?.module_number) return lesson.module_number;
-  const courseModule = lesson?.title.match(/[MМ]\s*(\d+)\s*\.\s*L/i)?.[1];
-  return courseModule ? `Módulo ${courseModule}` : "Não informado";
+const lessonLocation = (lesson?: KodlandLesson) => {
+  const match = lesson?.title.match(/[M\u041c]\s*(\d+)\s*\.?\s*L\s*(\d+)/i);
+  if (match) return `M${match[1]}L${match[2]}`;
+  const moduleNumber = lesson?.module_number?.match(/\d+/)?.[0];
+  return moduleNumber && lesson?.lesson_number
+    ? `M${moduleNumber}L${lesson.lesson_number}`
+    : lesson?.lesson_number
+      ? `Aula ${lesson.lesson_number}`
+      : "Aula não informada";
 };
 
 function WeekSchedule({
@@ -237,7 +242,7 @@ function WeekSchedule({
       </div>
       <Modal
         open={Boolean(selectedEntry)}
-        title={selectedEntry?.group?.title ?? selectedEntry?.lesson?.external_class_name ?? "Detalhes da turma"}
+        title={selectedEntry ? `${selectedEntry.group?.title ?? selectedEntry.lesson?.external_class_name ?? "Detalhes da turma"} · ${selectedEntry.start} – ${selectedEntry.end}` : "Detalhes da turma"}
         onClose={() => setSelectedEntry(null)}
       >
         {selectedEntry && (() => {
@@ -246,22 +251,29 @@ function WeekSchedule({
           const courseUrl = selectedLesson?.external_url || (group?.course_id ? `https://bo.kodland.org/courses/${group.course_id}` : "");
           return (
           <div className="lesson-details">
-            <div className="lesson-detail-grid">
-              <div><span>Turma</span><strong>{group?.title ?? selectedLesson?.external_class_name}</strong></div>
-              <div><span>Módulo</span><strong>{moduleLabel(selectedLesson)}</strong></div>
-              <div><span>Aula</span><strong>{selectedLesson?.lesson_number || "Não informada"}</strong></div>
-              <div><span>Horário</span><strong>{selectedEntry.start} – {selectedEntry.end}</strong></div>
-              <div><span>Assunto</span><strong>{selectedLesson?.title || selectedLesson?.theme || "Aula semanal"}</strong></div>
+            <div className="lesson-overview">
+              <span className="lesson-location">{lessonLocation(selectedLesson)}</span>
+              <strong>{selectedLesson?.title || selectedLesson?.theme || "Aula semanal"}</strong>
             </div>
             {selectedLesson?.theme && selectedLesson.theme !== selectedLesson.title && (
               <p className="muted">{selectedLesson.theme}</p>
             )}
-            <div className="form-actions lesson-material-actions">
-              {selectedLesson?.slides_url && <a className="button secondary" href={selectedLesson.slides_url} target="_blank" rel="noreferrer">Slides</a>}
-              {selectedLesson?.guide_url && <a className="button secondary" href={selectedLesson.guide_url} target="_blank" rel="noreferrer">Roteiro</a>}
-              {selectedLesson?.homework_url && <a className="button secondary" href={selectedLesson.homework_url} target="_blank" rel="noreferrer">Atividade</a>}
-              {courseUrl && <a className="button" href={courseUrl} target="_blank" rel="noreferrer">Abrir aula</a>}
-            </div>
+            <section className="lesson-material-section">
+              <h3>Tarefas em sala</h3>
+              {courseUrl ? <a className="button secondary" href={courseUrl} target="_blank" rel="noreferrer">Ver tarefas da aula</a> : <p className="muted">Material não disponível.</p>}
+            </section>
+            <section className="lesson-material-section">
+              <h3>Lição de casa</h3>
+              {selectedLesson?.homework_url ? <a className="button secondary" href={selectedLesson.homework_url} target="_blank" rel="noreferrer">{selectedLesson.homework_title || "Abrir lição de casa"}</a> : <p className="muted">Nenhuma lição de casa sincronizada.</p>}
+            </section>
+            <section className="lesson-material-section">
+              <h3>Guias de estudo</h3>
+              <div className="form-actions lesson-material-actions">
+                {selectedLesson?.slides_url && <a className="button secondary" href={selectedLesson.slides_url} target="_blank" rel="noreferrer">Slides</a>}
+                {selectedLesson?.guide_url && <a className="button secondary" href={selectedLesson.guide_url} target="_blank" rel="noreferrer">Roteiro</a>}
+                {!selectedLesson?.slides_url && !selectedLesson?.guide_url && <p className="muted">Slides e roteiro não foram encontrados.</p>}
+              </div>
+            </section>
           </div>
           );
         })()}

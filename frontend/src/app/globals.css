@@ -616,26 +616,29 @@ select:focus-visible {
   display: grid;
   gap: 18px;
 }
-.lesson-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-.lesson-detail-grid > div,
+.lesson-overview,
+.lesson-material-section,
 .course-lesson {
   padding: 12px;
   border: 1px solid #1d3556;
   border-radius: 10px;
   background: rgb(8 18 34 / 54%);
 }
-.lesson-detail-grid span,
+.lesson-overview strong {
+  display: block;
+  margin-top: 4px;
+}
+.lesson-location,
 .course-lesson span,
 .course-card summary small {
   display: block;
   color: var(--muted);
   font-size: .78rem;
 }
-.lesson-detail-grid strong { display: block; margin-top: 4px; }
+.lesson-location { color: var(--primary); font-weight: 800; }
+.lesson-material-section { display: grid; gap: 10px; }
+.lesson-material-section h3 { margin: 0; font-size: .9rem; }
+.lesson-material-section .muted { margin: 0; }
 .lesson-material-actions { margin-top: 0; }
 .course-list { display: grid; gap: 10px; margin-top: 16px; }
 .course-card { border: 1px solid #1d3556; border-radius: 12px; background: rgb(8 18 34 / 54%); }
@@ -669,7 +672,6 @@ select:focus-visible {
 .course-import-option small { display: block; }
 .course-import-option small { color: var(--muted); font-size: .78rem; }
 @media (max-width: 560px) {
-  .lesson-detail-grid { grid-template-columns: 1fr; }
   .course-lesson { align-items: flex-start; flex-direction: column; }
 }
 .week-empty {

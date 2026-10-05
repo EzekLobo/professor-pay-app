@@ -28,6 +28,7 @@ type ScheduleEntry = {
   extra: boolean;
   availability?: boolean;
   lesson?: KodlandLesson;
+  group?: KodlandGroup;
 };
 const dateOnly = (value: string) =>
   value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
@@ -78,7 +79,7 @@ function WeekSchedule({
   availability: KodlandAvailability[];
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
-  const [selectedLesson, setSelectedLesson] = useState<KodlandLesson | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
   const days = currentWeek(weekOffset);
   const weekState =
     weekOffset === 0 ? "Atual" : weekOffset < 0 ? "Passada" : "Próxima";
@@ -101,12 +102,21 @@ function WeekSchedule({
       detail: `Aula ${lesson.lesson_number || "—"}${lesson.title ? ` · ${lesson.title}` : ""}`,
       extra: false,
       lesson,
+      group: groups.find((group) => group.external_id === lesson.external_class_id),
     }));
   const groupsWithEvent = new Set(entries.map((entry) => entry.title));
   active.forEach((group) => {
     const day = weekDay(group.start_date || group.next_lesson_date);
     const start = groupTime(group);
     if (day < 0 || groupsWithEvent.has(group.title)) return;
+    const referenceDate = dateOnly(group.next_lesson_date || group.start_date);
+    const nearestLesson = lessons
+      .filter((lesson) => lesson.external_class_id === group.external_id)
+      .sort(
+        (a, b) =>
+          Math.abs(Date.parse(dateOnly(a.lesson_date)) - Date.parse(referenceDate)) -
+          Math.abs(Date.parse(dateOnly(b.lesson_date)) - Date.parse(referenceDate)),
+      )[0];
     entries.push({
       id: `recurring-${group.id}`,
       day,
@@ -115,6 +125,8 @@ function WeekSchedule({
       title: group.title,
       detail: "Turma semanal",
       extra: false,
+      lesson: nearestLesson,
+      group,
     });
   });
   extraLessons
@@ -197,12 +209,12 @@ function WeekSchedule({
                     <strong>{entry.title}</strong>
                     <span>{entry.detail}</span>
                   </>;
-                  return entry.lesson ? (
+                  return entry.group ? (
                     <button
                       type="button"
                       className={`${className} week-slot-action`}
                       key={entry.id}
-                      onClick={() => setSelectedLesson(entry.lesson ?? null)}
+                      onClick={() => setSelectedEntry(entry)}
                       aria-label={`Abrir detalhes de ${entry.title}, ${entry.detail}`}
                     >
                       {contents}
@@ -219,30 +231,35 @@ function WeekSchedule({
         })}
       </div>
       <Modal
-        open={Boolean(selectedLesson)}
-        title={selectedLesson?.external_class_name ?? "Detalhes da turma"}
-        onClose={() => setSelectedLesson(null)}
+        open={Boolean(selectedEntry)}
+        title={selectedEntry?.group?.title ?? selectedEntry?.lesson?.external_class_name ?? "Detalhes da turma"}
+        onClose={() => setSelectedEntry(null)}
       >
-        {selectedLesson && (
+        {selectedEntry && (() => {
+          const selectedLesson = selectedEntry.lesson;
+          const group = selectedEntry.group;
+          const courseUrl = selectedLesson?.external_url || (group?.course_id ? `https://bo.kodland.org/courses/${group.course_id}` : "");
+          return (
           <div className="lesson-details">
             <div className="lesson-detail-grid">
-              <div><span>Turma</span><strong>{selectedLesson.external_class_name}</strong></div>
-              <div><span>Módulo</span><strong>{selectedLesson.module_number || "Não informado"}</strong></div>
-              <div><span>Aula</span><strong>{selectedLesson.lesson_number || "—"}</strong></div>
-              <div><span>Data e horário</span><strong>{dateOnly(selectedLesson.lesson_date)} · {timeOnly(selectedLesson.start_time)} – {timeOnly(selectedLesson.end_time)}</strong></div>
-              <div><span>Assunto</span><strong>{selectedLesson.title || selectedLesson.theme || "Aula agendada"}</strong></div>
+              <div><span>Turma</span><strong>{group?.title ?? selectedLesson?.external_class_name}</strong></div>
+              <div><span>Módulo</span><strong>{selectedLesson?.module_number || "Não informado"}</strong></div>
+              <div><span>Aula</span><strong>{selectedLesson?.lesson_number || "Não informada"}</strong></div>
+              <div><span>Horário</span><strong>{selectedEntry.start} – {selectedEntry.end}</strong></div>
+              <div><span>Assunto</span><strong>{selectedLesson?.title || selectedLesson?.theme || "Aula semanal"}</strong></div>
             </div>
-            {selectedLesson.theme && selectedLesson.theme !== selectedLesson.title && (
+            {selectedLesson?.theme && selectedLesson.theme !== selectedLesson.title && (
               <p className="muted">{selectedLesson.theme}</p>
             )}
             <div className="form-actions lesson-material-actions">
-              {selectedLesson.slides_url && <a className="button secondary" href={selectedLesson.slides_url} target="_blank" rel="noreferrer">Slides</a>}
-              {selectedLesson.guide_url && <a className="button secondary" href={selectedLesson.guide_url} target="_blank" rel="noreferrer">Roteiro</a>}
-              {selectedLesson.homework_url && <a className="button secondary" href={selectedLesson.homework_url} target="_blank" rel="noreferrer">Atividade</a>}
-              {selectedLesson.external_url && <a className="button" href={selectedLesson.external_url} target="_blank" rel="noreferrer">Abrir aula</a>}
+              {selectedLesson?.slides_url && <a className="button secondary" href={selectedLesson.slides_url} target="_blank" rel="noreferrer">Slides</a>}
+              {selectedLesson?.guide_url && <a className="button secondary" href={selectedLesson.guide_url} target="_blank" rel="noreferrer">Roteiro</a>}
+              {selectedLesson?.homework_url && <a className="button secondary" href={selectedLesson.homework_url} target="_blank" rel="noreferrer">Atividade</a>}
+              {courseUrl && <a className="button" href={courseUrl} target="_blank" rel="noreferrer">Abrir aula</a>}
             </div>
           </div>
-        )}
+          );
+        })()}
       </Modal>
     </section>
   );

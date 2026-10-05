@@ -64,6 +64,12 @@ type ExtraLesson = {
   status: string;
   completed: boolean;
 };
+type Availability = {
+  id: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+};
 
 const sso = "https://sso.production.kodland.org/";
 const api = "https://backoffice.kodland.org/api/v2/";
@@ -138,6 +144,48 @@ export function teacherCalendarWeekDates(reference = new Date()) {
     const date = new Date(monday);
     date.setUTCDate(date.getUTCDate() + weekOffset * 7);
     return date.toISOString().slice(0, 10);
+  });
+}
+
+export function availabilityFromTeacherTimetable(
+  payload: unknown,
+): Availability[] {
+  const names: Record<string, number> = {
+    monday: 0,
+    segunda: 0,
+    tuesday: 1,
+    terca: 1,
+    terça: 1,
+    wednesday: 2,
+    quarta: 2,
+    thursday: 3,
+    quinta: 3,
+    friday: 4,
+    sexta: 4,
+    saturday: 5,
+    sabado: 5,
+    sábado: 5,
+    sunday: 6,
+    domingo: 6,
+  };
+  return scheduleItems(payload).flatMap((value, index) => {
+    const item = record(value);
+    const rawDay =
+      item.weekday ?? item.week_day ?? item.day_of_week ?? item.day;
+    const dayText = text(rawDay).toLocaleLowerCase();
+    const weekday =
+      names[dayText] ?? (number(rawDay) === 0 ? 6 : number(rawDay) - 1);
+    const start = timeOnly(item.start_hour ?? item.start_time ?? item.start);
+    const end = timeOnly(item.end_hour ?? item.end_time ?? item.end);
+    if (weekday < 0 || weekday > 6 || !start || !end) return [];
+    return [
+      {
+        id: `availability-${text(item.id) || `${weekday}-${index}`}`,
+        weekday,
+        start_time: start,
+        end_time: end,
+      },
+    ];
   });
 }
 
@@ -889,17 +937,18 @@ export async function POST(request: NextRequest) {
       }),
     );
     const students = snapshots.flatMap((item) => item.students);
-    const extraLessons = await extrasForStudents(
-      students,
-      userId(token),
-      token,
-    );
+    const teacherId = userId(token);
+    const [extraLessons, availabilityPayload] = await Promise.all([
+      extrasForStudents(students, teacherId, token),
+      getOptional(`teacher_timetables/${teacherId}`, token),
+    ]);
     return Response.json({
       groups,
       students,
       reviews: snapshots.flatMap((item) => item.reviews),
       lessons: snapshots.flatMap((item) => item.lessons),
       extra_lessons: extraLessons,
+      availability: availabilityFromTeacherTimetable(availabilityPayload),
     });
   } catch (error) {
     return Response.json(

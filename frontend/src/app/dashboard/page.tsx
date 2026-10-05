@@ -9,6 +9,7 @@ import {
   kodlandApi,
   type DashboardResponse,
   type KodlandExtraLesson,
+  type KodlandAvailability,
   type KodlandGroup,
   type KodlandLesson,
   type KodlandReview,
@@ -24,6 +25,7 @@ type ScheduleEntry = {
   title: string;
   detail: string;
   extra: boolean;
+  availability?: boolean;
 };
 const dateOnly = (value: string) =>
   value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
@@ -66,10 +68,12 @@ function WeekSchedule({
   groups,
   lessons,
   extraLessons,
+  availability,
 }: {
   groups: KodlandGroup[];
   lessons: KodlandLesson[];
   extraLessons: KodlandExtraLesson[];
+  availability: KodlandAvailability[];
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const days = currentWeek(weekOffset);
@@ -124,6 +128,18 @@ function WeekSchedule({
         extra: true,
       }),
     );
+  availability.forEach((slot) => {
+    entries.push({
+      id: slot.id,
+      day: slot.weekday,
+      start: timeOnly(slot.start_time),
+      end: timeOnly(slot.end_time),
+      title: "Disponível",
+      detail: "Horário cadastrado",
+      extra: false,
+      availability: true,
+    });
+  });
 
   return (
     <section className="panel weekly-schedule">
@@ -172,7 +188,7 @@ function WeekSchedule({
               {dayEntries.length ? (
                 dayEntries.map((entry) => (
                   <article
-                    className={`week-slot${entry.extra ? " week-slot-extra" : ""}`}
+                    className={`week-slot${entry.extra ? " week-slot-extra" : ""}${entry.availability ? " week-slot-availability" : ""}`}
                     key={entry.id}
                   >
                     <time>
@@ -199,12 +215,14 @@ function KodlandSummary({
   reviews,
   lessons,
   extraLessons,
+  availability,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
   reviews: KodlandReview[];
   lessons: KodlandLesson[];
   extraLessons: KodlandExtraLesson[];
+  availability: KodlandAvailability[];
 }) {
   const active = groups.filter((group) => !group.archived);
   return (
@@ -227,6 +245,7 @@ function KodlandSummary({
         groups={groups}
         lessons={lessons}
         extraLessons={extraLessons}
+        availability={availability}
       />
     </div>
   );
@@ -239,6 +258,7 @@ function DashboardPageContent() {
   const [reviews, setReviews] = useState<KodlandReview[]>([]);
   const [lessons, setLessons] = useState<KodlandLesson[]>([]);
   const [extraLessons, setExtraLessons] = useState<KodlandExtraLesson[]>([]);
+  const [availability, setAvailability] = useState<KodlandAvailability[]>([]);
   const [failed, setFailed] = useState(false);
   const load = useCallback(() => {
     setFailed(false);
@@ -250,6 +270,7 @@ function DashboardPageContent() {
       kodlandApi.reviews(),
       kodlandApi.lessons(),
       kodlandApi.extraLessons(),
+      kodlandApi.availability(),
     ])
       .then(
         ([
@@ -259,6 +280,7 @@ function DashboardPageContent() {
           kodlandReviews,
           kodlandLessons,
           kodlandExtras,
+          kodlandAvailability,
         ]) => {
           setDashboard(financial);
           setGroups(kodlandGroups.items);
@@ -266,6 +288,7 @@ function DashboardPageContent() {
           setReviews(kodlandReviews.items);
           setLessons(kodlandLessons.items);
           setExtraLessons(kodlandExtras.items);
+          setAvailability(kodlandAvailability.items);
         },
       )
       .catch(() => setFailed(true));
@@ -284,6 +307,7 @@ function DashboardPageContent() {
         reviews={reviews}
         lessons={lessons}
         extraLessons={extraLessons}
+        availability={availability}
       />
       <DashboardContent state="ready" dashboard={dashboard} />
     </>

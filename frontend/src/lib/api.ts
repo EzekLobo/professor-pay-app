@@ -135,6 +135,7 @@ export type DataExport = {
   kodland_reviews?: unknown[];
   kodland_lessons?: unknown[];
   kodland_extra_lessons?: unknown[];
+  kodland_availability?: unknown[];
 };
 export type KodlandGroup = {
   id: string;
@@ -200,6 +201,13 @@ export type KodlandExtraLesson = {
   completed: boolean;
   created_at: string;
 };
+export type KodlandAvailability = {
+  id: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  created_at: string;
+};
 export type { KodlandLesson } from "@/lib/kodland-lessons";
 type KodlandSnapshot = {
   groups: Omit<KodlandGroup, "id" | "local_class_id" | "created_at">[];
@@ -207,6 +215,7 @@ type KodlandSnapshot = {
   reviews: Omit<KodlandReview, "created_at">[];
   lessons: Omit<KodlandLesson, "created_at">[];
   extra_lessons: Omit<KodlandExtraLesson, "created_at">[];
+  availability: Omit<KodlandAvailability, "created_at">[];
 };
 export class ApiError extends Error {
   constructor(
@@ -669,7 +678,8 @@ type PedagogicalCollection =
   | "kodland_students"
   | "kodland_reviews"
   | "kodland_lessons"
-  | "kodland_extra_lessons";
+  | "kodland_extra_lessons"
+  | "kodland_availability";
 
 const pedagogicalValues = (
   payload: ImportPayload,
@@ -945,6 +955,11 @@ export const kodlandApi = {
       "kodland_extra_lessons",
     )) as unknown as KodlandExtraLesson[],
   }),
+  availability: async () => ({
+    items: (await rows(
+      "kodland_availability",
+    )) as unknown as KodlandAvailability[],
+  }),
   updateLessonFinancialStatus: async (id: string, status: string) => {
     await updateDoc(doc(ref("kodland_lessons"), id), {
       financial_status: status,
@@ -983,6 +998,7 @@ export const kodlandApi = {
     const oldReviews = await rows("kodland_reviews");
     const oldLessons = await rows("kodland_lessons");
     const oldExtraLessons = await rows("kodland_extra_lessons");
+    const oldAvailability = await rows("kodland_availability");
     const batch = writeBatch(getFirebaseDb());
     oldReviews.forEach((item) =>
       batch.delete(doc(ref("kodland_reviews"), String(item.id))),
@@ -1056,6 +1072,15 @@ export const kodlandApi = {
         updated_at: createdAt,
       });
     });
+    oldAvailability.forEach((item) =>
+      batch.delete(doc(ref("kodland_availability"), String(item.id))),
+    );
+    snapshot.availability.forEach((item) =>
+      batch.set(doc(ref("kodland_availability"), item.id), {
+        ...item,
+        created_at: createdAt,
+      }),
+    );
     await batch.commit();
     return {
       group_count: snapshot.groups.length,

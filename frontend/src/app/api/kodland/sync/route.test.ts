@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { extrasFromTeacherAgenda, teacherCalendarWeekDates } from "./route";
+import {
+  availabilityFromTeacherTimetable,
+  extrasFromTeacherAgenda,
+  teacherCalendarWeekDates,
+} from "./route";
 
 const students = [
   {
@@ -21,6 +25,25 @@ const students = [
 ];
 
 describe("extrasFromTeacherAgenda", () => {
+  it("imports availability hours registered for each weekday", () => {
+    expect(
+      availabilityFromTeacherTimetable([
+        {
+          id: 1,
+          day_of_week: "wednesday",
+          start_hour: "19:00:00",
+          end_hour: "22:00:00",
+        },
+      ]),
+    ).toEqual([
+      {
+        id: "availability-1",
+        weekday: 2,
+        start_time: "19:00",
+        end_time: "22:00",
+      },
+    ]);
+  });
   it("imports the provider payload and converts UTC hours to teacher time", () => {
     const [extra] = extrasFromTeacherAgenda(
       [

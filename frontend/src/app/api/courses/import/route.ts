@@ -37,6 +37,14 @@ async function requireFirebaseUser(request: NextRequest) {
   return payload.users?.[0]?.localId ?? null;
 }
 
+export async function GET(request: NextRequest) {
+  if (!(await requireFirebaseUser(request)))
+    return Response.json({ message: "NÃ£o autorizado." }, { status: 401 });
+  // Provider course IDs remain server-side; the UI receives only safe choices.
+  const courses = courseImportCatalog().map(({ id, name, available }) => ({ id, name, available }));
+  return Response.json({ courses });
+}
+
 function assertProviderUrl(value: string) {
   const url = new URL(value);
   if (url.protocol !== "https:" || !PROVIDER_HOSTS.has(url.hostname.toLowerCase()))

@@ -245,6 +245,11 @@ export type CourseImportInput = {
   username: string;
   password: string;
 };
+export type CourseImportOption = {
+  id: CourseImportInput["courseId"];
+  name: string;
+  available: boolean;
+};
 export type CourseImportResult = {
   course: Pick<ImportedCourse, "id" | "name" | "lesson_count">;
   lessons: Array<
@@ -1260,6 +1265,27 @@ export const kodlandApi = {
   },
 };
 export const courseImportApi = {
+  catalog: async (): Promise<CourseImportOption[]> => {
+    const user = authUser() as unknown as { getIdToken: () => Promise<string> };
+    const response = await fetch("/api/courses/import", {
+      headers: { authorization: `Bearer ${await user.getIdToken()}` },
+      cache: "no-store",
+    });
+    const payload = await response.json() as { courses?: unknown[]; message?: unknown };
+    if (!response.ok)
+      throw new ApiError(response.status, String(payload.message ?? "Nao foi possivel carregar os cursos."));
+    const allowed = new Set<CourseImportInput["courseId"]>(["roblox", "scratch", "python"]);
+    return (payload.courses ?? []).flatMap((value) => {
+      if (!value || typeof value !== "object") return [];
+      const item = value as Record<string, unknown>;
+      if (typeof item.id !== "string" || !allowed.has(item.id as CourseImportInput["courseId"])) return [];
+      return [{
+        id: item.id as CourseImportInput["courseId"],
+        name: typeof item.name === "string" ? item.name : item.id,
+        available: item.available === true,
+      }];
+    });
+  },
   courses: async () => ({
     items: (await rows("imported_courses")) as unknown as ImportedCourse[],
   }),

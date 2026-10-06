@@ -20,6 +20,7 @@ import {
   type DashboardResponse,
 } from "@/lib/api";
 import { kodlandLessonLocation } from "@/lib/kodland-lessons";
+import { freeAvailabilityWindows } from "@/lib/availability-windows";
 
 const dayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 type ScheduleEntry = {
@@ -203,7 +204,7 @@ function WeekSchedule({
         extra: true,
       }),
     );
-  availability.forEach((slot) => {
+  freeAvailabilityWindows(availability, entries).forEach((slot) => {
     entries.push({
       id: slot.id,
       day: slot.weekday,

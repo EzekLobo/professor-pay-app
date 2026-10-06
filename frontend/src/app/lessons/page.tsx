@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Modal } from "@/components/modal";
@@ -14,6 +14,7 @@ import {
   lessonsApi,
   kodlandApi,
   type CourseImportInput,
+  type CourseImportOption,
   type ExtraLessonPayload,
   type ImportedCourse,
   type ImportedCourseLesson,
@@ -24,6 +25,7 @@ import {
 } from "@/lib/api";
 import { brlToCents, formatDate, formatMoney } from "@/lib/finance";
 import { kodlandLessonLocation } from "@/lib/kodland-lessons";
+import { groupKodlandLessonsByCourse } from "@/lib/kodland-course-groups";
 type ExtraForm = {
   student: string;
   lesson_date: string;
@@ -50,11 +52,8 @@ const tone = (status: string) =>
       ? ("warning" as const)
       : ("success" as const);
 
-const courseChoices: Array<{
-  id: CourseImportInput["courseId"];
-  name: string;
+const defaultCourseChoices: Array<CourseImportOption & {
   description: string;
-  available: boolean;
 }> = [
   { id: "roblox", name: "Roblox", description: "Curso oficial", available: true },
   { id: "scratch", name: "Scratch", description: "Curso oficial", available: true },
@@ -70,6 +69,7 @@ function LessonsContent() {
   const [lessons, setLessons] = useState<Lesson[]>([]),
     [courseGroups, setCourseGroups] = useState<KodlandGroup[]>([]),
     [courseLessons, setCourseLessons] = useState<KodlandLesson[]>([]),
+    [courseChoices, setCourseChoices] = useState(defaultCourseChoices),
     [importedCourses, setImportedCourses] = useState<ImportedCourse[]>([]),
     [importedLessons, setImportedLessons] = useState<ImportedCourseLesson[]>([]),
     [filters, setFilters] = useState<LessonFilters>({ page: 1, page_size: 50 }),
@@ -90,18 +90,27 @@ function LessonsContent() {
       setLoading(true);
       setError("");
       try {
-        const [history, groups, syncedLessons, courses, imported] = await Promise.all([
+        const [history, groups, syncedLessons, courses, imported, catalog] = await Promise.all([
           lessonsApi.list(next),
           kodlandApi.groups(),
           kodlandApi.lessons(),
           courseImportApi.courses(),
           courseImportApi.lessons(),
+          courseImportApi.catalog().catch(() => null),
         ]);
         setLessons(history.items);
         setCourseGroups(groups.items.filter((group) => !group.archived));
         setCourseLessons(syncedLessons.items);
         setImportedCourses(courses.items);
         setImportedLessons(imported.items);
+        if (catalog) {
+          setCourseChoices(catalog.map((course) => ({
+            ...course,
+            description: course.available
+              ? "Curso oficial"
+              : "Configure o ID oficial deste curso no servidor",
+          })));
+        }
       } catch (reason) {
         setError(
           reason instanceof Error
@@ -236,6 +245,10 @@ function LessonsContent() {
       setImporting(false);
     }
   }
+  const courseCatalog = useMemo(
+    () => groupKodlandLessonsByCourse(courseGroups, courseLessons),
+    [courseGroups, courseLessons],
+  );
   return (
     <div className="management-grid">
       {error && !formOpen && !importOpen && (
@@ -345,7 +358,7 @@ function LessonsContent() {
         <div className="section-heading">
           <div>
             <h2>Aulas por curso</h2>
-            <p className="muted">Materiais das aulas sincronizadas para cada turma.</p>
+            <p className="muted">Uma lista por curso; turmas com o mesmo conteudo ficam reunidas.</p>
           </div>
           <Button type="button" onClick={openImport}>Importar curso</Button>
         </div>
@@ -355,23 +368,21 @@ function LessonsContent() {
           <p className="muted">Nenhuma turma ativa foi sincronizada.</p>
         ) : (
           <div className="course-list">
-            {courseGroups.map((group) => {
-              const groupedLessons = courseLessons
-                .filter((lesson) => lesson.external_class_id === group.external_id)
-                .sort((a, b) => (a.course_index ?? a.lesson_number) - (b.course_index ?? b.lesson_number) || a.lesson_date.localeCompare(b.lesson_date));
+            {courseCatalog.map((course) => {
+              const groupNames = course.groups.map((group) => group.title || group.external_id);
               return (
-                <details className="course-card" key={group.id}>
+                <details className="course-card" key={course.id}>
                   <summary>
-                    <span><strong>{group.course_name || "Curso"}</strong><small>{group.title}</small></span>
-                    <b>{groupedLessons.length} aula{groupedLessons.length === 1 ? "" : "s"}</b>
+                    <span><strong>{course.name}</strong><small>{course.groups.length} turma{course.groups.length === 1 ? "" : "s"}: {groupNames.join(", ")}</small></span>
+                    <b>{course.lessons.length} aula{course.lessons.length === 1 ? "" : "s"}</b>
                   </summary>
                   <div className="course-lessons">
-                    {groupedLessons.length ? groupedLessons.map((lesson) => (
+                    {course.lessons.length ? course.lessons.map((lesson) => (
                       <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedMaterial({
                         ...lesson,
                         classroom_tasks: lesson.classroom_tasks ?? [],
                         location: kodlandLessonLocation(lesson),
-                        source: group.title,
+                        source: course.name,
                       })}>
                         <div>
                           <strong>Aula {(lesson.course_index ?? lesson.lesson_number) || "—"}: {lesson.title || lesson.theme || "Aula"}</strong>

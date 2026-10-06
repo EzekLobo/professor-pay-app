@@ -40,8 +40,14 @@ export function Modal({
     >
       <div className="modal-heading">
         <h2 id={titleId}>{title}</h2>
-        <button className="button button-ghost" type="button" onClick={onClose}>
-          Fechar
+        <button
+          className="button button-ghost modal-close-button"
+          type="button"
+          aria-label="Fechar"
+          title="Fechar"
+          onClick={onClose}
+        >
+          ×
         </button>
       </div>
       {children}

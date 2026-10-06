@@ -36,7 +36,6 @@ export function LessonMaterialModal({
       {lesson && (
         <div className="lesson-details">
           <div className="lesson-overview">
-            <span className="lesson-location">{lesson.location}</span>
             <strong>{lesson.title}</strong>
           </div>
           <section className="lesson-material-section">

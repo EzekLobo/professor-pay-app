@@ -376,33 +376,35 @@ function WeekSchedule({
                   </button>
                 </div>
                 {modalTab === "students" && (
-                  <section className="class-student-ranking" aria-label="Ranking de alunos">
-                    <div className="class-student-ranking-heading">
-                      <h3>Ranking por pontos</h3>
-                      <span>{classStudents.length} aluno{classStudents.length === 1 ? "" : "s"} ativo{classStudents.length === 1 ? "" : "s"}</span>
-                    </div>
-                    {classStudents.length ? (
-                      <ol className="class-student-ranking-list">
-                        {classStudents.map((student, index) => {
-                          const points = kodlandStudentPoints(student.progress_summary);
-                          return (
-                            <li className="class-student-ranking-item" key={student.id}>
-                              <span className={index < 3 ? "class-student-rank top-three" : "class-student-rank"}>
-                                {index + 1}º
-                              </span>
-                              <strong>{student.name}</strong>
-                              <span className="class-student-points">
-                                {student.progress_summary
-                                  ? new Intl.NumberFormat("pt-BR").format(points) + " pts"
-                                  : "Sem pontos"}
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ol>
-                    ) : (
-                      <p className="muted">Nenhum aluno ativo encontrado nesta turma.</p>
-                    )}
+                  <div className="class-student-tab">
+                    <section className="class-student-ranking" aria-label="Ranking de alunos">
+                      <div className="class-student-ranking-heading">
+                        <h3>Ranking por pontos</h3>
+                        <span>{classStudents.length} aluno{classStudents.length === 1 ? "" : "s"} ativo{classStudents.length === 1 ? "" : "s"}</span>
+                      </div>
+                      {classStudents.length ? (
+                        <ol className="class-student-ranking-list">
+                          {classStudents.map((student, index) => {
+                            const points = kodlandStudentPoints(student.progress_summary);
+                            return (
+                              <li className="class-student-ranking-item" key={student.id}>
+                                <span className={index < 3 ? "class-student-rank top-three" : "class-student-rank"}>
+                                  {index + 1}º
+                                </span>
+                                <strong>{student.name}</strong>
+                                <span className="class-student-points">
+                                  {student.progress_summary
+                                    ? new Intl.NumberFormat("pt-BR").format(points) + " pts"
+                                    : "Sem pontos"}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      ) : (
+                        <p className="muted">Nenhum aluno ativo encontrado nesta turma.</p>
+                      )}
+                    </section>
                     {studentsPlatformUrl && (
                       <a
                         className="button secondary class-platform-action"
@@ -410,10 +412,10 @@ function WeekSchedule({
                         target="_blank"
                         rel="noreferrer"
                       >
-                        Abrir alunos na plataforma
+                        Abrir na plataforma
                       </a>
                     )}
-                  </section>
+                  </div>
                 )}
               </>
             )}

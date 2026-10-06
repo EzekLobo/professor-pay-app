@@ -268,7 +268,7 @@ function WeekSchedule({
                     <strong>{entry.title}</strong>
                     <span>{entry.detail}</span>
                   </>;
-                  return entry.group ? (
+                  return entry.group || entry.availability ? (
                     <button
                       type="button"
                       className={`${className} week-slot-action`}
@@ -317,9 +317,11 @@ function WeekSchedule({
               source: selectedEntry?.group?.title ?? selectedLesson.external_class_name,
             }
           : null;
-        const title = selectedEntry
-          ? `${selectedEntry.group?.title ?? selectedEntry.title} · ${selectedLesson ? lessonLocation(selectedLesson) : "Escolha a aula"}`
-          : "Materiais da aula";
+        const title = selectedEntry?.availability
+          ? "Horário disponível"
+          : selectedEntry
+            ? `${selectedEntry.group?.title ?? selectedEntry.title} · ${selectedLesson ? lessonLocation(selectedLesson) : "Escolha a aula"}`
+            : "Materiais da aula";
         return (
           <LessonMaterialModal
             open={Boolean(selectedEntry)}
@@ -330,7 +332,14 @@ function WeekSchedule({
               setSelectedCatalogLessonId("");
             }}
           >
-            {selectedEntry && !selectedLesson && (
+            {selectedEntry?.availability ? (
+              <section className="lesson-material-section">
+                <h3>Disponibilidade</h3>
+                <p className="muted">
+                  {selectedEntry.start} – {selectedEntry.end} · Horário cadastrado na plataforma.
+                </p>
+              </section>
+            ) : selectedEntry && !selectedLesson && (
               <section className="lesson-material-section">
                 <h3>Aulas desta turma</h3>
                 <p className="muted">

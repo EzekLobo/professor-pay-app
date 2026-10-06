@@ -512,6 +512,19 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     modal e os estados de importação aparecem corretamente.
   - Depende de: R8.3.
 
+### R9 - Modal contextual de turma na grade
+
+- [x] Alternar o modal de uma turma entre as abas Aula e Alunos.
+  - Escopo: manter os materiais e links da aula na primeira aba e mostrar, na segunda, apenas alunos ativos da turma em ranking pelos pontos do progresso sincronizado.
+  - Aceitacao: o seletor nao aparece para disponibilidade; alunos inativos/removidos nao entram no ranking; empates sao ordenados alfabeticamente.
+
+#### Handoff R9
+
+- Mudou: o modal aberto por uma aula da grade ganhou o seletor Aula/Alunos. A segunda opcao lista apenas os alunos ativos da turma selecionada, em ordem decrescente de pontos, com desempate alfabetico e destaque para as tres primeiras posicoes.
+- Preservado: disponibilidade continua com seu modal proprio, sem o seletor; materiais, links e o fallback de escolha de aula permanecem na opcao Aula.
+- Verificado: `npm.cmd run typecheck`, Vitest (41 testes), `npm.cmd run lint`, `npm.cmd run build`, `git diff --check` e Playwright/Chromium (2 testes de rota privada) passam localmente.
+- Pendente operacional: uma sessao Firebase autenticada e necessaria para a conferencia visual do ranking com os dados reais apos a proxima sincronizacao.
+
 #### Handoff R8.1
 
 - Mudou: `POST /api/courses/import` autentica o usuário, aceita apenas curso

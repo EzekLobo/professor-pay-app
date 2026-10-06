@@ -639,6 +639,98 @@ select:focus-visible {
 .lesson-material-section { display: grid; gap: 10px; }
 .lesson-material-section h3 { margin: 0; font-size: .9rem; }
 .lesson-material-section .muted { margin: 0; }
+.class-modal-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  border: 1px solid #1d3556;
+  border-radius: 12px;
+  background: rgb(8 18 34 / 72%);
+}
+.class-modal-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.class-modal-tab.active {
+  background: #162b49;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px #2b4b70;
+}
+.class-modal-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.class-modal-tab span {
+  color: var(--primary);
+  font-size: .8rem;
+}
+.class-student-ranking {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #1d3556;
+  border-radius: 10px;
+  background: rgb(8 18 34 / 54%);
+}
+.class-student-ranking-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.class-student-ranking-heading h3 {
+  margin: 0;
+  font-size: .95rem;
+}
+.class-student-ranking-heading > span {
+  color: var(--muted);
+  font-size: .78rem;
+}
+.class-student-ranking-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.class-student-ranking-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #1d3556;
+  border-radius: 9px;
+  background: rgb(12 24 42 / 72%);
+}
+.class-student-ranking-item > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.class-student-rank {
+  color: var(--muted);
+  font-weight: 900;
+}
+.class-student-rank.top-three { color: var(--primary); }
+.class-student-points {
+  color: #a9c5e8;
+  font-size: .82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
 .lesson-resource-list {
   display: grid;
   gap: 8px;

@@ -21,6 +21,7 @@ import {
 } from "@/lib/api";
 import { kodlandLessonLocation } from "@/lib/kodland-lessons";
 import { freeAvailabilityWindows } from "@/lib/availability-windows";
+import { activeStudentsRankedByPoints, kodlandStudentPoints } from "@/lib/student-ranking";
 
 const dayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 type ScheduleEntry = {
@@ -81,11 +82,13 @@ const lessonLocation = (lesson?: KodlandLesson) =>
 
 function WeekSchedule({
   groups,
+  students,
   lessons,
   extraLessons,
   availability,
 }: {
   groups: KodlandGroup[];
+  students: KodlandStudent[];
   lessons: KodlandLesson[];
   extraLessons: KodlandExtraLesson[];
   availability: KodlandAvailability[];
@@ -93,6 +96,7 @@ function WeekSchedule({
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
   const [selectedCatalogLessonId, setSelectedCatalogLessonId] = useState("");
+  const [modalTab, setModalTab] = useState<"lesson" | "students">("lesson");
   const days = currentWeek(weekOffset);
   const weekState =
     weekOffset === 0 ? "Atual" : weekOffset < 0 ? "Passada" : "Próxima";
@@ -276,6 +280,7 @@ function WeekSchedule({
                       key={entry.id}
                       onClick={() => {
                         setSelectedCatalogLessonId("");
+                        setModalTab("lesson");
                         setSelectedEntry(entry);
                       }}
                       aria-label={`Abrir detalhes de ${entry.title}, ${entry.detail}`}
@@ -318,21 +323,86 @@ function WeekSchedule({
               source: selectedEntry?.group?.title ?? selectedLesson.external_class_name,
             }
           : null;
+        const classStudents = selectedEntry?.group
+          ? activeStudentsRankedByPoints(
+              students.filter(
+                (student) =>
+                  student.external_class_id === selectedEntry.group?.external_id,
+              ),
+            )
+          : [];
         const title = selectedEntry?.availability
           ? "Horário disponível"
           : selectedEntry
             ? `${selectedEntry.group?.title ?? selectedEntry.title} · ${selectedLesson ? lessonLocation(selectedLesson) : "Escolha a aula"}`
             : "Materiais da aula";
+        const modalTitle =
+          selectedEntry?.group && modalTab === "students"
+            ? selectedEntry.group.title + " · Alunos"
+            : title;
         return (
           <LessonMaterialModal
             open={Boolean(selectedEntry)}
-            title={title}
-            lesson={materialDetails}
+            title={modalTitle}
+            lesson={modalTab === "lesson" ? materialDetails : null}
             onClose={() => {
               setSelectedEntry(null);
               setSelectedCatalogLessonId("");
+              setModalTab("lesson");
             }}
           >
+            {selectedEntry?.group && (
+              <>
+                <div className="class-modal-tabs" aria-label="Informações da turma">
+                  <button
+                    type="button"
+                    aria-pressed={modalTab === "lesson"}
+                    className={modalTab === "lesson" ? "class-modal-tab active" : "class-modal-tab"}
+                    onClick={() => setModalTab("lesson")}
+                  >
+                    Aula
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={modalTab === "students"}
+                    className={modalTab === "students" ? "class-modal-tab active" : "class-modal-tab"}
+                    onClick={() => setModalTab("students")}
+                  >
+                    Alunos <span>{classStudents.length}</span>
+                  </button>
+                </div>
+                {modalTab === "students" && (
+                  <section className="class-student-ranking" aria-label="Ranking de alunos">
+                    <div className="class-student-ranking-heading">
+                      <h3>Ranking por pontos</h3>
+                      <span>{classStudents.length} aluno{classStudents.length === 1 ? "" : "s"} ativo{classStudents.length === 1 ? "" : "s"}</span>
+                    </div>
+                    {classStudents.length ? (
+                      <ol className="class-student-ranking-list">
+                        {classStudents.map((student, index) => {
+                          const points = kodlandStudentPoints(student.progress_summary);
+                          return (
+                            <li className="class-student-ranking-item" key={student.id}>
+                              <span className={index < 3 ? "class-student-rank top-three" : "class-student-rank"}>
+                                {index + 1}º
+                              </span>
+                              <strong>{student.name}</strong>
+                              <span className="class-student-points">
+                                {student.progress_summary
+                                  ? new Intl.NumberFormat("pt-BR").format(points) + " pts"
+                                  : "Sem pontos"}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    ) : (
+                      <p className="muted">Nenhum aluno ativo encontrado nesta turma.</p>
+                    )}
+                  </section>
+                )}
+              </>
+            )}
             {selectedEntry?.availability ? (
               <section className="lesson-material-section">
                 <h3>Disponibilidade</h3>
@@ -340,7 +410,7 @@ function WeekSchedule({
                   {selectedEntry.start} – {selectedEntry.end} · Horário cadastrado na plataforma.
                 </p>
               </section>
-            ) : selectedEntry && !selectedLesson && (
+            ) : modalTab === "lesson" && selectedEntry && !selectedLesson && (
               <section className="lesson-material-section">
                 <h3>Aulas desta turma</h3>
                 <p className="muted">
@@ -414,6 +484,7 @@ function KodlandSummary({
       </section>
       <WeekSchedule
         groups={groups}
+        students={students}
         lessons={lessons}
         extraLessons={extraLessons}
         availability={availability}

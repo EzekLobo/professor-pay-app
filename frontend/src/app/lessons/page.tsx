@@ -25,7 +25,10 @@ import {
 } from "@/lib/api";
 import { brlToCents, formatDate, formatMoney } from "@/lib/finance";
 import { kodlandLessonLocation } from "@/lib/kodland-lessons";
-import { groupKodlandLessonsByCourse } from "@/lib/kodland-course-groups";
+import {
+  groupKodlandLessonsByCourse,
+  groupLessonsByModule,
+} from "@/lib/kodland-course-groups";
 type ExtraForm = {
   student: string;
   lesson_date: string;
@@ -377,19 +380,29 @@ function LessonsContent() {
                     <b>{course.lessons.length} aula{course.lessons.length === 1 ? "" : "s"}</b>
                   </summary>
                   <div className="course-lessons">
-                    {course.lessons.length ? course.lessons.map((lesson) => (
-                      <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedMaterial({
-                        ...lesson,
-                        classroom_tasks: lesson.classroom_tasks ?? [],
-                        location: kodlandLessonLocation(lesson),
-                        source: course.name,
-                      })}>
-                        <div>
-                          <strong>Aula {(lesson.course_index ?? lesson.lesson_number) || "—"}: {lesson.title || lesson.theme || "Aula"}</strong>
-                          <span>{lesson.lesson_date ? formatDate(lesson.lesson_date) : "Data a confirmar"}</span>
+                    {course.lessons.length ? groupLessonsByModule(course.lessons).map((module) => (
+                      <section className="course-module" key={module.id}>
+                        <div className="course-module-heading">
+                          <h3>{module.label}</h3>
+                          <span>{module.lessons.length} aula{module.lessons.length === 1 ? "" : "s"}</span>
                         </div>
-                        <span className="course-lesson-hint">Ver materiais</span>
-                      </button>
+                        <div className="course-module-lessons">
+                          {module.lessons.map((lesson) => (
+                            <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedMaterial({
+                              ...lesson,
+                              classroom_tasks: lesson.classroom_tasks ?? [],
+                              location: kodlandLessonLocation(lesson),
+                              source: course.name,
+                            })}>
+                              <div>
+                                <strong>Aula {(module.number ? lesson.lesson_number : lesson.course_index ?? lesson.lesson_number) || "—"}: {lesson.title || lesson.theme || "Aula"}</strong>
+                                <span>{lesson.lesson_date ? formatDate(lesson.lesson_date) : "Data a confirmar"}</span>
+                              </div>
+                              <span className="course-lesson-hint">Ver materiais</span>
+                            </button>
+                          ))}
+                        </div>
+                      </section>
                     )) : <p className="muted">Ainda não há aulas desta turma no último snapshot.</p>}
                   </div>
                 </details>
@@ -412,15 +425,25 @@ function LessonsContent() {
               return <details className="course-card" key={course.id}>
                 <summary><span><strong>{course.name}</strong><small>Atualizado em {course.updated_at ? formatDate(course.updated_at) : "data não informada"}</small></span><b>{lessonsForCourse.length} aula{lessonsForCourse.length === 1 ? "" : "s"}</b></summary>
                 <div className="course-lessons">
-                  {lessonsForCourse.map((lesson) => <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedMaterial({
-                    ...lesson,
-                    classroom_tasks: lesson.classroom_tasks ?? [],
-                    location: kodlandLessonLocation(lesson),
-                    source: course.name,
-                  })}>
-                    <div><strong>{lesson.module_number ? `Módulo ${lesson.module_number} · ` : ""}Aula {lesson.lesson_number}: {lesson.title}</strong></div>
-                    <span className="course-lesson-hint">Ver materiais</span>
-                  </button>)}
+                  {groupLessonsByModule(lessonsForCourse).map((module) => (
+                    <section className="course-module" key={module.id}>
+                      <div className="course-module-heading">
+                        <h3>{module.label}</h3>
+                        <span>{module.lessons.length} aula{module.lessons.length === 1 ? "" : "s"}</span>
+                      </div>
+                      <div className="course-module-lessons">
+                        {module.lessons.map((lesson) => <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedMaterial({
+                          ...lesson,
+                          classroom_tasks: lesson.classroom_tasks ?? [],
+                          location: kodlandLessonLocation(lesson),
+                          source: course.name,
+                        })}>
+                          <div><strong>Aula {lesson.lesson_number || "—"}: {lesson.title}</strong></div>
+                          <span className="course-lesson-hint">Ver materiais</span>
+                        </button>)}
+                      </div>
+                    </section>
+                  ))}
                 </div>
               </details>;
             })}

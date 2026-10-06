@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { KodlandGroup, KodlandLesson } from "@/lib/api";
-import { groupKodlandLessonsByCourse } from "@/lib/kodland-course-groups";
+import {
+  groupKodlandLessonsByCourse,
+  groupLessonsByModule,
+} from "@/lib/kodland-course-groups";
 
 const group = (id: string, title: string): KodlandGroup => ({
   id,
@@ -56,5 +59,21 @@ describe("groupKodlandLessonsByCourse", () => {
   it("keeps genuinely different courses separate", () => {
     const python = { ...group("python", "Python Basics"), course_id: "9001", course_name: "Python Basics" };
     expect(groupKodlandLessonsByCourse([group("roblox", "Roblox"), python], [])).toHaveLength(2);
+  });
+
+  it("organizes lessons by module while preserving the catalog order within each module", () => {
+    const modules = groupLessonsByModule([
+      { ...lesson("group-a", 5), module_number: "2", lesson_number: 1, title: "M2.L1" },
+      { ...lesson("group-a", 2), module_number: "1", lesson_number: 2, title: "M1.L2" },
+      { ...lesson("group-a", 1), module_number: "1", lesson_number: 1, title: "M1.L1" },
+      { ...lesson("group-a", 9), module_number: "", lesson_number: 9, title: "Aula sem módulo" },
+    ]);
+
+    expect(modules.map((module) => module.label)).toEqual([
+      "Módulo 1",
+      "Módulo 2",
+      "Aulas sem módulo",
+    ]);
+    expect(modules[0].lessons.map((item) => item.lesson_number)).toEqual([2, 1]);
   });
 });

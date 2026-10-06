@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { PaymentStatement } from "@/components/dashboard-content";
+import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button, StatusBadge } from "@/components/ui";
 import {
@@ -144,6 +146,7 @@ function Content() {
             {items.map((p) => (
               <button
                 className="entity-card"
+                type="button"
                 key={p.payment_date}
                 onClick={() => void open(p.payment_date)}
               >
@@ -164,47 +167,33 @@ function Content() {
           </div>
         )}
       </section>
-      {detail && (
-        <section className="panel">
-          <div className="section-heading">
-            <h2>
-              {formatDate(detail.payment_date)} ·{" "}
-              {formatMoney(detail.total_cents)}
-            </h2>
-            <button
-              className="button button-ghost"
-              onClick={() => setDetail(null)}
-            >
-              Fechar
-            </button>
-          </div>
-          <div className="entity-list">
-            {detail.lessons.map((l) => (
-              <div className="entity-card" key={l.id}>
-                <span>
-                  {l.student} · {formatDate(l.lesson_date)}
-                </span>
-                <strong>{formatMoney(l.value_cents)}</strong>
-              </div>
-            ))}
-          </div>
-          <div className="form-actions">
-            {detail.status === "RECEIVED" ? (
-              <button
-                className="button button-primary"
-                disabled={busy}
-                onClick={() => void change(true)}
-              >
-                Estornar confirmação
-              </button>
-            ) : (
-              <Button disabled={busy} onClick={() => void change(false)}>
-                Confirmar recebimento
-              </Button>
-            )}
-          </div>
-        </section>
-      )}
+      <Modal
+        open={Boolean(detail)}
+        title={detail ? `Extrato · ${detail.period}` : "Extrato"}
+        onClose={() => setDetail(null)}
+      >
+        {detail && (
+          <>
+            <PaymentStatement payment={detail} />
+            <div className="form-actions">
+              {detail.status === "RECEIVED" ? (
+                <button
+                  className="button button-primary"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void change(true)}
+                >
+                  Estornar confirmação
+                </button>
+              ) : (
+                <Button disabled={busy} onClick={() => void change(false)}>
+                  Confirmar recebimento
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

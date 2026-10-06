@@ -7,6 +7,18 @@ export type KodlandCourseGroup = {
   lessons: KodlandLesson[];
 };
 
+type ModuleLesson = {
+  module_number?: string;
+  title: string;
+};
+
+export type LessonModule<T extends ModuleLesson> = {
+  id: string;
+  number: string;
+  label: string;
+  lessons: T[];
+};
+
 const cleanCourseName = (value: string) =>
   value.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
 
@@ -15,19 +27,43 @@ const courseIdentity = (group: KodlandGroup) => {
   return id ? `course-${id}` : `name-${cleanCourseName(group.course_name || group.title).toLocaleLowerCase()}`;
 };
 
-const legacyLessonModule = (lesson: KodlandLesson) =>
+const legacyLessonModule = (lesson: ModuleLesson) =>
   lesson.module_number?.match(/\d+/)?.[0] ?? lesson.title.match(/[MМ]\s*(\d+)\s*\.?\s*L\s*\d+/i)?.[1] ?? "";
 
-const lessonModule = (lesson: KodlandLesson) =>
+export const lessonModuleNumber = (lesson: ModuleLesson) =>
   lesson.module_number?.match(/\d+/)?.[0]
   ?? lesson.title.match(/[\u004d\u041c]\s*(\d+)\s*\.?\s*L\s*\d+/i)?.[1]
   ?? legacyLessonModule(lesson)
   ?? "";
 
+/** Preserves the catalog order while placing each lesson under its course module. */
+export function groupLessonsByModule<T extends ModuleLesson>(lessons: T[]): LessonModule<T>[] {
+  const modules = new Map<string, LessonModule<T>>();
+
+  for (const lesson of lessons) {
+    const number = lessonModuleNumber(lesson);
+    const id = number ? `module-${number}` : "without-module";
+    const current = modules.get(id) ?? {
+      id,
+      number,
+      label: number ? `Módulo ${number}` : "Aulas sem módulo",
+      lessons: [],
+    };
+    current.lessons.push(lesson);
+    modules.set(id, current);
+  }
+
+  return [...modules.values()].sort((left, right) => {
+    if (!left.number) return right.number ? 1 : 0;
+    if (!right.number) return -1;
+    return left.number.localeCompare(right.number, undefined, { numeric: true });
+  });
+}
+
 const lessonKey = (lesson: KodlandLesson) => {
   if (lesson.course_index && lesson.course_index > 0) return `index-${lesson.course_index}`;
   if (lesson.id) return `id-${lesson.id}`;
-  const moduleIndex = lessonModule(lesson);
+  const moduleIndex = lessonModuleNumber(lesson);
   if (moduleIndex && lesson.lesson_number > 0) return `module-${moduleIndex}-lesson-${lesson.lesson_number}`;
   return `title-${(lesson.title || lesson.theme).trim().toLocaleLowerCase()}`;
 };
@@ -85,7 +121,7 @@ export function groupKodlandLessonsByCourse(
     }
     current.lessons = [...byLesson.values()].sort((a, b) =>
       (a.course_index || Number.MAX_SAFE_INTEGER) - (b.course_index || Number.MAX_SAFE_INTEGER)
-      || lessonModule(a).localeCompare(lessonModule(b), undefined, { numeric: true })
+      || lessonModuleNumber(a).localeCompare(lessonModuleNumber(b), undefined, { numeric: true })
       || a.lesson_number - b.lesson_number
       || a.title.localeCompare(b.title),
     );

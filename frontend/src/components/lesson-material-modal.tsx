@@ -21,15 +21,17 @@ export function LessonMaterialModal({
   lesson,
   onClose,
   children,
+  className = "",
 }: {
   open: boolean;
   title: string;
   lesson: LessonMaterialDetails | null;
   onClose: () => void;
   children?: ReactNode;
+  className?: string;
 }) {
   return (
-    <Modal open={open} title={title} onClose={onClose}>
+    <Modal open={open} title={title} onClose={onClose} className={className}>
       {children}
       {lesson && (
         <div className="lesson-details">
@@ -114,7 +116,7 @@ export function LessonMaterialModal({
               target="_blank"
               rel="noreferrer"
             >
-              Abrir aula na plataforma
+              Abrir na plataforma
             </a>
           )}
         </div>

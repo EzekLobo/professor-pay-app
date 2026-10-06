@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { DashboardResponse } from "@/lib/api";
-import { DashboardContent } from "./dashboard-content";
+import { DashboardContent, PaymentStatement } from "./dashboard-content";
 
 const dashboard: DashboardResponse = {
   today: "2026-09-29",
@@ -72,4 +72,53 @@ describe("DashboardContent", () => {
         />,
       ),
     ).toContain("Sincronize a Kodland"));
+
+  it("detalha as aulas contabilizadas no extrato", () => {
+    const payment = {
+      ...dashboard.next_payment!,
+      normal_count: 1,
+      normal_total_cents: 12500,
+      extra_count: 1,
+      extra_total_cents: 12500,
+      lessons: [
+        {
+          id: "lesson-1",
+          class_id: "class-1",
+          class_name_snapshot: "Turma de terça",
+          lesson_date: "2026-09-18",
+          number: 3,
+          type: "NORMAL",
+          student: "",
+          duration_minutes: 60,
+          hourly_rate_cents: 12500,
+          period: "01/09 a 15/09",
+          payment_date: "2026-10-15",
+          value_cents: 12500,
+          status: "FUTURE",
+        },
+        {
+          id: "lesson-2",
+          class_id: null,
+          class_name_snapshot: "Aula extra",
+          lesson_date: "2026-09-20",
+          number: 0,
+          type: "EXTRA",
+          student: "Ana",
+          duration_minutes: 60,
+          hourly_rate_cents: 12500,
+          period: "16/09 a 30/09",
+          payment_date: "2026-10-15",
+          value_cents: 12500,
+          status: "FUTURE",
+        },
+      ],
+    };
+
+    const markup = renderToStaticMarkup(<PaymentStatement payment={payment} />);
+
+    expect(markup).toContain("Aulas da competência");
+    expect(markup).toContain("Turma de terça");
+    expect(markup).toContain("Aula extra");
+    expect(markup).toContain("R$ 250,00");
+  });
 });

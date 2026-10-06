@@ -155,16 +155,16 @@ function PaymentHighlight({
   );
 }
 
-function PaymentStatement({
+export function PaymentStatement({
   payment,
   index,
   total,
   onMove,
 }: {
   payment: DashboardPayment;
-  index: number;
-  total: number;
-  onMove: (step: number) => void;
+  index?: number;
+  total?: number;
+  onMove?: (step: number) => void;
 }) {
   return (
     <div className="payment-statement">
@@ -224,27 +224,29 @@ function PaymentStatement({
       ) : (
         <p className="muted">Nenhuma aula detalhada nesta competência.</p>
       )}
-      <div className="payment-statement-footer">
-        <button
-          className="button button-ghost"
-          type="button"
-          onClick={() => onMove(-1)}
-          disabled={index <= 0}
-        >
-          ← Anterior
-        </button>
-        <span className="muted">
-          {index + 1} de {total}
-        </span>
-        <button
-          className="button button-ghost"
-          type="button"
-          onClick={() => onMove(1)}
-          disabled={index >= total - 1}
-        >
-          Próximo →
-        </button>
-      </div>
+      {onMove && index !== undefined && total !== undefined && (
+        <div className="payment-statement-footer">
+          <button
+            className="button button-ghost"
+            type="button"
+            onClick={() => onMove(-1)}
+            disabled={index <= 0}
+          >
+            ← Anterior
+          </button>
+          <span className="muted">
+            {index + 1} de {total}
+          </span>
+          <button
+            className="button button-ghost"
+            type="button"
+            onClick={() => onMove(1)}
+            disabled={index >= total - 1}
+          >
+            Próximo →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

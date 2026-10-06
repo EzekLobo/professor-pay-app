@@ -340,11 +340,15 @@ function WeekSchedule({
           selectedEntry?.group && modalTab === "students"
             ? selectedEntry.group.title + " · Alunos"
             : title;
+        const studentsPlatformUrl = selectedEntry?.group
+          ? `https://bo.kodland.org/groups/${encodeURIComponent(selectedEntry.group.external_id)}`
+          : "";
         return (
           <LessonMaterialModal
             open={Boolean(selectedEntry)}
             title={modalTitle}
             lesson={modalTab === "lesson" ? materialDetails : null}
+            className="class-schedule-modal"
             onClose={() => {
               setSelectedEntry(null);
               setSelectedCatalogLessonId("");
@@ -398,6 +402,16 @@ function WeekSchedule({
                       </ol>
                     ) : (
                       <p className="muted">Nenhum aluno ativo encontrado nesta turma.</p>
+                    )}
+                    {studentsPlatformUrl && (
+                      <a
+                        className="button secondary class-platform-action"
+                        href={studentsPlatformUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Abrir alunos na plataforma
+                      </a>
                     )}
                   </section>
                 )}

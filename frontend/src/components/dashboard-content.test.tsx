@@ -119,6 +119,7 @@ describe("DashboardContent", () => {
       <PaymentStatement
         payment={payment}
         onLessonFinancialStatusChange={vi.fn()}
+        onCreateExtra={vi.fn()}
       />,
     );
 
@@ -127,6 +128,8 @@ describe("DashboardContent", () => {
     expect(markup).toContain("Aula extra");
     expect(markup).toContain("Feriado");
     expect(markup).toContain("Cancelada");
+    expect(markup).toContain("Adicionar aula extra");
+    expect(markup).toContain("Status financeiro da aula 0");
     expect(markup).toContain("R$ 250,00");
   });
 });

@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Modal } from "./modal";
 import { StatusBadge } from "./ui";
+import { lessonsApi, paymentsApi } from "@/lib/api";
 import type {
   DashboardLesson,
   DashboardPayment,
   DashboardResponse,
+  ExtraLessonPayload,
 } from "@/lib/api";
+import { brlToCents } from "@/lib/finance";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -35,10 +38,17 @@ const paymentStatus = (status: string) =>
 export type DashboardContentProps =
   | { state: "loading" }
   | { state: "error"; onRetry: () => void }
-  | { state: "ready"; dashboard: DashboardResponse };
+  | {
+      state: "ready";
+      dashboard: DashboardResponse;
+      onRefresh?: () => Promise<void> | void;
+    };
 
 export function DashboardContent(props: DashboardContentProps) {
   const [statementDate, setStatementDate] = useState<string | null>(null);
+  const [updatingLessonId, setUpdatingLessonId] = useState<string | null>(null);
+  const [addingExtra, setAddingExtra] = useState(false);
+  const [error, setError] = useState("");
   if (props.state === "loading")
     return (
       <section className="dashboard-state" aria-busy="true">
@@ -55,7 +65,7 @@ export function DashboardContent(props: DashboardContentProps) {
         </button>
       </section>
     );
-  const { dashboard } = props;
+  const { dashboard, onRefresh } = props;
   if (dashboard.total_lessons === 0)
     return (
       <section className="dashboard-state">
@@ -81,6 +91,48 @@ export function DashboardContent(props: DashboardContentProps) {
     const next = dashboard.payments[selectedIndex + step];
     if (next) setStatementDate(next.payment_date);
   };
+  async function updateLessonStatus(
+    lesson: DashboardLesson,
+    status: "" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
+  ) {
+    if (!selectedPayment) return;
+    setUpdatingLessonId(lesson.id);
+    setError("");
+    try {
+      await paymentsApi.updateLessonFinancialStatus(
+        selectedPayment.payment_date,
+        lesson.id,
+        lesson.financial_source_id,
+        status,
+      );
+      await onRefresh?.();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível atualizar o status da aula.",
+      );
+    } finally {
+      setUpdatingLessonId(null);
+    }
+  }
+  async function createExtra(payload: ExtraLessonPayload) {
+    setAddingExtra(true);
+    setError("");
+    try {
+      await lessonsApi.createExtra(payload);
+      await onRefresh?.();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível adicionar a aula extra.",
+      );
+      throw reason;
+    } finally {
+      setAddingExtra(false);
+    }
+  }
 
   return (
     <div className="dashboard-grid">
@@ -113,12 +165,21 @@ export function DashboardContent(props: DashboardContentProps) {
         onClose={() => setStatementDate(null)}
       >
         {selectedPayment && (
-          <PaymentStatement
-            payment={selectedPayment}
-            index={selectedIndex}
-            total={dashboard.payments.length}
-            onMove={moveStatement}
-          />
+          <>
+            {error && <p className="form-error">{error}</p>}
+            <PaymentStatement
+              payment={selectedPayment}
+              index={selectedIndex}
+              total={dashboard.payments.length}
+              onMove={moveStatement}
+              updatingLessonId={updatingLessonId}
+              addingExtra={addingExtra}
+              onLessonFinancialStatusChange={(lesson, status) =>
+                void updateLessonStatus(lesson, status)
+              }
+              onCreateExtra={createExtra}
+            />
+          </>
         )}
       </Modal>
     </div>
@@ -166,6 +227,8 @@ export function PaymentStatement({
   onMove,
   onLessonFinancialStatusChange,
   updatingLessonId,
+  onCreateExtra,
+  addingExtra = false,
 }: {
   payment: DashboardPayment;
   index?: number;
@@ -176,13 +239,63 @@ export function PaymentStatement({
     status: "" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
   ) => void;
   updatingLessonId?: string | null;
+  onCreateExtra?: (payload: ExtraLessonPayload) => Promise<void> | void;
+  addingExtra?: boolean;
 }) {
+  const [extraFormOpen, setExtraFormOpen] = useState(false);
+  const paymentMonth = payment.payment_date.slice(0, 7);
+  const lessonMonth = (() => {
+    const [year, month] = paymentMonth.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 2, 1));
+    return date.toISOString().slice(0, 7);
+  })();
+  const lessonMonthEnd = (() => {
+    const [year, month] = paymentMonth.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, 0)).toISOString().slice(0, 10);
+  })();
+  const [extraStudent, setExtraStudent] = useState("");
+  const [extraDate, setExtraDate] = useState(`${lessonMonth}-01`);
+  const [extraDuration, setExtraDuration] = useState("60");
+  const [extraRate, setExtraRate] = useState("30,00");
+  const [extraNote, setExtraNote] = useState("");
+  const [extraError, setExtraError] = useState("");
+  async function submitExtra(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const duration = Number(extraDuration);
+    const hourlyRate = brlToCents(extraRate);
+    if (
+      !extraStudent.trim() ||
+      !extraDate ||
+      !Number.isInteger(duration) ||
+      duration < 1 ||
+      hourlyRate === null
+    ) {
+      setExtraError("Preencha os dados da aula extra com valores válidos.");
+      return;
+    }
+    setExtraError("");
+    try {
+      await onCreateExtra?.({
+        student: extraStudent.trim(),
+        lesson_date: extraDate,
+        duration_minutes: duration,
+        hourly_rate_cents: hourlyRate,
+        note: extraNote.trim(),
+      });
+      setExtraStudent("");
+      setExtraDate(`${lessonMonth}-01`);
+      setExtraDuration("60");
+      setExtraRate("30,00");
+      setExtraNote("");
+      setExtraFormOpen(false);
+    } catch {
+      setExtraError("Não foi possível adicionar a aula extra.");
+    }
+  }
   return (
     <div className="payment-statement">
       <div className="payment-statement-summary">
         <div>
-          <span className="muted">Competência</span>
-          <strong>{payment.period}</strong>
           <span className="muted">
             Vencimento: {formatDate(payment.payment_date)}
           </span>
@@ -214,8 +327,31 @@ export function PaymentStatement({
       </div>
       <div className="section-heading payment-statement-heading">
         <h3>Aulas da competência</h3>
-        <span className="muted">{payment.lesson_count} registro(s)</span>
+        <div className="payment-statement-heading-actions">
+          <span className="muted">{payment.lessons.length} registro(s)</span>
+          {onCreateExtra && payment.status !== "RECEIVED" && (
+            <button
+              className="button button-ghost button-small"
+              type="button"
+              onClick={() => setExtraFormOpen((open) => !open)}
+              aria-expanded={extraFormOpen}
+            >
+              {extraFormOpen ? "Cancelar" : "Adicionar aula extra"}
+            </button>
+          )}
+        </div>
       </div>
+      {extraFormOpen && onCreateExtra && (
+        <form className="payment-extra-form" onSubmit={(event) => void submitExtra(event)}>
+          <label className="field">Aluno<input className="input" value={extraStudent} onChange={(event) => setExtraStudent(event.target.value)} placeholder="Nome do aluno" autoFocus /></label>
+          <label className="field">Data<input className="input" type="date" value={extraDate} min={`${lessonMonth}-01`} max={lessonMonthEnd} onChange={(event) => setExtraDate(event.target.value)} /></label>
+          <label className="field">Duração (min)<input className="input" type="number" min="1" step="1" value={extraDuration} onChange={(event) => setExtraDuration(event.target.value)} /></label>
+          <label className="field">Valor/hora (R$)<input className="input" inputMode="decimal" value={extraRate} onChange={(event) => setExtraRate(event.target.value)} /></label>
+          <label className="field payment-extra-note">Observação<input className="input" value={extraNote} onChange={(event) => setExtraNote(event.target.value)} placeholder="Opcional" /></label>
+          {extraError && <p className="form-error">{extraError}</p>}
+          <div className="form-actions"><button className="button button-primary" type="submit" disabled={addingExtra}>{addingExtra ? "Adicionando…" : "Adicionar ao extrato"}</button></div>
+        </form>
+      )}
       {payment.lessons.length ? (
         <div className="payment-statement-list">
           {payment.lessons.map((lesson) => (
@@ -227,10 +363,19 @@ export function PaymentStatement({
                   {lesson.type === "EXTRA" ? "Extra" : "Normal"}
                 </span>
                 {lesson.student && <span>{lesson.student}</span>}
+                {lesson.financial_status && (
+                  <span className="payment-lesson-excluded">
+                    {lesson.financial_status === "SUBSTITUTION"
+                      ? "Substituição"
+                      : lesson.financial_status === "HOLIDAY"
+                        ? "Feriado"
+                        : "Cancelada"}
+                  </span>
+                )}
               </div>
               <div className="payment-statement-row-actions">
                 <strong>{money(lesson.value_cents)}</strong>
-                {onLessonFinancialStatusChange && lesson.type === "NORMAL" && (
+                {onLessonFinancialStatusChange && (
                   <select
                     className="input button-small"
                     aria-label={`Status financeiro da aula ${lesson.number}`}

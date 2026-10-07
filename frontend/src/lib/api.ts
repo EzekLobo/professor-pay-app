@@ -313,9 +313,13 @@ const cents = (row: Row) =>
     (Number(row.duration_minutes ?? 0) * Number(row.hourly_rate_cents ?? 0)) /
       60,
   );
+const isNonBillableFinancialStatus = (status: unknown) =>
+  /substitu|replacement|feriado|holiday|cancel/i.test(String(status ?? ""));
 const asLesson = (row: Row, today = isoToday()): Lesson => {
   const date = String(row.lesson_date);
-  const canceled = Boolean(row.canceled);
+  const financialStatus = String(row.financial_status ?? "");
+  const canceled =
+    Boolean(row.canceled) || isNonBillableFinancialStatus(financialStatus);
   const active = row.active !== false;
   const status =
     !active || canceled ? "CANCELED" : date <= today ? "COMPLETED" : "FUTURE";
@@ -336,7 +340,7 @@ const asLesson = (row: Row, today = isoToday()): Lesson => {
     payment_date: paymentDate(date),
     value_cents: cents(row),
     status,
-    financial_status: String(row.financial_status ?? ""),
+    financial_status: financialStatus,
     financial_source_id: row.financial_source_id
       ? String(row.financial_source_id)
       : undefined,
@@ -392,10 +396,6 @@ const kodlandFinancialLessons = (
     const key = `${groupId}:${lessonDate}`;
     byGroupAndDate.set(key, [...(byGroupAndDate.get(key) ?? []), item]);
   });
-  const isNonBillable = (status: unknown) =>
-    /substitu|replacement|feriado|holiday|cancel/i.test(
-      String(status ?? ""),
-    );
   const toFinancialLesson = (
     group: Row,
     groupId: string,
@@ -458,8 +458,8 @@ const kodlandFinancialLessons = (
         index + 1,
         events[0],
       );
-      return isNonBillable(financialLesson.financial_status)
-        ? null
+      return isNonBillableFinancialStatus(financialLesson.financial_status)
+        ? { ...financialLesson, active: false, canceled: true }
         : financialLesson;
     });
     const rescheduled = scheduled
@@ -474,9 +474,11 @@ const kodlandFinancialLessons = (
           Number(item.lesson_number ?? 1),
           item,
         );
-        return isNonBillable(financialLesson.financial_status)
-          ? []
-          : [financialLesson];
+        return [
+          isNonBillableFinancialStatus(financialLesson.financial_status)
+            ? { ...financialLesson, active: false, canceled: true }
+            : financialLesson,
+        ];
       });
     return [
       ...recurring.filter((lesson): lesson is Lesson => Boolean(lesson)),
@@ -542,6 +544,13 @@ const dashboardFrom = (
     ...kodlandExtraFinancialLessons(kodlandExtraLessons, today),
   ];
   const billable = lessons.filter((item) => item.active && !item.canceled);
+  const lessonsByPaymentDate = new Map<string, Lesson[]>();
+  lessons.forEach((item) =>
+    lessonsByPaymentDate.set(item.payment_date, [
+      ...(lessonsByPaymentDate.get(item.payment_date) ?? []),
+      item,
+    ]),
+  );
   const groups = new Map<string, Lesson[]>();
   billable.forEach((item) =>
     groups.set(item.payment_date, [
@@ -579,7 +588,7 @@ const dashboardFrom = (
             : date === today
               ? "DUE_TODAY"
               : "FUTURE",
-        lessons: group,
+        lessons: lessonsByPaymentDate.get(date) ?? group,
       };
     });
   const completed = billable.filter((item) => item.lesson_date <= today);
@@ -1094,6 +1103,16 @@ export const paymentsApi = {
         409,
         "CompetÃªncias recebidas nÃ£o podem ter aulas alteradas.",
       );
+    const localLesson = (await rows("lessons")).find(
+      (lesson) => String(lesson.id) === financialLessonId,
+    );
+    if (localLesson) {
+      await updateDoc(doc(ref("lessons"), financialLessonId), {
+        financial_status: status,
+        updated_at: now(),
+      });
+      return;
+    }
     if (sourceLessonId) {
       await updateDoc(doc(ref("kodland_lessons"), sourceLessonId), {
         financial_status: status,

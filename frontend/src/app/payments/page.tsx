@@ -14,8 +14,10 @@ import { Shell } from "@/components/shell";
 import { Button, StatusBadge } from "@/components/ui";
 import {
   paymentsApi,
+  lessonsApi,
   type DashboardLesson,
   type DashboardPayment,
+  type ExtraLessonPayload,
   type PaymentDetail,
 } from "@/lib/api";
 import { formatDate, formatMoney } from "@/lib/finance";
@@ -58,7 +60,6 @@ function Content() {
     [notice, setNotice] = useState("");
   const carouselDragStart = useRef<number | null>(null);
   const carouselDragDistance = useRef(0);
-  const carouselWasDragged = useRef(false);
   const carouselWheelLocked = useRef(false);
   const estimatedCents = items
     .filter((item) => item.status !== "RECEIVED")
@@ -148,17 +149,9 @@ function Content() {
     carouselDragStart.current = null;
     carouselDragDistance.current = 0;
     if (Math.abs(distance) < 36) return;
-    carouselWasDragged.current = true;
     moveCarousel(distance < 0 ? 1 : -1);
-    window.setTimeout(() => {
-      carouselWasDragged.current = false;
-    }, 0);
   }
   function openFromCarousel(paymentDate: string) {
-    if (carouselWasDragged.current) {
-      carouselWasDragged.current = false;
-      return;
-    }
     void open(paymentDate);
   }
   function moveCarouselWithWheel(event: WheelEvent<HTMLDivElement>) {
@@ -208,6 +201,26 @@ function Content() {
       );
     } finally {
       setUpdatingLessonId(null);
+    }
+  }
+  async function createExtra(payload: ExtraLessonPayload) {
+    if (!detail) return;
+    setBusy(true);
+    setError("");
+    try {
+      await lessonsApi.createExtra(payload);
+      await load();
+      setDetail(await paymentsApi.get(detail.payment_date));
+      setNotice("Aula extra adicionada ao extrato.");
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível adicionar a aula extra.",
+      );
+      throw reason;
+    } finally {
+      setBusy(false);
     }
   }
   async function change(reverse: boolean) {
@@ -379,6 +392,7 @@ function Content() {
                     aria-label={
                       `Abrir extrato de ${paymentLabel(payment.payment_date)}`
                     }
+                    onPointerDown={(event) => event.stopPropagation()}
                     onClick={() => openFromCarousel(payment.payment_date)}
                   >
                     <span>{paymentLabel(payment.payment_date)}</span>
@@ -419,9 +433,11 @@ function Content() {
             <PaymentStatement
               payment={detail}
               updatingLessonId={updatingLessonId}
+              addingExtra={busy}
               onLessonFinancialStatusChange={(lesson, status) =>
                 void updateLessonFinancialStatus(lesson, status)
               }
+              onCreateExtra={createExtra}
             />
             <div className="form-actions">
               {detail.status === "RECEIVED" ? (

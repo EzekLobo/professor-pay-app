@@ -211,24 +211,11 @@ select:focus-visible {
   border-right: 1px solid var(--border);
   padding: 28px 16px 18px;
   background: linear-gradient(180deg, #0a1221, #070d19);
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-.sidebar:hover {
-  scrollbar-color: rgb(129 157 189 / 42%) transparent;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 .sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-.sidebar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.sidebar::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: transparent;
-}
-.sidebar:hover::-webkit-scrollbar-thumb {
-  background: rgb(129 157 189 / 42%);
+  display: none;
 }
 .sidebar-caption {
   margin: 37px 12px 11px;
@@ -1118,6 +1105,35 @@ select:focus-visible {
   margin: 0;
   font-size: 1rem;
 }
+.payment-statement-heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.payment-extra-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #1d3556;
+  border-radius: 12px;
+  background: rgb(8 18 34 / 54%);
+}
+.payment-extra-form .field {
+  min-width: 0;
+}
+.payment-extra-note {
+  grid-column: span 2;
+}
+.payment-extra-form .form-error,
+.payment-extra-form .form-actions {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.payment-extra-form .form-actions {
+  justify-content: flex-end;
+}
 .payment-statement-list {
   display: grid;
   gap: 9px;
@@ -1139,6 +1155,10 @@ select:focus-visible {
   gap: 4px;
   min-width: 0;
 }
+.payment-lesson-excluded {
+  color: #ffbd67 !important;
+  font-weight: 800;
+}
 .payment-statement-row-actions {
   display: grid;
   flex-shrink: 0;
@@ -1151,6 +1171,22 @@ select:focus-visible {
 .payment-statement-footer {
   border-top: 1px solid #1d3556;
   padding-top: 16px;
+}
+@media (max-width: 700px) {
+  .payment-statement-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .payment-statement-heading-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .payment-extra-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .payment-extra-note {
+    grid-column: 1 / -1;
+  }
 }
 .dashboard-state {
   display: grid;

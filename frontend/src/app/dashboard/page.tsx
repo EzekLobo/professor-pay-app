@@ -518,41 +518,40 @@ function DashboardPageContent() {
   const [extraLessons, setExtraLessons] = useState<KodlandExtraLesson[]>([]);
   const [availability, setAvailability] = useState<KodlandAvailability[]>([]);
   const [failed, setFailed] = useState(false);
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     setFailed(false);
     setDashboard(null);
-    Promise.all([
-      dashboardApi.get(),
-      kodlandApi.groups(),
-      kodlandApi.students(),
-      kodlandApi.reviews(),
-      kodlandApi.lessons(),
-      kodlandApi.extraLessons(),
-      kodlandApi.availability(),
-    ])
-      .then(
-        ([
-          financial,
-          kodlandGroups,
-          kodlandStudents,
-          kodlandReviews,
-          kodlandLessons,
-          kodlandExtras,
-          kodlandAvailability,
-        ]) => {
-          setDashboard(financial);
-          setGroups(kodlandGroups.items);
-          setStudents(kodlandStudents.items);
-          setReviews(kodlandReviews.items);
-          setLessons(kodlandLessons.items);
-          setExtraLessons(kodlandExtras.items);
-          setAvailability(kodlandAvailability.items);
-        },
-      )
-      .catch(() => setFailed(true));
+    try {
+      const [
+        financial,
+        kodlandGroups,
+        kodlandStudents,
+        kodlandReviews,
+        kodlandLessons,
+        kodlandExtras,
+        kodlandAvailability,
+      ] = await Promise.all([
+        dashboardApi.get(),
+        kodlandApi.groups(),
+        kodlandApi.students(),
+        kodlandApi.reviews(),
+        kodlandApi.lessons(),
+        kodlandApi.extraLessons(),
+        kodlandApi.availability(),
+      ]);
+      setDashboard(financial);
+      setGroups(kodlandGroups.items);
+      setStudents(kodlandStudents.items);
+      setReviews(kodlandReviews.items);
+      setLessons(kodlandLessons.items);
+      setExtraLessons(kodlandExtras.items);
+      setAvailability(kodlandAvailability.items);
+    } catch {
+      setFailed(true);
+    }
   }, []);
   useEffect(() => {
-    const timer = window.setTimeout(load, 0);
+    const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
   if (failed) return <DashboardContent state="error" onRetry={load} />;
@@ -567,7 +566,7 @@ function DashboardPageContent() {
         extraLessons={extraLessons}
         availability={availability}
       />
-      <DashboardContent state="ready" dashboard={dashboard} />
+      <DashboardContent state="ready" dashboard={dashboard} onRefresh={load} />
     </>
   );
 }

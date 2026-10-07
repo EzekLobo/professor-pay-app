@@ -835,7 +835,7 @@ select:focus-visible {
   font-size: 1.08rem;
 }
 .payment-highlight-value,
-.payment-carousel-value {
+.payment-complete-value {
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
@@ -864,7 +864,11 @@ select:focus-visible {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
 }
+.payment-carousel-track:active { cursor: grabbing; }
 .payment-carousel-card,
 .payment-carousel-placeholder {
   min-width: 0;
@@ -875,10 +879,12 @@ select:focus-visible {
 }
 .payment-carousel-card {
   display: grid;
-  align-content: center;
+  align-content: stretch;
   justify-items: start;
+  grid-template-rows: auto auto auto 1fr auto;
   gap: 7px;
-  padding: 16px;
+  position: relative;
+  padding: 16px 104px 16px 16px;
   color: var(--text);
   font: inherit;
   text-align: left;
@@ -906,12 +912,40 @@ select:focus-visible {
   font-size: .78rem;
   font-style: normal;
 }
-.payment-carousel-card.is-focus > span:first-child,
-.payment-carousel-card em { color: var(--primary); font-weight: 800; }
-.payment-carousel-card > strong { font-size: 1rem; }
+.payment-carousel-card > span:first-child {
+  color: var(--primary);
+  font-weight: 800;
+  text-transform: capitalize;
+}
+.payment-carousel-card em {
+  align-self: stretch;
+  margin-top: auto;
+  padding-top: 6px;
+  color: var(--primary);
+  font-weight: 800;
+  text-align: center;
+}
 .payment-carousel-card b { font-size: 1.08rem; }
-.payment-carousel-card .payment-carousel-value { color: var(--text); }
+.payment-carousel-card > .status-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
 .payment-carousel-placeholder { border-style: dashed; opacity: .22; }
+.payment-complete-row {
+  min-height: 112px;
+}
+.payment-complete-row em {
+  color: var(--primary);
+  font-size: .78rem;
+  font-style: normal;
+  font-weight: 800;
+  text-align: center;
+}
+.payment-complete-value {
+  align-items: center;
+  justify-content: flex-end;
+}
 .progress-list,
 .payment-list,
 .entity-list {

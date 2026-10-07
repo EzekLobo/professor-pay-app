@@ -180,6 +180,8 @@ function LessonMaterials({
         >
           <option value="">Contabilizar</option>
           <option value="SUBSTITUTION">Substituição</option>
+          <option value="HOLIDAY">Feriado</option>
+          <option value="CANCELED">Cancelada</option>
         </select>
       </div>
     </div>

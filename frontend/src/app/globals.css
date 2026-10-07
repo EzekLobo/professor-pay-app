@@ -207,9 +207,28 @@ select:focus-visible {
   display: flex;
   height: 100vh;
   flex-direction: column;
+  overflow-y: auto;
   border-right: 1px solid var(--border);
   padding: 28px 16px 18px;
   background: linear-gradient(180deg, #0a1221, #070d19);
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.sidebar:hover {
+  scrollbar-color: rgb(129 157 189 / 42%) transparent;
+}
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+.sidebar:hover::-webkit-scrollbar-thumb {
+  background: rgb(129 157 189 / 42%);
 }
 .sidebar-caption {
   margin: 37px 12px 11px;
@@ -845,12 +864,22 @@ select:focus-visible {
 .payment-carousel {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-rows: auto auto;
   align-items: center;
   gap: 14px;
   margin-top: 18px;
 }
+.payment-carousel-month {
+  grid-column: 2;
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: center;
+}
 .payment-carousel-nav {
   display: grid;
+  grid-row: 2;
   width: 44px;
   min-width: 44px;
   height: 44px;
@@ -859,18 +888,37 @@ select:focus-visible {
   font-size: 1.15rem;
 }
 .payment-carousel-track {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: center;
-  gap: 12px;
+  grid-row: 2;
   min-width: 0;
+  overflow: hidden;
+  padding: 7px 0;
   cursor: grab;
   touch-action: pan-y;
   user-select: none;
 }
 .payment-carousel-track:active { cursor: grabbing; }
+.payment-carousel-rail {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+}
+.payment-carousel-rail.is-sliding-next {
+  animation: payment-carousel-slide-next .36s cubic-bezier(.22, .8, .24, 1) both;
+}
+.payment-carousel-rail.is-sliding-previous {
+  animation: payment-carousel-slide-previous .36s cubic-bezier(.22, .8, .24, 1) both;
+}
+@keyframes payment-carousel-slide-next {
+  to { transform: translateX(calc(-33.333333% - 4px)); }
+}
+@keyframes payment-carousel-slide-previous {
+  from { transform: translateX(calc(-33.333333% - 4px)); }
+  to { transform: translateX(0); }
+}
 .payment-carousel-card,
 .payment-carousel-placeholder {
+  flex: 0 0 calc((100% - 24px) / 3);
   min-width: 0;
   min-height: 154px;
   border: 1px solid #1d3556;
@@ -880,14 +928,14 @@ select:focus-visible {
 .payment-carousel-card {
   display: grid;
   align-content: stretch;
-  justify-items: start;
-  grid-template-rows: auto auto auto 1fr auto;
+  justify-items: center;
+  grid-template-rows: auto 1fr auto;
   gap: 7px;
   position: relative;
-  padding: 16px 104px 16px 16px;
+  padding: 16px;
   color: var(--text);
   font: inherit;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   opacity: .68;
   transition: border-color .18s ease, box-shadow .18s ease, opacity .18s ease, transform .18s ease;
@@ -913,9 +961,18 @@ select:focus-visible {
   font-style: normal;
 }
 .payment-carousel-card > span:first-child {
+  justify-self: start;
   color: var(--primary);
   font-weight: 800;
+  text-align: left;
   text-transform: capitalize;
+}
+.payment-carousel-details {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  align-self: stretch;
+  gap: 7px;
 }
 .payment-carousel-card em {
   align-self: stretch;
@@ -925,7 +982,7 @@ select:focus-visible {
   font-weight: 800;
   text-align: center;
 }
-.payment-carousel-card b { font-size: 1.08rem; }
+.payment-carousel-details b { font-size: 1.08rem; }
 .payment-carousel-card > .status-badge {
   position: absolute;
   top: 14px;
@@ -1082,8 +1139,14 @@ select:focus-visible {
   gap: 4px;
   min-width: 0;
 }
-.payment-statement-row > strong {
+.payment-statement-row-actions {
+  display: grid;
   flex-shrink: 0;
+  justify-items: end;
+  gap: 8px;
+}
+.payment-statement-row-actions select {
+  min-width: 136px;
 }
 .payment-statement-footer {
   border-top: 1px solid #1d3556;
@@ -1357,6 +1420,7 @@ select:focus-visible {
     height: 64px;
     display: block;
     overflow-x: auto;
+    overflow-y: hidden;
     border-top: 1px solid var(--border);
     border-right: 0;
     padding: 6px 4px;
@@ -1420,8 +1484,18 @@ select:focus-visible {
     min-width: 38px;
     height: 38px;
   }
-  .payment-carousel-track {
+  .payment-carousel-track { overflow: visible; }
+  .payment-carousel-rail {
+    display: grid;
     grid-template-columns: minmax(0, 1fr);
+  }
+  .payment-carousel-rail.is-sliding-next,
+  .payment-carousel-rail.is-sliding-previous {
+    animation: none;
+  }
+  .payment-carousel-rail .payment-carousel-card,
+  .payment-carousel-rail .payment-carousel-placeholder {
+    flex-basis: auto;
   }
   .payment-carousel-card:not(.is-focus),
   .payment-carousel-placeholder {

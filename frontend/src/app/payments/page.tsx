@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type PointerEvent,
+  type WheelEvent,
 } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { PaymentStatement } from "@/components/dashboard-content";
@@ -13,6 +14,7 @@ import { Shell } from "@/components/shell";
 import { Button, StatusBadge } from "@/components/ui";
 import {
   paymentsApi,
+  type DashboardLesson,
   type DashboardPayment,
   type PaymentDetail,
 } from "@/lib/api";
@@ -34,11 +36,22 @@ const paymentLabel = (value: string) => {
   const formattedDate = new Intl.DateTimeFormat("pt-BR").format(date);
   return `${month.slice(0, 1).toUpperCase()}${month.slice(1)} - ${formattedDate}`;
 };
+const paymentMonthTitle = (value: string) => {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  const label = new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+  return `${label.slice(0, 1).toUpperCase()}${label.slice(1)}`;
+};
 function Content() {
   const [items, setItems] = useState<DashboardPayment[]>([]),
     [detail, setDetail] = useState<PaymentDetail | null>(null),
     [focusedPaymentDate, setFocusedPaymentDate] = useState<string | null>(null),
     [showAllPayments, setShowAllPayments] = useState(false),
+    [carouselMotion, setCarouselMotion] = useState<"previous" | "next" | null>(null),
+    [updatingLessonId, setUpdatingLessonId] = useState<string | null>(null),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -46,6 +59,7 @@ function Content() {
   const carouselDragStart = useRef<number | null>(null);
   const carouselDragDistance = useRef(0);
   const carouselWasDragged = useRef(false);
+  const carouselWheelLocked = useRef(false);
   const estimatedCents = items
     .filter((item) => item.status !== "RECEIVED")
     .reduce((total, item) => total + item.total_cents, 0);
@@ -64,6 +78,12 @@ function Content() {
     0,
     items.findIndex((item) => item.payment_date === focusedPaymentDate),
   );
+  const carouselOffsets =
+    carouselMotion === "next"
+      ? [-1, 0, 1, 2]
+      : carouselMotion === "previous"
+        ? [-2, -1, 0, 1]
+        : [-1, 0, 1];
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -102,8 +122,16 @@ function Content() {
     }
   }
   function moveCarousel(step: -1 | 1) {
+    if (carouselMotion) return;
+    const payment = items[focusedIndex + step];
+    if (payment) setCarouselMotion(step === 1 ? "next" : "previous");
+  }
+  function finishCarouselMotion() {
+    if (!carouselMotion) return;
+    const step = carouselMotion === "next" ? 1 : -1;
     const payment = items[focusedIndex + step];
     if (payment) setFocusedPaymentDate(payment.payment_date);
+    setCarouselMotion(null);
   }
   function beginCarouselDrag(event: PointerEvent<HTMLDivElement>) {
     if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -132,6 +160,55 @@ function Content() {
       return;
     }
     void open(paymentDate);
+  }
+  function moveCarouselWithWheel(event: WheelEvent<HTMLDivElement>) {
+    const delta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY;
+    if (!delta) return;
+
+    const step = delta > 0 ? 1 : -1;
+    if (!items[focusedIndex + step]) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (carouselWheelLocked.current) return;
+    carouselWheelLocked.current = true;
+    moveCarousel(step);
+    window.setTimeout(() => {
+      carouselWheelLocked.current = false;
+    }, 260);
+  }
+  async function updateLessonFinancialStatus(
+    lesson: DashboardLesson,
+    status: "" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
+  ) {
+    if (!detail) return;
+    setUpdatingLessonId(lesson.id);
+    setError("");
+    try {
+      await paymentsApi.updateLessonFinancialStatus(
+        detail.payment_date,
+        lesson.id,
+        lesson.financial_source_id,
+        status,
+      );
+      await load();
+      try {
+        setDetail(await paymentsApi.get(detail.payment_date));
+      } catch {
+        setDetail(null);
+      }
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível atualizar o status da aula.",
+      );
+    } finally {
+      setUpdatingLessonId(null);
+    }
   }
   async function change(reverse: boolean) {
     if (
@@ -247,12 +324,19 @@ function Content() {
             ))}
           </div>
         ) : (
-          <div className="payment-carousel" aria-label="Carrossel de competências mensais">
+          <div
+            className="payment-carousel"
+            aria-label="Carrossel de competências mensais"
+            onWheelCapture={moveCarouselWithWheel}
+          >
+            <p className="payment-carousel-month">
+              {paymentMonthTitle(items[focusedIndex].payment_date)}
+            </p>
             <button
               className="button button-ghost payment-carousel-nav"
               type="button"
               aria-label="Competência anterior"
-              disabled={focusedIndex <= 0}
+              disabled={focusedIndex <= 0 || carouselMotion !== null}
               onClick={() => moveCarousel(-1)}
             >
               ←
@@ -264,7 +348,15 @@ function Content() {
               onPointerUp={finishCarouselDrag}
               onPointerCancel={finishCarouselDrag}
             >
-              {[-1, 0, 1].map((offset) => {
+              <div
+                className={`payment-carousel-rail${
+                  carouselMotion ? ` is-sliding-${carouselMotion}` : ""
+                }`}
+                onAnimationEnd={(event) => {
+                  if (event.currentTarget === event.target) finishCarouselMotion();
+                }}
+              >
+              {carouselOffsets.map((offset) => {
                 const payment = items[focusedIndex + offset];
                 if (!payment) {
                   return (
@@ -275,7 +367,9 @@ function Content() {
                     />
                   );
                 }
-                const isFocus = offset === 0;
+                const isFocus = carouselMotion
+                  ? offset === (carouselMotion === "next" ? 1 : -1)
+                  : offset === 0;
                 return (
                   <button
                     className={`payment-carousel-card${isFocus ? " is-focus" : ""}`}
@@ -288,10 +382,12 @@ function Content() {
                     onClick={() => openFromCarousel(payment.payment_date)}
                   >
                     <span>{paymentLabel(payment.payment_date)}</span>
-                    <b>{formatMoney(payment.total_cents)}</b>
-                    <small>
-                      {payment.lesson_count} aula{payment.lesson_count === 1 ? "" : "s"}
-                    </small>
+                    <div className="payment-carousel-details">
+                      <b>{formatMoney(payment.total_cents)}</b>
+                      <small>
+                        {payment.lesson_count} aula{payment.lesson_count === 1 ? "" : "s"}
+                      </small>
+                    </div>
                     <StatusBadge tone={tone(payment.status)}>
                       {status(payment.status)}
                     </StatusBadge>
@@ -299,12 +395,13 @@ function Content() {
                   </button>
                 );
               })}
+              </div>
             </div>
             <button
               className="button button-ghost payment-carousel-nav"
               type="button"
               aria-label="Próxima competência"
-              disabled={focusedIndex >= items.length - 1}
+              disabled={focusedIndex >= items.length - 1 || carouselMotion !== null}
               onClick={() => moveCarousel(1)}
             >
               →
@@ -319,7 +416,13 @@ function Content() {
       >
         {detail && (
           <>
-            <PaymentStatement payment={detail} />
+            <PaymentStatement
+              payment={detail}
+              updatingLessonId={updatingLessonId}
+              onLessonFinancialStatusChange={(lesson, status) =>
+                void updateLessonFinancialStatus(lesson, status)
+              }
+            />
             <div className="form-actions">
               {detail.status === "RECEIVED" ? (
                 <button

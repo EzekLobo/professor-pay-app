@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { Modal } from "./modal";
 import { StatusBadge } from "./ui";
-import type { DashboardPayment, DashboardResponse } from "@/lib/api";
+import type {
+  DashboardLesson,
+  DashboardPayment,
+  DashboardResponse,
+} from "@/lib/api";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -160,11 +164,18 @@ export function PaymentStatement({
   index,
   total,
   onMove,
+  onLessonFinancialStatusChange,
+  updatingLessonId,
 }: {
   payment: DashboardPayment;
   index?: number;
   total?: number;
   onMove?: (step: number) => void;
+  onLessonFinancialStatusChange?: (
+    lesson: DashboardLesson,
+    status: "" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
+  ) => void;
+  updatingLessonId?: string | null;
 }) {
   return (
     <div className="payment-statement">
@@ -217,7 +228,35 @@ export function PaymentStatement({
                 </span>
                 {lesson.student && <span>{lesson.student}</span>}
               </div>
-              <strong>{money(lesson.value_cents)}</strong>
+              <div className="payment-statement-row-actions">
+                <strong>{money(lesson.value_cents)}</strong>
+                {onLessonFinancialStatusChange && lesson.type === "NORMAL" && (
+                  <select
+                    className="input button-small"
+                    aria-label={`Status financeiro da aula ${lesson.number}`}
+                    value={lesson.financial_status ?? ""}
+                    disabled={
+                      payment.status === "RECEIVED" ||
+                      updatingLessonId === lesson.id
+                    }
+                    onChange={(event) =>
+                      onLessonFinancialStatusChange(
+                        lesson,
+                        event.target.value as
+                          | ""
+                          | "SUBSTITUTION"
+                          | "HOLIDAY"
+                          | "CANCELED",
+                      )
+                    }
+                  >
+                    <option value="">Contabilizar</option>
+                    <option value="SUBSTITUTION">Substituição</option>
+                    <option value="HOLIDAY">Feriado</option>
+                    <option value="CANCELED">Cancelada</option>
+                  </select>
+                )}
+              </div>
             </div>
           ))}
         </div>

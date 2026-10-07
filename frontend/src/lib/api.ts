@@ -29,6 +29,8 @@ export type DashboardLesson = {
   payment_date: string;
   value_cents: number;
   status: string;
+  financial_status?: string;
+  financial_source_id?: string;
 };
 export type DashboardPayment = {
   payment_date: string;
@@ -334,6 +336,10 @@ const asLesson = (row: Row, today = isoToday()): Lesson => {
     payment_date: paymentDate(date),
     value_cents: cents(row),
     status,
+    financial_status: String(row.financial_status ?? ""),
+    financial_source_id: row.financial_source_id
+      ? String(row.financial_source_id)
+      : undefined,
   };
 };
 const dateOnly = (value: unknown) => {
@@ -360,7 +366,14 @@ const kodlandFinancialLessons = (
   scheduled: Row[],
   localClasses: Row[],
   today: string,
+  financialOverrides: Row[] = [],
 ): Lesson[] => {
+  const overrideStatusByLessonId = new Map(
+    financialOverrides.map((item) => [
+      String(item.financial_lesson_id ?? ""),
+      String(item.financial_status ?? ""),
+    ]),
+  );
   const activeGroups = groups.filter(
     (group) =>
       !Boolean(group.archived) &&
@@ -379,9 +392,9 @@ const kodlandFinancialLessons = (
     const key = `${groupId}:${lessonDate}`;
     byGroupAndDate.set(key, [...(byGroupAndDate.get(key) ?? []), item]);
   });
-  const isSubstitution = (item: Row) =>
-    /substitu|replacement/i.test(
-      String(item.financial_status ?? item.status ?? item.note ?? ""),
+  const isNonBillable = (status: unknown) =>
+    /substitu|replacement|feriado|holiday|cancel/i.test(
+      String(status ?? ""),
     );
   const toFinancialLesson = (
     group: Row,
@@ -390,6 +403,12 @@ const kodlandFinancialLessons = (
     number: number,
     event?: Row,
   ) => {
+    const financialLessonId = event
+      ? `kodland-${groupId}-${String(event.id)}`
+      : `kodland-${groupId}-forecast-${number}`;
+    const financialStatus =
+      overrideStatusByLessonId.get(financialLessonId) ??
+      String(event?.financial_status ?? event?.status ?? "");
     const start = minutesFromTime(event?.start_time);
     const end = minutesFromTime(event?.end_time);
     const duration =
@@ -398,9 +417,7 @@ const kodlandFinancialLessons = (
         : courseDuration(group.course_name);
     return asLesson(
       {
-        id: event
-          ? `kodland-${groupId}-${String(event.id)}`
-          : `kodland-${groupId}-forecast-${number}`,
+        id: financialLessonId,
         class_id: `kodland:${groupId}`,
         class_name_snapshot: String(group.title),
         number: Number(event?.lesson_number ?? number),
@@ -411,6 +428,8 @@ const kodlandFinancialLessons = (
         hourly_rate_cents: 3000,
         active: true,
         canceled: false,
+        financial_status: financialStatus,
+        financial_source_id: event ? String(event.id) : "",
         note: event ? "Cronograma Kodland" : "Previsão semanal Kodland",
         created_at: String(event?.created_at ?? group.created_at ?? now()),
       },
@@ -432,34 +451,32 @@ const kodlandFinancialLessons = (
       const lessonDate = date.toISOString().slice(0, 10);
       recurringDates.add(lessonDate);
       const events = byGroupAndDate.get(`${groupId}:${lessonDate}`) ?? [];
-      if (events.some(isSubstitution)) return null;
-      return toFinancialLesson(
+      const financialLesson = toFinancialLesson(
         group,
         groupId,
         lessonDate,
         index + 1,
         events[0],
       );
+      return isNonBillable(financialLesson.financial_status)
+        ? null
+        : financialLesson;
     });
     const rescheduled = scheduled
       .filter((item) => String(item.external_class_id ?? "") === groupId)
       .flatMap((item) => {
         const lessonDate = dateOnly(item.lesson_date);
-        if (
-          !lessonDate ||
-          recurringDates.has(lessonDate) ||
-          isSubstitution(item)
-        )
-          return [];
-        return [
-          toFinancialLesson(
-            group,
-            groupId,
-            lessonDate,
-            Number(item.lesson_number ?? 1),
-            item,
-          ),
-        ];
+        if (!lessonDate || recurringDates.has(lessonDate)) return [];
+        const financialLesson = toFinancialLesson(
+          group,
+          groupId,
+          lessonDate,
+          Number(item.lesson_number ?? 1),
+          item,
+        );
+        return isNonBillable(financialLesson.financial_status)
+          ? []
+          : [financialLesson];
       });
     return [
       ...recurring.filter((lesson): lesson is Lesson => Boolean(lesson)),
@@ -511,10 +528,17 @@ const dashboardFrom = (
   kodlandLessons: Row[] = [],
   today = isoToday(),
   kodlandExtraLessons: Row[] = [],
+  financialOverrides: Row[] = [],
 ): DashboardResponse => {
   const lessons = [
     ...lessonRows.map((row) => asLesson(row, today)),
-    ...kodlandFinancialLessons(kodlandGroups, kodlandLessons, classRows, today),
+    ...kodlandFinancialLessons(
+      kodlandGroups,
+      kodlandLessons,
+      classRows,
+      today,
+      financialOverrides,
+    ),
     ...kodlandExtraFinancialLessons(kodlandExtraLessons, today),
   ];
   const billable = lessons.filter((item) => item.active && !item.canceled);
@@ -878,6 +902,7 @@ export const dashboardApi = {
       await rows("kodland_lessons"),
       isoToday(),
       await rows("kodland_extra_lessons"),
+      await rows("kodland_financial_overrides"),
     ),
 };
 export const classesApi = {
@@ -1053,6 +1078,37 @@ export const paymentsApi = {
   },
   reverse: async (date: string) => {
     await deleteDoc(doc(ref("payments"), date));
+  },
+  updateLessonFinancialStatus: async (
+    paymentDate: string,
+    financialLessonId: string,
+    sourceLessonId: string | undefined,
+    status: "" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
+  ) => {
+    if (
+      (await rows("payments")).some(
+        (row) => String(row.payment_date) === paymentDate,
+      )
+    )
+      throw new ApiError(
+        409,
+        "CompetÃªncias recebidas nÃ£o podem ter aulas alteradas.",
+      );
+    if (sourceLessonId) {
+      await updateDoc(doc(ref("kodland_lessons"), sourceLessonId), {
+        financial_status: status,
+        updated_at: now(),
+      });
+      return;
+    }
+    const id = encodeURIComponent(financialLessonId);
+    await setDoc(doc(ref("kodland_financial_overrides"), id), {
+      id,
+      financial_lesson_id: financialLessonId,
+      financial_status: status,
+      created_at: now(),
+      updated_at: now(),
+    });
   },
 };
 export const kodlandApi = {

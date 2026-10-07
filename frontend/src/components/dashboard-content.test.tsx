@@ -95,6 +95,7 @@ describe("DashboardContent", () => {
           payment_date: "2026-10-15",
           value_cents: 12500,
           status: "FUTURE",
+          financial_source_id: "agenda-lesson-1",
         },
         {
           id: "lesson-2",
@@ -114,11 +115,18 @@ describe("DashboardContent", () => {
       ],
     };
 
-    const markup = renderToStaticMarkup(<PaymentStatement payment={payment} />);
+    const markup = renderToStaticMarkup(
+      <PaymentStatement
+        payment={payment}
+        onLessonFinancialStatusChange={vi.fn()}
+      />,
+    );
 
     expect(markup).toContain("Aulas da competência");
     expect(markup).toContain("Turma de terça");
     expect(markup).toContain("Aula extra");
+    expect(markup).toContain("Feriado");
+    expect(markup).toContain("Cancelada");
     expect(markup).toContain("R$ 250,00");
   });
 });

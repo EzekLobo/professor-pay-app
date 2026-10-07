@@ -1,11 +1,13 @@
 # Estado atual
 
+- O cabecalho nao exibe mais “Painel pessoal” nem saudacao duplicada: titulo da pagina fica centralizado e o perfil compacto permanece no canto direito.
 - O modal de materiais nao repete o identificador da aula no topo. Todos os modais usam icone de fechar acessivel; na aba Alunos, “Abrir na plataforma” fica centralizado ao final.
 - O modal de uma turma na grade alterna entre Aula e Alunos. A aba Alunos mostra apenas alunos ativos daquela turma, ordenados pelos pontos atuais do resumo de progresso sincronizado.
 - As duas opcoes desse modal usam a mesma altura e rolagem interna. Aula oferece “Abrir na plataforma”; Alunos oferece o atalho direto para a turma e seus alunos na plataforma.
 - R9 foi validada localmente com typecheck, 41 testes Vitest, lint, build e os dois smoke tests Chromium das rotas privadas. A verificacao visual com dados reais ainda exige uma sessao Firebase autenticada apos sincronizacao.
 - Em `/lessons`, as aulas sincronizadas e os cursos importados agora sao exibidos em secoes por modulo; a ordem do catalogo e preservada dentro de cada modulo e aulas sem identificacao de modulo ficam no final.
 - Em `/payments`, cada competencia mensal abre um modal de extrato com totais, separacao entre aulas normais e extras e todos os lancamentos que compoem o valor; confirmacao e estorno permanecem no mesmo modal.
+- Em `/payments`, as competencias mensais usam carrossel lateral: o proximo pagamento inicia centralizado, os vizinhos ficam nas laterais e as setas movem o foco. O cartao central abre o extrato; valor e status ficam na mesma linha.
 - Na grade do resumo, blocos de disponibilidade voltaram a abrir um modal compacto com o intervalo cadastrado; o modal de materiais continua restrito a aulas/turmas.
 - Na grade semanal, disponibilidade e deduplicada por dia/intervalo e removida dos trechos ocupados por aulas ou extras; periodos livres restantes continuam visiveis.
 - Em `/lessons`, turmas do mesmo `course_id` compartilham um unico cartao e as aulas sao deduplicadas pelo indice global; o modal combina os materiais presentes. O catalogo de importacao e consultado no servidor e nao expoe os IDs dos cursos.

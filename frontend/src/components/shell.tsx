@@ -52,7 +52,6 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
       </aside>
       <section className="shell-main">
         <header className="shell-header">
-          <div className="header-greeting"><p className="header-kicker">PAINEL PESSOAL</p><strong>Olá, {user.name.split(" ")[0]}</strong></div>
           <h1 className="shell-title">{pageTitles[pathname] ?? "AulaPay"}</h1>
           <div className="header-actions">
             <div className="profile-chip" aria-label={`Perfil de ${user.name}`}>

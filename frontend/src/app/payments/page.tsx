@@ -22,6 +22,7 @@ const tone = (s: string) =>
 function Content() {
   const [items, setItems] = useState<DashboardPayment[]>([]),
     [detail, setDetail] = useState<PaymentDetail | null>(null),
+    [focusedPaymentDate, setFocusedPaymentDate] = useState<string | null>(null),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -40,10 +41,24 @@ function Content() {
   const previousPayment =
     items.filter((item) => item.payment_date <= today).at(-1) ?? null;
   const nextPayment = items.find((item) => item.payment_date > today) ?? null;
+  const focusedIndex = Math.max(
+    0,
+    items.findIndex((item) => item.payment_date === focusedPaymentDate),
+  );
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setItems((await paymentsApi.list()).items);
+      const loadedItems = (await paymentsApi.list()).items;
+      const nextFocus =
+        loadedItems.find(
+          (item) => item.payment_date > new Date().toISOString().slice(0, 10),
+        ) ?? loadedItems.at(-1) ?? null;
+      setItems(loadedItems);
+      setFocusedPaymentDate((current) =>
+        current && loadedItems.some((item) => item.payment_date === current)
+          ? current
+          : nextFocus?.payment_date ?? null,
+      );
     } catch (e) {
       setError(
         e instanceof Error
@@ -142,28 +157,75 @@ function Content() {
             Sincronize a Kodland para importar o cronograma das turmas.
           </p>
         ) : (
-          <div className="entity-list">
-            {items.map((p) => (
-              <button
-                className="entity-card"
-                type="button"
-                key={p.payment_date}
-                onClick={() => void open(p.payment_date)}
-              >
-                <div>
-                  <strong>{formatDate(p.payment_date)}</strong>
-                  <p className="muted">
-                    {p.period} · {p.lesson_count} aula(s)
-                  </p>
-                </div>
-                <div>
-                  <strong>{formatMoney(p.total_cents)}</strong>
-                  <StatusBadge tone={tone(p.status)}>
-                    {status(p.status)}
-                  </StatusBadge>
-                </div>
-              </button>
-            ))}
+          <div className="payment-carousel" aria-label="Carrossel de competências mensais">
+            <button
+              className="button button-ghost payment-carousel-nav"
+              type="button"
+              aria-label="Competência anterior"
+              disabled={focusedIndex <= 0}
+              onClick={() =>
+                setFocusedPaymentDate(items[focusedIndex - 1]?.payment_date ?? null)
+              }
+            >
+              ←
+            </button>
+            <div className="payment-carousel-track">
+              {[-1, 0, 1].map((offset) => {
+                const payment = items[focusedIndex + offset];
+                if (!payment) {
+                  return (
+                    <div
+                      className="payment-carousel-placeholder"
+                      key={offset}
+                      aria-hidden="true"
+                    />
+                  );
+                }
+                const isFocus = offset === 0;
+                return (
+                  <button
+                    className={`payment-carousel-card${isFocus ? " is-focus" : ""}`}
+                    type="button"
+                    key={payment.payment_date}
+                    aria-current={isFocus ? "true" : undefined}
+                    aria-label={
+                      isFocus
+                        ? `Abrir extrato de ${payment.period}`
+                        : `Focar competência ${payment.period}`
+                    }
+                    onClick={() =>
+                      isFocus
+                        ? void open(payment.payment_date)
+                        : setFocusedPaymentDate(payment.payment_date)
+                    }
+                  >
+                    <span>{isFocus ? "Em foco" : "Competência"}</span>
+                    <strong>{formatDate(payment.payment_date)}</strong>
+                    <small>
+                      {payment.period} · {payment.lesson_count} aula(s)
+                    </small>
+                    <span className="payment-carousel-value">
+                      <b>{formatMoney(payment.total_cents)}</b>
+                      <StatusBadge tone={tone(payment.status)}>
+                        {status(payment.status)}
+                      </StatusBadge>
+                    </span>
+                    {isFocus && <em>Abrir extrato</em>}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              className="button button-ghost payment-carousel-nav"
+              type="button"
+              aria-label="Próxima competência"
+              disabled={focusedIndex >= items.length - 1}
+              onClick={() =>
+                setFocusedPaymentDate(items[focusedIndex + 1]?.payment_date ?? null)
+              }
+            >
+              →
+            </button>
           </div>
         )}
       </section>
@@ -217,18 +279,19 @@ function PaymentHighlight({
       onClick={() => payment && void onOpen(payment.payment_date)}
     >
       <span>{label}</span>
-      <strong>{payment ? formatMoney(payment.total_cents) : empty}</strong>
       {payment ? (
         <>
+          <span className="payment-highlight-value">
+            <strong>{formatMoney(payment.total_cents)}</strong>
+            <StatusBadge tone={tone(payment.status)}>
+              {status(payment.status)}
+            </StatusBadge>
+          </span>
           <small>
-            Competência {payment.period} · vence{" "}
-            {formatDate(payment.payment_date)}
+            Vence {formatDate(payment.payment_date)}
           </small>
-          <StatusBadge tone={tone(payment.status)}>
-            {status(payment.status)}
-          </StatusBadge>
         </>
-      ) : null}
+      ) : <strong>{empty}</strong>}
     </button>
   );
 }

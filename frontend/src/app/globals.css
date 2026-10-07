@@ -288,16 +288,6 @@ select:focus-visible {
   background: rgb(5 9 20 / 70%);
   backdrop-filter: blur(16px);
 }
-.header-greeting {
-  min-width: 0;
-}
-.header-kicker {
-  margin-bottom: 3px;
-  color: var(--primary);
-  font-size: 0.6rem;
-  font-weight: 850;
-  letter-spacing: 0.14em;
-}
 .shell-title {
   grid-column: 2;
   margin: 0;
@@ -306,6 +296,7 @@ select:focus-visible {
   text-align: center;
 }
 .header-actions {
+  grid-column: 3;
   display: flex;
   align-items: center;
   justify-self: end;
@@ -843,6 +834,84 @@ select:focus-visible {
 .payment-highlight strong {
   font-size: 1.08rem;
 }
+.payment-highlight-value,
+.payment-carousel-value {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.payment-highlight-value strong { font-size: 1.08rem; }
+.payment-carousel {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+}
+.payment-carousel-nav {
+  display: grid;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  font-size: 1.15rem;
+}
+.payment-carousel-track {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.payment-carousel-card,
+.payment-carousel-placeholder {
+  min-width: 0;
+  min-height: 154px;
+  border: 1px solid #1d3556;
+  border-radius: 12px;
+  background: rgb(8 18 34 / 54%);
+}
+.payment-carousel-card {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 7px;
+  padding: 16px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  opacity: .68;
+  transition: border-color .18s ease, box-shadow .18s ease, opacity .18s ease, transform .18s ease;
+}
+.payment-carousel-card:hover,
+.payment-carousel-card:focus-visible {
+  border-color: var(--primary);
+  opacity: .9;
+}
+.payment-carousel-card.is-focus {
+  min-height: 184px;
+  border-color: var(--border-bright);
+  background: linear-gradient(145deg, #142742, #0a1629);
+  box-shadow: 0 0 0 2px rgb(68 206 255 / 35%);
+  opacity: 1;
+  transform: translateY(-5px);
+}
+.payment-carousel-card > span:first-child,
+.payment-carousel-card small,
+.payment-carousel-card em {
+  color: var(--muted);
+  font-size: .78rem;
+  font-style: normal;
+}
+.payment-carousel-card.is-focus > span:first-child,
+.payment-carousel-card em { color: var(--primary); font-weight: 800; }
+.payment-carousel-card > strong { font-size: 1rem; }
+.payment-carousel-card b { font-size: 1.08rem; }
+.payment-carousel-card .payment-carousel-value { color: var(--text); }
+.payment-carousel-placeholder { border-style: dashed; opacity: .22; }
 .progress-list,
 .payment-list,
 .entity-list {
@@ -1277,9 +1346,6 @@ select:focus-visible {
   .profile-chip small {
     display: none;
   }
-  .header-greeting strong {
-    font-size: 0.9rem;
-  }
   .shell-title {
     font-size: 0.96rem;
   }
@@ -1310,6 +1376,22 @@ select:focus-visible {
   .management-form,
   .filters {
     grid-template-columns: 1fr;
+  }
+  .payment-carousel {
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    gap: 8px;
+  }
+  .payment-carousel-nav {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+  }
+  .payment-carousel-track {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .payment-carousel-card:not(.is-focus),
+  .payment-carousel-placeholder {
+    display: none;
   }
   .week-grid {
     grid-template-columns: repeat(7, 138px);

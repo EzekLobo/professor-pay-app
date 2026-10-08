@@ -506,7 +506,7 @@ const kodlandExtraFinancialLessons = (
   extraLessons
     .filter((item) =>
       item.manual_status
-        ? item.manual_status === "ACCOUNTED"
+        ? item.manual_status === "DONE" || item.manual_status === "ACCOUNTED"
         : item.completed === true,
     )
     .flatMap((item) => {
@@ -1188,7 +1188,7 @@ export const kodlandApi = {
     const updated = {
       ...current,
       manual_status: manualStatus,
-      completed: manualStatus === "ACCOUNTED",
+      completed: manualStatus === "DONE",
       updated_at: now(),
     };
     await updateDoc(doc(ref("kodland_extra_lessons"), id), updated);
@@ -1316,16 +1316,18 @@ export const kodlandApi = {
         const previous = oldExtraLessons.find(
           (lesson) => String(lesson.id) === item.id,
         );
-        const manualStatus = previous?.manual_status as
+        const previousManualStatus = previous?.manual_status as
           | KodlandExtraManualStatus
           | undefined;
+        const manualStatus =
+          previousManualStatus === "ACCOUNTED" ? "DONE" : previousManualStatus;
         writes.push((batch) => batch.set(doc(ref("kodland_extra_lessons"), item.id), {
           ...item,
           manual_status: manualStatus,
           completed:
-            manualStatus === "ACCOUNTED"
+            manualStatus === "DONE"
               ? true
-              : manualStatus === "PENDING" || manualStatus === "DONE"
+              : manualStatus === "PENDING"
                 ? false
                 : item.completed,
           created_at: String(previous?.created_at ?? createdAt),

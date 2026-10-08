@@ -288,8 +288,6 @@ function WeekSchedule({
         <span className="week-legend-class">Turma</span>
         <span className="week-legend-extra">Extra pendente</span>
         <span className="week-legend-done">Extra realizada</span>
-        <span className="week-legend-accounted">Extra contabilizada</span>
-        <span className="week-legend-rescheduled">Extra reagendada</span>
         <span className="week-legend-availability">Disponível</span>
       </div>
       <div
@@ -394,26 +392,7 @@ function WeekSchedule({
               </button>
               <button
                 type="button"
-                className={selectedExtra.manual_status === "ACCOUNTED" || (!selectedExtra.manual_status && selectedExtra.completed) ? "extra-status-option active" : "extra-status-option"}
-                disabled={savingExtraStatus}
-                onClick={() => void (async () => {
-                  setSavingExtraStatus(true);
-                  setExtraStatusError("");
-                  try {
-                    setSelectedExtra(await onUpdateExtraStatus(selectedExtra.id, "ACCOUNTED"));
-                  } catch (error) {
-                    setExtraStatusError(error instanceof Error ? error.message : "Não foi possível atualizar o status.");
-                  } finally {
-                    setSavingExtraStatus(false);
-                  }
-                })()}
-              >
-                <strong>Contabilizar</strong>
-                <span>Inclui a aula extra no próximo extrato.</span>
-              </button>
-              <button
-                type="button"
-                className={selectedExtra.manual_status === "DONE" ? "extra-status-option active" : "extra-status-option"}
+                className={selectedExtra.manual_status === "DONE" || selectedExtra.manual_status === "ACCOUNTED" || (!selectedExtra.manual_status && selectedExtra.completed) ? "extra-status-option active" : "extra-status-option"}
                 disabled={savingExtraStatus}
                 onClick={() => void (async () => {
                   setSavingExtraStatus(true);
@@ -427,8 +406,8 @@ function WeekSchedule({
                   }
                 })()}
               >
-                <strong>Feita</strong>
-                <span>Registra a realização sem incluir no extrato.</span>
+                <strong>Realizada</strong>
+                <span>Inclui a aula extra no próximo extrato.</span>
               </button>
             </section>
             {extraStatusError && <p className="form-error" role="alert">{extraStatusError}</p>}

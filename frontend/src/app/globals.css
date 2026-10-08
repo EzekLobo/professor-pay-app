@@ -661,10 +661,6 @@ select:focus-visible {
   border-left-color: var(--primary);
   background: #102442;
 }
-.week-slot-extra-accounted {
-  border-left-color: var(--success);
-  background: #102d2b;
-}
 .week-slot-extra-rescheduled {
   border-left-color: #aa72ff;
   background: #21183a;
@@ -696,8 +692,7 @@ select:focus-visible {
 }
 .week-legend-extra::before { background: var(--warning) !important; }
 .week-legend-done::before, .week-legend-class::before { background: var(--primary) !important; }
-.week-legend-accounted::before, .week-legend-availability::before { background: var(--success) !important; }
-.week-legend-rescheduled::before { background: #aa72ff !important; }
+.week-legend-availability::before { background: var(--success) !important; }
 .extra-status-content { display: grid; gap: 16px; }
 .extra-status-content > .muted { margin: 0; }
 .extra-status-options { display: grid; gap: 9px; }

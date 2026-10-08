@@ -6,6 +6,7 @@
 - Os indicadores de Turmas, Alunos e Correcoes pendentes no resumo usam formato compacto em linha para priorizar a grade semanal.
 - Em `/classes`, o acordeao mostra o nome da turma e a quantidade de alunos ativos; a lista exibe somente alunos ativos, ordenados pela pontuacao de atividades, com posicao e pontos. Os dados de progresso, responsavel e atalhos de contato/perfil ficam no modal individual acionado pelo aluno.
 - Em `/corrections`, o filtro Turmas lista todas as pendencias agrupadas por turma; Alunos e Aulas preservam a turma como primeiro nivel e subdividem internamente por aluno ou por aula.
+- Em `/corrections`, cada turma agora e uma secao visual propria, com contador de pendencias; os cartoes separam aluno/status, aula, atividade e acoes compactas para manter a leitura uniforme.
 - Em `/corrections`, o botao “Atualizar correcoes” pede a senha temporaria, usa o e-mail lembrado no navegador, sincroniza o snapshot pedagogico e recarrega as pendencias.
 - O modal de materiais nao repete o identificador da aula no topo. Todos os modais usam icone de fechar acessivel; na aba Alunos, “Abrir na plataforma” fica centralizado ao final.
 - O modal de cada aula tem o icone de anotacao: ele abre uma folha privada por aula para salvar observacoes e resumos do roteiro no namespace Firebase do professor.

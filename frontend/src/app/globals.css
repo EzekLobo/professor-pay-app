@@ -1408,20 +1408,41 @@ select:focus-visible {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 18px;
+  gap: 7px;
+  margin-top: 20px;
+  border-top: 1px solid rgb(29 53 86 / 72%);
+  padding-top: 16px;
 }
-.correction-heading-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.corrections-panel {
+  padding: clamp(18px, 2.4vw, 28px);
+}
+.correction-heading-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.correction-heading-actions .input {
+  min-width: min(100%, 270px);
+}
+.correction-result-count {
+  display: inline-flex;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 700;
+}
 .correction-filters > span {
   color: var(--muted);
   font-size: .82rem;
   font-weight: 800;
 }
 .correction-filter {
-  border: 1px solid var(--border);
+  border: 1px solid #24456f;
   border-radius: 999px;
-  padding: 7px 11px;
-  background: transparent;
+  padding: 8px 13px;
+  background: #0c1a2f;
   color: var(--muted);
   cursor: pointer;
   font: inherit;
@@ -1434,15 +1455,15 @@ select:focus-visible {
   color: var(--text);
 }
 .correction-filter.active {
-  border-color: var(--primary);
-  background: rgb(68 206 255 / 12%);
+  border-color: rgb(68 206 255 / 72%);
+  background: rgb(68 206 255 / 16%);
   color: var(--primary);
 }
 .correction-class-list,
 .correction-subgroup-list {
   display: grid;
-  gap: 18px;
-  margin-top: 18px;
+  gap: 14px;
+  margin-top: 20px;
 }
 .correction-class-group,
 .correction-subgroup {
@@ -1450,36 +1471,106 @@ select:focus-visible {
   gap: 12px;
 }
 .correction-class-group {
-  border-top: 1px solid var(--border);
-  padding-top: 18px;
-}
-.correction-class-group:first-child {
-  border-top: 0;
-  padding-top: 0;
+  overflow: hidden;
+  border: 1px solid #1d3556;
+  border-radius: 14px;
+  padding: 14px;
+  background: rgb(7 18 34 / 64%);
 }
 .correction-class-heading {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  border-bottom: 1px solid rgb(33 59 95 / 72%);
+  padding: 1px 1px 12px;
 }
 .correction-class-heading h3,
 .correction-subgroup h4,
 .correction-card h4 {
   margin: 0;
 }
+.correction-class-heading h3 {
+  color: #e5f0ff;
+  font-size: .98rem;
+  letter-spacing: -.01em;
+}
 .correction-class-heading span {
-  color: var(--muted);
-  font-size: .8rem;
+  border: 1px solid rgb(68 206 255 / 22%);
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgb(68 206 255 / 7%);
+  color: #aac8e8;
+  font-size: .72rem;
+  font-weight: 800;
   white-space: nowrap;
 }
 .correction-subgroup {
-  border-left: 2px solid rgb(68 206 255 / 30%);
-  padding-left: 14px;
+  gap: 10px;
+  border: 1px solid rgb(35 67 106 / 72%);
+  border-radius: 11px;
+  padding: 12px;
+  background: rgb(12 27 48 / 45%);
 }
 .correction-subgroup h4 {
-  color: var(--primary);
-  font-size: .9rem;
+  color: #a9dfff;
+  font-size: .82rem;
+  font-weight: 800;
+}
+.correction-card {
+  gap: 20px;
+  border-color: rgb(35 67 106 / 92%);
+  border-radius: 11px;
+  padding: 14px;
+  background: #0b192d;
+}
+.correction-card:hover {
+  border-color: rgb(68 206 255 / 62%);
+  background: #0d1d34;
+}
+.correction-card-copy {
+  display: grid;
+  gap: 5px;
+}
+.correction-card .entity-title {
+  gap: 8px;
+}
+.correction-card h4 {
+  color: #f2f7ff;
+  font-size: .95rem;
+}
+.correction-card-lesson,
+.correction-card-task {
+  margin: 0;
+}
+.correction-card-lesson {
+  color: #a9dfff;
+  font-size: .81rem;
+  font-weight: 700;
+}
+.correction-card-task {
+  color: #b8cae2;
+  font-size: .84rem;
+  line-height: 1.45;
+}
+.correction-card-task span {
+  margin-right: 6px;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 850;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+.correction-card .card-actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+.correction-card .button-small {
+  min-height: 34px;
+}
+.correction-action {
+  min-height: 34px;
+  padding: 8px 13px;
 }
 .card-actions {
   display: flex;

@@ -37,8 +37,8 @@ function LessonLinks({ lesson }: { lesson: KodlandLesson | undefined }) {
   const hasMaterial = links.length > 0;
   return (
     <>
-      {links.map(([label, href]) => <a className="button button-ghost" href={absoluteUrl(href)} target="_blank" rel="noreferrer" key={label}>{label}</a>)}
-      {!hasMaterial && <a className="button button-ghost" href={absoluteUrl(lesson.external_url)} target="_blank" rel="noreferrer">Abrir aula</a>}
+      {links.map(([label, href]) => <a className="button button-ghost button-small" href={absoluteUrl(href)} target="_blank" rel="noreferrer" key={label}>{label}</a>)}
+      {!hasMaterial && <a className="button button-ghost button-small" href={absoluteUrl(lesson.external_url)} target="_blank" rel="noreferrer">Abrir aula</a>}
     </>
   );
 }
@@ -53,22 +53,21 @@ function ReviewCard({
   const lesson = lessonForReview(review, lessons);
   return (
     <article className="entity-card correction-card" key={review.id}>
-      <div>
+      <div className="correction-card-copy">
         <div className="entity-title">
           <h4>{review.student_name}</h4>
           <StatusBadge tone="warning">{review.status_label}</StatusBadge>
         </div>
-        <p className="entity-details">{lessonLabel(review)}</p>
-        <p className="muted">
-          {review.task_number ? `${review.task_number}. ` : ""}
-          {review.task_title || "Atividade"}
+        <p className="correction-card-lesson">{lessonLabel(review)}</p>
+        <p className="correction-card-task">
+          <span>Atividade</span>
+          {review.task_number ? `${review.task_number}. ` : ""}{review.task_title || "Sem título"}
         </p>
-        {lesson && <p className="muted">Materiais da aula disponíveis abaixo.</p>}
       </div>
       <div className="card-actions">
         <LessonLinks lesson={lesson} />
         <a
-          className="button button-primary"
+          className="button button-primary correction-action"
           target="_blank"
           rel="noreferrer"
           href={review.correction_url}
@@ -210,11 +209,11 @@ function Content() {
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
-      <section className="panel">
+      <section className="panel corrections-panel">
         <div className="section-heading">
           <div>
             <h2>Atividades entregues</h2>
-            <span className="muted">{visibleReviews.length} de {reviews.length}</span>
+            <span className="correction-result-count">{visibleReviews.length} de {reviews.length} pendentes</span>
           </div>
           <div className="correction-heading-actions">
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
@@ -223,7 +222,7 @@ function Content() {
             </Button>
           </div>
         </div>
-        <div className="correction-filters" aria-label="Organizar correções">
+        <div className="correction-filters" role="group" aria-label="Organizar correções">
           <span>Organizar por</span>
           {([
             ["class", "Turmas"],

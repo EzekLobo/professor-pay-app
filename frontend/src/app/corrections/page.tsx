@@ -6,6 +6,7 @@ import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { ApiError, kodlandApi, type KodlandLesson, type KodlandReview } from "@/lib/api";
+import { rememberKodlandCredentials } from "@/lib/browser-credentials";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 
@@ -113,16 +114,18 @@ function Content() {
 
   async function syncCorrections(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     const username = syncUsername.trim();
     if (!username || !syncPassword || syncing) return;
     setSyncing(true);
     setSyncError("");
     setNotice("");
-    window.localStorage.setItem("aulapay.kodland.username", username);
     const password = syncPassword;
-    setSyncPassword("");
     try {
       const result = await kodlandApi.sync(username, password);
+      window.localStorage.setItem("aulapay.kodland.username", username);
+      await rememberKodlandCredentials(form);
+      setSyncPassword("");
       await load();
       setSyncOpen(false);
       setNotice(
@@ -164,8 +167,8 @@ function Content() {
       >
         <form className="form management-form" onSubmit={syncCorrections}>
           <p className="muted">
-            O e-mail fica salvo neste navegador. A senha é usada somente nesta
-            atualização e não é armazenada pelo AulaPay.
+            O navegador pode salvar suas credenciais com segurança após a
+            primeira atualização. O AulaPay não armazena sua senha.
           </p>
           <label className="field">
             Usuário ou e-mail

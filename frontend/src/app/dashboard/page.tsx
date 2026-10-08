@@ -10,6 +10,7 @@ import {
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button, Input } from "@/components/ui";
+import { rememberKodlandCredentials } from "@/lib/browser-credentials";
 import {
   ApiError,
   dashboardApi,
@@ -605,6 +606,7 @@ function DashboardPageContent() {
   }, []);
   const syncSchedule = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const form = event.currentTarget;
     if (refreshingSchedule) return;
     const username = syncUsername.trim();
     const password = syncPassword;
@@ -613,10 +615,11 @@ function DashboardPageContent() {
     setRefreshingSchedule(true);
     setSyncError("");
     setRefreshNotice("");
-    window.localStorage.setItem("aulapay.kodland.username", username);
-    setSyncPassword("");
     try {
       const result = await kodlandApi.sync(username, password);
+      window.localStorage.setItem("aulapay.kodland.username", username);
+      await rememberKodlandCredentials(form);
+      setSyncPassword("");
       if (!(await load(true))) {
         throw new Error(
           "A sincronização foi concluída, mas não foi possível recarregar a grade.",
@@ -654,8 +657,8 @@ function DashboardPageContent() {
       >
         <form className="form management-form" onSubmit={syncSchedule}>
           <p className="muted">
-            Seu e-mail fica salvo neste navegador para facilitar as próximas
-            sincronizações. A senha não é armazenada pelo AulaPay.
+            O navegador pode salvar suas credenciais com segurança após a
+            primeira atualização. O AulaPay não armazena sua senha.
           </p>
           <label className="field">
             Usuário ou e-mail

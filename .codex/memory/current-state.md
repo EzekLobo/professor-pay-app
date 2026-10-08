@@ -1,7 +1,7 @@
 # Estado atual
 
 - O cabecalho nao exibe mais “Painel pessoal” nem saudacao duplicada: titulo da pagina fica centralizado e o perfil compacto permanece no canto direito.
-- A grade de horarios do resumo tem a acao “Atualizar grade”, com modal em coluna unica. O e-mail fica salvo somente neste navegador; a senha nao e persistida pelo AulaPay e pode ser preenchida pelo gerenciador seguro do navegador. A acao sincroniza dados, extras e disponibilidade sem desmontar a tela ou alterar a semana selecionada.
+- A grade de horarios do resumo e a tela de correcoes usam credenciais temporarias para sincronizar. Depois de uma sincronizacao bem-sucedida, o app solicita ao gerenciador seguro do navegador que memorize as credenciais; em falha, a senha permanece no formulario para nova tentativa. O snapshot e escrito em lotes de ate 400 operacoes para nao exceder o limite do Firestore.
 - As aulas extras na grade distinguem conclusao, reagendamento, agendamento e pendencia; apenas conclusao confirmada por status ou gravacao compoe o extrato.
 - Os indicadores de Turmas, Alunos e Correcoes pendentes no resumo usam formato compacto em linha para priorizar a grade semanal.
 - Em `/classes`, o acordeao mostra o nome da turma e a quantidade de alunos ativos; a lista exibe somente alunos ativos, ordenados pela pontuacao de atividades, com posicao e pontos. Os dados de progresso, responsavel e atalhos de contato/perfil ficam no modal individual acionado pelo aluno.

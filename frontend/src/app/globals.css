@@ -1411,6 +1411,7 @@ select:focus-visible {
   gap: 8px;
   margin-top: 18px;
 }
+.correction-heading-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .correction-filters > span {
   color: var(--muted);
   font-size: .82rem;

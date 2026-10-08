@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
-import { Input, StatusBadge } from "@/components/ui";
-import { kodlandApi, type KodlandLesson, type KodlandReview } from "@/lib/api";
+import { Button, Input, StatusBadge } from "@/components/ui";
+import { ApiError, kodlandApi, type KodlandLesson, type KodlandReview } from "@/lib/api";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 
@@ -84,7 +85,17 @@ function Content() {
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState<ReviewGrouping>("all");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState("");
+  const [syncUsername, setSyncUsername] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : window.localStorage.getItem("aulapay.kodland.username") ?? "",
+  );
+  const [syncPassword, setSyncPassword] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +110,34 @@ function Content() {
       setLoading(false);
     }
   }, []);
+
+  async function syncCorrections(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const username = syncUsername.trim();
+    if (!username || !syncPassword || syncing) return;
+    setSyncing(true);
+    setSyncError("");
+    setNotice("");
+    window.localStorage.setItem("aulapay.kodland.username", username);
+    const password = syncPassword;
+    setSyncPassword("");
+    try {
+      const result = await kodlandApi.sync(username, password);
+      await load();
+      setSyncOpen(false);
+      setNotice(
+        `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
+      );
+    } catch (reason) {
+      setSyncError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Não foi possível atualizar as correções.",
+      );
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(); }, 0);
@@ -117,6 +156,49 @@ function Content() {
 
   return (
     <div className="management-grid">
+      <Modal
+        open={syncOpen}
+        title="Atualizar correções"
+        className="schedule-sync-modal"
+        onClose={() => !syncing && setSyncOpen(false)}
+      >
+        <form className="form management-form" onSubmit={syncCorrections}>
+          <p className="muted">
+            O e-mail fica salvo neste navegador. A senha é usada somente nesta
+            atualização e não é armazenada pelo AulaPay.
+          </p>
+          <label className="field">
+            Usuário ou e-mail
+            <Input
+              name="username"
+              type="text"
+              autoComplete="username"
+              required
+              disabled={syncing}
+              value={syncUsername}
+              onChange={(event) => setSyncUsername(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            Senha
+            <Input
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              disabled={syncing}
+              value={syncPassword}
+              onChange={(event) => setSyncPassword(event.target.value)}
+            />
+          </label>
+          {syncError && <p className="form-error" role="alert">{syncError}</p>}
+          <div className="form-actions">
+            <Button type="submit" disabled={syncing}>
+              {syncing ? "Atualizando correções…" : "Atualizar correções"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
       <section className="page-heading">
         <div>
           <p className="eyebrow">Pendências</p>
@@ -124,13 +206,19 @@ function Content() {
         </div>
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
+      {notice && <p className="notice" role="status">{notice}</p>}
       <section className="panel">
         <div className="section-heading">
           <div>
             <h2>Atividades entregues</h2>
             <span className="muted">{visibleReviews.length} de {reviews.length}</span>
           </div>
-          <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <div className="correction-heading-actions">
+            <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <Button type="button" onClick={() => { setSyncError(""); setNotice(""); setSyncOpen(true); }}>
+              Atualizar correções
+            </Button>
+          </div>
         </div>
         <div className="correction-filters" aria-label="Organizar correções">
           <span>Organizar por</span>

@@ -68,15 +68,17 @@ select:focus-visible {
   min-height: 100vh;
   place-items: center;
   padding: 24px;
-  background: radial-gradient(circle at 50% 0, #172f55 0, transparent 38rem);
+  background:
+    radial-gradient(circle at 50% 0, rgb(119 75 210 / 32%) 0, transparent 34rem),
+    #06030d;
 }
 .auth-card {
   width: min(100%, 440px);
   padding: 36px;
-  border: 1px solid var(--border-bright);
+  border: 1px solid #4d3581;
   border-radius: 24px;
-  background: linear-gradient(145deg, #101a30, #0b1426);
-  box-shadow: var(--shadow);
+  background: linear-gradient(145deg, #171027, #0b0713);
+  box-shadow: 0 28px 70px rgb(0 0 0 / 45%);
 }
 .brand {
   display: inline-flex;
@@ -87,14 +89,25 @@ select:focus-visible {
   letter-spacing: -0.03em;
 }
 .brand-mark {
-  display: grid;
+  display: block;
   width: 34px;
   height: 34px;
-  place-items: center;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--violet), #6c59ed);
-  box-shadow: 0 0 24px rgb(136 116 255 / 35%);
-  font-size: 0.9rem;
+  object-fit: contain;
+}
+.auth-card .brand-mark {
+  width: 40px;
+  height: 40px;
+}
+.auth-card .input {
+  border-color: #3f2a67;
+  background: #0e0919;
+}
+.auth-card .input:hover {
+  border-color: #7350b5;
+}
+.auth-card .input:focus {
+  border-color: #a878ff;
+  box-shadow: 0 0 0 4px rgb(168 120 255 / 15%);
 }
 .auth-card h1 {
   margin: 32px 0 8px;

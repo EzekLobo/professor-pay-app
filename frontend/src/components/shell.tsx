@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import type { User } from "@/lib/api";
@@ -31,7 +32,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
     <div className="app-shell">
       <aside className="sidebar">
         <Link className="brand" href="/dashboard" aria-label="Ir para o resumo">
-          <span className="brand-mark">N</span>
+          <Image className="brand-mark" src="/nexusclass-icon.png" alt="" width={34} height={34} priority />
           <span>NexusClass</span>
         </Link>
         <p className="sidebar-caption">NAVEGAÇÃO</p>

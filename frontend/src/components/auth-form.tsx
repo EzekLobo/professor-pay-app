@@ -1,6 +1,7 @@
 "use client";
 
 import { FirebaseError } from "firebase/app";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useState } from "react";
@@ -70,10 +71,10 @@ export function AuthForm() {
     <main className="auth-page">
       <section className="auth-card">
         <Link href="/login" className="brand">
-          <span className="brand-mark">N</span>NexusClass
+          <Image className="brand-mark" src="/nexusclass-icon.png" alt="" width={40} height={40} priority />NexusClass
         </Link>
         <h1>Bem-vindo de volta</h1>
-        <p className="muted">Entre para acompanhar sua vida financeira.</p>
+        <p className="muted">Gerencie aulas, alunos e pagamentos.</p>
         <form className="form" onSubmit={submit}>
           <label className="field">
             E-mail

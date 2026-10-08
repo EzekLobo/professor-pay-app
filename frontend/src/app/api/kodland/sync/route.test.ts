@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   availabilityFromTeacherTimetable,
+  extrasFromStudentAgenda,
   extrasFromTeacherAgenda,
+  mergeExtraLessons,
   teacherCalendarWeekDates,
 } from "./route";
 
@@ -93,5 +95,78 @@ describe("extrasFromTeacherAgenda", () => {
       end_time: "20:00",
       completed: false,
     });
+  });
+});
+
+describe("extra lesson reconciliation", () => {
+  it("does not treat an approved request as a completed financial lesson", () => {
+    const [extra] = extrasFromStudentAgenda(
+      [
+        {
+          extra_lesson_id: "approved-extra",
+          is_extra: true,
+          date: "2026-10-14",
+          start_time: "19:00",
+          status: "Approved",
+          recording_url: "https://recordings.example/approved-extra",
+        },
+      ],
+      students[0],
+    );
+
+    expect(extra.completed).toBe(false);
+  });
+
+  it("uses an available recording when the provider has no lesson state", () => {
+    const [extra] = extrasFromStudentAgenda(
+      [
+        {
+          extra_lesson_id: "recorded-extra",
+          is_extra: true,
+          date: "2026-10-14",
+          start_time: "19:00",
+          recording_url: "https://recordings.example/recorded-extra",
+        },
+      ],
+      students[0],
+    );
+
+    expect(extra.completed).toBe(true);
+  });
+
+  it("uses the teacher calendar's rescheduled slot without losing completion", () => {
+    const [scheduled] = extrasFromTeacherAgenda(
+      [
+        {
+          extra_lesson_id: "rescheduled-extra",
+          start_time: "2026-10-21T22:00:00Z",
+          end_time: "2026-10-21T23:00:00Z",
+          student_full_name: "Lucas Martin",
+        },
+      ],
+      students,
+    );
+    const [completed] = extrasFromStudentAgenda(
+      [
+        {
+          extra_lesson_id: "rescheduled-extra",
+          is_extra: true,
+          date: "2026-10-14",
+          start_time: "19:00",
+          completed: true,
+          status: "Completed",
+        },
+      ],
+      students[0],
+    );
+
+    expect(mergeExtraLessons([scheduled], [completed])).toEqual([
+      expect.objectContaining({
+        id: "kodland-extra-rescheduled-extra",
+        lesson_date: "2026-10-21",
+        start_time: "19:00",
+        completed: true,
+      }),
+    ]);
   });
 });

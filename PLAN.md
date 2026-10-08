@@ -518,6 +518,43 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   - Escopo: manter os materiais e links da aula na primeira aba e mostrar, na segunda, apenas alunos ativos da turma em ranking pelos pontos do progresso sincronizado.
   - Aceitacao: o seletor nao aparece para disponibilidade; alunos inativos/removidos nao entram no ranking; empates sao ordenados alfabeticamente.
 
+### R10 - Sincronização operacional de aulas extras
+
+- [x] R10.1 — Consolidar agenda, conclusão e reagendamento de extras
+  - Escopo: conciliar os dados da agenda do professor e da agenda do aluno sem
+    permitir que uma ocorrência agendada sobrescreva a confirmação de conclusão.
+    Uma gravação disponível será uma evidência complementar de conclusão quando
+    o fornecedor não retornar um estado explícito.
+  - Aceitação: uma extra aprovada continua não financeira; uma extra concluída
+    entra como concluída; um reagendamento altera data/hora da grade e preserva
+    o estado financeiro correto; testes unitários cobrem a mesclagem.
+  - Depende de: R9.
+- [ ] R10.2 — Atualizar a grade pela sincronização autenticada
+  - Escopo: fazer o botão da grade acionar a sincronização existente usando a
+    credencial efêmera já fornecida pelo usuário e recarregar resumo, extras e
+    disponibilidade ao concluir.
+  - Aceitação: o botão informa progresso/erro, não persiste credenciais e uma
+    sincronização bem-sucedida reflete os dados locais atualizados sem perder a
+    semana selecionada.
+  - Depende de: R10.1.
+- [ ] R10.3 — Comunicar estados de extras e validar a entrega
+  - Escopo: exibir na grade o estado operacional da aula extra e cobrir a regra
+    financeira e a ação de atualização com testes de interface/dados.
+  - Aceitação: estados concluída, reagendada e pendente são distinguíveis; aulas
+    não concluídas não entram no extrato; typecheck, testes, lint e build passam.
+  - Depende de: R10.2.
+
+#### Handoff R10.1
+
+- Mudou: extras são conciliadas por aluno e identificador externo. A agenda do
+  professor atualiza data e horário, enquanto uma confirmação explícita de
+  conclusão prevalece; gravação somente confirma a aula quando não há estado
+  explícito.
+- Verificado: teste unitário da sincronização (7 testes), typecheck e diff check
+  passam.
+- Próximo: expor uma atualização autenticada da grade sem reter credenciais e
+  comunicar o estado operacional das extras.
+
 #### Handoff R9
 
 - Mudou: o modal aberto por uma aula da grade ganhou o seletor Aula/Alunos. A segunda opcao lista apenas os alunos ativos da turma selecionada, em ordem decrescente de pontos, com desempate alfabetico e destaque para as tres primeiras posicoes.

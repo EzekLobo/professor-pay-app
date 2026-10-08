@@ -79,6 +79,53 @@ type SyncCollection<T> = {
   source_available: boolean;
 };
 
+const completionFlag = (event: Record<string, unknown>) =>
+  event.completed ??
+  event.is_completed ??
+  event.lesson_passed ??
+  event.passed;
+
+const recordingAvailable = (event: Record<string, unknown>) => {
+  const recording =
+    event.recording ??
+    event.recordings ??
+    event.recording_url ??
+    event.recordingUrl ??
+    event.lesson_recording ??
+    event.lessonRecording ??
+    event.video_recording ??
+    event.videoRecording;
+  if (Array.isArray(recording)) return recording.length > 0;
+  if (recording && typeof recording === "object") return Object.keys(recording).length > 0;
+  if (
+    recording === false ||
+    recording === 0 ||
+    recording === "0" ||
+    recording === "false"
+  ) {
+    return false;
+  }
+  return flag(recording) || text(recording).length > 0;
+};
+
+/**
+ * An approved request merely authorizes an extra lesson. It is not financial
+ * evidence. A recording is used only when Kodland has not supplied a state.
+ */
+const completedFromEvent = (event: Record<string, unknown>) => {
+  const completion = completionFlag(event);
+  if (explicitBoolean(completion)) return flag(completion);
+
+  const status = normalized(event.status ?? event.lesson_status ?? event.state);
+  if (/completed|complete|passed|done|finished|held|realizada|concluida|ministrada/.test(status)) {
+    return true;
+  }
+  if (/approved|aprovad|review|revis|pending|pendente|postpon|adiad|reschedul|reagend|moved|cancel/.test(status)) {
+    return false;
+  }
+  return recordingAvailable(event);
+};
+
 const sso = "https://sso.production.kodland.org/";
 const api = "https://backoffice.kodland.org/api/v2/";
 const text = (value: unknown) =>
@@ -122,6 +169,20 @@ const number = (value: unknown) =>
   Number.isFinite(Number(value)) ? Number(value) : 0;
 const flag = (value: unknown) =>
   value === true || value === 1 || value === "1" || value === "true";
+const explicitBoolean = (value: unknown) =>
+  value === true ||
+  value === false ||
+  value === 1 ||
+  value === 0 ||
+  value === "1" ||
+  value === "0" ||
+  value === "true" ||
+  value === "false";
+const normalized = (value: unknown) =>
+  text(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 const dateOnly = (value: unknown) =>
   text(value).match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
 const timeOnly = (value: unknown) => {
@@ -435,7 +496,7 @@ async function studentsWithProfiles(
 }
 
 /** Extra lessons are shown on the student's agenda and become billable only after Kodland marks them as completed. */
-function extrasFromStudentAgenda(
+export function extrasFromStudentAgenda(
   payload: unknown,
   student: Student,
 ): ExtraLesson[] {
@@ -480,14 +541,7 @@ function extrasFromStudentAgenda(
         event.datetime,
     );
     const status = text(event.status ?? event.lesson_status ?? event.state);
-    const completed =
-      flag(
-        event.completed ??
-          event.is_completed ??
-          event.lesson_passed ??
-          event.passed,
-      ) ||
-      /completed|complete|passed|done|finished|held/.test(status.toLowerCase());
+    const completed = completedFromEvent(event);
     const externalId = text(
       event.extra_lesson_id ??
         event.id ??
@@ -650,19 +704,68 @@ export function extrasFromTeacherAgenda(
             event.finishAt,
         ).time,
         status,
-        completed:
-          flag(
-            event.completed ??
-              event.is_completed ??
-              event.lesson_passed ??
-              event.passed,
-          ) ||
-          /completed|complete|passed|done|finished|held/.test(
-            status.toLowerCase(),
-          ),
+        completed: completedFromEvent(event),
       },
     ];
   });
+}
+
+const extraIdentity = (lesson: ExtraLesson) => {
+  const prefix = "kodland-extra-";
+  const rawId = lesson.id.startsWith(prefix)
+    ? lesson.id.slice(prefix.length)
+    : lesson.id;
+  const studentPrefix = lesson.external_student_id
+    ? `${lesson.external_student_id}-`
+    : "";
+  const externalId = studentPrefix && rawId.startsWith(studentPrefix)
+    ? rawId.slice(studentPrefix.length)
+    : rawId;
+  return `${lesson.external_student_id}:${externalId}`;
+};
+
+const mergeScheduledExtra = (
+  scheduled: ExtraLesson,
+  evidence: ExtraLesson,
+): ExtraLesson => ({
+  ...scheduled,
+  external_student_id:
+    evidence.external_student_id || scheduled.external_student_id,
+  student_name: evidence.student_name || scheduled.student_name,
+  external_class_id: evidence.external_class_id || scheduled.external_class_id,
+  external_class_name:
+    evidence.external_class_name || scheduled.external_class_name,
+  // The teacher's agenda is authoritative for a postponed lesson's slot.
+  lesson_date: scheduled.lesson_date || evidence.lesson_date,
+  start_time: scheduled.start_time || evidence.start_time,
+  end_time: scheduled.end_time || evidence.end_time,
+  // Keep the student's richer state label when the calendar has none.
+  status: evidence.status || scheduled.status,
+  // A scheduled occurrence must never erase an already confirmed completion.
+  completed: scheduled.completed || evidence.completed,
+});
+
+/**
+ * Combines the calendar slot from the teacher agenda with completion evidence
+ * from the student's agenda. The two endpoints use different local IDs for
+ * the same provider extra, so reconciliation uses student + extra identifier.
+ */
+export function mergeExtraLessons(
+  teacherExtras: ExtraLesson[],
+  studentExtras: ExtraLesson[],
+): ExtraLesson[] {
+  const merged = new Map<string, ExtraLesson>();
+  for (const extra of teacherExtras) {
+    const key = extraIdentity(extra);
+    const previous = merged.get(key);
+    merged.set(key, previous ? mergeScheduledExtra(extra, previous) : extra);
+  }
+  for (const extra of studentExtras) {
+    const key = extraIdentity(extra);
+    const scheduled = merged.get(key);
+    merged.set(key, scheduled ? mergeScheduledExtra(scheduled, extra) : extra);
+  }
+  return [...merged.values()];
 }
 
 async function extrasForStudents(
@@ -749,16 +852,14 @@ async function extrasForStudents(
     },
   );
   return {
-    items: Array.from(
-      new Map(
-        [
-          ...teacherExtraPayloads.flatMap((payload) =>
-            extrasFromTeacherAgenda(payload, students),
-          ),
-          ...snapshots.flat(),
-          ...fromTeacherSchedule,
-        ].map((lesson) => [lesson.id, lesson]),
-      ).values(),
+    items: mergeExtraLessons(
+      [
+        ...teacherExtraPayloads.flatMap((payload) =>
+          extrasFromTeacherAgenda(payload, students),
+        ),
+        ...fromTeacherSchedule,
+      ],
+      snapshots.flat(),
     ),
     source_available:
       teacherSchedule !== undefined ||

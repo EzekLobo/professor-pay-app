@@ -1,7 +1,7 @@
 # Estado atual
 
 - O cabecalho nao exibe mais “Painel pessoal” nem saudacao duplicada: titulo da pagina fica centralizado e o perfil compacto permanece no canto direito.
-- A grade de horarios do resumo tem a acao “Atualizar grade”, que recarrega os dados locais sem desmontar a tela ou alterar a semana selecionada.
+- A grade de horarios do resumo tem a acao “Atualizar grade”, que pede credenciais somente durante o envio, sincroniza os dados da Kodland e recarrega resumo, extras e disponibilidade sem desmontar a tela ou alterar a semana selecionada.
 - Os indicadores de Turmas, Alunos e Correcoes pendentes no resumo usam formato compacto em linha para priorizar a grade semanal.
 - Em `/classes`, o acordeao mostra somente o nome da turma; os alunos aparecem apenas pelo nome e seus dados de progresso, responsavel e atalhos de contato/perfil sao exibidos no modal individual acionado pelo aluno.
 - Em `/corrections`, as pendencias ficam agrupadas primeiro por turma; os filtros internos permitem listar todas, agrupar por aluno ou agrupar por aula dentro de cada turma.

@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { DashboardContent } from "@/components/dashboard-content";
 import {
   LessonMaterialModal,
   type LessonMaterialDetails,
 } from "@/components/lesson-material-modal";
+import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
+import { Button, Input } from "@/components/ui";
 import {
+  ApiError,
   dashboardApi,
   kodlandApi,
   type KodlandExtraLesson,
@@ -88,6 +91,7 @@ function WeekSchedule({
   availability,
   onRefresh,
   refreshing,
+  refreshNotice,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -96,6 +100,7 @@ function WeekSchedule({
   availability: KodlandAvailability[];
   onRefresh: () => void;
   refreshing: boolean;
+  refreshNotice: string;
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
@@ -312,6 +317,11 @@ function WeekSchedule({
           );
         })}
       </div>
+      {refreshNotice && (
+        <p className="notice weekly-schedule-notice" role="status">
+          {refreshNotice}
+        </p>
+      )}
       {(() => {
         const groupLessons = selectedEntry?.group
           ? lessons
@@ -489,6 +499,7 @@ function KodlandSummary({
   availability,
   onRefresh,
   refreshing,
+  refreshNotice,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -498,6 +509,7 @@ function KodlandSummary({
   availability: KodlandAvailability[];
   onRefresh: () => void;
   refreshing: boolean;
+  refreshNotice: string;
 }) {
   const active = groups.filter((group) => !group.archived);
   return (
@@ -524,6 +536,7 @@ function KodlandSummary({
         availability={availability}
         onRefresh={onRefresh}
         refreshing={refreshing}
+        refreshNotice={refreshNotice}
       />
     </div>
   );
@@ -539,6 +552,9 @@ function DashboardPageContent() {
   const [availability, setAvailability] = useState<KodlandAvailability[]>([]);
   const [failed, setFailed] = useState(false);
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [syncError, setSyncError] = useState("");
+  const [refreshNotice, setRefreshNotice] = useState("");
   const load = useCallback(async (keepContent = false) => {
     setFailed(false);
     if (!keepContent) setDashboard(null);
@@ -567,15 +583,48 @@ function DashboardPageContent() {
       setLessons(kodlandLessons.items);
       setExtraLessons(kodlandExtras.items);
       setAvailability(kodlandAvailability.items);
+      return true;
     } catch {
       setFailed(true);
+      return false;
     }
   }, []);
-  const refreshSchedule = useCallback(async () => {
+  const syncSchedule = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (refreshingSchedule) return;
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const username = String(formData.get("username") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+    if (!username || !password) return;
+
     setRefreshingSchedule(true);
-    await load(true);
-    setRefreshingSchedule(false);
-  }, [load]);
+    setSyncError("");
+    setRefreshNotice("");
+    form.reset();
+    try {
+      const result = await kodlandApi.sync(username, password);
+      if (!(await load(true))) {
+        throw new Error(
+          "A sincronização foi concluída, mas não foi possível recarregar a grade.",
+        );
+      }
+      setSyncOpen(false);
+      setRefreshNotice(
+        `Grade atualizada. ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s); somente as concluídas entram no extrato.`,
+      );
+    } catch (reason) {
+      setSyncError(
+        reason instanceof ApiError
+          ? reason.message
+          : reason instanceof Error
+            ? reason.message
+            : "Não foi possível atualizar a grade. Tente novamente.",
+      );
+    } finally {
+      setRefreshingSchedule(false);
+    }
+  }, [load, refreshingSchedule]);
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
@@ -584,6 +633,48 @@ function DashboardPageContent() {
   if (!dashboard) return <DashboardContent state="loading" />;
   return (
     <>
+      <Modal
+        open={syncOpen}
+        title="Atualizar grade"
+        onClose={() => !refreshingSchedule && setSyncOpen(false)}
+      >
+        <form className="form management-form" onSubmit={syncSchedule}>
+          <p className="muted">
+            Seu acesso é usado somente durante esta sincronização e não é salvo
+            neste navegador.
+          </p>
+          <label className="field">
+            Usuário ou e-mail
+            <Input
+              name="username"
+              type="text"
+              required
+              autoComplete="username"
+              disabled={refreshingSchedule}
+            />
+          </label>
+          <label className="field">
+            Senha
+            <Input
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              disabled={refreshingSchedule}
+            />
+          </label>
+          {syncError && (
+            <p className="form-error" role="alert">
+              {syncError}
+            </p>
+          )}
+          <div className="form-actions">
+            <Button type="submit" disabled={refreshingSchedule}>
+              {refreshingSchedule ? "Atualizando grade…" : "Atualizar grade"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
       <KodlandSummary
         groups={groups}
         students={students}
@@ -591,10 +682,18 @@ function DashboardPageContent() {
         lessons={lessons}
         extraLessons={extraLessons}
         availability={availability}
-        onRefresh={() => void refreshSchedule()}
+        onRefresh={() => {
+          setSyncError("");
+          setSyncOpen(true);
+        }}
         refreshing={refreshingSchedule}
+        refreshNotice={refreshNotice}
       />
-      <DashboardContent state="ready" dashboard={dashboard} onRefresh={load} />
+      <DashboardContent
+        state="ready"
+        dashboard={dashboard}
+        onRefresh={() => void load()}
+      />
     </>
   );
 }

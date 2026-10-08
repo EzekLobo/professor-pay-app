@@ -529,7 +529,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     entra como concluída; um reagendamento altera data/hora da grade e preserva
     o estado financeiro correto; testes unitários cobrem a mesclagem.
   - Depende de: R9.
-- [ ] R10.2 — Atualizar a grade pela sincronização autenticada
+- [x] R10.2 — Atualizar a grade pela sincronização autenticada
   - Escopo: fazer o botão da grade acionar a sincronização existente usando a
     credencial efêmera já fornecida pelo usuário e recarregar resumo, extras e
     disponibilidade ao concluir.
@@ -554,6 +554,15 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   passam.
 - Próximo: expor uma atualização autenticada da grade sem reter credenciais e
   comunicar o estado operacional das extras.
+
+#### Handoff R10.2
+
+- Mudou: “Atualizar grade” abre um modal com credenciais efêmeras, aciona a
+  sincronização e recarrega resumo, extras e disponibilidade, preservando a
+  semana já selecionada e comunicando sucesso ou erro.
+- Verificado: typecheck, teste financeiro unitário e diff check passam.
+- Próximo: distinguir visualmente extras concluídas, reagendadas e pendentes e
+  finalizar a validação de regras financeiras.
 
 #### Handoff R9
 

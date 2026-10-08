@@ -531,20 +531,6 @@ function WeekSchedule({
           >
             {selectedEntry?.group && (
               <>
-                <div className="class-modal-tabs" aria-label="Informações da turma">
-                  <button
-                    type="button"
-                    aria-pressed={modalTab === "students"}
-                    className={modalTab === "students" ? "class-modal-tab active" : "class-modal-tab"}
-                    onClick={() => setModalTab(modalTab === "students" ? "lesson" : "students")}
-                  >
-                    {modalTab === "students" ? (
-                      <>← Voltar para aula</>
-                    ) : (
-                      <>Alunos <span>{classStudents.length}</span></>
-                    )}
-                  </button>
-                </div>
                 <div className="class-lesson-navigation" aria-label="Navegar entre aulas">
                   <button
                     type="button"
@@ -560,9 +546,19 @@ function WeekSchedule({
                   >
                     <span aria-hidden="true">←</span>
                   </button>
-                  <strong className="class-lesson-navigation-title">
-                    {lessonPeriodLabel}
-                  </strong>
+                  {modalTab === "students" ? (
+                    <button
+                      type="button"
+                      className="class-lesson-navigation-title class-lesson-navigation-title-button"
+                      onClick={() => setModalTab("lesson")}
+                    >
+                      {lessonPeriodLabel}
+                    </button>
+                  ) : (
+                    <strong className="class-lesson-navigation-title">
+                      {lessonPeriodLabel}
+                    </strong>
+                  )}
                   <button
                     type="button"
                     className="class-lesson-navigation-button"
@@ -576,6 +572,14 @@ function WeekSchedule({
                     }}
                   >
                     <span aria-hidden="true">→</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={modalTab === "students"}
+                    className={modalTab === "students" ? "class-modal-tab active" : "class-modal-tab"}
+                    onClick={() => setModalTab("students")}
+                  >
+                    Alunos <span>{classStudents.length}</span>
                   </button>
                 </div>
                 {modalTab === "students" && (

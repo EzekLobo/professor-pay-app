@@ -685,8 +685,8 @@ select:focus-visible {
   background: #21183a;
 }
 .week-slot-extra-pending {
-  border-left-color: #8190a8;
-  background: #172337;
+  border-left-color: var(--warning);
+  background: #2a2115;
 }
 .week-schedule-legend {
   display: flex;
@@ -791,7 +791,7 @@ select:focus-visible {
 }
 .class-lesson-navigation {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  grid-template-columns: 40px minmax(0, 1fr) 40px auto;
   gap: 4px;
   margin-bottom: 16px;
   padding: 4px;
@@ -828,6 +828,19 @@ select:focus-visible {
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.class-lesson-navigation-title-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.class-lesson-navigation-title-button:hover,
+.class-lesson-navigation-title-button:focus-visible {
+  color: var(--primary);
+}
+.class-lesson-navigation-title-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
 }
 .class-lesson-navigation-button:hover:not(:disabled) {
   border-color: var(--warning);
@@ -1883,6 +1896,22 @@ select:focus-visible {
   }
   .page-content {
     padding: 26px 17px;
+  }
+  .class-lesson-navigation {
+    grid-template-columns: 36px minmax(0, 1fr) 36px auto;
+    gap: 3px;
+    padding: 3px;
+  }
+  .class-lesson-navigation-button {
+    min-height: 36px;
+    padding: 6px;
+  }
+  .class-lesson-navigation-title { padding: 6px; }
+  .class-modal-tab {
+    min-height: 36px;
+    gap: 5px;
+    padding: 6px 8px;
+    font-size: .78rem;
   }
   .dashboard-heading,
   .page-heading {

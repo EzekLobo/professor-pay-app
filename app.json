@@ -1,20 +1,20 @@
 {
   "expo": {
-    "name": "AulaPay",
-    "slug": "professor-pay-app",
-    "version": "1.0.3",
+    "name": "NexusClass",
+    "slug": "nexusclass",
+    "version": "2.0.0",
     "orientation": "portrait",
-    "icon": "./assets/aulapay-photo-icon.png",
+    "icon": "./assets/nexusclass-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "icon": "./assets/aulapay-photo-icon.png",
-      "versionCode": 3,
+      "icon": "./assets/nexusclass-icon.png",
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/aulapay-photo-icon.png",
+        "foregroundImage": "./assets/nexusclass-icon.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
@@ -22,7 +22,7 @@
       "package": "com.anonymous.professorpayapp"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/nexusclass-icon.png"
     },
     "plugins": [
       "expo-secure-store"

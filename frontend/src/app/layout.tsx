@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AulaPay",
-  description: "Gestão financeira para professores particulares.",
+  title: "NexusClass",
+  description: "Gestão de aulas, alunos e pagamentos para professores.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

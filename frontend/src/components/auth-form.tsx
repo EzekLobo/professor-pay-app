@@ -70,7 +70,7 @@ export function AuthForm() {
     <main className="auth-page">
       <section className="auth-card">
         <Link href="/login" className="brand">
-          <span className="brand-mark">A</span>AulaPay
+          <span className="brand-mark">N</span>NexusClass
         </Link>
         <h1>Bem-vindo de volta</h1>
         <p className="muted">Entre para acompanhar sua vida financeira.</p>

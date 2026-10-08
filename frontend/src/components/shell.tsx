@@ -31,8 +31,8 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
     <div className="app-shell">
       <aside className="sidebar">
         <Link className="brand" href="/dashboard" aria-label="Ir para o resumo">
-          <span className="brand-mark">A</span>
-          <span>AulaPay</span>
+          <span className="brand-mark">N</span>
+          <span>NexusClass</span>
         </Link>
         <p className="sidebar-caption">NAVEGAÇÃO</p>
         <nav className="nav" aria-label="Navegação principal">
@@ -52,7 +52,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
       </aside>
       <section className="shell-main">
         <header className="shell-header">
-          <h1 className="shell-title">{pageTitles[pathname] ?? "AulaPay"}</h1>
+          <h1 className="shell-title">{pageTitles[pathname] ?? "NexusClass"}</h1>
           <div className="header-actions">
             <div className="profile-chip" aria-label={`Perfil de ${user.name}`}>
               <span>{user.name.slice(0, 1).toUpperCase()}</span>

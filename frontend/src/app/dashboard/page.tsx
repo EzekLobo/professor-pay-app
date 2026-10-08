@@ -855,7 +855,7 @@ function DashboardPageContent() {
         <form className="form management-form" autoComplete="on" onSubmit={syncSchedule}>
           <p className="muted">
             O navegador pode salvar suas credenciais com segurança após a
-            primeira atualização. O AulaPay não armazena sua senha.
+            primeira atualização. O NexusClass não armazena sua senha.
           </p>
           <label className="field">
             Usuário ou e-mail

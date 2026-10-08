@@ -1,4 +1,4 @@
-# AulaPay
+# NexusClass
 
 O aplicativo Expo existente permanece na raiz durante a migração. A versão web
 fica em `frontend` (Next.js) e usa Firebase Authentication + Cloud Firestore

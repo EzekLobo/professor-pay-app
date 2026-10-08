@@ -60,6 +60,7 @@ describe("DashboardContent", () => {
     expect(markup).toContain("Competências mensais");
     expect(markup).not.toContain("Competências em destaque");
     expect(markup).toContain("Carrossel de competências mensais");
+    expect(markup).toContain("Ocultar competências mensais");
     expect(markup).toContain("Out - 01/10/2026");
     expect(markup).toContain("R$ 250,00");
     expect(markup).toContain("Outubro de 2026");

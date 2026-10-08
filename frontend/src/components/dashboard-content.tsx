@@ -80,6 +80,7 @@ export type DashboardContentProps =
 
 export function DashboardContent(props: DashboardContentProps) {
   const [statementDate, setStatementDate] = useState<string | null>(null);
+  const [paymentsVisible, setPaymentsVisible] = useState(true);
   const [updatingLessonId, setUpdatingLessonId] = useState<string | null>(null);
   const [addingExtra, setAddingExtra] = useState(false);
   const [error, setError] = useState("");
@@ -180,12 +181,36 @@ export function DashboardContent(props: DashboardContentProps) {
           <div>
             <h2>Competências mensais</h2>
           </div>
+          <button
+            className="payment-visibility-toggle"
+            type="button"
+            aria-label={
+              paymentsVisible
+                ? "Ocultar competências mensais"
+                : "Mostrar competências mensais"
+            }
+            aria-pressed={paymentsVisible}
+            title={
+              paymentsVisible
+                ? "Ocultar competências mensais"
+                : "Mostrar competências mensais"
+            }
+            onClick={() => setPaymentsVisible((visible) => !visible)}
+          >
+            {paymentsVisible ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
         </div>
-        <DashboardPaymentCarousel
-          payments={dashboardPayments}
-          initialFocus={dashboard.next_payment?.payment_date ?? null}
-          onOpen={openStatement}
-        />
+        {paymentsVisible ? (
+          <DashboardPaymentCarousel
+            payments={dashboardPayments}
+            initialFocus={dashboard.next_payment?.payment_date ?? null}
+            onOpen={openStatement}
+          />
+        ) : (
+          <p className="muted payment-hidden-message">
+            Competências mensais ocultas.
+          </p>
+        )}
       </section>
       <Modal
         open={Boolean(selectedPayment)}
@@ -213,6 +238,25 @@ export function DashboardContent(props: DashboardContentProps) {
         )}
       </Modal>
     </div>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10.6 5.2A11 11 0 0 1 12 5c6.1 0 9.5 7 9.5 7a16.8 16.8 0 0 1-3.2 3.8M6.5 6.5C4 8.1 2.5 12 2.5 12s3.4 7 9.5 7c1.5 0 2.8-.4 4-1" />
+      <path d="m3.5 3.5 17 17" />
+      <path d="M9.7 9.7a3.2 3.2 0 0 0 4.6 4.6" />
+    </svg>
   );
 }
 

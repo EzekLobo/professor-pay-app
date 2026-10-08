@@ -2,6 +2,7 @@
 
 - O cabecalho nao exibe mais “Painel pessoal” nem saudacao duplicada: titulo da pagina fica centralizado e o perfil compacto permanece no canto direito.
 - A grade de horarios do resumo tem a acao “Atualizar grade”, que recarrega os dados locais sem desmontar a tela ou alterar a semana selecionada.
+- Os indicadores de Turmas, Alunos e Correcoes pendentes no resumo usam formato compacto em linha para priorizar a grade semanal.
 - Em `/classes`, o acordeao mostra somente o nome da turma; os alunos aparecem apenas pelo nome e seus dados de progresso, responsavel e atalhos de contato/perfil sao exibidos no modal individual acionado pelo aluno.
 - Em `/corrections`, as pendencias ficam agrupadas primeiro por turma; os filtros internos permitem listar todas, agrupar por aluno ou agrupar por aula dentro de cada turma.
 - O modal de materiais nao repete o identificador da aula no topo. Todos os modais usam icone de fechar acessivel; na aba Alunos, “Abrir na plataforma” fica centralizado ao final.
@@ -11,6 +12,7 @@
 - Em `/lessons`, as aulas sincronizadas e os cursos importados agora sao exibidos em secoes por modulo; a ordem do catalogo e preservada dentro de cada modulo e aulas sem identificacao de modulo ficam no final.
 - Em `/payments`, cada competencia mensal abre um modal de extrato com totais, separacao entre aulas normais e extras e todos os lancamentos que compoem o valor; confirmacao e estorno permanecem no mesmo modal.
 - No resumo, os destaques de pagamento anterior/proximo foram substituidos pelo carrossel de competencias mensais; ele centraliza a proxima competencia, permite navegar por setas, arraste e rolagem, e nao exibe a acao “Ver completo”.
+- O carrossel de competencias no resumo tem um icone de visibilidade no canto superior direito; ele oculta ou reexibe os dados financeiros durante a sessao.
 - Em `/payments`, as competencias mensais usam carrossel lateral: o proximo pagamento inicia centralizado, os vizinhos ficam nas laterais e as setas movem o foco. O cartao central abre o extrato; valor e status ficam na mesma linha.
 - Em `/payments`, o carrossel tambem aceita arraste horizontal. Cada cartao mostra mes/data de vencimento, status, valor, numero de aulas e atalho centralizado para o extrato; `Ver completo` alterna para a lista de todas as competencias.
 - O carrossel de pagamentos tambem responde ao scroll do mouse e anima o deslocamento dos cartoes; o titulo acima dele acompanha o mes da competencia central.

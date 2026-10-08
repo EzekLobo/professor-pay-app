@@ -71,10 +71,6 @@ function Content() {
     (item) => item.status !== "RECEIVED",
   ).length;
   const paidCount = items.filter((item) => item.status === "RECEIVED").length;
-  const today = new Date().toISOString().slice(0, 10);
-  const previousPayment =
-    items.filter((item) => item.payment_date <= today).at(-1) ?? null;
-  const nextPayment = items.find((item) => item.payment_date > today) ?? null;
   const focusedIndex = Math.max(
     0,
     items.findIndex((item) => item.payment_date === focusedPaymentDate),
@@ -263,20 +259,6 @@ function Content() {
       </section>
       {error && <p className="form-error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
-      <section className="payment-summary" aria-label="Pagamentos em destaque">
-        <PaymentHighlight
-          label="Anterior"
-          payment={previousPayment}
-          empty="Nenhum pagamento anterior"
-          onOpen={open}
-        />
-        <PaymentHighlight
-          label="Próximo"
-          payment={nextPayment}
-          empty="Nenhum pagamento previsto"
-          onOpen={open}
-        />
-      </section>
       <section className="metric-grid payment-metric-grid">
         <article className="metric-card">
           <span>Estimativa a receber</span>
@@ -459,46 +441,6 @@ function Content() {
         )}
       </Modal>
     </div>
-  );
-}
-
-function PaymentHighlight({
-  label,
-  payment,
-  empty,
-  onOpen,
-}: {
-  label: string;
-  payment: DashboardPayment | null;
-  empty: string;
-  onOpen: (date: string) => Promise<void>;
-}) {
-  return (
-    <button
-      className="payment-highlight payment-highlight-button"
-      type="button"
-      disabled={!payment}
-      onClick={() => payment && void onOpen(payment.payment_date)}
-    >
-      {payment ? (
-        <>
-          <span className="payment-highlight-label">{label}</span>
-          <StatusBadge tone={tone(payment.status)}>
-            {status(payment.status)}
-          </StatusBadge>
-          <span className="payment-highlight-date">
-            {paymentLabel(payment.payment_date)}
-          </span>
-          <span className="payment-highlight-details">
-            <strong>{formatMoney(payment.total_cents)}</strong>
-            <small>
-              {payment.lesson_count} aula{payment.lesson_count === 1 ? "" : "s"}
-            </small>
-          </span>
-          <em>Abrir extrato</em>
-        </>
-      ) : <strong>{empty}</strong>}
-    </button>
   );
 }
 

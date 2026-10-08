@@ -394,7 +394,6 @@ select:focus-visible {
 }
 .metric-card span,
 .metric-card small,
-.payment-highlight span,
 .payment-row span,
 .progress-item span {
   color: var(--muted);
@@ -671,6 +670,17 @@ select:focus-visible {
 .lesson-material-section { display: grid; gap: 10px; }
 .lesson-material-section h3 { margin: 0; font-size: .9rem; }
 .lesson-material-section .muted { margin: 0; }
+.lesson-overview-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lesson-note-toggle { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 1px solid #28517e; border-radius: 9px; color: var(--accent); background: #0c1d34; cursor: pointer; }
+.lesson-note-toggle:hover { background: #112944; }
+.lesson-note-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lesson-note-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.lesson-note-sheet { display: grid; gap: 14px; padding: 15px; border: 1px solid #28517e; border-radius: 11px; background: linear-gradient(145deg, #102641, #0d1d32); }
+.lesson-note-sheet-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.lesson-note-sheet h3, .lesson-note-sheet p { margin: 0; }
+.lesson-note-sheet p { color: var(--muted); font-size: .86rem; margin-top: 4px; }
+.lesson-note-input { width: 100%; min-height: 190px; resize: vertical; padding: 13px; border: 1px solid #315b88; border-radius: 8px; background: #f8f5e8; color: #172033; font: inherit; line-height: 1.5; }
+.lesson-note-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .class-modal-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -833,81 +843,6 @@ select:focus-visible {
 .week-empty {
   margin: 22px 0 0;
   text-align: center;
-}
-.payment-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 18px;
-}
-.payment-highlight {
-  display: grid;
-  position: relative;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto minmax(48px, 1fr) auto;
-  align-items: start;
-  gap: 5px 12px;
-  min-height: 156px;
-  padding: 17px;
-  border: 1px solid #203b60;
-  border-radius: 14px;
-  background: #0a1528;
-}
-.payment-highlight-button {
-  width: 100%;
-  color: var(--text);
-  text-align: left;
-}
-.payment-highlight-button:disabled {
-  cursor: default;
-  opacity: 0.72;
-}
-.payment-highlight-label {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-.payment-highlight > .status-badge {
-  grid-column: 2;
-  grid-row: 1;
-}
-.payment-highlight-date {
-  grid-column: 1;
-  color: var(--primary) !important;
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-.payment-highlight-details {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-row: 3;
-  align-self: center;
-  justify-items: center;
-  gap: 4px;
-}
-.payment-highlight-details strong {
-  font-size: 1.18rem;
-}
-.payment-highlight-details small {
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-.payment-highlight em {
-  grid-column: 1 / -1;
-  grid-row: 4;
-  color: var(--primary);
-  font-size: 0.78rem;
-  font-style: normal;
-  font-weight: 800;
-  text-align: center;
-}
-.payment-highlight-button small,
-.payment-highlight-button em {
-  color: var(--primary);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-.payment-highlight strong {
-  font-size: 1.08rem;
 }
 .payment-highlight-value,
 .payment-complete-value {
@@ -1310,8 +1245,7 @@ select:focus-visible {
 .management-grid > .page-heading,
 .management-grid > .form-error,
 .management-grid > .notice,
-.management-grid > .metric-grid,
-.management-grid > .payment-summary {
+.management-grid > .metric-grid {
   grid-column: 1/-1;
 }
 .payment-metric-grid {
@@ -1401,12 +1335,8 @@ select:focus-visible {
 .group-accordion-summary::-webkit-details-marker {
   display: none;
 }
-.student-list-heading {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+.group-accordion-summary > strong { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 9px; }
+.group-student-count { color: var(--muted); font-size: .78rem; font-weight: 700; }
 .group-accordion[open] .group-accordion-summary {
   border-bottom: 1px solid var(--border);
   background: #10213a;
@@ -1419,15 +1349,6 @@ select:focus-visible {
 .button-small {
   padding: 8px 10px;
   font-size: 0.75rem;
-}
-.student-list-heading {
-  justify-content: space-between;
-  border-top: 1px solid rgb(33 59 95 / 55%);
-  padding-top: 14px;
-}
-.student-list-heading h3 {
-  margin: 0;
-  font-size: 1rem;
 }
 .student-list {
   display: grid;
@@ -1442,6 +1363,9 @@ select:focus-visible {
   padding: 12px 0 0;
 }
 .student-row-button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
   width: 100%;
   border-right: 0;
   border-bottom: 0;
@@ -1451,6 +1375,8 @@ select:focus-visible {
   cursor: pointer;
   text-align: left;
 }
+.student-row-rank { color: var(--muted); font-weight: 900; }
+.student-row-points { color: #a9c5e8; font-size: .82rem; font-weight: 800; white-space: nowrap; }
 .student-row-button:hover,
 .student-row-button:focus-visible {
   color: var(--primary);
@@ -1665,7 +1591,6 @@ select:focus-visible {
     flex-direction: column;
   }
   .metric-grid,
-  .payment-summary,
   .management-form,
   .filters {
     grid-template-columns: 1fr;

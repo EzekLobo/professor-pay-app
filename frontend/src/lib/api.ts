@@ -1339,6 +1339,25 @@ export const kodlandApi = {
     });
   },
 };
+
+export const lessonNotesApi = {
+  get: async (lessonKey: string) => {
+    const snapshot = await getDoc(doc(ref("lesson_notes"), lessonKey));
+    const data = snapshot.data();
+    return snapshot.exists() && data ? String(data.content ?? "") : "";
+  },
+  save: async (lessonKey: string, content: string) => {
+    const timestamp = now();
+    await setDoc(
+      doc(ref("lesson_notes"), lessonKey),
+      {
+        content,
+        updated_at: timestamp,
+        created_at: timestamp,
+      },
+    );
+  },
+};
 export const courseImportApi = {
   catalog: async (): Promise<CourseImportOption[]> => {
     const user = authUser() as unknown as { getIdToken: () => Promise<string> };

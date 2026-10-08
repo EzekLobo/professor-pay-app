@@ -21,6 +21,10 @@ import {
   formatMoney,
 } from "@/lib/finance";
 import { whatsappUrl } from "@/lib/whatsapp";
+import {
+  activeStudentsRankedByPoints,
+  kodlandStudentPoints,
+} from "@/lib/student-ranking";
 
 const weekDays = [
   "Segunda-feira",
@@ -84,32 +88,38 @@ function GroupAccordion({
   const contactHref = selectedStudent
     ? whatsappUrl(contact ?? "", `Olá! Sou o professor de ${selectedStudent.name}.`)
     : "";
+  const activeStudents = activeStudentsRankedByPoints(students);
 
   return (
     <>
       <details className="group-accordion" open={openByDefault}>
         <summary className="group-accordion-summary">
-          <strong>{group.title}</strong>
+          <strong>
+            {group.title}
+            <span className="group-student-count">
+              {activeStudents.length} aluno{activeStudents.length === 1 ? "" : "s"}
+            </span>
+          </strong>
         </summary>
         <div className="group-accordion-body">
-          <div className="student-list-heading">
-            <h3>Alunos</h3>
-            <span className="muted">
-              {students.length} cadastrado{students.length === 1 ? "" : "s"}
-            </span>
-          </div>
-          {students.length === 0 ? (
-            <p className="muted">Nenhum aluno sincronizado nesta turma.</p>
+          {activeStudents.length === 0 ? (
+            <p className="muted">Nenhum aluno ativo sincronizado nesta turma.</p>
           ) : (
             <div className="student-list">
-              {students.map((student) => (
+              {activeStudents.map((student, index) => (
                 <button
                   className="student-row student-row-button"
                   type="button"
                   key={student.id}
                   onClick={() => setSelectedStudent(student)}
                 >
+                  <span className="student-row-rank">{index + 1}º</span>
                   <strong>{student.name}</strong>
+                  <span className="student-row-points">
+                    {new Intl.NumberFormat("pt-BR").format(
+                      kodlandStudentPoints(student.progress_summary),
+                    )} pts
+                  </span>
                 </button>
               ))}
             </div>

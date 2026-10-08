@@ -352,6 +352,7 @@ function WeekSchedule({
               classroom_tasks: selectedLesson.classroom_tasks ?? [],
               location: lessonLocation(selectedLesson),
               source: selectedEntry?.group?.title ?? selectedLesson.external_class_name,
+              note_key: `kodland:${selectedLesson.external_class_id}:${selectedLesson.id}`,
             }
           : null;
         const classStudents = selectedEntry?.group

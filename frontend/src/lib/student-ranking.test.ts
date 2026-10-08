@@ -55,6 +55,7 @@ describe("activeStudentsRankedByPoints", () => {
   it("reads earned points from the synchronized progress summary", () => {
     expect(kodlandStudentPoints("480/6031")).toBe(480);
     expect(kodlandStudentPoints("12.5/20")).toBe(12.5);
+    expect(kodlandStudentPoints("Progresso 1.763/6.031")).toBe(1763);
     expect(kodlandStudentPoints("")).toBe(0);
     expect(kodlandStudentPoints("sem progresso")).toBe(0);
   });

@@ -393,6 +393,7 @@ function LessonsContent() {
                               classroom_tasks: lesson.classroom_tasks ?? [],
                               location: kodlandLessonLocation(lesson),
                               source: course.name,
+                              note_key: `kodland:${lesson.external_class_id}:${lesson.id}`,
                             })}>
                               <div>
                                 <strong>Aula {(module.number ? lesson.lesson_number : lesson.course_index ?? lesson.lesson_number) || "—"}: {lesson.title || lesson.theme || "Aula"}</strong>
@@ -437,6 +438,7 @@ function LessonsContent() {
                           classroom_tasks: lesson.classroom_tasks ?? [],
                           location: kodlandLessonLocation(lesson),
                           source: course.name,
+                          note_key: `course:${course.id}:${lesson.source_lesson_id}`,
                         })}>
                           <div><strong>Aula {lesson.lesson_number || "—"}: {lesson.title}</strong></div>
                           <span className="course-lesson-hint">Ver materiais</span>

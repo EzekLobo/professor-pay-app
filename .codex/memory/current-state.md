@@ -4,9 +4,10 @@
 - A grade de horarios do resumo tem a acao “Atualizar grade”, que pede credenciais somente durante o envio, sincroniza os dados da Kodland e recarrega resumo, extras e disponibilidade sem desmontar a tela ou alterar a semana selecionada.
 - As aulas extras na grade distinguem conclusao, reagendamento, agendamento e pendencia; apenas conclusao confirmada por status ou gravacao compoe o extrato.
 - Os indicadores de Turmas, Alunos e Correcoes pendentes no resumo usam formato compacto em linha para priorizar a grade semanal.
-- Em `/classes`, o acordeao mostra somente o nome da turma; os alunos aparecem apenas pelo nome e seus dados de progresso, responsavel e atalhos de contato/perfil sao exibidos no modal individual acionado pelo aluno.
+- Em `/classes`, o acordeao mostra o nome da turma e a quantidade de alunos ativos; a lista exibe somente alunos ativos, ordenados pela pontuacao de atividades, com posicao e pontos. Os dados de progresso, responsavel e atalhos de contato/perfil ficam no modal individual acionado pelo aluno.
 - Em `/corrections`, as pendencias ficam agrupadas primeiro por turma; os filtros internos permitem listar todas, agrupar por aluno ou agrupar por aula dentro de cada turma.
 - O modal de materiais nao repete o identificador da aula no topo. Todos os modais usam icone de fechar acessivel; na aba Alunos, “Abrir na plataforma” fica centralizado ao final.
+- O modal de cada aula tem o icone de anotacao: ele abre uma folha privada por aula para salvar observacoes e resumos do roteiro no namespace Firebase do professor.
 - O modal de uma turma na grade alterna entre Aula e Alunos. A aba Alunos mostra apenas alunos ativos daquela turma, ordenados pelos pontos atuais do resumo de progresso sincronizado.
 - As duas opcoes desse modal usam a mesma altura e rolagem interna. Aula oferece “Abrir na plataforma”; Alunos oferece o atalho direto para a turma e seus alunos na plataforma.
 - R9 foi validada localmente com typecheck, 41 testes Vitest, lint, build e os dois smoke tests Chromium das rotas privadas. A verificacao visual com dados reais ainda exige uma sessao Firebase autenticada apos sincronizacao.
@@ -15,6 +16,7 @@
 - No resumo, os destaques de pagamento anterior/proximo foram substituidos pelo carrossel de competencias mensais; ele centraliza a proxima competencia, permite navegar por setas, arraste e rolagem, e nao exibe a acao “Ver completo”.
 - O carrossel de competencias no resumo tem um icone de visibilidade no canto superior direito; ele oculta ou reexibe os dados financeiros durante a sessao.
 - Em `/payments`, as competencias mensais usam carrossel lateral: o proximo pagamento inicia centralizado, os vizinhos ficam nas laterais e as setas movem o foco. O cartao central abre o extrato; valor e status ficam na mesma linha.
+- Em `/payments`, os cards separados de pagamento anterior/proximo foram removidos; o carrossel e a unica visao de navegacao por competencias.
 - Em `/payments`, o carrossel tambem aceita arraste horizontal. Cada cartao mostra mes/data de vencimento, status, valor, numero de aulas e atalho centralizado para o extrato; `Ver completo` alterna para a lista de todas as competencias.
 - O carrossel de pagamentos tambem responde ao scroll do mouse e anima o deslocamento dos cartoes; o titulo acima dele acompanha o mes da competencia central.
 - O extrato permite classificar aulas normais como contabilizaveis, substituicao, feriado ou cancelada. A classificacao e preservada por aula sincronizada ou por previsao recorrente e recalcula a competencia; pagamentos recebidos ficam protegidos contra essas alteracoes.

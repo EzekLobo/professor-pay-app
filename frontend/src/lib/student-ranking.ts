@@ -16,7 +16,14 @@ export function isActiveKodlandStudent(status: string | null | undefined) {
 }
 
 export function kodlandStudentPoints(progressSummary: string | null | undefined) {
-  const points = Number(String(progressSummary ?? "").trim().split("/")[0]);
+  const raw = String(progressSummary ?? "").match(
+    /(\d+(?:[.,]\d+)*)\s*(?:\/|$)/,
+  )?.[1] ?? "";
+  const points = Number(
+    /[.,]\d{3}(?:[.,]\d{3})*$/.test(raw)
+      ? raw.replace(/[.,]/g, "")
+      : raw.replace(",", "."),
+  );
   return Number.isFinite(points) && points > 0 ? points : 0;
 }
 

@@ -207,8 +207,10 @@ export type KodlandExtraLesson = {
   end_time: string;
   status: string;
   completed: boolean;
+  manual_status?: KodlandExtraManualStatus;
   created_at: string;
 };
+export type KodlandExtraManualStatus = "PENDING" | "ACCOUNTED" | "DONE";
 export type KodlandAvailability = {
   id: string;
   weekday: number;
@@ -502,7 +504,11 @@ const kodlandExtraFinancialLessons = (
   today: string,
 ): Lesson[] =>
   extraLessons
-    .filter((item) => item.completed === true)
+    .filter((item) =>
+      item.manual_status
+        ? item.manual_status === "ACCOUNTED"
+        : item.completed === true,
+    )
     .flatMap((item) => {
       const lessonDate = dateOnly(item.lesson_date);
       if (!lessonDate) return [];
@@ -1171,6 +1177,23 @@ export const kodlandApi = {
       updated_at: now(),
     });
   },
+  updateExtraStatus: async (
+    id: string,
+    manualStatus: KodlandExtraManualStatus,
+  ) => {
+    const current = (await rows("kodland_extra_lessons")).find(
+      (item) => String(item.id) === id,
+    );
+    if (!current) throw new Error("A aula extra não foi encontrada.");
+    const updated = {
+      ...current,
+      manual_status: manualStatus,
+      completed: manualStatus === "ACCOUNTED",
+      updated_at: now(),
+    };
+    await updateDoc(doc(ref("kodland_extra_lessons"), id), updated);
+    return updated as unknown as KodlandExtraLesson;
+  },
   sync: async (username: string, password: string) => {
     const token = await (
       authUser() as unknown as { getIdToken: () => Promise<string> }
@@ -1283,7 +1306,7 @@ export const kodlandApi = {
     });
     if (snapshot.extra_lessons_synced !== false) {
       oldExtraLessons
-        .filter((item) => item.completed !== true)
+        .filter((item) => item.completed !== true && !item.manual_status)
         .forEach((item) =>
           writes.push((batch) =>
             batch.delete(doc(ref("kodland_extra_lessons"), String(item.id))),
@@ -1293,8 +1316,18 @@ export const kodlandApi = {
         const previous = oldExtraLessons.find(
           (lesson) => String(lesson.id) === item.id,
         );
+        const manualStatus = previous?.manual_status as
+          | KodlandExtraManualStatus
+          | undefined;
         writes.push((batch) => batch.set(doc(ref("kodland_extra_lessons"), item.id), {
           ...item,
+          manual_status: manualStatus,
+          completed:
+            manualStatus === "ACCOUNTED"
+              ? true
+              : manualStatus === "PENDING" || manualStatus === "DONE"
+                ? false
+                : item.completed,
           created_at: String(previous?.created_at ?? createdAt),
           updated_at: createdAt,
         }));

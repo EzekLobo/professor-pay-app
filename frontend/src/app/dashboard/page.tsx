@@ -19,6 +19,7 @@ import {
   dashboardApi,
   kodlandApi,
   type KodlandExtraLesson,
+  type KodlandExtraManualStatus,
   type KodlandAvailability,
   type KodlandGroup,
   type KodlandLesson,
@@ -44,6 +45,7 @@ type ScheduleEntry = {
   detail?: string;
   extra: boolean;
   extraState?: KodlandExtraScheduleState;
+  extraLesson?: KodlandExtraLesson;
   availability?: boolean;
   lesson?: KodlandLesson;
   group?: KodlandGroup;
@@ -101,6 +103,7 @@ function WeekSchedule({
   onRefresh,
   refreshing,
   refreshNotice,
+  onUpdateExtraStatus,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -110,11 +113,18 @@ function WeekSchedule({
   onRefresh: () => void;
   refreshing: boolean;
   refreshNotice: string;
+  onUpdateExtraStatus: (
+    id: string,
+    status: KodlandExtraManualStatus,
+  ) => Promise<KodlandExtraLesson>;
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
   const [selectedCatalogLessonId, setSelectedCatalogLessonId] = useState("");
   const [modalTab, setModalTab] = useState<"lesson" | "students">("lesson");
+  const [selectedExtra, setSelectedExtra] = useState<KodlandExtraLesson | null>(null);
+  const [savingExtraStatus, setSavingExtraStatus] = useState(false);
+  const [extraStatusError, setExtraStatusError] = useState("");
   const days = currentWeek(weekOffset);
   const weekState =
     weekOffset === 0 ? "Atual" : weekOffset < 0 ? "Passada" : "Próxima";
@@ -224,6 +234,7 @@ function WeekSchedule({
         detail: "",
         extra: true,
         extraState: presentation.state,
+        extraLesson: lesson,
       });
     });
   freeAvailabilityWindows(availability, entries).forEach((slot) => {
@@ -273,6 +284,14 @@ function WeekSchedule({
           </div>
         </div>
       </div>
+      <div className="week-schedule-legend" aria-label="Legenda da grade">
+        <span className="week-legend-class">Turma</span>
+        <span className="week-legend-extra">Extra pendente</span>
+        <span className="week-legend-done">Extra realizada</span>
+        <span className="week-legend-accounted">Extra contabilizada</span>
+        <span className="week-legend-rescheduled">Extra reagendada</span>
+        <span className="week-legend-availability">Disponível</span>
+      </div>
       <div
         className="week-grid"
         role="grid"
@@ -295,18 +314,23 @@ function WeekSchedule({
               </header>
               {dayEntries.length ? (
                 dayEntries.map((entry) => {
-                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.availability ? " week-slot-availability" : ""}`;
+                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.extraState ? ` week-slot-extra-${entry.extraState}` : ""}${entry.availability ? " week-slot-availability" : ""}`;
                   const contents = <>
                     <time>{entry.start} – {entry.end}</time>
                     <strong>{entry.title}</strong>
                     {entry.detail && <span>{entry.detail}</span>}
                   </>;
-                  return entry.group || entry.availability ? (
+                  return entry.group || entry.availability || entry.extra ? (
                     <button
                       type="button"
                       className={`${className} week-slot-action`}
                       key={entry.id}
                       onClick={() => {
+                        if (entry.extraLesson) {
+                          setExtraStatusError("");
+                          setSelectedExtra(entry.extraLesson);
+                          return;
+                        }
                         setSelectedCatalogLessonId("");
                         setModalTab("lesson");
                         setSelectedEntry(entry);
@@ -331,6 +355,86 @@ function WeekSchedule({
           {refreshNotice}
         </p>
       )}
+      <Modal
+        open={Boolean(selectedExtra)}
+        title={selectedExtra ? `Aula extra · ${selectedExtra.student_name}` : "Aula extra"}
+        onClose={() => !savingExtraStatus && setSelectedExtra(null)}
+        className="extra-status-modal"
+      >
+        {selectedExtra && (
+          <div className="extra-status-content">
+            <p className="muted">
+              {new Date(`${selectedExtra.lesson_date}T00:00:00`).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              })} · {selectedExtra.start_time || "Horário não informado"}
+              {selectedExtra.end_time ? ` – ${selectedExtra.end_time}` : ""}
+            </p>
+            <section className="extra-status-options" aria-label="Status da aula extra">
+              <h3>Atualizar status</h3>
+              <button
+                type="button"
+                className={selectedExtra.manual_status === "PENDING" || (!selectedExtra.manual_status && !selectedExtra.completed) ? "extra-status-option active" : "extra-status-option"}
+                disabled={savingExtraStatus}
+                onClick={() => void (async () => {
+                  setSavingExtraStatus(true);
+                  setExtraStatusError("");
+                  try {
+                    setSelectedExtra(await onUpdateExtraStatus(selectedExtra.id, "PENDING"));
+                  } catch (error) {
+                    setExtraStatusError(error instanceof Error ? error.message : "Não foi possível atualizar o status.");
+                  } finally {
+                    setSavingExtraStatus(false);
+                  }
+                })()}
+              >
+                <strong>Pendente</strong>
+                <span>Aguarda definição; não entra no extrato.</span>
+              </button>
+              <button
+                type="button"
+                className={selectedExtra.manual_status === "ACCOUNTED" || (!selectedExtra.manual_status && selectedExtra.completed) ? "extra-status-option active" : "extra-status-option"}
+                disabled={savingExtraStatus}
+                onClick={() => void (async () => {
+                  setSavingExtraStatus(true);
+                  setExtraStatusError("");
+                  try {
+                    setSelectedExtra(await onUpdateExtraStatus(selectedExtra.id, "ACCOUNTED"));
+                  } catch (error) {
+                    setExtraStatusError(error instanceof Error ? error.message : "Não foi possível atualizar o status.");
+                  } finally {
+                    setSavingExtraStatus(false);
+                  }
+                })()}
+              >
+                <strong>Contabilizar</strong>
+                <span>Inclui a aula extra no próximo extrato.</span>
+              </button>
+              <button
+                type="button"
+                className={selectedExtra.manual_status === "DONE" ? "extra-status-option active" : "extra-status-option"}
+                disabled={savingExtraStatus}
+                onClick={() => void (async () => {
+                  setSavingExtraStatus(true);
+                  setExtraStatusError("");
+                  try {
+                    setSelectedExtra(await onUpdateExtraStatus(selectedExtra.id, "DONE"));
+                  } catch (error) {
+                    setExtraStatusError(error instanceof Error ? error.message : "Não foi possível atualizar o status.");
+                  } finally {
+                    setSavingExtraStatus(false);
+                  }
+                })()}
+              >
+                <strong>Feita</strong>
+                <span>Registra a realização sem incluir no extrato.</span>
+              </button>
+            </section>
+            {extraStatusError && <p className="form-error" role="alert">{extraStatusError}</p>}
+          </div>
+        )}
+      </Modal>
       {(() => {
         const groupLessons = selectedEntry?.group
           ? lessons
@@ -579,6 +683,7 @@ function KodlandSummary({
   onRefresh,
   refreshing,
   refreshNotice,
+  onUpdateExtraStatus,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -589,6 +694,10 @@ function KodlandSummary({
   onRefresh: () => void;
   refreshing: boolean;
   refreshNotice: string;
+  onUpdateExtraStatus: (
+    id: string,
+    status: KodlandExtraManualStatus,
+  ) => Promise<KodlandExtraLesson>;
 }) {
   const active = groups.filter((group) => !group.archived);
   return (
@@ -616,6 +725,7 @@ function KodlandSummary({
         onRefresh={onRefresh}
         refreshing={refreshing}
         refreshNotice={refreshNotice}
+        onUpdateExtraStatus={onUpdateExtraStatus}
       />
     </div>
   );
@@ -726,6 +836,16 @@ function DashboardPageContent() {
       setRefreshingSchedule(false);
     }
   }, [load, refreshingSchedule, syncPassword, syncUsername]);
+  const updateExtraStatus = useCallback(
+    async (id: string, status: KodlandExtraManualStatus) => {
+      const updated = await kodlandApi.updateExtraStatus(id, status);
+      if (!(await load(true))) {
+        throw new Error("O status foi salvo, mas não foi possível atualizar o extrato.");
+      }
+      return updated;
+    },
+    [load],
+  );
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
@@ -791,6 +911,7 @@ function DashboardPageContent() {
         onRefresh={openSync}
         refreshing={refreshingSchedule}
         refreshNotice={refreshNotice}
+        onUpdateExtraStatus={updateExtraStatus}
       />
       <DashboardContent
         state="ready"

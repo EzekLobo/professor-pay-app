@@ -80,10 +80,21 @@ export type DashboardContentProps =
 
 export function DashboardContent(props: DashboardContentProps) {
   const [statementDate, setStatementDate] = useState<string | null>(null);
-  const [paymentsVisible, setPaymentsVisible] = useState(true);
+  const [paymentsVisible, setPaymentsVisible] = useState(
+    () =>
+      typeof window === "undefined" ||
+      window.localStorage.getItem("aulapay.payments.visible") !== "false",
+  );
   const [updatingLessonId, setUpdatingLessonId] = useState<string | null>(null);
   const [addingExtra, setAddingExtra] = useState(false);
   const [error, setError] = useState("");
+  const togglePaymentsVisibility = () => {
+    setPaymentsVisible((visible) => {
+      const next = !visible;
+      window.localStorage.setItem("aulapay.payments.visible", String(next));
+      return next;
+    });
+  };
   if (props.state === "loading")
     return (
       <section className="dashboard-state" aria-busy="true">
@@ -195,7 +206,7 @@ export function DashboardContent(props: DashboardContentProps) {
                 ? "Ocultar competências mensais"
                 : "Mostrar competências mensais"
             }
-            onClick={() => setPaymentsVisible((visible) => !visible)}
+            onClick={togglePaymentsVisibility}
           >
             {paymentsVisible ? <EyeIcon /> : <EyeOffIcon />}
           </button>

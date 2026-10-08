@@ -1,6 +1,7 @@
 import type { KodlandStudent } from "@/lib/api";
 
-const admittedStatuses = new Set(["admitted", "admitido"]);
+// Kodland returns admitted students as `active` in this endpoint.
+const admittedStatuses = new Set(["admitted", "admitido", "active"]);
 
 export function isActiveKodlandStudent(status: string | null | undefined) {
   const normalized = String(status ?? "").trim().toLocaleLowerCase("pt-BR");

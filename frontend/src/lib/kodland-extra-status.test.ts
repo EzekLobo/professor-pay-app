@@ -26,4 +26,21 @@ describe("kodlandExtraSchedulePresentation", () => {
       kodlandExtraSchedulePresentation({ completed: false, status: "Approved" }),
     ).toEqual({ state: "scheduled", label: "Extra agendada" });
   });
+
+  it("prioriza o status manual definido pelo professor", () => {
+    expect(
+      kodlandExtraSchedulePresentation({
+        completed: false,
+        status: "Approved",
+        manual_status: "DONE",
+      }),
+    ).toEqual({ state: "done", label: "Extra feita" });
+    expect(
+      kodlandExtraSchedulePresentation({
+        completed: true,
+        status: "Completed",
+        manual_status: "ACCOUNTED",
+      }),
+    ).toEqual({ state: "accounted", label: "Extra contabilizada" });
+  });
 });

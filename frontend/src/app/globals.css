@@ -654,6 +654,14 @@ select:focus-visible {
   background: #2a2115;
 }
 .week-slot-extra-completed {
+  border-left-color: var(--primary);
+  background: #102442;
+}
+.week-slot-extra-done {
+  border-left-color: var(--primary);
+  background: #102442;
+}
+.week-slot-extra-accounted {
   border-left-color: var(--success);
   background: #102d2b;
 }
@@ -665,6 +673,51 @@ select:focus-visible {
   border-left-color: #8190a8;
   background: #172337;
 }
+.week-schedule-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: -3px 0 14px;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
+}
+.week-schedule-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.week-schedule-legend span::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--primary);
+  content: "";
+}
+.week-legend-extra::before { background: var(--warning) !important; }
+.week-legend-done::before, .week-legend-class::before { background: var(--primary) !important; }
+.week-legend-accounted::before, .week-legend-availability::before { background: var(--success) !important; }
+.week-legend-rescheduled::before { background: #aa72ff !important; }
+.extra-status-content { display: grid; gap: 16px; }
+.extra-status-content > .muted { margin: 0; }
+.extra-status-options { display: grid; gap: 9px; }
+.extra-status-options h3 { margin: 0 0 2px; font-size: .95rem; }
+.extra-status-option {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: #0b172a;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.extra-status-option span { color: var(--muted); font-size: .8rem; }
+.extra-status-option:hover:not(:disabled), .extra-status-option.active { border-color: var(--primary); background: #102442; }
+.extra-status-option:disabled { cursor: wait; opacity: .65; }
 .week-slot-availability {
   border-left-color: var(--success);
   background: #102d2b;

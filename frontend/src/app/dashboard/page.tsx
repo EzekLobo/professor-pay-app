@@ -24,6 +24,10 @@ import {
 } from "@/lib/api";
 import { kodlandLessonLocation } from "@/lib/kodland-lessons";
 import { freeAvailabilityWindows } from "@/lib/availability-windows";
+import {
+  kodlandExtraSchedulePresentation,
+  type KodlandExtraScheduleState,
+} from "@/lib/kodland-extra-status";
 import { activeStudentsRankedByPoints, kodlandStudentPoints } from "@/lib/student-ranking";
 
 const dayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -35,6 +39,7 @@ type ScheduleEntry = {
   title: string;
   detail: string;
   extra: boolean;
+  extraState?: KodlandExtraScheduleState;
   availability?: boolean;
   lesson?: KodlandLesson;
   group?: KodlandGroup;
@@ -204,7 +209,8 @@ function WeekSchedule({
   });
   extraLessons
     .filter((lesson) => range.has(dateOnly(lesson.lesson_date)))
-    .forEach((lesson) =>
+    .forEach((lesson) => {
+      const presentation = kodlandExtraSchedulePresentation(lesson);
       entries.push({
         id: `extra-${lesson.id}`,
         day: weekDay(lesson.lesson_date),
@@ -213,10 +219,11 @@ function WeekSchedule({
           timeOnly(lesson.end_time) ||
           addMinutes(timeOnly(lesson.start_time), 60),
         title: lesson.student_name || "Aula extra",
-        detail: lesson.completed ? "Extra concluída" : "Aula extra",
+        detail: presentation.label,
         extra: true,
-      }),
-    );
+        extraState: presentation.state,
+      });
+    });
   freeAvailabilityWindows(availability, entries).forEach((slot) => {
     entries.push({
       id: slot.id,
@@ -286,7 +293,7 @@ function WeekSchedule({
               </header>
               {dayEntries.length ? (
                 dayEntries.map((entry) => {
-                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.availability ? " week-slot-availability" : ""}`;
+                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.extraState ? ` week-slot-extra-${entry.extraState}` : ""}${entry.availability ? " week-slot-availability" : ""}`;
                   const contents = <>
                     <time>{entry.start} – {entry.end}</time>
                     <strong>{entry.title}</strong>

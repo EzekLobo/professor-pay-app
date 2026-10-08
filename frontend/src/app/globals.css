@@ -619,6 +619,18 @@ select:focus-visible {
   border-left-color: var(--warning);
   background: #2a2115;
 }
+.week-slot-extra-completed {
+  border-left-color: var(--success);
+  background: #102d2b;
+}
+.week-slot-extra-rescheduled {
+  border-left-color: #aa72ff;
+  background: #21183a;
+}
+.week-slot-extra-pending {
+  border-left-color: #8190a8;
+  background: #172337;
+}
 .week-slot-availability {
   border-left-color: var(--success);
   background: #102d2b;

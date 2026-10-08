@@ -537,7 +537,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     sincronização bem-sucedida reflete os dados locais atualizados sem perder a
     semana selecionada.
   - Depende de: R10.1.
-- [ ] R10.3 — Comunicar estados de extras e validar a entrega
+- [x] R10.3 — Comunicar estados de extras e validar a entrega
   - Escopo: exibir na grade o estado operacional da aula extra e cobrir a regra
     financeira e a ação de atualização com testes de interface/dados.
   - Aceitação: estados concluída, reagendada e pendente são distinguíveis; aulas
@@ -563,6 +563,15 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Verificado: typecheck, teste financeiro unitário e diff check passam.
 - Próximo: distinguir visualmente extras concluídas, reagendadas e pendentes e
   finalizar a validação de regras financeiras.
+
+#### Handoff R10.3
+
+- Mudou: a grade diferencia extras concluídas, reagendadas, agendadas e
+  pendentes. O status exibido é derivado de forma conservadora: conclusão
+  explícita tem precedência e aprovação não é tratada como aula dada.
+- Verificado: typecheck, Vitest (53 testes), lint, build e diff check passam.
+- Operação: a atualização da grade exige credenciais no modal a cada execução;
+  elas não são persistidas.
 
 #### Handoff R9
 

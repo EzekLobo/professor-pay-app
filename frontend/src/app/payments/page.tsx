@@ -20,7 +20,7 @@ import {
   type ExtraLessonPayload,
   type PaymentDetail,
 } from "@/lib/api";
-import { formatDate, formatMoney } from "@/lib/finance";
+import { formatMoney } from "@/lib/finance";
 const status = (s: string) =>
   s === "RECEIVED" ? "Recebido" : s === "OVERDUE" ? "Em atraso" : "Previsto";
 const tone = (s: string) =>
@@ -480,18 +480,22 @@ function PaymentHighlight({
       disabled={!payment}
       onClick={() => payment && void onOpen(payment.payment_date)}
     >
-      <span>{label}</span>
       {payment ? (
         <>
-          <span className="payment-highlight-value">
-            <strong>{formatMoney(payment.total_cents)}</strong>
-            <StatusBadge tone={tone(payment.status)}>
-              {status(payment.status)}
-            </StatusBadge>
+          <span className="payment-highlight-label">{label}</span>
+          <StatusBadge tone={tone(payment.status)}>
+            {status(payment.status)}
+          </StatusBadge>
+          <span className="payment-highlight-date">
+            {paymentLabel(payment.payment_date)}
           </span>
-          <small>
-            Vence {formatDate(payment.payment_date)}
-          </small>
+          <span className="payment-highlight-details">
+            <strong>{formatMoney(payment.total_cents)}</strong>
+            <small>
+              {payment.lesson_count} aula{payment.lesson_count === 1 ? "" : "s"}
+            </small>
+          </span>
+          <em>Abrir extrato</em>
         </>
       ) : <strong>{empty}</strong>}
     </button>

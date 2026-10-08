@@ -12,8 +12,6 @@ import {
   type ClassPayload,
   type ClassRecord,
   type KodlandGroup,
-  type KodlandLesson,
-  type KodlandReview,
   type KodlandStudent,
 } from "@/lib/api";
 import {
@@ -64,285 +62,128 @@ const toForm = (item: ClassRecord): FormState => ({
   hourly_rate: centsToBrlInput(item.hourly_rate_cents),
 });
 
-const classInfo = (group: KodlandGroup) => {
-  const parts =
-    group.course_name
-      .match(/\[([^\]]+)\]/g)
-      ?.map((value) => value.slice(1, -1)) ?? [];
-  const rawCourse = group.course_name.trim();
-  const courseName =
-    rawCourse &&
-    !["none", "null", "undefined"].includes(rawCourse.toLowerCase())
-      ? rawCourse
-      : "";
-  const parsedCourse = parts[1]?.trim();
-  const readableCourse = rawCourse.replace(/\[[^\]]+\]/g, "").trim();
-  return {
-    course:
-      readableCourse ||
-      (parsedCourse &&
-      !["none", "null", "undefined"].includes(parsedCourse.toLowerCase())
-        ? parsedCourse
-        : courseName) ||
-      "Curso não informado",
-    duration:
-      parts.find((value) => /min/i.test(value)) ?? "Duração não informada",
-    lessons:
-      parts.find((value) => /\bL\b/i.test(value)) ?? "Plano não informado",
-    region: parts.find((value) => /brazil|brasil/i.test(value)) ?? "",
-  };
-};
-
-const dateTime = (value: string) => {
-  if (!value) return "Agenda não informada";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat("pt-BR", {
-        dateStyle: "full",
-        timeStyle: "short",
-      }).format(date);
-};
-
-const dateValue = (value: string) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? Number.MAX_SAFE_INTEGER
-    : date.getTime();
-};
-
 const absoluteUrl = (value: string) =>
   value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
-
-const lessonLinks = (lesson: KodlandLesson | undefined) =>
-  lesson
-    ? [
-        ["Slides", lesson.slides_url],
-        ["Roteiro", lesson.guide_url],
-        ["Atividade", lesson.homework_url],
-      ].filter((item): item is [string, string] => Boolean(item[1]))
-    : [];
-
-function LessonMaterials({
-  lesson,
-  label,
-  onFinancialStatusChange,
-}: {
-  lesson: KodlandLesson;
-  label: string;
-  onFinancialStatusChange: (lesson: KodlandLesson, status: string) => void;
-}) {
-  const links = lessonLinks(lesson);
-  return (
-    <div className="lesson-material-card">
-      <div>
-        <strong>
-          {label}: {lesson.title || "Aula"}
-        </strong>
-        <span>
-          {lesson.lesson_date
-            ? dateTime(lesson.lesson_date)
-            : "Data não informada"}
-          {lesson.homework_title
-            ? ` · Atividade: ${lesson.homework_title}`
-            : ""}
-        </span>
-      </div>
-      <div className="card-actions">
-        {links.map(([linkLabel, href]) => (
-          <a
-            className="button button-ghost button-small"
-            href={absoluteUrl(href)}
-            target="_blank"
-            rel="noreferrer"
-            key={linkLabel}
-          >
-            {linkLabel}
-          </a>
-        ))}
-        {!links.length && lesson.external_url && (
-          <a
-            className="button button-ghost button-small"
-            href={absoluteUrl(lesson.external_url)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Abrir aula
-          </a>
-        )}
-        <select
-          className="input button-small"
-          aria-label={`Status financeiro de ${lesson.title || "aula"}`}
-          value={lesson.financial_status ?? ""}
-          onChange={(event) =>
-            onFinancialStatusChange(lesson, event.target.value)
-          }
-        >
-          <option value="">Contabilizar</option>
-          <option value="SUBSTITUTION">Substituição</option>
-          <option value="HOLIDAY">Feriado</option>
-          <option value="CANCELED">Cancelada</option>
-        </select>
-      </div>
-    </div>
-  );
-}
 
 function GroupAccordion({
   group,
   students,
-  lessons,
-  reviews,
   openByDefault,
-  onFinancialStatusChange,
 }: {
   group: KodlandGroup;
   students: KodlandStudent[];
-  lessons: KodlandLesson[];
-  reviews: KodlandReview[];
   openByDefault: boolean;
-  onFinancialStatusChange: (lesson: KodlandLesson, status: string) => void;
 }) {
-  const info = classInfo(group);
-  const orderedLessons = [...lessons].sort(
-    (a, b) => dateValue(a.lesson_date) - dateValue(b.lesson_date),
+  const [selectedStudent, setSelectedStudent] = useState<KodlandStudent | null>(
+    null,
   );
-  const nextLesson =
-    orderedLessons.find((lesson) => !lesson.lesson_passed) ??
-    orderedLessons[orderedLessons.length - 1];
-  const previousLesson = [...orderedLessons]
-    .reverse()
-    .find((lesson) => lesson.lesson_passed);
-  const pendingReviews = reviews.filter(
-    (review) => review.external_class_id === group.external_id,
-  ).length;
+  const contact = selectedStudent?.guardian_phone || selectedStudent?.phone;
+  const contactLabel = selectedStudent?.guardian_phone
+    ? "WhatsApp responsável"
+    : "WhatsApp aluno";
+  const contactHref = selectedStudent
+    ? whatsappUrl(contact ?? "", `Olá! Sou o professor de ${selectedStudent.name}.`)
+    : "";
 
   return (
-    <details className="group-accordion" open={openByDefault}>
-      <summary className="group-accordion-summary">
-        <span>
+    <>
+      <details className="group-accordion" open={openByDefault}>
+        <summary className="group-accordion-summary">
           <strong>{group.title}</strong>
-          <small>{info.course}</small>
-        </span>
-        <span className="group-summary-meta">
-          <StatusBadge tone={group.archived ? "neutral" : "success"}>
-            {group.archived ? "Arquivada" : "Ativa"}
-          </StatusBadge>
-          <span>
-            {students.length || group.student_count} aluno
-            {(students.length || group.student_count) === 1 ? "" : "s"}
-          </span>
-        </span>
-      </summary>
-      <div className="group-accordion-body">
-        <div className="group-facts">
-          <StatusBadge>{info.duration}</StatusBadge>
-          <StatusBadge>{info.lessons}</StatusBadge>
-          {info.region && <StatusBadge>{info.region}</StatusBadge>}
-          <span>
-            Próxima aula: <strong>{dateTime(group.next_lesson_date)}</strong>
-          </span>
-          {pendingReviews > 0 && (
-            <span>
-              {pendingReviews} correção{pendingReviews === 1 ? "" : "ões"}{" "}
-              pendente{pendingReviews === 1 ? "" : "s"}
+        </summary>
+        <div className="group-accordion-body">
+          <div className="student-list-heading">
+            <h3>Alunos</h3>
+            <span className="muted">
+              {students.length} cadastrado{students.length === 1 ? "" : "s"}
             </span>
+          </div>
+          {students.length === 0 ? (
+            <p className="muted">Nenhum aluno sincronizado nesta turma.</p>
+          ) : (
+            <div className="student-list">
+              {students.map((student) => (
+                <button
+                  className="student-row student-row-button"
+                  type="button"
+                  key={student.id}
+                  onClick={() => setSelectedStudent(student)}
+                >
+                  <strong>{student.name}</strong>
+                </button>
+              ))}
+            </div>
           )}
         </div>
-
-        {(nextLesson || previousLesson) && (
-          <div className="lesson-materials">
-            {nextLesson && (
-              <LessonMaterials
-                lesson={nextLesson}
-                label="Próxima aula"
-                onFinancialStatusChange={onFinancialStatusChange}
-              />
-            )}
-            {previousLesson &&
-              (!nextLesson || previousLesson.id !== nextLesson.id) && (
-                <LessonMaterials
-                  lesson={previousLesson}
-                  label="Aula anterior"
-                  onFinancialStatusChange={onFinancialStatusChange}
-                />
+      </details>
+      <Modal
+        open={Boolean(selectedStudent)}
+        title={selectedStudent?.name ?? "Aluno"}
+        onClose={() => setSelectedStudent(null)}
+      >
+        {selectedStudent && (
+          <div className="student-profile">
+            <dl>
+              <div>
+                <dt>Status</dt>
+                <dd>{selectedStudent.status || "Não informado"}</dd>
+              </div>
+              {selectedStudent.progress_summary && (
+                <div>
+                  <dt>Progresso</dt>
+                  <dd>{selectedStudent.progress_summary}</dd>
+                </div>
               )}
+              {selectedStudent.guardian_name && (
+                <div>
+                  <dt>Responsável</dt>
+                  <dd>
+                    {selectedStudent.guardian_name}
+                    {selectedStudent.guardian_relationship
+                      ? ` (${selectedStudent.guardian_relationship})`
+                      : ""}
+                  </dd>
+                </div>
+              )}
+              {selectedStudent.guardian_phone && (
+                <div>
+                  <dt>Telefone do responsável</dt>
+                  <dd>{selectedStudent.guardian_phone}</dd>
+                </div>
+              )}
+              {selectedStudent.guardian_email && (
+                <div>
+                  <dt>E-mail do responsável</dt>
+                  <dd>{selectedStudent.guardian_email}</dd>
+                </div>
+              )}
+            </dl>
+            <div className="card-actions">
+              {contactHref && (
+                <a
+                  className="button button-ghost button-small"
+                  href={contactHref}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {contactLabel}
+                </a>
+              )}
+              {selectedStudent.profile_url && (
+                <a
+                  className="button button-ghost button-small"
+                  href={absoluteUrl(selectedStudent.profile_url)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Perfil
+                </a>
+              )}
+            </div>
           </div>
         )}
-
-        <div className="student-list-heading">
-          <h3>Alunos</h3>
-          <span className="muted">
-            {students.length} cadastrado{students.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        {students.length === 0 ? (
-          <p className="muted">Nenhum aluno sincronizado nesta turma.</p>
-        ) : (
-          <div className="student-list">
-            {students.map((student) => {
-              const contact = student.guardian_phone || student.phone;
-              const contactLabel = student.guardian_phone
-                ? "WhatsApp responsável"
-                : "WhatsApp aluno";
-              const contactHref = whatsappUrl(
-                contact,
-                `Olá! Sou o professor de ${student.name}.`,
-              );
-              return (
-                <article className="student-row" key={student.id}>
-                  <div>
-                    <strong>{student.name}</strong>
-                    <span>
-                      {student.status || "Status não informado"}
-                      {student.progress_summary
-                        ? ` · Progresso ${student.progress_summary}`
-                        : ""}
-                    </span>
-                    {student.guardian_name && (
-                      <span>
-                        Responsável: {student.guardian_name}
-                        {student.guardian_relationship
-                          ? ` (${student.guardian_relationship})`
-                          : ""}
-                        {student.guardian_phone
-                          ? ` · ${student.guardian_phone}`
-                          : ""}
-                      </span>
-                    )}
-                    {student.guardian_email && (
-                      <span>{student.guardian_email}</span>
-                    )}
-                  </div>
-                  <div className="card-actions">
-                    {contactHref && (
-                      <a
-                        className="button button-ghost button-small"
-                        href={contactHref}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {contactLabel}
-                      </a>
-                    )}
-                    {student.profile_url && (
-                      <a
-                        className="button button-ghost button-small"
-                        href={absoluteUrl(student.profile_url)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Perfil
-                      </a>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </details>
+      </Modal>
+    </>
   );
 }
 
@@ -350,8 +191,6 @@ function ClassesContent() {
   const [items, setItems] = useState<ClassRecord[]>([]);
   const [groups, setGroups] = useState<KodlandGroup[]>([]);
   const [students, setStudents] = useState<KodlandStudent[]>([]);
-  const [lessons, setLessons] = useState<KodlandLesson[]>([]);
-  const [reviews, setReviews] = useState<KodlandReview[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<ClassRecord | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -368,24 +207,14 @@ function ClassesContent() {
     setLoading(true);
     setError("");
     try {
-      const [
-        financial,
-        groupResult,
-        studentResult,
-        lessonResult,
-        reviewResult,
-      ] = await Promise.all([
+      const [financial, groupResult, studentResult] = await Promise.all([
         classesApi.list(),
         kodlandApi.groups(),
         kodlandApi.students(),
-        kodlandApi.lessons(),
-        kodlandApi.reviews(),
       ]);
       setItems(financial.items);
       setGroups(groupResult.items);
       setStudents(studentResult.items);
-      setLessons(lessonResult.items);
-      setReviews(reviewResult.items);
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -424,23 +253,6 @@ function ClassesContent() {
       );
     } finally {
       setSyncing(false);
-    }
-  }
-
-  async function updateLessonFinancialStatus(
-    lesson: KodlandLesson,
-    status: string,
-  ) {
-    try {
-      setError("");
-      await kodlandApi.updateLessonFinancialStatus(lesson.id, status);
-      await load();
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Não foi possível atualizar o status da aula.",
-      );
     }
   }
 
@@ -728,14 +540,7 @@ function ClassesContent() {
                 students={students.filter(
                   (student) => student.external_class_id === group.external_id,
                 )}
-                lessons={lessons.filter(
-                  (lesson) => lesson.external_class_id === group.external_id,
-                )}
-                reviews={reviews}
                 openByDefault={false}
-                onFinancialStatusChange={(lesson, status) =>
-                  void updateLessonFinancialStatus(lesson, status)
-                }
               />
             ))}
           </div>

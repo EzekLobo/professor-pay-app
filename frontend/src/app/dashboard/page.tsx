@@ -86,12 +86,16 @@ function WeekSchedule({
   lessons,
   extraLessons,
   availability,
+  onRefresh,
+  refreshing,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
   lessons: KodlandLesson[];
   extraLessons: KodlandExtraLesson[];
   availability: KodlandAvailability[];
+  onRefresh: () => void;
+  refreshing: boolean;
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
@@ -225,24 +229,34 @@ function WeekSchedule({
     <section className="panel weekly-schedule">
       <div className="section-heading">
         <h2>Grade de horários</h2>
-        <div className="week-navigation" aria-label="Navegação semanal">
+        <div className="week-actions">
           <button
-            className="button secondary compact"
+            className="button button-ghost button-small"
             type="button"
-            onClick={() => setWeekOffset((value) => value - 1)}
-            aria-label="Semana anterior"
+            onClick={onRefresh}
+            disabled={refreshing}
           >
-            ←
+            {refreshing ? "Atualizando…" : "Atualizar grade"}
           </button>
-          <span className="week-state">{weekState}</span>
-          <button
-            className="button secondary compact"
-            type="button"
-            onClick={() => setWeekOffset((value) => value + 1)}
-            aria-label="Próxima semana"
-          >
-            →
-          </button>
+          <div className="week-navigation" aria-label="Navegação semanal">
+            <button
+              className="button secondary compact"
+              type="button"
+              onClick={() => setWeekOffset((value) => value - 1)}
+              aria-label="Semana anterior"
+            >
+              ←
+            </button>
+            <span className="week-state">{weekState}</span>
+            <button
+              className="button secondary compact"
+              type="button"
+              onClick={() => setWeekOffset((value) => value + 1)}
+              aria-label="Próxima semana"
+            >
+              →
+            </button>
+          </div>
         </div>
       </div>
       <div
@@ -473,6 +487,8 @@ function KodlandSummary({
   lessons,
   extraLessons,
   availability,
+  onRefresh,
+  refreshing,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -480,6 +496,8 @@ function KodlandSummary({
   lessons: KodlandLesson[];
   extraLessons: KodlandExtraLesson[];
   availability: KodlandAvailability[];
+  onRefresh: () => void;
+  refreshing: boolean;
 }) {
   const active = groups.filter((group) => !group.archived);
   return (
@@ -504,6 +522,8 @@ function KodlandSummary({
         lessons={lessons}
         extraLessons={extraLessons}
         availability={availability}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
       />
     </div>
   );
@@ -518,9 +538,10 @@ function DashboardPageContent() {
   const [extraLessons, setExtraLessons] = useState<KodlandExtraLesson[]>([]);
   const [availability, setAvailability] = useState<KodlandAvailability[]>([]);
   const [failed, setFailed] = useState(false);
-  const load = useCallback(async () => {
+  const [refreshingSchedule, setRefreshingSchedule] = useState(false);
+  const load = useCallback(async (keepContent = false) => {
     setFailed(false);
-    setDashboard(null);
+    if (!keepContent) setDashboard(null);
     try {
       const [
         financial,
@@ -550,6 +571,11 @@ function DashboardPageContent() {
       setFailed(true);
     }
   }, []);
+  const refreshSchedule = useCallback(async () => {
+    setRefreshingSchedule(true);
+    await load(true);
+    setRefreshingSchedule(false);
+  }, [load]);
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
@@ -565,6 +591,8 @@ function DashboardPageContent() {
         lessons={lessons}
         extraLessons={extraLessons}
         availability={availability}
+        onRefresh={() => void refreshSchedule()}
+        refreshing={refreshingSchedule}
       />
       <DashboardContent state="ready" dashboard={dashboard} onRefresh={load} />
     </>

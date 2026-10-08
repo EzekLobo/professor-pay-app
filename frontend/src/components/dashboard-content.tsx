@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import {
+  useRef,
+  useState,
+  type FormEvent,
+  type PointerEvent,
+  type WheelEvent,
+} from "react";
 import { Modal } from "./modal";
 import { StatusBadge } from "./ui";
 import { lessonsApi, paymentsApi } from "@/lib/api";
@@ -32,8 +38,36 @@ const paymentStatus = (status: string) =>
     : status === "OVERDUE"
       ? "Em atraso"
       : status === "DUE_TODAY"
-        ? "Vence hoje"
-        : "Previsto";
+      ? "Vence hoje"
+      : "Previsto";
+const paymentLabel = (value: string) => {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  const month = new Intl.DateTimeFormat("pt-BR", { month: "short" })
+    .format(date)
+    .replace(".", "");
+  const formattedDate = new Intl.DateTimeFormat("pt-BR").format(date);
+  return `${month.slice(0, 1).toUpperCase()}${month.slice(1)} - ${formattedDate}`;
+};
+const paymentMonthTitle = (value: string) => {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  const label = new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+  return `${label.slice(0, 1).toUpperCase()}${label.slice(1)}`;
+};
+const uniquePayments = (payments: Array<DashboardPayment | null>) =>
+  payments
+    .filter((payment): payment is DashboardPayment => payment !== null)
+    .filter(
+      (payment, index, all) =>
+        all.findIndex(
+          (candidate) => candidate.payment_date === payment.payment_date,
+        ) === index,
+    )
+    .sort((a, b) => a.payment_date.localeCompare(b.payment_date));
 
 export type DashboardContentProps =
   | { state: "loading" }
@@ -78,17 +112,22 @@ export function DashboardContent(props: DashboardContentProps) {
       </section>
     );
 
+  const dashboardPayments = uniquePayments([
+    ...dashboard.payments,
+    dashboard.last_payment,
+    dashboard.next_payment,
+  ]);
   const selectedIndex = statementDate
-    ? dashboard.payments.findIndex(
+    ? dashboardPayments.findIndex(
         (payment) => payment.payment_date === statementDate,
       )
     : -1;
   const selectedPayment =
-    selectedIndex >= 0 ? dashboard.payments[selectedIndex] : null;
+    selectedIndex >= 0 ? dashboardPayments[selectedIndex] : null;
   const openStatement = (payment: DashboardPayment | null) =>
     setStatementDate(payment?.payment_date ?? null);
   const moveStatement = (step: number) => {
-    const next = dashboard.payments[selectedIndex + step];
+    const next = dashboardPayments[selectedIndex + step];
     if (next) setStatementDate(next.payment_date);
   };
   async function updateLessonStatus(
@@ -139,23 +178,14 @@ export function DashboardContent(props: DashboardContentProps) {
       <section className="panel payment-panel">
         <div className="section-heading">
           <div>
-            <h2>Resumo financeiro</h2>
+            <h2>Competências mensais</h2>
           </div>
         </div>
-        <div className="payment-summary">
-          <PaymentHighlight
-            label="Anterior"
-            payment={dashboard.last_payment}
-            empty="Nenhum pagamento anterior"
-            onOpen={openStatement}
-          />
-          <PaymentHighlight
-            label="Próximo"
-            payment={dashboard.next_payment}
-            empty="Nenhum pagamento previsto"
-            onOpen={openStatement}
-          />
-        </div>
+        <DashboardPaymentCarousel
+          payments={dashboardPayments}
+          initialFocus={dashboard.next_payment?.payment_date ?? null}
+          onOpen={openStatement}
+        />
       </section>
       <Modal
         open={Boolean(selectedPayment)}
@@ -170,7 +200,7 @@ export function DashboardContent(props: DashboardContentProps) {
             <PaymentStatement
               payment={selectedPayment}
               index={selectedIndex}
-              total={dashboard.payments.length}
+              total={dashboardPayments.length}
               onMove={moveStatement}
               updatingLessonId={updatingLessonId}
               addingExtra={addingExtra}
@@ -186,37 +216,169 @@ export function DashboardContent(props: DashboardContentProps) {
   );
 }
 
-function PaymentHighlight({
-  label,
-  payment,
-  empty,
+function DashboardPaymentCarousel({
+  payments,
+  initialFocus,
   onOpen,
 }: {
-  label: string;
-  payment: DashboardPayment | null;
-  empty: string;
+  payments: DashboardPayment[];
+  initialFocus: string | null;
   onOpen: (payment: DashboardPayment | null) => void;
 }) {
+  const defaultFocus = initialFocus ?? payments.at(-1)?.payment_date ?? null;
+  const [focusedPaymentDate, setFocusedPaymentDate] = useState(defaultFocus);
+  const [carouselMotion, setCarouselMotion] = useState<
+    "previous" | "next" | null
+  >(null);
+  const carouselDragStart = useRef<number | null>(null);
+  const carouselDragDistance = useRef(0);
+  const carouselWheelLocked = useRef(false);
+  const focusedIndex = Math.max(
+    0,
+    payments.findIndex((payment) => payment.payment_date === focusedPaymentDate),
+  );
+  const carouselOffsets =
+    carouselMotion === "next"
+      ? [-1, 0, 1, 2]
+      : carouselMotion === "previous"
+        ? [-2, -1, 0, 1]
+        : [-1, 0, 1];
+
+  function moveCarousel(step: -1 | 1) {
+    if (carouselMotion) return;
+    if (payments[focusedIndex + step]) {
+      setCarouselMotion(step === 1 ? "next" : "previous");
+    }
+  }
+  function finishCarouselMotion() {
+    if (!carouselMotion) return;
+    const step = carouselMotion === "next" ? 1 : -1;
+    const payment = payments[focusedIndex + step];
+    if (payment) setFocusedPaymentDate(payment.payment_date);
+    setCarouselMotion(null);
+  }
+  function beginCarouselDrag(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    carouselDragStart.current = event.clientX;
+    carouselDragDistance.current = 0;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  function trackCarouselDrag(event: PointerEvent<HTMLDivElement>) {
+    if (carouselDragStart.current === null) return;
+    carouselDragDistance.current = event.clientX - carouselDragStart.current;
+  }
+  function finishCarouselDrag() {
+    const distance = carouselDragDistance.current;
+    carouselDragStart.current = null;
+    carouselDragDistance.current = 0;
+    if (Math.abs(distance) >= 36) moveCarousel(distance < 0 ? 1 : -1);
+  }
+  function moveCarouselWithWheel(event: WheelEvent<HTMLDivElement>) {
+    const delta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY;
+    if (!delta) return;
+    const step = delta > 0 ? 1 : -1;
+    if (!payments[focusedIndex + step]) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (carouselWheelLocked.current) return;
+    carouselWheelLocked.current = true;
+    moveCarousel(step);
+    window.setTimeout(() => {
+      carouselWheelLocked.current = false;
+    }, 260);
+  }
+
+  if (!payments.length) {
+    return <p className="muted">Nenhuma competência disponível.</p>;
+  }
+
   return (
-    <button
-      className="payment-highlight payment-highlight-button"
-      type="button"
-      onClick={() => onOpen(payment)}
-      disabled={!payment}
+    <div
+      className="payment-carousel"
+      aria-label="Carrossel de competências mensais"
+      onWheelCapture={moveCarouselWithWheel}
     >
-      <span>{label}</span>
-      <strong>
-        {payment
-          ? `${formatDate(payment.payment_date)} · ${money(payment.total_cents)}`
-          : empty}
-      </strong>
-      {payment && (
-        <StatusBadge tone={paymentTone(payment.status)}>
-          {paymentStatus(payment.status)}
-        </StatusBadge>
-      )}
-      {payment && <small>Abrir extrato</small>}
-    </button>
+      <p className="payment-carousel-month">
+        {paymentMonthTitle(payments[focusedIndex].payment_date)}
+      </p>
+      <button
+        className="button button-ghost payment-carousel-nav"
+        type="button"
+        aria-label="Competência anterior"
+        disabled={focusedIndex <= 0 || carouselMotion !== null}
+        onClick={() => moveCarousel(-1)}
+      >
+        ←
+      </button>
+      <div
+        className="payment-carousel-track"
+        onPointerDown={beginCarouselDrag}
+        onPointerMove={trackCarouselDrag}
+        onPointerUp={finishCarouselDrag}
+        onPointerCancel={finishCarouselDrag}
+      >
+        <div
+          className={`payment-carousel-rail${
+            carouselMotion ? ` is-sliding-${carouselMotion}` : ""
+          }`}
+          onAnimationEnd={(event) => {
+            if (event.currentTarget === event.target) finishCarouselMotion();
+          }}
+        >
+          {carouselOffsets.map((offset) => {
+            const payment = payments[focusedIndex + offset];
+            if (!payment) {
+              return (
+                <div
+                  className="payment-carousel-placeholder"
+                  key={offset}
+                  aria-hidden="true"
+                />
+              );
+            }
+            const isFocus = carouselMotion
+              ? offset === (carouselMotion === "next" ? 1 : -1)
+              : offset === 0;
+            return (
+              <button
+                className={`payment-carousel-card${isFocus ? " is-focus" : ""}`}
+                type="button"
+                key={payment.payment_date}
+                aria-current={isFocus ? "true" : undefined}
+                aria-label={`Abrir extrato de ${paymentLabel(payment.payment_date)}`}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => onOpen(payment)}
+              >
+                <span>{paymentLabel(payment.payment_date)}</span>
+                <div className="payment-carousel-details">
+                  <b>{money(payment.total_cents)}</b>
+                  <small>
+                    {payment.lesson_count} aula
+                    {payment.lesson_count === 1 ? "" : "s"}
+                  </small>
+                </div>
+                <StatusBadge tone={paymentTone(payment.status)}>
+                  {paymentStatus(payment.status)}
+                </StatusBadge>
+                <em>Abrir extrato</em>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <button
+        className="button button-ghost payment-carousel-nav"
+        type="button"
+        aria-label="Próxima competência"
+        disabled={focusedIndex >= payments.length - 1 || carouselMotion !== null}
+        onClick={() => moveCarousel(1)}
+      >
+        →
+      </button>
+    </div>
   );
 }
 

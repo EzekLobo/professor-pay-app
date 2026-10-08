@@ -342,9 +342,25 @@ function WeekSchedule({
                   a.lesson_date.localeCompare(b.lesson_date),
               )
           : [];
+        const scheduledLesson = selectedEntry?.lesson;
+        const activeLessonId = selectedCatalogLessonId || scheduledLesson?.id || "";
         const selectedLesson =
-          selectedEntry?.lesson ??
-          groupLessons.find((lesson) => lesson.id === selectedCatalogLessonId);
+          groupLessons.find((lesson) => lesson.id === activeLessonId) ??
+          scheduledLesson;
+        const selectedLessonIndex = selectedLesson
+          ? groupLessons.findIndex((lesson) => lesson.id === selectedLesson.id)
+          : -1;
+        const previousLesson =
+          selectedLessonIndex > 0 ? groupLessons[selectedLessonIndex - 1] : null;
+        const nextLesson =
+          selectedLessonIndex >= 0 && selectedLessonIndex < groupLessons.length - 1
+            ? groupLessons[selectedLessonIndex + 1]
+            : null;
+        const viewingDifferentLesson = Boolean(
+          scheduledLesson &&
+            selectedLesson &&
+            scheduledLesson.id !== selectedLesson.id,
+        );
         const materialDetails: LessonMaterialDetails | null = selectedLesson
           ? {
               ...selectedLesson,
@@ -376,10 +392,18 @@ function WeekSchedule({
           : "";
         return (
           <LessonMaterialModal
+            key={selectedLesson?.id ?? selectedEntry?.id ?? "schedule"}
             open={Boolean(selectedEntry)}
             title={modalTitle}
             lesson={modalTab === "lesson" ? materialDetails : null}
             className="class-schedule-modal"
+            titleNotice={
+              modalTab === "lesson" && viewingDifferentLesson ? (
+                <p role="status">
+                  Você está vendo o conteúdo de uma aula diferente da programada para esta semana.
+                </p>
+              ) : undefined
+            }
             onClose={() => {
               setSelectedEntry(null);
               setSelectedCatalogLessonId("");
@@ -389,14 +413,32 @@ function WeekSchedule({
             {selectedEntry?.group && (
               <>
                 <div className="class-modal-tabs" aria-label="Informações da turma">
-                  <button
-                    type="button"
-                    aria-pressed={modalTab === "lesson"}
-                    className={modalTab === "lesson" ? "class-modal-tab active" : "class-modal-tab"}
-                    onClick={() => setModalTab("lesson")}
-                  >
-                    Aula
-                  </button>
+                  <div className="class-lesson-navigation" aria-label="Navegar entre aulas">
+                    <button
+                      type="button"
+                      className="class-lesson-navigation-button"
+                      disabled={!previousLesson}
+                      onClick={() => {
+                        if (!previousLesson) return;
+                        setSelectedCatalogLessonId(previousLesson.id);
+                        setModalTab("lesson");
+                      }}
+                    >
+                      <span aria-hidden="true">←</span> Anterior
+                    </button>
+                    <button
+                      type="button"
+                      className="class-lesson-navigation-button"
+                      disabled={!nextLesson}
+                      onClick={() => {
+                        if (!nextLesson) return;
+                        setSelectedCatalogLessonId(nextLesson.id);
+                        setModalTab("lesson");
+                      }}
+                    >
+                      Próxima <span aria-hidden="true">→</span>
+                    </button>
+                  </div>
                   <button
                     type="button"
                     aria-pressed={modalTab === "students"}

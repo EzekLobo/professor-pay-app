@@ -455,6 +455,19 @@ select:focus-visible {
   color: var(--text);
   box-shadow: var(--shadow);
 }
+.modal-title-notice {
+  margin: -7px 46px 16px 0;
+  border: 1px solid rgb(255 191 95 / 34%);
+  border-left: 3px solid var(--warning);
+  border-radius: 8px;
+  padding: 9px 11px;
+  background: rgb(255 191 95 / 9%);
+  color: #ffd496;
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.modal-title-notice p { margin: 0; }
 .class-schedule-modal {
   height: min(680px, calc(100vh - 32px));
 }
@@ -692,6 +705,40 @@ select:focus-visible {
   border: 1px solid #1d3556;
   border-radius: 12px;
   background: rgb(8 18 34 / 72%);
+}
+.class-lesson-navigation {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+.class-lesson-navigation-button {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 1px solid rgb(255 191 95 / 48%);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgb(255 191 95 / 10%);
+  color: var(--warning);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+.class-lesson-navigation-button:hover:not(:disabled) {
+  border-color: var(--warning);
+  background: rgb(255 191 95 / 18%);
+}
+.class-lesson-navigation-button:focus-visible {
+  outline: 2px solid var(--warning);
+  outline-offset: 2px;
+}
+.class-lesson-navigation-button:disabled {
+  cursor: not-allowed;
+  opacity: .4;
 }
 .class-modal-tab {
   display: inline-flex;

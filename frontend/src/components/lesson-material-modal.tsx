@@ -31,6 +31,7 @@ export function LessonMaterialModal({
   onClose,
   children,
   className = "",
+  titleNotice,
 }: {
   open: boolean;
   title: string;
@@ -38,6 +39,7 @@ export function LessonMaterialModal({
   onClose: () => void;
   children?: ReactNode;
   className?: string;
+  titleNotice?: ReactNode;
 }) {
   const [notesOpen, setNotesOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -88,7 +90,13 @@ export function LessonMaterialModal({
   };
 
   return (
-    <Modal open={open} title={title} onClose={closeModal} className={className}>
+    <Modal
+      open={open}
+      title={title}
+      onClose={closeModal}
+      className={className}
+      titleNotice={titleNotice}
+    >
       {children}
       {lesson && (
         <div className="lesson-details">

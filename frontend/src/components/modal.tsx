@@ -8,12 +8,14 @@ export function Modal({
   onClose,
   children,
   className = "",
+  titleNotice,
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
   className?: string;
+  titleNotice?: ReactNode;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -50,6 +52,7 @@ export function Modal({
           ×
         </button>
       </div>
+      {titleNotice && <div className="modal-title-notice">{titleNotice}</div>}
       {children}
     </dialog>
   );

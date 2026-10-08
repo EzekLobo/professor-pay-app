@@ -72,7 +72,13 @@ async function login(username: string, password: string) {
     body: new URLSearchParams({ username, password }),
   });
   if (!response.ok)
-    throw new Error(response.status === 401 ? "Credenciais inválidas." : "Não foi possível autenticar na fonte do curso.");
+    throw new Error(
+      response.status === 401 || response.status === 403
+        ? "Credenciais inválidas."
+        : response.status === 429
+          ? "A fonte bloqueou temporariamente novas tentativas. Aguarde alguns minutos antes de tentar novamente."
+          : "Não foi possível autenticar na fonte do curso.",
+    );
   const payload = (await response.json()) as { access_token?: string };
   if (!payload.access_token) throw new Error("A fonte não retornou uma sessão válida.");
   return payload.access_token;

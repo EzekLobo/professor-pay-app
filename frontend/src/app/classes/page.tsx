@@ -21,6 +21,7 @@ import {
   formatMoney,
 } from "@/lib/finance";
 import { whatsappUrl } from "@/lib/whatsapp";
+import { rememberKodlandCredentials } from "@/lib/browser-credentials";
 import {
   activeStudentsRankedByPoints,
   kodlandStudentPoints,
@@ -208,7 +209,11 @@ function ClassesContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : window.localStorage.getItem("aulapay.kodland.username") ?? "",
+  );
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -243,12 +248,14 @@ function ClassesContent() {
 
   async function syncClasses(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     if (!username.trim() || !password || syncing) return;
     setSyncing(true);
     setError("");
     try {
       const result = await kodlandApi.sync(username.trim(), password);
-      setUsername("");
+      window.localStorage.setItem("aulapay.kodland.username", username.trim());
+      await rememberKodlandCredentials(formElement);
       setPassword("");
       setSyncOpen(false);
       setNotice(
@@ -364,15 +371,17 @@ function ClassesContent() {
         open={syncOpen}
         title="Sincronizar turmas e alunos"
         onClose={() => !syncing && setSyncOpen(false)}
+        className="schedule-sync-modal"
       >
         <form className="form management-form" onSubmit={syncClasses}>
           <p className="muted">
-            O acesso é usado somente durante a leitura dos dados e não é salvo
-            neste navegador.
+            O navegador pode salvar suas credenciais com segurança após a
+            primeira sincronização. O AulaPay não armazena sua senha.
           </p>
           <label className="field">
             Usuário ou e-mail
             <Input
+              name="username"
               type="text"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
@@ -383,6 +392,7 @@ function ClassesContent() {
           <label className="field">
             Senha
             <Input
+              name="password"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}

@@ -197,7 +197,7 @@ export function DashboardContent(props: DashboardContentProps) {
             }
             onClick={() => setPaymentsVisible((visible) => !visible)}
           >
-            {paymentsVisible ? <EyeOffIcon /> : <EyeIcon />}
+            {paymentsVisible ? <EyeIcon /> : <EyeOffIcon />}
           </button>
         </div>
         {paymentsVisible ? (

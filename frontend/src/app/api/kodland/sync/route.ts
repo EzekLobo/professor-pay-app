@@ -304,8 +304,10 @@ async function kodlandLogin(username: string, password: string) {
   });
   if (!response.ok)
     throw new Error(
-      response.status === 401
+      response.status === 401 || response.status === 403
         ? "Usuário ou senha da Kodland inválidos."
+        : response.status === 429
+          ? "A Kodland bloqueou temporariamente novas tentativas. Aguarde alguns minutos antes de tentar novamente."
         : "Não foi possível entrar na Kodland.",
     );
   const payload = (await response.json()) as { access_token?: string };

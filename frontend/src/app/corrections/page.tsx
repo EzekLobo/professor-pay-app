@@ -15,7 +15,7 @@ const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => les
   if (lesson.id === review.lesson_id) return true;
   return review.lesson_number > 0 && lesson.lesson_number === review.lesson_number;
 });
-type ReviewGrouping = "all" | "student" | "lesson";
+type ReviewGrouping = "class" | "student" | "lesson";
 const lessonLabel = (review: KodlandReview) =>
   `Aula ${review.lesson_number || "–"}: ${review.lesson_title || "Sem título"}`;
 const groupBy = <T,>(items: T[], keyFor: (item: T) => string) =>
@@ -84,7 +84,7 @@ function Content() {
   const [reviews, setReviews] = useState<KodlandReview[]>([]);
   const [lessons, setLessons] = useState<KodlandLesson[]>([]);
   const [query, setQuery] = useState("");
-  const [grouping, setGrouping] = useState<ReviewGrouping>("all");
+  const [grouping, setGrouping] = useState<ReviewGrouping>("class");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
@@ -226,7 +226,7 @@ function Content() {
         <div className="correction-filters" aria-label="Organizar correções">
           <span>Organizar por</span>
           {([
-            ["all", "Todos"],
+            ["class", "Turmas"],
             ["student", "Alunos"],
             ["lesson", "Aulas"],
           ] as const).map(([value, label]) => (
@@ -243,7 +243,7 @@ function Content() {
         </div>
         {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length === 0 ? <p className="muted">Sem pendências para os filtros atuais.</p> : <div className="correction-class-list">
           {reviewsByClass.map(([className, classReviews]) => {
-            const internalGroups = grouping === "all"
+            const internalGroups = grouping === "class"
               ? []
               : groupBy(
                   classReviews,
@@ -256,7 +256,7 @@ function Content() {
                 <h3>{className}</h3>
                 <span>{classReviews.length} pendência{classReviews.length === 1 ? "" : "s"}</span>
               </div>
-              {grouping === "all" ? (
+              {grouping === "class" ? (
                 <div className="entity-list">
                   {classReviews.map((review) => <ReviewCard review={review} lessons={lessons} key={review.id} />)}
                 </div>

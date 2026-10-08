@@ -38,7 +38,7 @@ type ScheduleEntry = {
   start: string;
   end: string;
   title: string;
-  detail: string;
+  detail?: string;
   extra: boolean;
   extraState?: KodlandExtraScheduleState;
   availability?: boolean;
@@ -131,7 +131,7 @@ function WeekSchedule({
         timeOnly(lesson.end_time) ||
         addMinutes(timeOnly(lesson.start_time), 90),
       title: lesson.external_class_name,
-      detail: `Aula ${(lesson.course_index ?? lesson.lesson_number) || "—"}${lesson.title ? ` · ${lesson.title}` : ""}`,
+      detail: "",
       extra: false,
       lesson,
       group: groups.find((group) => group.external_id === lesson.external_class_id),
@@ -200,9 +200,7 @@ function WeekSchedule({
       start,
       end: addMinutes(start, courseDuration(group)),
       title: group.title,
-      detail: nearestLesson
-        ? `Aula ${nearestLesson.course_index ?? nearestLesson.lesson_number} · ${nearestLesson.title}`
-        : "Turma semanal",
+      detail: "",
       extra: false,
       lesson: nearestLesson,
       group,
@@ -220,7 +218,7 @@ function WeekSchedule({
           timeOnly(lesson.end_time) ||
           addMinutes(timeOnly(lesson.start_time), 60),
         title: lesson.student_name || "Aula extra",
-        detail: presentation.label,
+        detail: "",
         extra: true,
         extraState: presentation.state,
       });
@@ -232,7 +230,7 @@ function WeekSchedule({
       start: timeOnly(slot.start_time),
       end: timeOnly(slot.end_time),
       title: "Disponível",
-      detail: "Horário cadastrado",
+      detail: "",
       extra: false,
       availability: true,
     });
@@ -294,11 +292,11 @@ function WeekSchedule({
               </header>
               {dayEntries.length ? (
                 dayEntries.map((entry) => {
-                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.extraState ? ` week-slot-extra-${entry.extraState}` : ""}${entry.availability ? " week-slot-availability" : ""}`;
+                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.availability ? " week-slot-availability" : ""}`;
                   const contents = <>
                     <time>{entry.start} – {entry.end}</time>
                     <strong>{entry.title}</strong>
-                    <span>{entry.detail}</span>
+                    {entry.detail && <span>{entry.detail}</span>}
                   </>;
                   return entry.group || entry.availability ? (
                     <button
@@ -310,7 +308,7 @@ function WeekSchedule({
                         setModalTab("lesson");
                         setSelectedEntry(entry);
                       }}
-                      aria-label={`Abrir detalhes de ${entry.title}, ${entry.detail}`}
+                      aria-label={`Abrir detalhes de ${entry.title}${entry.detail ? `, ${entry.detail}` : ""}`}
                     >
                       {contents}
                     </button>

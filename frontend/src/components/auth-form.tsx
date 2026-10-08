@@ -6,20 +6,18 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { Button, Input } from "@/components/ui";
-import { loginWithFirebase, resetFirebasePassword } from "@/lib/firebase-auth";
+import { loginWithFirebase } from "@/lib/firebase-auth";
 
 export function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(undefined);
-    setNotice(undefined);
     setSubmitting(true);
 
     const data = new FormData(event.currentTarget);
@@ -47,26 +45,6 @@ export function AuthForm() {
     }
   }
 
-  async function resetPassword() {
-    const recoveryEmail = email.trim();
-    if (!recoveryEmail) {
-      setError("Informe seu e-mail antes de recuperar a senha.");
-      return;
-    }
-    setError(undefined);
-    setNotice(undefined);
-    setSubmitting(true);
-    try {
-      await resetFirebasePassword(recoveryEmail);
-      setNotice("Se o e-mail estiver cadastrado, enviaremos as instruções para criar uma nova senha.");
-    } catch (cause) {
-      const code = cause instanceof FirebaseError ? cause.code : "";
-      setError(code === "auth/invalid-email" ? "Informe um e-mail válido." : "Não foi possível enviar o e-mail de recuperação agora.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
     <main className="auth-page">
       <section className="auth-card">
@@ -85,10 +63,8 @@ export function AuthForm() {
             <Input name="password" type="password" required autoComplete="current-password" />
           </label>
           {error && <p className="form-error" role="alert">{error}</p>}
-          {notice && <p className="notice" role="status">{notice}</p>}
           <Button type="submit" disabled={submitting}>{submitting ? "Aguarde…" : "Entrar"}</Button>
         </form>
-        <button className="button button-ghost" type="button" onClick={() => void resetPassword()} disabled={submitting}>Esqueci minha senha</button>
         <p className="auth-footer">O acesso é liberado pelo administrador.</p>
       </section>
     </main>

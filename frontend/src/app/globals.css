@@ -98,6 +98,13 @@ select:focus-visible {
   width: 40px;
   height: 40px;
 }
+.auth-card > .brand,
+.auth-card > h1,
+.auth-card > .muted {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
 .auth-card .input {
   border-color: #3f2a67;
   background: #0e0919;

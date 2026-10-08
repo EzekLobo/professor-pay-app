@@ -1417,14 +1417,19 @@ select:focus-visible {
   padding: clamp(18px, 2.4vw, 28px);
 }
 .correction-heading-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
   align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  width: min(100%, 540px);
   gap: 10px;
 }
 .correction-heading-actions .input {
-  min-width: min(100%, 270px);
+  width: 100%;
+  min-width: 0;
+}
+.correction-heading-actions .button {
+  width: auto;
+  white-space: nowrap;
 }
 .correction-result-count {
   display: inline-flex;
@@ -1474,7 +1479,6 @@ select:focus-visible {
   overflow: hidden;
   border: 1px solid #1d3556;
   border-radius: 14px;
-  padding: 14px;
   background: rgb(7 18 34 / 64%);
 }
 .correction-class-heading {
@@ -1482,8 +1486,38 @@ select:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 15px;
+  cursor: pointer;
+  list-style: none;
+}
+.correction-class-heading::-webkit-details-marker {
+  display: none;
+}
+.correction-class-heading > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+.correction-class-heading:hover h3,
+.correction-class-heading:focus-visible h3 {
+  color: var(--primary);
+}
+.correction-class-group[open] .correction-class-heading {
   border-bottom: 1px solid rgb(33 59 95 / 72%);
-  padding: 1px 1px 12px;
+  background: rgb(16 33 58 / 72%);
+}
+.correction-class-body {
+  padding: 14px;
+}
+.correction-disclosure {
+  color: var(--primary);
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: transform .18s ease;
+}
+.correction-class-group[open] .correction-disclosure {
+  transform: rotate(180deg);
 }
 .correction-class-heading h3,
 .correction-subgroup h4,
@@ -1495,7 +1529,7 @@ select:focus-visible {
   font-size: .98rem;
   letter-spacing: -.01em;
 }
-.correction-class-heading span {
+.correction-class-heading > div > span {
   border: 1px solid rgb(68 206 255 / 22%);
   border-radius: 999px;
   padding: 4px 8px;
@@ -1754,6 +1788,13 @@ select:focus-visible {
   .card-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+  .correction-heading-actions {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+  .correction-heading-actions .button {
+    width: 100%;
   }
   .button {
     width: 100%;

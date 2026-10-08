@@ -1,11 +1,32 @@
 import { describe, expect, it } from "vitest";
 import {
   availabilityFromTeacherTimetable,
+  correctionUrlFor,
   extrasFromStudentAgenda,
   extrasFromTeacherAgenda,
   mergeExtraLessons,
   teacherCalendarWeekDates,
 } from "./route";
+
+describe("correctionUrlFor", () => {
+  it("builds a task review URL for the specific student when the API has no direct link", () => {
+    expect(correctionUrlFor({
+      link: "",
+      taskId: "134665",
+      studentId: "1874729",
+      groupId: "62934",
+    })).toBe("https://learn.kodland.org/pt/task/134665/check/1874729");
+  });
+
+  it("adds the student to a generic Kodland task check link", () => {
+    expect(correctionUrlFor({
+      link: "https://learn.kodland.org/pt/task/134665/check/",
+      taskId: "134665",
+      studentId: "1874729",
+      groupId: "62934",
+    })).toBe("https://learn.kodland.org/pt/task/134665/check/1874729");
+  });
+});
 
 const students = [
   {

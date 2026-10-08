@@ -153,6 +153,33 @@ const list = (value: unknown) => {
   }
   return [];
 };
+
+export const correctionUrlFor = ({
+  link,
+  taskId,
+  studentId,
+  groupId,
+}: {
+  link: string;
+  taskId: string;
+  studentId: string;
+  groupId: string;
+}) => {
+  const direct = link.trim();
+  const absolute = /^https?:\/\//.test(direct)
+    ? direct
+    : direct
+      ? `https://bo.kodland.org${direct}`
+      : "";
+  const taskMatch = absolute.match(/^(https:\/\/learn\.kodland\.org\/[^/]+\/task\/[^/]+\/check)(?:\/([^/?#]+))?\/?([?#].*)?$/);
+  if (taskMatch?.[2]) return absolute;
+  if (taskMatch && studentId) return `${taskMatch[1]}/${encodeURIComponent(studentId)}${taskMatch[3] ?? ""}`;
+  if (absolute) return absolute;
+  if (taskId && studentId) {
+    return `https://learn.kodland.org/pt/task/${encodeURIComponent(taskId)}/check/${encodeURIComponent(studentId)}`;
+  }
+  return `https://bo.kodland.org/groups/${groupId}`;
+};
 const scheduleItems = (value: unknown, depth = 0): unknown[] => {
   const items = list(value);
   if (items.length) {
@@ -911,7 +938,20 @@ async function reviewsForGroup(
             )
               return [];
             const taskId = text(task.id ?? task.task_id);
-            const link = text(task.link_to_service ?? task.url);
+            const link = text(
+              data.link_to_service ??
+                data.linkToService ??
+                data.correction_url ??
+                data.correctionUrl ??
+                data.task_url ??
+                data.taskUrl ??
+                data.url ??
+                task.link_to_service ??
+                task.linkToService ??
+                task.task_url ??
+                task.taskUrl ??
+                task.url,
+            );
             return [
               {
                 id: `${group.external_id}-${studentId}-${lessonId}-${taskId}`,
@@ -931,9 +971,12 @@ async function reviewsForGroup(
                   status === "TASK_SUBMITTED_LATE"
                     ? "Entregue com atraso"
                     : "Entregue",
-                correction_url: /^https?:\/\//.test(link)
-                  ? link
-                  : `https://bo.kodland.org${link || `/groups/${group.external_id}`}`,
+                correction_url: correctionUrlFor({
+                  link,
+                  taskId,
+                  studentId,
+                  groupId: group.external_id,
+                }),
               },
             ];
           });

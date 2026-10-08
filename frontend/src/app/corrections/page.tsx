@@ -250,28 +250,33 @@ function Content() {
                     ? (review) => review.student_name || "Aluno não informado"
                     : lessonLabel,
                 );
-            return <section className="correction-class-group" key={className}>
-              <div className="correction-class-heading">
-                <h3>{className}</h3>
-                <span>{classReviews.length} pendência{classReviews.length === 1 ? "" : "s"}</span>
+            return <details className="correction-class-group" key={className}>
+              <summary className="correction-class-heading">
+                <div>
+                  <h3>{className}</h3>
+                  <span>{classReviews.length} pendência{classReviews.length === 1 ? "" : "s"}</span>
+                </div>
+                <span className="correction-disclosure" aria-hidden="true">⌄</span>
+              </summary>
+              <div className="correction-class-body">
+                {grouping === "class" ? (
+                  <div className="entity-list">
+                    {classReviews.map((review) => <ReviewCard review={review} lessons={lessons} key={review.id} />)}
+                  </div>
+                ) : (
+                  <div className="correction-subgroup-list">
+                    {internalGroups.map(([label, groupedReviews]) => (
+                      <section className="correction-subgroup" key={label}>
+                        <h4>{label}</h4>
+                        <div className="entity-list">
+                          {groupedReviews.map((review) => <ReviewCard review={review} lessons={lessons} key={review.id} />)}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                )}
               </div>
-              {grouping === "class" ? (
-                <div className="entity-list">
-                  {classReviews.map((review) => <ReviewCard review={review} lessons={lessons} key={review.id} />)}
-                </div>
-              ) : (
-                <div className="correction-subgroup-list">
-                  {internalGroups.map(([label, groupedReviews]) => (
-                    <section className="correction-subgroup" key={label}>
-                      <h4>{label}</h4>
-                      <div className="entity-list">
-                        {groupedReviews.map((review) => <ReviewCard review={review} lessons={lessons} key={review.id} />)}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              )}
-            </section>;
+            </details>;
           })}
         </div>}
       </section>

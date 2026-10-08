@@ -1,7 +1,7 @@
 # Estado atual
 
 - O cabecalho nao exibe mais “Painel pessoal” nem saudacao duplicada: titulo da pagina fica centralizado e o perfil compacto permanece no canto direito.
-- A grade de horarios do resumo tem a acao “Atualizar grade”, que pede credenciais somente durante o envio, sincroniza os dados da Kodland e recarrega resumo, extras e disponibilidade sem desmontar a tela ou alterar a semana selecionada.
+- A grade de horarios do resumo tem a acao “Atualizar grade”, com modal em coluna unica. O e-mail fica salvo somente neste navegador; a senha nao e persistida pelo AulaPay e pode ser preenchida pelo gerenciador seguro do navegador. A acao sincroniza dados, extras e disponibilidade sem desmontar a tela ou alterar a semana selecionada.
 - As aulas extras na grade distinguem conclusao, reagendamento, agendamento e pendencia; apenas conclusao confirmada por status ou gravacao compoe o extrato.
 - Os indicadores de Turmas, Alunos e Correcoes pendentes no resumo usam formato compacto em linha para priorizar a grade semanal.
 - Em `/classes`, o acordeao mostra o nome da turma e a quantidade de alunos ativos; a lista exibe somente alunos ativos, ordenados pela pontuacao de atividades, com posicao e pontos. Os dados de progresso, responsavel e atalhos de contato/perfil ficam no modal individual acionado pelo aluno.

@@ -563,6 +563,12 @@ function DashboardPageContent() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncError, setSyncError] = useState("");
   const [refreshNotice, setRefreshNotice] = useState("");
+  const [syncUsername, setSyncUsername] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : window.localStorage.getItem("aulapay.kodland.username") ?? "",
+  );
+  const [syncPassword, setSyncPassword] = useState("");
   const load = useCallback(async (keepContent = false) => {
     setFailed(false);
     if (!keepContent) setDashboard(null);
@@ -600,16 +606,15 @@ function DashboardPageContent() {
   const syncSchedule = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (refreshingSchedule) return;
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const username = String(formData.get("username") ?? "").trim();
-    const password = String(formData.get("password") ?? "");
+    const username = syncUsername.trim();
+    const password = syncPassword;
     if (!username || !password) return;
 
     setRefreshingSchedule(true);
     setSyncError("");
     setRefreshNotice("");
-    form.reset();
+    window.localStorage.setItem("aulapay.kodland.username", username);
+    setSyncPassword("");
     try {
       const result = await kodlandApi.sync(username, password);
       if (!(await load(true))) {
@@ -632,7 +637,7 @@ function DashboardPageContent() {
     } finally {
       setRefreshingSchedule(false);
     }
-  }, [load, refreshingSchedule]);
+  }, [load, refreshingSchedule, syncPassword, syncUsername]);
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
@@ -645,11 +650,12 @@ function DashboardPageContent() {
         open={syncOpen}
         title="Atualizar grade"
         onClose={() => !refreshingSchedule && setSyncOpen(false)}
+        className="schedule-sync-modal"
       >
         <form className="form management-form" onSubmit={syncSchedule}>
           <p className="muted">
-            Seu acesso é usado somente durante esta sincronização e não é salvo
-            neste navegador.
+            Seu e-mail fica salvo neste navegador para facilitar as próximas
+            sincronizações. A senha não é armazenada pelo AulaPay.
           </p>
           <label className="field">
             Usuário ou e-mail
@@ -659,6 +665,8 @@ function DashboardPageContent() {
               required
               autoComplete="username"
               disabled={refreshingSchedule}
+              value={syncUsername}
+              onChange={(event) => setSyncUsername(event.target.value)}
             />
           </label>
           <label className="field">
@@ -669,6 +677,8 @@ function DashboardPageContent() {
               required
               autoComplete="current-password"
               disabled={refreshingSchedule}
+              value={syncPassword}
+              onChange={(event) => setSyncPassword(event.target.value)}
             />
           </label>
           {syncError && (

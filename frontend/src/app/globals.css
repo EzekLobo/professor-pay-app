@@ -535,6 +535,8 @@ select:focus-visible {
 .modal-dialog .management-form {
   margin-top: 0;
 }
+.schedule-sync-modal { width: min(560px, calc(100vw - 32px)); }
+.schedule-sync-modal .management-form { grid-template-columns: 1fr; }
 .panel h2 {
   margin: 0;
   font-size: 1.1rem;

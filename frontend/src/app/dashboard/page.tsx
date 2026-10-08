@@ -503,26 +503,7 @@ function WeekSchedule({
             open={Boolean(selectedEntry)}
             title={modalTitle}
             lesson={modalTab === "lesson" ? materialDetails : null}
-            className="class-schedule-modal"
-            titleNotice={
-              modalTab === "lesson" && viewingDifferentLesson ? (
-                <div className="class-lesson-notice" role="status">
-                  <p>
-                    Você está vendo o conteúdo da semana {viewingEarlierLesson ? "anterior" : "seguinte"}.
-                  </p>
-                  <button
-                    type="button"
-                    className="class-lesson-return"
-                    onClick={() => {
-                      setSelectedCatalogLessonId("");
-                      setModalTab("lesson");
-                    }}
-                  >
-                    Voltar para a aula atual
-                  </button>
-                </div>
-              ) : undefined
-            }
+            className={`class-schedule-modal${modalTab === "lesson" && viewingDifferentLesson ? " class-schedule-modal--adjacent" : ""}`}
             onClose={() => {
               setSelectedEntry(null);
               setSelectedCatalogLessonId("");
@@ -553,6 +534,17 @@ function WeekSchedule({
                       onClick={() => setModalTab("lesson")}
                     >
                       {lessonPeriodLabel}
+                    </button>
+                  ) : viewingDifferentLesson ? (
+                    <button
+                      type="button"
+                      className="class-lesson-navigation-title class-lesson-navigation-return"
+                      onClick={() => {
+                        setSelectedCatalogLessonId("");
+                        setModalTab("lesson");
+                      }}
+                    >
+                      Voltar para a aula atual
                     </button>
                   ) : (
                     <strong className="class-lesson-navigation-title">

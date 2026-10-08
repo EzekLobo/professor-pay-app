@@ -579,9 +579,11 @@ const dashboardFrom = (
     .map(([date, group]) => {
       const normal = group.filter((item) => item.type === "NORMAL");
       const extra = group.filter((item) => item.type === "EXTRA");
-      const received = confirmations.some(
+      const confirmation = confirmations.find(
         (item) => String(item.payment_date) === date,
       );
+      const manualStatus = String(confirmation?.status ?? "");
+      const received = Boolean(confirmation?.received_at) || manualStatus === "RECEIVED";
       return {
         payment_date: date,
         period: period(group[0].lesson_date),
@@ -599,11 +601,13 @@ const dashboardFrom = (
         total_cents: group.reduce((sum, item) => sum + item.value_cents, 0),
         status: received
           ? "RECEIVED"
-          : date < today
+          : manualStatus === "OVERDUE"
             ? "OVERDUE"
-            : date === today
-              ? "DUE_TODAY"
-              : "FUTURE",
+            : date < today
+              ? "OVERDUE"
+              : date === today
+                ? "DUE_TODAY"
+                : "FUTURE",
         lessons: lessonsByPaymentDate.get(date) ?? group,
       };
     });
@@ -751,7 +755,8 @@ const normalizePayment = (value: Record<string, unknown>): Row => ({
     value.payment_date ?? value.paymentDate ?? value.id ?? crypto.randomUUID(),
   ),
   payment_date: String(value.payment_date ?? value.paymentDate ?? ""),
-  received_at: String(value.received_at ?? value.receivedAt ?? now()),
+  received_at: String(value.received_at ?? value.receivedAt ?? ""),
+  status: String(value.status ?? "RECEIVED"),
   note: String(value.note ?? ""),
   created_at: String(value.created_at ?? value.createdAt ?? now()),
 });
@@ -1091,6 +1096,7 @@ export const paymentsApi = {
     const payment = await paymentDetail(date);
     await setDoc(doc(ref("payments"), date), {
       payment_date: date,
+      status: "RECEIVED",
       received_at: now(),
       note,
       created_at: now(),
@@ -1103,6 +1109,15 @@ export const paymentsApi = {
   },
   reverse: async (date: string) => {
     await deleteDoc(doc(ref("payments"), date));
+  },
+  setStatus: async (date: string, status: "RECEIVED" | "OVERDUE") => {
+    if (status === "RECEIVED") return paymentsApi.confirm(date);
+    await setDoc(doc(ref("payments"), date), {
+      payment_date: date,
+      status: "OVERDUE",
+      received_at: "",
+      created_at: now(),
+    });
   },
   updateLessonFinancialStatus: async (
     paymentDate: string,

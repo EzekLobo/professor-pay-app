@@ -87,6 +87,8 @@ export function DashboardContent(props: DashboardContentProps) {
   );
   const [updatingLessonId, setUpdatingLessonId] = useState<string | null>(null);
   const [addingExtra, setAddingExtra] = useState(false);
+  const [statusPayment, setStatusPayment] = useState<DashboardPayment | null>(null);
+  const [updatingPaymentStatus, setUpdatingPaymentStatus] = useState(false);
   const [error, setError] = useState("");
   const togglePaymentsVisibility = () => {
     setPaymentsVisible((visible) => {
@@ -184,6 +186,24 @@ export function DashboardContent(props: DashboardContentProps) {
       setAddingExtra(false);
     }
   }
+  async function updatePaymentStatus(status: "RECEIVED" | "OVERDUE") {
+    if (!statusPayment || updatingPaymentStatus) return;
+    setUpdatingPaymentStatus(true);
+    setError("");
+    try {
+      await paymentsApi.setStatus(statusPayment.payment_date, status);
+      await onRefresh?.();
+      setStatusPayment(null);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível atualizar o status do pagamento.",
+      );
+    } finally {
+      setUpdatingPaymentStatus(false);
+    }
+  }
 
   return (
     <div className="dashboard-grid">
@@ -216,6 +236,7 @@ export function DashboardContent(props: DashboardContentProps) {
             payments={dashboardPayments}
             initialFocus={dashboard.next_payment?.payment_date ?? null}
             onOpen={openStatement}
+            onStatusSelect={setStatusPayment}
           />
         ) : (
           <p className="muted payment-hidden-message">
@@ -248,6 +269,21 @@ export function DashboardContent(props: DashboardContentProps) {
           </>
         )}
       </Modal>
+      <Modal
+        open={Boolean(statusPayment)}
+        title="Alterar status do pagamento"
+        onClose={() => !updatingPaymentStatus && setStatusPayment(null)}
+      >
+        {statusPayment && (
+          <div className="form-stack">
+            <p className="muted">{paymentLabel(statusPayment.payment_date)} · {money(statusPayment.total_cents)}</p>
+            <div className="form-actions">
+              <button className="button button-primary" type="button" disabled={updatingPaymentStatus} onClick={() => void updatePaymentStatus("RECEIVED")}>Marcar como pago</button>
+              <button className="button button-ghost" type="button" disabled={updatingPaymentStatus} onClick={() => void updatePaymentStatus("OVERDUE")}>Marcar como em atraso</button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -275,10 +311,12 @@ function DashboardPaymentCarousel({
   payments,
   initialFocus,
   onOpen,
+  onStatusSelect,
 }: {
   payments: DashboardPayment[];
   initialFocus: string | null;
   onOpen: (payment: DashboardPayment | null) => void;
+  onStatusSelect: (payment: DashboardPayment) => void;
 }) {
   const defaultFocus = initialFocus ?? payments.at(-1)?.payment_date ?? null;
   const [focusedPaymentDate, setFocusedPaymentDate] = useState(defaultFocus);
@@ -415,7 +453,10 @@ function DashboardPaymentCarousel({
                     {payment.lesson_count === 1 ? "" : "s"}
                   </small>
                 </div>
-                <StatusBadge tone={paymentTone(payment.status)}>
+                <StatusBadge
+                  tone={paymentTone(payment.status)}
+                  onActivate={payment.status === "RECEIVED" ? undefined : () => onStatusSelect(payment)}
+                >
                   {paymentStatus(payment.status)}
                 </StatusBadge>
                 <em>Abrir extrato</em>

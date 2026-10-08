@@ -51,6 +51,7 @@ function Content() {
   const [items, setItems] = useState<DashboardPayment[]>([]),
     [detail, setDetail] = useState<PaymentDetail | null>(null),
     [focusedPaymentDate, setFocusedPaymentDate] = useState<string | null>(null),
+    [statusPayment, setStatusPayment] = useState<DashboardPayment | null>(null),
     [showAllPayments, setShowAllPayments] = useState(false),
     [carouselMotion, setCarouselMotion] = useState<"previous" | "next" | null>(null),
     [updatingLessonId, setUpdatingLessonId] = useState<string | null>(null),
@@ -247,6 +248,28 @@ function Content() {
       setBusy(false);
     }
   }
+  async function updatePaymentStatus(status: "RECEIVED" | "OVERDUE") {
+    if (!statusPayment || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await paymentsApi.setStatus(statusPayment.payment_date, status);
+      await load();
+      if (detail?.payment_date === statusPayment.payment_date) {
+        setDetail(await paymentsApi.get(statusPayment.payment_date));
+      }
+      setNotice(status === "RECEIVED" ? "Pagamento marcado como pago." : "Pagamento marcado como em atraso.");
+      setStatusPayment(null);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível atualizar o status do pagamento.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="management-grid">
       <section className="page-heading">
@@ -309,7 +332,10 @@ function Content() {
                 <div>
                   <span className="payment-complete-value">
                     <strong>{formatMoney(payment.total_cents)}</strong>
-                    <StatusBadge tone={tone(payment.status)}>
+                    <StatusBadge
+                      tone={tone(payment.status)}
+                      onActivate={payment.status === "RECEIVED" ? undefined : () => setStatusPayment(payment)}
+                    >
                       {status(payment.status)}
                     </StatusBadge>
                   </span>
@@ -384,7 +410,10 @@ function Content() {
                         {payment.lesson_count} aula{payment.lesson_count === 1 ? "" : "s"}
                       </small>
                     </div>
-                    <StatusBadge tone={tone(payment.status)}>
+                    <StatusBadge
+                      tone={tone(payment.status)}
+                      onActivate={payment.status === "RECEIVED" ? undefined : () => setStatusPayment(payment)}
+                    >
                       {status(payment.status)}
                     </StatusBadge>
                     <em>Abrir extrato</em>
@@ -438,6 +467,21 @@ function Content() {
               )}
             </div>
           </>
+        )}
+      </Modal>
+      <Modal
+        open={Boolean(statusPayment)}
+        title="Alterar status do pagamento"
+        onClose={() => !busy && setStatusPayment(null)}
+      >
+        {statusPayment && (
+          <div className="form-stack">
+            <p className="muted">{paymentLabel(statusPayment.payment_date)} · {formatMoney(statusPayment.total_cents)}</p>
+            <div className="form-actions">
+              <Button disabled={busy} onClick={() => void updatePaymentStatus("RECEIVED")}>Marcar como pago</Button>
+              <button className="button button-ghost" type="button" disabled={busy} onClick={() => void updatePaymentStatus("OVERDUE")}>Marcar como em atraso</button>
+            </div>
+          </div>
         )}
       </Modal>
     </div>

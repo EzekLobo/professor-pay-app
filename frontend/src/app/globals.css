@@ -455,42 +455,10 @@ select:focus-visible {
   color: var(--text);
   box-shadow: var(--shadow);
 }
-.modal-title-notice {
-  margin: -7px 46px 16px 0;
-  border: 1px solid rgb(255 191 95 / 34%);
-  border-left: 3px solid var(--warning);
-  border-radius: 8px;
-  padding: 9px 11px;
-  background: rgb(255 191 95 / 9%);
-  color: #ffd496;
-  font-size: .82rem;
-  font-weight: 700;
-  line-height: 1.4;
-}
-.modal-title-notice p { margin: 0; }
-.class-lesson-notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.class-lesson-return {
-  flex: 0 0 auto;
-  border: 1px solid rgb(255 191 95 / 55%);
-  border-radius: 7px;
-  padding: 6px 8px;
-  background: rgb(255 191 95 / 13%);
-  color: inherit;
-  font: inherit;
-  font-size: .75rem;
-  font-weight: 850;
-  cursor: pointer;
-}
-.class-lesson-return:hover { background: rgb(255 191 95 / 22%); }
-.class-lesson-return:focus-visible { outline: 2px solid var(--warning); outline-offset: 2px; }
 .class-schedule-modal {
   height: min(680px, calc(100vh - 32px));
 }
+.class-schedule-modal--adjacent .modal-heading h2 { color: var(--warning); }
 .student-modal {
   width: min(880px, calc(100vw - 32px));
   max-height: min(88vh, 760px);
@@ -842,6 +810,18 @@ select:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: -2px;
 }
+.class-lesson-navigation-return {
+  border: 1px solid rgb(255 191 95 / 55%);
+  border-radius: 8px;
+  background: rgb(255 191 95 / 12%);
+  color: var(--warning);
+  cursor: pointer;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 850;
+}
+.class-lesson-navigation-return:hover { background: rgb(255 191 95 / 22%); }
+.class-lesson-navigation-return:focus-visible { outline: 2px solid var(--warning); outline-offset: 2px; }
 .class-lesson-navigation-button:hover:not(:disabled) {
   border-color: var(--warning);
   background: rgb(255 191 95 / 18%);
@@ -1811,6 +1791,9 @@ select:focus-visible {
   font-size: 0.7rem;
   font-weight: 850;
 }
+.status-badge-action { cursor: pointer; }
+.status-badge-action:hover { filter: brightness(1.14); }
+.status-badge-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .status-success {
   border-color: rgb(77 246 165 / 38%);
   background: rgb(77 246 165 / 10%);

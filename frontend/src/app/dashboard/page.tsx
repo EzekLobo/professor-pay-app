@@ -299,10 +299,18 @@ function WeekSchedule({
           const dayEntries = entries
             .filter((entry) => entry.day === day)
             .sort((a, b) => a.start.localeCompare(b.start));
+          const isToday = isoDate(date) === isoDate(new Date());
           return (
-            <section className="week-day" role="gridcell" key={isoDate(date)}>
+            <section
+              className={isToday ? "week-day is-today" : "week-day"}
+              role="gridcell"
+              key={isoDate(date)}
+            >
               <header>
-                <strong>{dayLabels[day]}</strong>
+                <strong>
+                  {dayLabels[day]}
+                  {isToday && <small>Hoje</small>}
+                </strong>
                 <span>
                   {date.toLocaleDateString("pt-BR", {
                     day: "2-digit",
@@ -455,6 +463,11 @@ function WeekSchedule({
           selectedLessonIndex >= 0 &&
           scheduledLessonIndex >= 0 &&
           selectedLessonIndex < scheduledLessonIndex;
+        const lessonPeriodLabel = !viewingDifferentLesson
+          ? "Hoje"
+          : viewingEarlierLesson
+            ? "Passada"
+            : "Próxima";
         const materialDetails: LessonMaterialDetails | null = selectedLesson
           ? {
               ...selectedLesson,
@@ -519,46 +532,50 @@ function WeekSchedule({
             {selectedEntry?.group && (
               <>
                 <div className="class-modal-tabs" aria-label="Informações da turma">
-                  <div className="class-lesson-navigation" aria-label="Navegar entre aulas">
-                    <button
-                      type="button"
-                      className="class-lesson-navigation-button"
-                      disabled={!previousLesson}
-                      aria-label="Ver conteúdo da aula anterior"
-                      title="Aula anterior"
-                      onClick={() => {
-                        if (!previousLesson) return;
-                        setSelectedCatalogLessonId(previousLesson.id);
-                        setModalTab("lesson");
-                      }}
-                    >
-                      <span aria-hidden="true">←</span>
-                    </button>
-                    <strong className="class-lesson-navigation-title">
-                      {selectedLesson ? lessonLocation(selectedLesson) : "Aula"}
-                    </strong>
-                    <button
-                      type="button"
-                      className="class-lesson-navigation-button"
-                      disabled={!nextLesson}
-                      aria-label="Ver conteúdo da próxima aula"
-                      title="Próxima aula"
-                      onClick={() => {
-                        if (!nextLesson) return;
-                        setSelectedCatalogLessonId(nextLesson.id);
-                        setModalTab("lesson");
-                      }}
-                    >
-                      <span aria-hidden="true">→</span>
-                    </button>
-                  </div>
                   <button
                     type="button"
                     aria-pressed={modalTab === "students"}
                     className={modalTab === "students" ? "class-modal-tab active" : "class-modal-tab"}
-                    onClick={() => setModalTab("students")}
+                    onClick={() => setModalTab(modalTab === "students" ? "lesson" : "students")}
                   >
-                    Alunos <span>{classStudents.length}</span>
+                    {modalTab === "students" ? (
+                      <>← Voltar para aula</>
+                    ) : (
+                      <>Alunos <span>{classStudents.length}</span></>
+                    )}
+                  </button>
+                </div>
+                <div className="class-lesson-navigation" aria-label="Navegar entre aulas">
+                  <button
+                    type="button"
+                    className="class-lesson-navigation-button"
+                    disabled={!previousLesson}
+                    aria-label="Ver conteúdo da aula anterior"
+                    title="Aula anterior"
+                    onClick={() => {
+                      if (!previousLesson) return;
+                      setSelectedCatalogLessonId(previousLesson.id);
+                      setModalTab("lesson");
+                    }}
+                  >
+                    <span aria-hidden="true">←</span>
+                  </button>
+                  <strong className="class-lesson-navigation-title">
+                    {lessonPeriodLabel}
+                  </strong>
+                  <button
+                    type="button"
+                    className="class-lesson-navigation-button"
+                    disabled={!nextLesson}
+                    aria-label="Ver conteúdo da próxima aula"
+                    title="Próxima aula"
+                    onClick={() => {
+                      if (!nextLesson) return;
+                      setSelectedCatalogLessonId(nextLesson.id);
+                      setModalTab("lesson");
+                    }}
+                  >
+                    <span aria-hidden="true">→</span>
                   </button>
                 </div>
                 {modalTab === "students" && (

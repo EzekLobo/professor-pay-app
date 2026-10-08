@@ -128,6 +128,24 @@ const completedFromEvent = (event: Record<string, unknown>) => {
   return false;
 };
 
+const teacherToday = (reference = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(reference);
+  const part = (type: string) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+};
+
+const completedByScheduledDate = (
+  event: Record<string, unknown>,
+  lessonDate: string,
+  today: string,
+) => lessonDate <= today && completedFromEvent(event);
+
 const sso = "https://sso.production.kodland.org/";
 const api = "https://backoffice.kodland.org/api/v2/";
 const text = (value: unknown) =>
@@ -530,6 +548,7 @@ async function studentsWithProfiles(
 export function extrasFromStudentAgenda(
   payload: unknown,
   student: Student,
+  today = teacherToday(),
 ): ExtraLesson[] {
   return scheduleItems(payload).flatMap((value, index) => {
     const item = record(value);
@@ -572,7 +591,7 @@ export function extrasFromStudentAgenda(
         event.datetime,
     );
     const status = text(event.status ?? event.lesson_status ?? event.state);
-    const completed = completedFromEvent(event);
+    const completed = completedByScheduledDate(event, lessonDate, today);
     const externalId = text(
       event.extra_lesson_id ??
         event.id ??
@@ -618,6 +637,7 @@ export function extrasFromStudentAgenda(
 export function extrasFromTeacherAgenda(
   payload: unknown,
   students: Student[],
+  today = teacherToday(),
 ): ExtraLesson[] {
   const byStudentId = new Map(
     students.map((student) => [student.external_id, student]),
@@ -735,7 +755,7 @@ export function extrasFromTeacherAgenda(
             event.finishAt,
         ).time,
         status,
-        completed: completedFromEvent(event),
+        completed: completedByScheduledDate(event, lessonDate, today),
       },
     ];
   });

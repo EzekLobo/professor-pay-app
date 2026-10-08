@@ -133,6 +133,7 @@ describe("extra lesson reconciliation", () => {
         },
       ],
       students[0],
+      "2026-10-14",
     );
 
     expect(extra.completed).toBe(true);
@@ -150,6 +151,7 @@ describe("extra lesson reconciliation", () => {
         },
       ],
       students[0],
+      "2026-10-14",
     );
 
     expect(extra.completed).toBe(false);
@@ -167,6 +169,7 @@ describe("extra lesson reconciliation", () => {
         },
       ],
       students[0],
+      "2026-10-14",
     );
 
     expect(extra.completed).toBe(true);
@@ -183,6 +186,7 @@ describe("extra lesson reconciliation", () => {
         },
       ],
       students,
+      "2026-10-21",
     );
     const [completed] = extrasFromStudentAgenda(
       [
@@ -196,6 +200,7 @@ describe("extra lesson reconciliation", () => {
         },
       ],
       students[0],
+      "2026-10-14",
     );
 
     expect(mergeExtraLessons([scheduled], [completed])).toEqual([
@@ -206,5 +211,24 @@ describe("extra lesson reconciliation", () => {
         completed: true,
       }),
     ]);
+  });
+
+  it("keeps a future extra pending even when its payload is prematurely marked complete", () => {
+    const [extra] = extrasFromStudentAgenda(
+      [
+        {
+          extra_lesson_id: "future-extra",
+          is_extra: true,
+          date: "2026-10-14",
+          start_time: "19:00",
+          completed: true,
+          status: "Completed",
+        },
+      ],
+      students[0],
+      "2026-10-08",
+    );
+
+    expect(extra.completed).toBe(false);
   });
 });

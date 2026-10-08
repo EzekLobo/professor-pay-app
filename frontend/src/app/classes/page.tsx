@@ -12,7 +12,10 @@ import {
   type KodlandStudent,
 } from "@/lib/api";
 import { whatsappUrl } from "@/lib/whatsapp";
-import { rememberKodlandCredentials } from "@/lib/browser-credentials";
+import {
+  rememberKodlandCredentials,
+  restoreKodlandCredentials,
+} from "@/lib/browser-credentials";
 import {
   activeStudentsRankedByPoints,
   kodlandStudentPoints,
@@ -164,6 +167,22 @@ function ClassesContent() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(""), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
+  function openSync() {
+    setError("");
+    setSyncOpen(true);
+    void restoreKodlandCredentials().then((credentials) => {
+      if (!credentials) return;
+      setUsername((current) => current || credentials.username);
+      setPassword((current) => current || credentials.password);
+    });
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -225,7 +244,7 @@ function ClassesContent() {
         onClose={() => !syncing && setSyncOpen(false)}
         className="schedule-sync-modal"
       >
-        <form className="form management-form" onSubmit={syncClasses}>
+        <form className="form management-form" autoComplete="on" onSubmit={syncClasses}>
           <p className="muted">
             O navegador pode salvar suas credenciais com segurança após a
             primeira sincronização. O AulaPay não armazena sua senha.
@@ -281,7 +300,7 @@ function ClassesContent() {
           <div>
             <h2>Turmas</h2>
           </div>
-          <Button type="button" onClick={() => setSyncOpen(true)}>
+          <Button type="button" onClick={openSync}>
             Sincronizar dados
           </Button>
         </div>

@@ -1,18 +1,10 @@
 import type { KodlandStudent } from "@/lib/api";
 
-const inactiveStatusMarkers = [
-  "expelled",
-  "churned",
-  "removed",
-  "inactive",
-  "expulso",
-  "removido",
-  "inativo",
-];
+const admittedStatuses = new Set(["admitted", "admitido"]);
 
 export function isActiveKodlandStudent(status: string | null | undefined) {
   const normalized = String(status ?? "").trim().toLocaleLowerCase("pt-BR");
-  return !inactiveStatusMarkers.some((marker) => normalized.includes(marker));
+  return admittedStatuses.has(normalized);
 }
 
 export function kodlandStudentPoints(progressSummary: string | null | undefined) {

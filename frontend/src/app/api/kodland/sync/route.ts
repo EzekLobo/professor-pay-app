@@ -109,8 +109,9 @@ const recordingAvailable = (event: Record<string, unknown>) => {
 };
 
 /**
- * An approved request merely authorizes an extra lesson. It is not financial
- * evidence. A recording is used only when Kodland has not supplied a state.
+ * An approved request merely authorizes an extra lesson. A recording is
+ * evidence that it happened, even when Kodland has not advanced that request
+ * to a completed state yet. Postponed and cancelled lessons remain excluded.
  */
 const completedFromEvent = (event: Record<string, unknown>) => {
   const completion = completionFlag(event);
@@ -120,10 +121,11 @@ const completedFromEvent = (event: Record<string, unknown>) => {
   if (/completed|complete|passed|done|finished|held|realizada|concluida|ministrada/.test(status)) {
     return true;
   }
-  if (/approved|aprovad|review|revis|pending|pendente|postpon|adiad|reschedul|reagend|moved|cancel/.test(status)) {
+  if (/postpon|adiad|reschedul|reagend|moved|cancel/.test(status)) {
     return false;
   }
-  return recordingAvailable(event);
+  if (recordingAvailable(event)) return true;
+  return false;
 };
 
 const sso = "https://sso.production.kodland.org/";

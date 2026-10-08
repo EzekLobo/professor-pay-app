@@ -10,7 +10,10 @@ import {
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button, Input } from "@/components/ui";
-import { rememberKodlandCredentials } from "@/lib/browser-credentials";
+import {
+  rememberKodlandCredentials,
+  restoreKodlandCredentials,
+} from "@/lib/browser-credentials";
 import {
   ApiError,
   dashboardApi,
@@ -350,6 +353,9 @@ function WeekSchedule({
         const selectedLessonIndex = selectedLesson
           ? groupLessons.findIndex((lesson) => lesson.id === selectedLesson.id)
           : -1;
+        const scheduledLessonIndex = scheduledLesson
+          ? groupLessons.findIndex((lesson) => lesson.id === scheduledLesson.id)
+          : -1;
         const previousLesson =
           selectedLessonIndex > 0 ? groupLessons[selectedLessonIndex - 1] : null;
         const nextLesson =
@@ -361,6 +367,11 @@ function WeekSchedule({
             selectedLesson &&
             scheduledLesson.id !== selectedLesson.id,
         );
+        const viewingEarlierLesson =
+          viewingDifferentLesson &&
+          selectedLessonIndex >= 0 &&
+          scheduledLessonIndex >= 0 &&
+          selectedLessonIndex < scheduledLessonIndex;
         const materialDetails: LessonMaterialDetails | null = selectedLesson
           ? {
               ...selectedLesson,
@@ -399,9 +410,21 @@ function WeekSchedule({
             className="class-schedule-modal"
             titleNotice={
               modalTab === "lesson" && viewingDifferentLesson ? (
-                <p role="status">
-                  Você está vendo o conteúdo de uma aula diferente da programada para esta semana.
-                </p>
+                <div className="class-lesson-notice" role="status">
+                  <p>
+                    Você está vendo o conteúdo da semana {viewingEarlierLesson ? "anterior" : "seguinte"}.
+                  </p>
+                  <button
+                    type="button"
+                    className="class-lesson-return"
+                    onClick={() => {
+                      setSelectedCatalogLessonId("");
+                      setModalTab("lesson");
+                    }}
+                  >
+                    Voltar para a aula atual
+                  </button>
+                </div>
               ) : undefined
             }
             onClose={() => {
@@ -418,25 +441,32 @@ function WeekSchedule({
                       type="button"
                       className="class-lesson-navigation-button"
                       disabled={!previousLesson}
+                      aria-label="Ver conteúdo da aula anterior"
+                      title="Aula anterior"
                       onClick={() => {
                         if (!previousLesson) return;
                         setSelectedCatalogLessonId(previousLesson.id);
                         setModalTab("lesson");
                       }}
                     >
-                      <span aria-hidden="true">←</span> Anterior
+                      <span aria-hidden="true">←</span>
                     </button>
+                    <strong className="class-lesson-navigation-title">
+                      {selectedLesson ? lessonLocation(selectedLesson) : "Aula"}
+                    </strong>
                     <button
                       type="button"
                       className="class-lesson-navigation-button"
                       disabled={!nextLesson}
+                      aria-label="Ver conteúdo da próxima aula"
+                      title="Próxima aula"
                       onClick={() => {
                         if (!nextLesson) return;
                         setSelectedCatalogLessonId(nextLesson.id);
                         setModalTab("lesson");
                       }}
                     >
-                      Próxima <span aria-hidden="true">→</span>
+                      <span aria-hidden="true">→</span>
                     </button>
                   </div>
                   <button
@@ -569,8 +599,8 @@ function KodlandSummary({
           <strong>{active.length}</strong>
         </article>
         <article className="metric-card metric-success">
-          <span>Alunos</span>
-          <strong>{students.length}</strong>
+          <span>Alunos ativos</span>
+          <strong>{activeStudentsRankedByPoints(students).length}</strong>
         </article>
         <article className="metric-card">
           <span>Correções pendentes</span>
@@ -609,7 +639,22 @@ function DashboardPageContent() {
       ? ""
       : window.localStorage.getItem("aulapay.kodland.username") ?? "",
   );
+
+  useEffect(() => {
+    if (!refreshNotice) return;
+    const timeout = window.setTimeout(() => setRefreshNotice(""), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [refreshNotice]);
   const [syncPassword, setSyncPassword] = useState("");
+  const openSync = useCallback(() => {
+    setSyncError("");
+    setSyncOpen(true);
+    void restoreKodlandCredentials().then((credentials) => {
+      if (!credentials) return;
+      setSyncUsername((current) => current || credentials.username);
+      setSyncPassword((current) => current || credentials.password);
+    });
+  }, []);
   const load = useCallback(async (keepContent = false) => {
     setFailed(false);
     if (!keepContent) setDashboard(null);
@@ -695,7 +740,7 @@ function DashboardPageContent() {
         onClose={() => !refreshingSchedule && setSyncOpen(false)}
         className="schedule-sync-modal"
       >
-        <form className="form management-form" onSubmit={syncSchedule}>
+        <form className="form management-form" autoComplete="on" onSubmit={syncSchedule}>
           <p className="muted">
             O navegador pode salvar suas credenciais com segurança após a
             primeira atualização. O AulaPay não armazena sua senha.
@@ -743,10 +788,7 @@ function DashboardPageContent() {
         lessons={lessons}
         extraLessons={extraLessons}
         availability={availability}
-        onRefresh={() => {
-          setSyncError("");
-          setSyncOpen(true);
-        }}
+        onRefresh={openSync}
         refreshing={refreshingSchedule}
         refreshNotice={refreshNotice}
       />

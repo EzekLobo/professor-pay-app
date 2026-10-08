@@ -6,7 +6,10 @@ import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { ApiError, kodlandApi, type KodlandLesson, type KodlandReview } from "@/lib/api";
-import { rememberKodlandCredentials } from "@/lib/browser-credentials";
+import {
+  rememberKodlandCredentials,
+  restoreKodlandCredentials,
+} from "@/lib/browser-credentials";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 
@@ -97,6 +100,23 @@ function Content() {
   );
   const [syncPassword, setSyncPassword] = useState("");
 
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(""), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
+  function openSync() {
+    setSyncError("");
+    setNotice("");
+    setSyncOpen(true);
+    void restoreKodlandCredentials().then((credentials) => {
+      if (!credentials) return;
+      setSyncUsername((current) => current || credentials.username);
+      setSyncPassword((current) => current || credentials.password);
+    });
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -164,7 +184,7 @@ function Content() {
         className="schedule-sync-modal"
         onClose={() => !syncing && setSyncOpen(false)}
       >
-        <form className="form management-form" onSubmit={syncCorrections}>
+        <form className="form management-form" autoComplete="on" onSubmit={syncCorrections}>
           <p className="muted">
             O navegador pode salvar suas credenciais com segurança após a
             primeira atualização. O AulaPay não armazena sua senha.
@@ -217,7 +237,7 @@ function Content() {
           </div>
           <div className="correction-heading-actions">
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
-            <Button type="button" onClick={() => { setSyncError(""); setNotice(""); setSyncOpen(true); }}>
+            <Button type="button" onClick={openSync}>
               Atualizar correções
             </Button>
           </div>

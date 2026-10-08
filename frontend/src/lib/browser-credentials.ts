@@ -16,3 +16,24 @@ export async function rememberKodlandCredentials(form: HTMLFormElement) {
     // Saving remains optional: browser policy or user preference can deny it.
   }
 }
+
+/**
+ * Reads a previously approved Kodland credential from the browser password
+ * manager. The password is never copied to localStorage or Firebase.
+ */
+export async function restoreKodlandCredentials() {
+  if (typeof window === "undefined" || !navigator.credentials?.get) return null;
+  try {
+    const credential = await navigator.credentials.get({
+      password: true,
+      mediation: "optional",
+    } as CredentialRequestOptions) as (Credential & {
+      id?: string;
+      password?: string;
+    }) | null;
+    if (!credential?.id || !credential.password) return null;
+    return { username: credential.id, password: credential.password };
+  } catch {
+    return null;
+  }
+}

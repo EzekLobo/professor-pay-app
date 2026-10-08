@@ -33,23 +33,26 @@ const student = (
 describe("activeStudentsRankedByPoints", () => {
   it("ranks active students by earned progress points and breaks ties by name", () => {
     const ranked = activeStudentsRankedByPoints([
-      student("Carlos", "active", "50/100"),
-      student("Bruno", "active", "80/100"),
-      student("Ana", "active", "80/100"),
-      student("Davi", "active", ""),
+      student("Carlos", "Admitted", "50/100"),
+      student("Bruno", "Admitted", "80/100"),
+      student("Ana", "Admitido", "80/100"),
+      student("Davi", "Admitted", ""),
     ]);
 
     expect(ranked.map((item) => item.name)).toEqual(["Ana", "Bruno", "Carlos", "Davi"]);
   });
 
-  it("excludes expelled, removed and inactive students", () => {
+  it("keeps only admitted students", () => {
     const ranked = activeStudentsRankedByPoints([
-      student("Ativo", "active", "10/100"),
+      student("Admitido", "Admitted", "10/100"),
       student("Removido", "student_churned", "500/500"),
       student("Inativo", "inactive", "100/100"),
+      student("Expulso", "expelled", "100/100"),
+      student("Trancado", "paused", "100/100"),
+      student("Sem status", "", "100/100"),
     ]);
 
-    expect(ranked.map((item) => item.name)).toEqual(["Ativo"]);
+    expect(ranked.map((item) => item.name)).toEqual(["Admitido"]);
   });
 
   it("reads earned points from the synchronized progress summary", () => {

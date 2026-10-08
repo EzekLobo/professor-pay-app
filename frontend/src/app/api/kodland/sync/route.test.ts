@@ -120,7 +120,7 @@ describe("extrasFromTeacherAgenda", () => {
 });
 
 describe("extra lesson reconciliation", () => {
-  it("does not treat an approved request as a completed financial lesson", () => {
+  it("treats an approved request with a recording as a completed financial lesson", () => {
     const [extra] = extrasFromStudentAgenda(
       [
         {
@@ -130,6 +130,23 @@ describe("extra lesson reconciliation", () => {
           start_time: "19:00",
           status: "Approved",
           recording_url: "https://recordings.example/approved-extra",
+        },
+      ],
+      students[0],
+    );
+
+    expect(extra.completed).toBe(true);
+  });
+
+  it("does not treat an approved request without a recording as completed", () => {
+    const [extra] = extrasFromStudentAgenda(
+      [
+        {
+          extra_lesson_id: "approved-without-recording",
+          is_extra: true,
+          date: "2026-10-14",
+          start_time: "19:00",
+          status: "Approved",
         },
       ],
       students[0],

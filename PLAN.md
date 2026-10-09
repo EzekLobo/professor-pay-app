@@ -636,7 +636,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 
 ### R12 - NexusClass como produto e portfólio
 
-> Estado: planejado. Não iniciar sem uma solicitação explícita de implementação.
+> Estado: em execução. A solicitação explícita de implementação foi recebida em 09/10/2026.
 
 - [ ] R12.1 - Landing e demonstração pública isolada
   - Escopo: substituir `/` por landing com acesso a `/demo`; criar navegação pública completa com dados fictícios, CRUD local no navegador e restauração da base inicial.
@@ -653,6 +653,39 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   - Escopo: manter criação de contas exclusivamente no Firebase Console; atualizar landing, login e documentação; cobrir adaptadores, agenda, demo e rotas públicas/privadas.
   - Aceitação: regras Firestore continuam isolando `users/{uid}`; demo permanece local e somente sintética; Vitest, typecheck, lint, build e Playwright passam.
   - Depende de: R12.1 e R12.2.
+
+#### Execução R12
+
+- [x] R12.1a - Contrato de dados e adaptador local da demo
+  - Escopo: definir o contrato comum para alunos, turmas, aulas, pagamentos e indicadores; criar cenário fictício versionado e adaptador `localStorage`, sem dependência de Firebase, rotas API ou Kodland.
+  - Aceitação: o adaptador executa CRUD, preserva alterações no navegador, restaura o cenário inicial e é coberto por Vitest.
+  - Depende de: nenhuma.
+
+- [ ] R12.1b - Landing e experiência pública de demonstração
+  - Escopo: substituir a raiz por landing pública e criar `/demo` com shell próprio, aviso persistente, navegação e CRUD local dos dados sintéticos; áreas externas aparecem somente como conteúdo visual seguro.
+  - Aceitação: visitante sem autenticação usa a demo sem chamadas a Firebase, Kodland ou `/api`; CTA, restauração e navegação são verificáveis em Playwright.
+  - Depende de: R12.1a.
+
+- [ ] R12.2a - Cadastro privado de alunos e adaptador Firestore
+  - Escopo: implementar o adaptador privado para `users/{uid}/students`, CRUD com desativação e a rota privada Alunos, preservando a compatibilidade das coleções atuais.
+  - Aceitação: alunos ativos/inativos, edição, pesquisa e contagem de vínculos funcionam para usuário autenticado; testes cobrem o contrato compartilhado.
+  - Depende de: R12.1a.
+
+- [ ] R12.2b - Turmas manuais, agenda e competências financeiras
+  - Escopo: criar/editar/desativar turmas manuais separadas das sincronizadas, associar alunos e gerar ou recalcular somente aulas futuras ainda não recebidas.
+  - Aceitação: valor permanece por turma; vínculos não sobrescrevem dados Kodland; alterações preservam competências recebidas, verificadas por testes.
+  - Depende de: R12.2a.
+
+- [ ] R12.3a - Reforço de bloqueios, documentação e validação final
+  - Escopo: revisar os caminhos demo/privado, bloquear ações externas no modo público, atualizar login e documentação operacional, e executar as suítes finais.
+  - Aceitação: regras Firestore seguem isoladas, nenhuma criação pública de conta existe, e Vitest, typecheck, lint, build e Playwright passam.
+  - Depende de: R12.1b e R12.2b.
+
+#### Handoff R12.1a
+
+- Mudou: `TeachingDataAdapter` estabelece o contrato assíncrono comum para alunos, turmas, aulas, pagamentos e indicadores. `LocalDemoDataAdapter` usa somente `localStorage`, possui cenário fictício versionado e restauração explícita, sem importar Firebase, Kodland ou módulos de API.
+- Verificado: Vitest (79 testes), typecheck e `git diff --check` passam. A importação em SSR é segura e usa cópia efêmera quando o navegador não disponibiliza armazenamento.
+- Próximo: R12.1b deve consumir o adaptador por seus métodos assíncronos e manter qualquer interface de demo fora do shell, do Firebase e das rotas privadas.
 
 #### Decisões R12
 

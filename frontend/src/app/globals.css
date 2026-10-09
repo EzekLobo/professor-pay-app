@@ -307,18 +307,24 @@ select:focus-visible {
 .admin-periods .button { min-height: 38px; }
 .admin-metric-grid { grid-column: 1/-1; }
 .admin-panel { grid-column: 1/-1; }
-.admin-user-form-panel { grid-column: 1/-1; }
-.admin-user-form { display: grid; grid-template-columns: 1fr 1.4fr 1fr auto; align-items: end; gap: 12px; }
-.admin-user-form .button { min-height: 42px; }
+.admin-user-modal { width: min(600px, calc(100vw - 32px)); }
+.admin-user-modal > .muted { margin-top: 0; }
+.admin-user-form { margin-top: 18px; }
+.admin-user-form .form-actions { justify-content: flex-end; }
+.admin-remove-modal { width: min(520px, calc(100vw - 32px)); }
+.admin-remove-modal p { line-height: 1.5; }
+.admin-remove-actions { justify-content: flex-end; margin-top: 20px; }
 .admin-panel-heading { display: flex; justify-content: space-between; gap: 18px; align-items: start; margin-bottom: 18px; }
 .admin-panel-heading h2 { margin: 0; }
 .admin-panel-heading p { margin: 5px 0 0; }
 .admin-panel-heading > small { color: var(--subtle); white-space: nowrap; }
 .admin-table-wrap { overflow-x: auto; }
-.admin-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+.admin-table { width: 100%; border-collapse: collapse; min-width: 840px; }
 .admin-table th, .admin-table td { padding: 12px 10px; border-bottom: 1px solid var(--border); text-align: left; font-size: .86rem; }
 .admin-table th { color: var(--subtle); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; }
 .admin-table td small { display: block; margin-top: 3px; color: var(--subtle); }
+.admin-remove-user-button { min-height: 34px; padding: 6px 10px; font-size: .76rem; white-space: nowrap; }
+.admin-remove-user-button:disabled { cursor: not-allowed; }
 .admin-status { display: inline-flex; border-radius: 999px; padding: 4px 8px; background: rgb(255 255 255 / 6%); color: var(--muted); font-size: .72rem; font-weight: 750; }
 .admin-status.active { background: rgb(52 211 153 / 14%); color: #72e7b4; }
 .admin-feature-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }

@@ -6,6 +6,10 @@ import { getAdminAuth } from "@/lib/firebase-admin";
 /** First owner of this deployment. Additional administrators are configured with ADMIN_EMAILS. */
 const ownerAdministrator = "ezeklobo.dev@gmail.com";
 
+export function isOwnerAdministrator(email: string | null | undefined) {
+  return email?.trim().toLowerCase() === ownerAdministrator;
+}
+
 export class RequestAuthError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);

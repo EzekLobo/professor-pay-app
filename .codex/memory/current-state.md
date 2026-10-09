@@ -1,5 +1,7 @@
 # Estado atual
 
+- O cabeçalho exibe o atalho `Administração` exclusivamente para `ezeklobo.dev@gmail.com`, que também é o administrador proprietário inicial validado no servidor; `ADMIN_EMAILS` pode adicionar outros administradores. O painel `/admin` ocupa toda a largura disponível, lista contas Firebase (inclusive sem acesso registrado) e permite que o administrador crie usuários comuns com senha inicial; a rota protegida cria a conta via Firebase Admin, sem expor credenciais no navegador.
+
 - O painel `/admin` monitora acessos do app web via rotas servidor autenticadas (`/api/audit` e `/api/admin/analytics`): registra sessões, último pulso ativo e visitas de página em coleções administrativas que não são expostas ao navegador. O acesso é restrito por `ADMIN_EMAILS` e exige `FIREBASE_SERVICE_ACCOUNT_JSON` no ambiente de servidor; consulte `docs/FIREBASE.md` antes de publicar.
 
 - A navegação web tem uma única fonte de verdade em `frontend/src/lib/routes.ts`: o rótulo do menu também alimenta o título do topo. A antiga divergência de Resumo/Sua rotina e Dados/Seus dados foi removida; a área de dados está nomeada `Dados e backup`.

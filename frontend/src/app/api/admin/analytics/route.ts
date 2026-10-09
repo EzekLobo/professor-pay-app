@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
-import { getAdminDb } from "@/lib/firebase-admin";
+import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { assertAdministrator, authenticatedUser, RequestAuthError } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     const since = new Date(now);
     since.setDate(since.getDate() - days);
     const db = getAdminDb();
-    const [sessions, usage] = await Promise.all([
+    const [sessions, usage, registeredUsers] = await Promise.all([
       db.collection("admin_access_sessions")
         .where("lastSeenAt", ">=", Timestamp.fromDate(since))
         .orderBy("lastSeenAt", "desc")
@@ -43,6 +43,7 @@ export async function GET(request: Request) {
         .orderBy("date", "desc")
         .limit(3000)
         .get(),
+      getAdminAuth().listUsers(1000),
     ]);
 
     const users = new Map<string, {
@@ -63,6 +64,19 @@ export async function GET(request: Request) {
         activeSeconds: (existing?.activeSeconds ?? 0) + Number(session.activeSeconds ?? 0),
         sessions: (existing?.sessions ?? 0) + 1,
         active: active || Boolean(existing?.active),
+      });
+    });
+    registeredUsers.users.forEach((user) => {
+      const existing = users.get(user.uid);
+      if (existing) return;
+      users.set(user.uid, {
+        id: user.uid,
+        name: user.displayName || user.email?.split("@")[0] || "Usuário",
+        email: user.email || "",
+        lastSeenAt: null,
+        activeSeconds: 0,
+        sessions: 0,
+        active: false,
       });
     });
 

@@ -303,10 +303,13 @@ select:focus-visible {
   margin-top: auto;
 }
 .admin-dashboard { align-items: start; }
-.admin-periods { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.admin-periods { display: flex; grid-column: 1/-1; flex-wrap: wrap; gap: 8px; align-items: center; }
 .admin-periods .button { min-height: 38px; }
 .admin-metric-grid { grid-column: 1/-1; }
 .admin-panel { grid-column: 1/-1; }
+.admin-user-form-panel { grid-column: 1/-1; }
+.admin-user-form { display: grid; grid-template-columns: 1fr 1.4fr 1fr auto; align-items: end; gap: 12px; }
+.admin-user-form .button { min-height: 42px; }
 .admin-panel-heading { display: flex; justify-content: space-between; gap: 18px; align-items: start; margin-bottom: 18px; }
 .admin-panel-heading h2 { margin: 0; }
 .admin-panel-heading p { margin: 5px 0 0; }
@@ -348,6 +351,19 @@ select:focus-visible {
   justify-self: end;
   gap: 12px;
 }
+.header-admin-link {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border-bright);
+  border-radius: 9px;
+  padding: 7px 10px;
+  color: var(--primary);
+  font-size: .78rem;
+  font-weight: 800;
+}
+.header-admin-link:hover { background: rgb(74 163 255 / 10%); color: #b9ddff; }
 .header-tour-button {
   min-height: 38px;
   border-color: rgb(168 120 255 / 46%);
@@ -2102,6 +2118,9 @@ select:focus-visible {
   .header-actions {
     gap: 8px;
   }
+  .header-admin-link { min-height: 34px; padding: 6px 8px; font-size: 0; }
+  .header-admin-link svg { width: 17px; height: 17px; }
+  .admin-user-form { grid-template-columns: 1fr; }
   .header-tour-button {
     min-height: 34px;
     padding: 6px 9px;

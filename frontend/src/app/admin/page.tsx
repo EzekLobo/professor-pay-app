@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AuthGuard } from "@/components/auth-guard";
-import { Button } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 import { Shell } from "@/components/shell";
 import { getFirebaseAuth } from "@/lib/firebase";
 
@@ -30,6 +30,9 @@ function AdminContent() {
   const [data, setData] = useState<Analytics | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [createNotice, setCreateNotice] = useState("");
 
   const load = useCallback(async (periodDays = days) => {
     setLoading(true);
@@ -61,6 +64,40 @@ function AdminContent() {
     void load(value);
   };
 
+  async function createUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (creating) return;
+    setCreating(true);
+    setCreateError("");
+    setCreateNotice("");
+    try {
+      const current = getFirebaseAuth().currentUser;
+      if (!current) throw new Error("Faça login para continuar.");
+      const form = new FormData(event.currentTarget);
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${await current.getIdToken()}`,
+        },
+        body: JSON.stringify({
+          name: String(form.get("name") ?? ""),
+          email: String(form.get("email") ?? ""),
+          password: String(form.get("password") ?? ""),
+        }),
+      });
+      const payload = await response.json() as { message?: string; user?: { email: string } };
+      if (!response.ok) throw new Error(payload.message ?? "Não foi possível cadastrar o usuário.");
+      event.currentTarget.reset();
+      setCreateNotice(`Acesso liberado para ${payload.user?.email ?? "o novo usuário"}.`);
+      await load();
+    } catch (reason) {
+      setCreateError(reason instanceof Error ? reason.message : "Não foi possível cadastrar o usuário.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <div className="management-grid admin-dashboard">
       <section className="page-heading">
@@ -77,9 +114,20 @@ function AdminContent() {
         <Button type="button" disabled={loading} onClick={() => void load()}>{loading ? "Atualizando…" : "Atualizar"}</Button>
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
+      <section className="panel admin-user-form-panel">
+        <div className="admin-panel-heading"><div><h2>Cadastrar usuário</h2><p className="muted">Crie o acesso por e-mail e informe a senha inicial ao usuário por um canal seguro.</p></div></div>
+        <form className="form admin-user-form" onSubmit={createUser}>
+          <label className="field">Nome<Input name="name" required minLength={2} maxLength={100} disabled={creating} autoComplete="name" /></label>
+          <label className="field">E-mail<Input name="email" type="email" required disabled={creating} autoComplete="email" /></label>
+          <label className="field">Senha inicial<Input name="password" type="password" required minLength={10} disabled={creating} autoComplete="new-password" /></label>
+          <Button type="submit" disabled={creating}>{creating ? "Cadastrando…" : "Cadastrar usuário"}</Button>
+        </form>
+        {createError && <p className="form-error" role="alert">{createError}</p>}
+        {createNotice && <p className="notice" role="status">{createNotice}</p>}
+      </section>
       {loading && !data ? <p className="muted">Carregando indicadores…</p> : data && <>
         <section className="metric-grid admin-metric-grid" aria-label="Resumo de acesso">
-          <article className="metric-card"><span>Usuários no período</span><strong>{data.summary.users}</strong></article>
+          <article className="metric-card"><span>Usuários cadastrados</span><strong>{data.summary.users}</strong></article>
           <article className="metric-card metric-success"><span>Ativos agora</span><strong>{data.summary.activeNow}</strong><small>atividade nos últimos 2 minutos</small></article>
           <article className="metric-card"><span>Tempo ativo estimado</span><strong>{duration(data.summary.activeSeconds)}</strong></article>
           <article className="metric-card"><span>Acessos a páginas</span><strong>{data.summary.pageViews}</strong></article>

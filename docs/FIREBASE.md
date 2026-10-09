@@ -64,7 +64,8 @@ No ambiente **Production** e **Preview** da Vercel, configure as variáveis
 privadas abaixo (sem o prefixo `NEXT_PUBLIC_`):
 
 - `ADMIN_EMAILS`: e-mail, ou lista de e-mails separados por vírgula, de quem
-  pode consultar o painel.
+  pode consultar o painel adicionalmente. O proprietário inicial
+  `ezeklobo.dev@gmail.com` já possui o acesso administrativo no aplicativo.
 - `FIREBASE_SERVICE_ACCOUNT_JSON`: conteúdo JSON completo de uma chave de
   service account do mesmo projeto Firebase, em uma única linha.
 
@@ -72,6 +73,12 @@ Gere a chave em **Firebase Console > Configurações do projeto > Contas de
 serviço**. Nunca a coloque no Git, em arquivos públicos ou em uma variável
 `NEXT_PUBLIC_*`. Após cadastrar as variáveis, faça um novo deploy, entre com um
 e-mail listado em `ADMIN_EMAILS` e abra `/admin`.
+
+Pelo painel, o administrador também pode cadastrar contas de acesso com nome,
+e-mail e senha inicial. A conta é criada no Firebase Authentication e pode
+entrar imediatamente; informe a senha inicial por um canal seguro. As contas
+criadas não recebem privilégio administrativo: isso continua limitado aos
+e-mails configurados em `ADMIN_EMAILS`.
 
 ## Migração do SQLite legado
 

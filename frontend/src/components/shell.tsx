@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
+import { ShieldCheck } from "lucide-react";
 import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
 import { appRoutes, pageTitle } from "@/lib/routes";
@@ -15,6 +16,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const router = useRouter();
   const tour = useGuidedTour({ userId: user.id, pathname });
   const isActive = (href: string) => pathname === href;
+  const canOpenAdmin = user.email.trim().toLowerCase() === "ezeklobo.dev@gmail.com";
 
   async function logout() {
     endStoredAccessSession();
@@ -53,6 +55,12 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
         <header className="shell-header">
           <h1 className="shell-title">{pageTitle(pathname)}</h1>
           <div className="header-actions">
+            {canOpenAdmin && (
+              <Link className="header-admin-link" href="/admin" title="Abrir administração">
+                <ShieldCheck size={17} strokeWidth={2.2} aria-hidden="true" />
+                Administração
+              </Link>
+            )}
             {tour.tutorial && (
               <button
                 className="button button-ghost header-tour-button"

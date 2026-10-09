@@ -3,6 +3,9 @@ import "server-only";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { getAdminAuth } from "@/lib/firebase-admin";
 
+/** First owner of this deployment. Additional administrators are configured with ADMIN_EMAILS. */
+const ownerAdministrator = "ezeklobo.dev@gmail.com";
+
 export class RequestAuthError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
@@ -16,16 +19,20 @@ export async function authenticatedUser(request: Request): Promise<DecodedIdToke
 
   try {
     return await getAdminAuth().verifyIdToken(token);
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (/credential|service account|default credentials|private key|project id/i.test(message)) {
+      throw new RequestAuthError(503, "A auditoria ainda não está configurada no servidor. Cadastre FIREBASE_SERVICE_ACCOUNT_JSON na Vercel e faça um novo deploy.");
+    }
     throw new RequestAuthError(401, "Sua sessão não pôde ser confirmada. Entre novamente.");
   }
 }
 
 export function assertAdministrator(user: DecodedIdToken) {
-  const admins = (process.env.ADMIN_EMAILS ?? "")
+  const admins = [ownerAdministrator, ...(process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
+    .filter(Boolean)];
   if (!user.email || !admins.includes(user.email.toLowerCase())) {
     throw new RequestAuthError(403, "Este acesso é restrito ao administrador.");
   }

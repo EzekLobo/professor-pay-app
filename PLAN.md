@@ -659,3 +659,66 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Contas privadas continuam sob autorização manual do administrador no Firebase Console; não haverá auto cadastro, convite ou painel de aprovação nesta fase.
 - A demo é pública e interativa, mas usa somente `localStorage` por navegador; as alterações não são compartilhadas nem enviadas ao servidor.
 - A demo permite CRUD manual de alunos, turmas, agenda e pagamentos fictícios; recursos externos aparecem somente como demonstração visual.
+
+### R13 - Confiabilidade da sincronização Kodland
+
+> Estado: planejado. Origem: falha sem detalhe ao sincronizar uma segunda conta.
+
+#### Diagnóstico confirmado
+
+- A tela mostra a mensagem genérica somente quando o cliente não recebe uma
+  resposta JSON tratável da rota de sincronização; uma rejeição normal da
+  Kodland (incluindo credencial inválida) deveria chegar como `ApiError` com a
+  mensagem retornada pelo servidor.
+- A rota `POST /api/kodland/sync` reúne turmas, alunos, agendas, extras,
+  correções, aulas e enriquecimento de materiais no mesmo ciclo. Ela contém
+  diversos blocos concorrentes e não declara `maxDuration`.
+- A hipótese principal é expiração ou interrupção da função em produção para
+  contas com volume maior. Deve ser confirmada pelos logs da Vercel antes de
+  atribuir a causa a credenciais ou à Kodland.
+
+- [ ] R13.1 - Diagnóstico observável e seguro
+  - Escopo: adicionar um identificador de sincronização; registrar no servidor
+    etapa, duração, quantidade de turmas/alunos/aulas e falha sanitizada;
+    preservar o código HTTP e o `content-type` no cliente quando a resposta
+    não for JSON.
+  - Interface: substituir o aviso genérico por uma mensagem acionável (ex.:
+    sessão expirada, indisponibilidade temporária, limite excedido), sem expor
+    senha, token, resposta bruta ou dados de alunos.
+  - Operação: consultar os logs Vercel pelo identificador e horário da falha
+    antes de alterar limites de produção.
+  - Aceitação: uma falha simulada de rede, HTML/504 e 4xx/5xx mostra uma causa
+    distinguível para a pessoa e dados suficientes para suporte.
+
+- [ ] R13.2 - Separar sincronização essencial de enriquecimento pesado
+  - Escopo: manter no caminho inicial somente autenticação Kodland, turmas,
+    alunos, grade, agenda e dados financeiros indispensáveis; transferir a
+    coleta extensa de materiais, tarefas e detalhes de catálogo para carga sob
+    demanda ou uma atualização explícita de materiais.
+  - Preservação: dados já sincronizados continuam disponíveis se o
+    enriquecimento posterior falhar; nenhuma coleção de outro usuário é
+    sobrescrita.
+  - Aceitação: uma conta com muitas turmas conclui a sincronização essencial
+    sem precisar aguardar os materiais de todas as aulas; a tela Aulas informa
+    quando um material ainda precisa ser carregado.
+  - Depende de: R13.1 para medir o ganho e identificar a etapa crítica.
+
+- [ ] R13.3 - Limites, retomada e tempo de execução
+  - Escopo: aplicar concorrência limitada por etapa, timeout explícito para
+    chamadas Kodland, repetição curta apenas para falhas transitórias e
+    cancelamento limpo ao exceder o orçamento de tempo.
+  - Infraestrutura: declarar `maxDuration` na rota Next.js somente após
+    confirmar plano e limite efetivo da Vercel; usar um valor compatível com o
+    plano, documentado junto ao motivo. Aumentar o limite não substitui R13.2.
+  - Aceitação: 429/5xx temporário pode ser retomado sem duplicar dados; timeout
+    retorna mensagem compreensível e não deixa uma sincronização parcial
+    marcada como concluída.
+  - Depende de: R13.1 e R13.2.
+
+- [ ] R13.4 - Cobertura e validação de volume
+  - Escopo: testes de parse de respostas não JSON, erros HTTP, lotes grandes,
+    concorrência e isolamento por usuário; teste integrado controlado contra
+    uma conta autorizada com volume maior.
+  - Aceitação: typecheck, lint, Vitest, build e verificações de isolamento
+    passam; logs da Vercel comprovam duração e conclusão do cenário de volume.
+  - Depende de: R13.1, R13.2 e R13.3.

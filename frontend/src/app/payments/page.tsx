@@ -47,6 +47,26 @@ const paymentMonthTitle = (value: string) => {
   }).format(date);
   return `${label.slice(0, 1).toUpperCase()}${label.slice(1)}`;
 };
+function PaymentStatus({
+  payment,
+  onActivate,
+  tourTarget = false,
+}: {
+  payment: DashboardPayment;
+  onActivate: (payment: DashboardPayment) => void;
+  tourTarget?: boolean;
+}) {
+  return (
+    <span data-tour={tourTarget ? "payments-status" : undefined}>
+      <StatusBadge
+        tone={tone(payment.status)}
+        onActivate={payment.status === "RECEIVED" ? undefined : () => onActivate(payment)}
+      >
+        {status(payment.status)}
+      </StatusBadge>
+    </span>
+  );
+}
 function Content() {
   const [items, setItems] = useState<DashboardPayment[]>([]),
     [detail, setDetail] = useState<PaymentDetail | null>(null),
@@ -282,7 +302,7 @@ function Content() {
       </section>
       {error && <p className="form-error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
-      <section className="metric-grid payment-metric-grid">
+      <section className="metric-grid payment-metric-grid" data-tour="payments-summary">
         <article className="metric-card">
           <span>Estimativa a receber</span>
           <strong>{formatMoney(estimatedCents)}</strong>
@@ -294,7 +314,7 @@ function Content() {
           <small>{paidCount} competência(s) confirmada(s)</small>
         </article>
       </section>
-      <section className="panel">
+      <section className="panel" data-tour="payments-period">
         <div className="section-heading">
           <h2>Competências mensais</h2>
           {items.length > 0 && (
@@ -316,7 +336,7 @@ function Content() {
           </p>
         ) : showAllPayments ? (
           <div className="payment-list payment-complete-list">
-            {items.map((payment) => (
+            {items.map((payment, index) => (
               <button
                 className="payment-row payment-row-button payment-complete-row"
                 type="button"
@@ -332,12 +352,7 @@ function Content() {
                 <div>
                   <span className="payment-complete-value">
                     <strong>{formatMoney(payment.total_cents)}</strong>
-                    <StatusBadge
-                      tone={tone(payment.status)}
-                      onActivate={payment.status === "RECEIVED" ? undefined : () => setStatusPayment(payment)}
-                    >
-                      {status(payment.status)}
-                    </StatusBadge>
+                    <PaymentStatus payment={payment} onActivate={setStatusPayment} tourTarget={index === 0} />
                   </span>
                   <em>Abrir extrato</em>
                 </div>
@@ -410,12 +425,7 @@ function Content() {
                         {payment.lesson_count} aula{payment.lesson_count === 1 ? "" : "s"}
                       </small>
                     </div>
-                    <StatusBadge
-                      tone={tone(payment.status)}
-                      onActivate={payment.status === "RECEIVED" ? undefined : () => setStatusPayment(payment)}
-                    >
-                      {status(payment.status)}
-                    </StatusBadge>
+                    <PaymentStatus payment={payment} onActivate={setStatusPayment} tourTarget={isFocus} />
                     <em>Abrir extrato</em>
                   </button>
                 );

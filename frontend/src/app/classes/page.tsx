@@ -300,7 +300,7 @@ function ClassesContent() {
           <div>
             <h2>Turmas</h2>
           </div>
-          <Button type="button" onClick={openSync}>
+          <Button type="button" data-tour="classes-sync" onClick={openSync}>
             Sincronizar dados
           </Button>
         </div>
@@ -312,7 +312,7 @@ function ClassesContent() {
             suas turmas.
           </p>
         ) : (
-          <div className="accordion-list">
+          <div className="accordion-list" data-tour="classes-list">
             {groups.map((group) => (
               <GroupAccordion
                 key={group.id}

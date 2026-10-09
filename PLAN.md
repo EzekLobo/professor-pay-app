@@ -613,3 +613,23 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   depender de URL livre ou de persistência de credenciais.
 - Publicação e validação visual: conferir modal e estados na tela Aulas após o
   deploy; a importação efetiva requer credenciais próprias do usuário no envio.
+
+### R11 - Tutorial guiado "Como usar"
+
+- [x] R11.1 - Infraestrutura reutilizável do tutorial
+  - Escopo: criar estado client-side, overlay acessível, roteiros versionados e persistência por usuário em `users/{uid}/tutorials/{roteiroId}`.
+  - Aceitação: o roteiro abre manualmente e automaticamente uma vez por versão; fechar, pular e concluir registram o progresso; Escape, Tab e restauração de foco funcionam.
+- [x] R11.2 - Roteiros e alvos das rotas privadas
+  - Escopo: integrar o botão global "Como usar" e roteiros essenciais em Resumo, Pagamentos, Turmas, Aulas, Correções e Dados.
+  - Aceitação: cada rota possui introdução, 3 a 5 orientações e conclusão; elementos indisponíveis são ignorados sem interromper o guia.
+  - Depende de: R11.1.
+- [x] R11.3 - Testes e verificação da entrega
+  - Escopo: cobrir definições, progresso e transições; executar as validações de frontend.
+  - Aceitação: typecheck, lint, Vitest, build e diff check passam; o roteiro manual é verificável no navegador.
+  - Depende de: R11.2.
+
+#### Handoff R11
+
+- Mudou: as seis rotas privadas têm o botão global “Como usar” e roteiros essenciais versionados, com spotlight, navegação por teclado e retorno de foco ao acionador.
+- Persistência: o progresso é isolado em `users/{uid}/tutorials/{roteiroId}`; fechar, pular ou concluir registra a versão, enquanto sair da rota não marca o roteiro como visto.
+- Verificado: Vitest (64 testes), typecheck, lint, build e diff check passam. A conferência visual completa ainda exige uma sessão Firebase autenticada.

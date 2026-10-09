@@ -237,12 +237,12 @@ function Content() {
           </div>
           <div className="correction-heading-actions">
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
-            <Button type="button" onClick={openSync}>
+            <Button type="button" data-tour="corrections-sync" onClick={openSync}>
               Atualizar correções
             </Button>
           </div>
         </div>
-        <div className="correction-filters" role="group" aria-label="Organizar correções">
+        <div className="correction-filters" data-tour="corrections-filters" role="group" aria-label="Organizar correções">
           <span>Organizar por</span>
           {([
             ["class", "Turmas"],
@@ -260,7 +260,7 @@ function Content() {
             </button>
           ))}
         </div>
-        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length === 0 ? <p className="muted">Sem pendências para os filtros atuais.</p> : <div className="correction-class-list">
+        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length === 0 ? <p className="muted">Sem pendências para os filtros atuais.</p> : <div className="correction-class-list" data-tour="corrections-cards">
           {reviewsByClass.map(([className, classReviews]) => {
             const internalGroups = grouping === "class"
               ? []

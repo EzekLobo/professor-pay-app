@@ -207,7 +207,7 @@ export function DashboardContent(props: DashboardContentProps) {
 
   return (
     <div className="dashboard-grid">
-      <section className="panel payment-panel">
+      <section className="panel payment-panel" data-tour="dashboard-payments">
         <div className="section-heading">
           <div>
             <h2>Competências mensais</h2>

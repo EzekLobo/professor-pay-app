@@ -197,14 +197,14 @@ function LessonsContent() {
           <div>
             <h2>Cursos</h2>
           </div>
-          <Button type="button" onClick={openImport}>Importar curso</Button>
+          <Button type="button" data-tour="lessons-import" onClick={openImport}>Importar curso</Button>
         </div>
         {loading ? (
           <p className="muted">Carregando cursos…</p>
         ) : courseGroups.length === 0 ? (
           <p className="muted">Nenhuma turma ativa foi sincronizada.</p>
         ) : (
-          <div className="course-list">
+          <div className="course-list" data-tour="lessons-courses">
             {courseCatalog.map((course) => {
               const groupNames = course.groups.map((group) => group.title || group.external_id);
               return (

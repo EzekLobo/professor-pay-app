@@ -251,7 +251,7 @@ function WeekSchedule({
   });
 
   return (
-    <section className="panel weekly-schedule">
+    <section className="panel weekly-schedule" data-tour="dashboard-schedule">
       <div className="section-heading">
         <h2>Grade de horários</h2>
         <div className="week-actions">
@@ -292,6 +292,7 @@ function WeekSchedule({
       </div>
       <div
         className="week-grid"
+        data-tour="dashboard-lesson-details"
         role="grid"
         aria-label="Grade de horários semanal"
       >

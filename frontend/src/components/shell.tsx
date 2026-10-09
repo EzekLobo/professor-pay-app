@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
 import { correctionsNavigation, navigation, utilityNavigation } from "@/lib/routes";
+import { GuidedTourDialog, useGuidedTour } from "@/components/guided-tour";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Sua rotina",
@@ -20,6 +21,7 @@ const pageTitles: Record<string, string> = {
 export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const tour = useGuidedTour({ userId: user.id, pathname });
   const isActive = (href: string) => pathname === href;
   const allNavigation = [...navigation, correctionsNavigation, utilityNavigation];
 
@@ -55,6 +57,17 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
         <header className="shell-header">
           <h1 className="shell-title">{pageTitles[pathname] ?? "NexusClass"}</h1>
           <div className="header-actions">
+            {tour.tutorial && (
+              <button
+                className="button button-ghost header-tour-button"
+                type="button"
+                aria-label={`Abrir guia de como usar: ${tour.tutorial.steps[0]?.title ?? "esta página"}`}
+                title="Como usar esta página"
+                onClick={(event) => tour.open(event.currentTarget)}
+              >
+                Como usar
+              </button>
+            )}
             <div className="profile-chip" aria-label={`Perfil de ${user.name}`}>
               <span>{user.name.slice(0, 1).toUpperCase()}</span>
               <small>{user.email}</small>
@@ -63,6 +76,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
         </header>
         <main className="page-content">{children}</main>
       </section>
+      <GuidedTourDialog tour={tour} />
     </div>
   );
 }

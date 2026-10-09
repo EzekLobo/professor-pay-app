@@ -762,6 +762,19 @@ select:focus-visible {
   font-size: .94rem;
   line-height: 1.55;
 }
+.guided-tour-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  color: #d1c5e3;
+  font-size: .86rem;
+  line-height: 1.45;
+}
+.guided-tour-list li { position: relative; padding-left: 14px; }
+.guided-tour-list li::before { position: absolute; left: 0; color: #bd91ff; content: "•"; }
+.guided-tour-list strong { color: #f3eaff; }
 .guided-tour-progress {
   margin: 0;
   color: #c9a9ff;

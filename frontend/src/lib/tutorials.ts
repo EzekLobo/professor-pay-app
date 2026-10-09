@@ -4,6 +4,7 @@ export type TutorialStep = {
   id: string;
   title: string;
   description: string;
+  items?: readonly { title: string; content: string }[];
   target?: string;
   placement?: TutorialPlacement;
   reveal?: "details" | "show-payments" | "show-all-payments";
@@ -20,25 +21,25 @@ const tutorials: readonly TutorialDefinition[] = [
   {
     id: "dashboard",
     pathname: "/dashboard",
-    version: 2,
+    version: 3,
     steps: [
-      { id: "welcome", title: "Sua rotina", description: "Acompanhe suas aulas e seus recebimentos em um só lugar.", placement: "center" },
-      { id: "schedule", title: "Agenda de aulas", description: "Veja as aulas organizadas para a semana.", target: '[data-tour="dashboard-schedule"]', placement: "bottom" },
-      { id: "lesson-details", title: "Detalhes da aula", description: "Abra uma aula para consultar suas informações.", target: '[data-tour="dashboard-lesson-details"]', placement: "left" },
-      { id: "payments", title: "Competências", description: "Confira os valores previstos, recebidos e em atraso. Se estiverem ocultos, este passo os exibe para você.", target: '[data-tour="dashboard-payments"]', placement: "top", reveal: "show-payments" },
-      { id: "payment-visibility", title: "Privacidade dos valores", description: "Use o ícone de olho para ocultar ou mostrar as competências financeiras. Sua escolha fica salva neste navegador.", target: '[data-tour="dashboard-payment-visibility"]', placement: "left" },
+      { id: "welcome", title: "Sua rotina", description: "Use o resumo para acompanhar o que acontece na semana.", placement: "center", items: [{ title: "Aulas", content: "Consulte a agenda e abra os detalhes de cada encontro." }, { title: "Competências", content: "Acompanhe os valores previstos, pagos e em atraso." }, { title: "Ajuda", content: "Abra “Como funciona?” novamente quando quiser revisar estas orientações." }] },
+      { id: "schedule", title: "Agenda de aulas", description: "A grade reúne seus horários em uma visão semanal.", target: '[data-tour="dashboard-schedule"]', placement: "bottom", items: [{ title: "Navegação", content: "Use as setas para consultar as semanas anterior e seguinte." }, { title: "Semana atual", content: "Volte rapidamente ao período de hoje pelo botão central." }, { title: "Legenda", content: "As cores diferenciam aula, aula extra e horário disponível." }] },
+      { id: "lesson-details", title: "Detalhes da aula", description: "Clique em um bloco da grade para abrir as informações correspondentes.", target: '[data-tour="dashboard-lesson-details"]', placement: "left", items: [{ title: "Materiais", content: "Consulte slides, roteiro, atividades e links da aula." }, { title: "Alunos", content: "Veja a lista e o desempenho da turma quando disponível." }, { title: "Anotações", content: "Registre lembretes particulares para retomar depois." }] },
+      { id: "payments", title: "Competências mensais", description: "Este painel reúne os valores financeiros de cada competência.", target: '[data-tour="dashboard-payments"]', placement: "top", reveal: "show-payments", items: [{ title: "Previsto", content: "É o valor ainda esperado para o período." }, { title: "Pago", content: "Indica a competência já recebida." }, { title: "Em atraso", content: "Sinaliza um valor que precisa de acompanhamento." }, { title: "Extrato", content: "Clique em uma competência para conferir as aulas que formam o total." }] },
+      { id: "payment-visibility", title: "Ocultar ou mostrar valores", description: "Use este controle quando precisar preservar a privacidade financeira na tela.", target: '[data-tour="dashboard-payment-visibility"]', placement: "left", items: [{ title: "Ocultar", content: "Esconde os valores sem apagar nenhuma informação." }, { title: "Mostrar", content: "Exibe novamente as competências financeiras." }, { title: "Preferência", content: "A escolha fica salva neste navegador." }] },
     ],
   },
   {
     id: "payments",
     pathname: "/payments",
-    version: 2,
+    version: 3,
     steps: [
-      { id: "welcome", title: "Pagamentos", description: "Acompanhe suas competências mensais.", placement: "center" },
-      { id: "summary", title: "Resumo do período", description: "Veja rapidamente os valores previstos e recebidos.", target: '[data-tour="payments-summary"]', placement: "bottom" },
-      { id: "period", title: "Competência selecionada", description: "Consulte as aulas que formam cada competência.", target: '[data-tour="payments-period"]', placement: "bottom" },
-      { id: "complete-list", title: "Ver todas as competências", description: "Use “Ver completo” para expandir a lista e localizar qualquer mês. O tutorial já abriu esta visualização para demonstrar o resultado.", target: '[data-tour="payments-view-toggle"]', placement: "left", reveal: "show-all-payments" },
-      { id: "status", title: "Status do pagamento", description: "Altere o status quando receber ou identificar um atraso.", target: '[data-tour="payments-status"]', placement: "left" },
+      { id: "welcome", title: "Pagamentos", description: "Nesta tela você confere e atualiza suas competências mensais.", placement: "center", items: [{ title: "Resumo", content: "Veja o total estimado e o total já recebido." }, { title: "Competências", content: "Abra cada período para conferir o extrato das aulas." }, { title: "Status", content: "Atualize uma competência prevista ou em atraso quando necessário." }] },
+      { id: "summary", title: "Resumo do período", description: "Os indicadores mostram a situação financeira em poucos segundos.", target: '[data-tour="payments-summary"]', placement: "bottom", items: [{ title: "Estimativa", content: "Soma o que ainda pode ser recebido." }, { title: "Recebido", content: "Soma as competências já marcadas como pagas." }] },
+      { id: "period", title: "Competência selecionada", description: "Use os cartões para encontrar e abrir o período que deseja consultar.", target: '[data-tour="payments-period"]', placement: "bottom", items: [{ title: "Abrir extrato", content: "Clique no cartão para listar as aulas e valores do mês." }, { title: "Navegar", content: "Use as setas ou arraste o carrossel para trocar de competência." }] },
+      { id: "complete-list", title: "Lista completa das competências", description: "Esta visualização já foi aberta para a demonstração.", target: '[data-tour="payments-view-toggle"]', placement: "left", reveal: "show-all-payments", items: [{ title: "Uma linha por mês", content: "Cada linha representa uma competência e permite abrir seu extrato." }, { title: "Alternar a visualização", content: "O botão destacado volta ao carrossel; use-o novamente para retornar à lista completa." }, { title: "Localizar períodos", content: "A lista é a melhor opção para encontrar rapidamente um mês mais antigo." }] },
+      { id: "status", title: "Atualizar o status", description: "Clique na etiqueta para registrar a situação da competência.", target: '[data-tour="payments-status"]', placement: "left", items: [{ title: "Pago", content: "Escolha após confirmar o recebimento." }, { title: "Em atraso", content: "Use quando o prazo passou e o valor segue pendente." }, { title: "Previsto", content: "Representa o valor aguardado antes do recebimento." }] },
     ],
   },
   {

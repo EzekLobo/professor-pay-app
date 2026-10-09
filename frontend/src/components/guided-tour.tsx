@@ -276,6 +276,13 @@ export function GuidedTourDialog({ tour }: { tour: GuidedTourController }) {
         <p className="guided-tour-progress">{tour.stepIndex + 1} de {tour.stepCount}</p>
         <h2 id={titleId}>{tour.activeStep.title}</h2>
         <p id={descriptionId}>{tour.activeStep.description}</p>
+        {tour.activeStep.items && (
+          <ul className="guided-tour-list">
+            {tour.activeStep.items.map((item) => (
+              <li key={item.title}><strong>{item.title}:</strong> {item.content}</li>
+            ))}
+          </ul>
+        )}
         <div className="guided-tour-actions">
           <button type="button" onClick={tour.close}>Pular</button>
           <button type="button" onClick={tour.goBack} disabled={!tour.canGoBack}>Voltar</button>

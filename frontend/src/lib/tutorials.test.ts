@@ -62,7 +62,7 @@ describe("tutorial definitions", () => {
 
   it("isolates the in-session completion marker by user and tutorial version", () => {
     const payments = getTutorialForPathname("/payments")!;
-    expect(tutorialSessionKey("professor-a", payments)).toBe("professor-a:payments:v2");
+    expect(tutorialSessionKey("professor-a", payments)).toBe("professor-a:payments:v3");
     expect(tutorialSessionKey("professor-b", payments)).not.toBe(tutorialSessionKey("professor-a", payments));
     expect(tutorialSessionKey("professor-a", { ...payments, version: payments.version + 1 })).not.toBe(
       tutorialSessionKey("professor-a", payments),

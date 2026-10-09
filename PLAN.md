@@ -633,3 +633,29 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Mudou: as seis rotas privadas têm o botão global “Como usar” e roteiros essenciais versionados, com spotlight, navegação por teclado e retorno de foco ao acionador.
 - Persistência: o progresso é isolado em `users/{uid}/tutorials/{roteiroId}`; fechar, pular ou concluir registra a versão, enquanto sair da rota não marca o roteiro como visto.
 - Verificado: Vitest (64 testes), typecheck, lint, build e diff check passam. A conferência visual completa ainda exige uma sessão Firebase autenticada.
+
+### R12 - NexusClass como produto e portfólio
+
+> Estado: planejado. Não iniciar sem uma solicitação explícita de implementação.
+
+- [ ] R12.1 - Landing e demonstração pública isolada
+  - Escopo: substituir `/` por landing com acesso a `/demo`; criar navegação pública completa com dados fictícios, CRUD local no navegador e restauração da base inicial.
+  - Segurança: a demo não usa Firebase, dados reais, links Kodland, importação, sincronização, backup ou rotas `/api/*`.
+  - Aceitação: visitante sem autenticação navega e altera apenas sua cópia local; restaurar remove as alterações; nenhuma chamada Firebase ou Kodland ocorre.
+
+- [ ] R12.2 - Cadastro manual de professores autorizados
+  - Escopo: criar Alunos e ampliar Turmas para cadastro manual de alunos, turmas, recorrência, duração e valor/hora; gerar aulas futuras e manter dados sincronizados separados.
+  - Modelo: `users/{uid}/students/{studentId}`; turmas manuais usam `source: "manual"` e `student_ids`; o valor é por turma e uma turma pode ter vários alunos.
+  - Aceitação: CRUD de alunos e turmas funciona; alteração de recorrência recalcula apenas aulas ainda não recebidas; dados Kodland não são sobrescritos.
+  - Depende de: R12.1 para o contrato comum de dados e componentes de apresentação.
+
+- [ ] R12.3 - Segurança, documentação e validação
+  - Escopo: manter criação de contas exclusivamente no Firebase Console; atualizar landing, login e documentação; cobrir adaptadores, agenda, demo e rotas públicas/privadas.
+  - Aceitação: regras Firestore continuam isolando `users/{uid}`; demo permanece local e somente sintética; Vitest, typecheck, lint, build e Playwright passam.
+  - Depende de: R12.1 e R12.2.
+
+#### Decisões R12
+
+- Contas privadas continuam sob autorização manual do administrador no Firebase Console; não haverá auto cadastro, convite ou painel de aprovação nesta fase.
+- A demo é pública e interativa, mas usa somente `localStorage` por navegador; as alterações não são compartilhadas nem enviadas ao servidor.
+- A demo permite CRUD manual de alunos, turmas, agenda e pagamentos fictícios; recursos externos aparecem somente como demonstração visual.

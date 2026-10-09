@@ -56,3 +56,5 @@
 - Validação local executada: `npm.cmd run typecheck`, `npm.cmd test`, `npm.cmd run lint` e `npm.cmd run build` em `frontend`.
 - O payload real das extras usa `extra_lesson_id`, `student_full_name`, `start_time` e `end_time` em UTC; o importador converte os horários para São Paulo. Os eventos visuais `start/end/title` eram uma transformação da interface, não o contrato da API.
 - Próximo passo operacional: publicar e sincronizar novamente; validar a grade de quarta-feira para Lucas Martin e Rafael Coppola. O usuário autorizou acionar a sincronização com os campos preenchidos no navegador.
+
+- O guia "Como funciona?" de Resumo e Pagamentos foi atualizado para a versão 3: explicações curtas acompanhadas de tópicos objetivos, inspirados no padrão consultivo do SGPI. A etapa da lista completa agora explica corretamente que ela já está aberta e que o botão alterna para o carrossel.

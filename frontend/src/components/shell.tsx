@@ -6,24 +6,14 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
-import { correctionsNavigation, navigation, utilityNavigation } from "@/lib/routes";
+import { appRoutes, pageTitle } from "@/lib/routes";
 import { GuidedTourDialog, useGuidedTour } from "@/components/guided-tour";
-
-const pageTitles: Record<string, string> = {
-  "/dashboard": "Sua rotina",
-  "/payments": "Pagamentos",
-  "/classes": "Turmas",
-  "/lessons": "Aulas",
-  "/corrections": "Correções",
-  "/data": "Seus dados",
-};
 
 export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const tour = useGuidedTour({ userId: user.id, pathname });
   const isActive = (href: string) => pathname === href;
-  const allNavigation = [...navigation, correctionsNavigation, utilityNavigation];
 
   async function logout() {
     await logoutFromFirebase().catch(() => undefined);
@@ -39,7 +29,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
         </Link>
         <p className="sidebar-caption">NAVEGAÇÃO</p>
         <nav className="nav" aria-label="Navegação principal">
-          {allNavigation.map((item) => (
+          {appRoutes.map((item) => (
             <Link className={`nav-link${isActive(item.href) ? " nav-link-active" : ""}`} href={item.href} key={item.href}>
               <span aria-hidden="true">{item.icon}</span>
               <span>{item.label}</span>
@@ -55,7 +45,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
       </aside>
       <section className="shell-main">
         <header className="shell-header">
-          <h1 className="shell-title">{pageTitles[pathname] ?? "NexusClass"}</h1>
+          <h1 className="shell-title">{pageTitle(pathname)}</h1>
           <div className="header-actions">
             {tour.tutorial && (
               <button

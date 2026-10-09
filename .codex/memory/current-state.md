@@ -1,5 +1,7 @@
 # Estado atual
 
+- A navegação web tem uma única fonte de verdade em `frontend/src/lib/routes.ts`: o rótulo do menu também alimenta o título do topo. A antiga divergência de Resumo/Sua rotina e Dados/Seus dados foi removida; a área de dados está nomeada `Dados e backup`.
+
 - O NexusClass possui um tutorial “Como usar” em Resumo, Pagamentos, Turmas, Aulas, Correções e Dados. Os roteiros de Resumo, Pagamentos, Turmas, Aulas e Correções estão na versão 2: revelam conteúdos ocultos e explicam controles como visibilidade financeira e lista completa. Cada roteiro abre automaticamente uma vez por versão e permanece reabrível pelo cabeçalho; o progresso é salvo por usuário no Firestore, em `users/{uid}/tutorials/{roteiroId}`.
 - O cabecalho nao exibe mais “Painel pessoal” nem saudacao duplicada: titulo da pagina fica centralizado e o perfil compacto permanece no canto direito.
 - Grade, Correcoes e Turmas usam o mesmo fluxo de sincronizacao: o e-mail e lembrado no navegador; apos sucesso, o app oferece as credenciais ao gerenciador seguro do navegador e, ao reabrir qualquer um desses modais, recupera automaticamente a credencial antes autorizada. A senha nunca e salva no localStorage nem no Firebase; em falha, ela permanece no formulario para nova tentativa. O snapshot e escrito em lotes de ate 400 operacoes para nao exceder o limite do Firestore. A Kodland retorna 403 para credenciais recusadas, tratado como erro de usuario/senha invalida.

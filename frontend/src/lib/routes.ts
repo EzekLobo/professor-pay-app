@@ -6,4 +6,10 @@ export const navigation = [
 ];
 
 export const correctionsNavigation = { href: "/corrections", label: "Correções", icon: "✓" };
-export const utilityNavigation = { href: "/data", label: "Dados", icon: "◫" };
+export const utilityNavigation = { href: "/data", label: "Dados e backup", icon: "◫" };
+
+export const appRoutes = [...navigation, correctionsNavigation, utilityNavigation];
+
+export function pageTitle(pathname: string) {
+  return appRoutes.find((item) => item.href === pathname)?.label ?? "NexusClass";
+}

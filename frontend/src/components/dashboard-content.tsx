@@ -260,6 +260,15 @@ export function DashboardContent(props: DashboardContentProps) {
           selectedPayment ? `Extrato · ${selectedPayment.period}` : "Extrato"
         }
         onClose={() => setStatementDate(null)}
+        help={{
+          intro: "O extrato detalha as aulas e os valores que formam esta competência.",
+          items: [
+            { title: "Aulas", content: "Confira turma, data, duração e valor de cada registro." },
+            { title: "Situação da aula", content: "Use o seletor ao lado do valor para marcar cancelamento, feriado ou substituição." },
+            { title: "Aula extra", content: "Adicione um encontro extra antes de confirmar o recebimento." },
+            { title: "Navegação", content: "Use os botões finais para consultar a competência anterior ou a próxima." },
+          ],
+        }}
       >
         {selectedPayment && (
           <>
@@ -401,6 +410,7 @@ function DashboardPaymentCarousel({
   return (
     <div
       className="payment-carousel"
+      data-tour-focus
       aria-label="Carrossel de competências mensais"
       onWheelCapture={moveCarouselWithWheel}
     >

@@ -96,6 +96,15 @@ export function LessonMaterialModal({
       onClose={closeModal}
       className={className}
       titleNotice={titleNotice}
+      help={{
+        intro: "Use este modal para preparar a aula e acompanhar a turma.",
+        items: [
+          { title: "Aulas", content: "Use as setas superiores para consultar a aula anterior ou a próxima." },
+          { title: "Alunos", content: "Abra a aba Alunos para conferir o ranking e acessar a turma na plataforma." },
+          { title: "Materiais", content: "Abra tarefas, lição de casa, slides e roteiro pelos links disponíveis." },
+          { title: "Anotações", content: "Use o ícone de folha para salvar lembretes particulares da aula." },
+        ],
+      }}
     >
       {children}
       {lesson && (

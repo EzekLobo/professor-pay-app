@@ -58,3 +58,4 @@
 - Próximo passo operacional: publicar e sincronizar novamente; validar a grade de quarta-feira para Lucas Martin e Rafael Coppola. O usuário autorizou acionar a sincronização com os campos preenchidos no navegador.
 
 - O guia "Como funciona?" de Resumo e Pagamentos foi atualizado para a versão 3: explicações curtas acompanhadas de tópicos objetivos, inspirados no padrão consultivo do SGPI. A etapa da lista completa agora explica corretamente que ela já está aberta e que o botão alterna para o carrossel.
+- O destaque das competências usa o carrossel como foco visual, evitando que a moldura termine antes dos cartões. Os modais de aula e extrato passaram a oferecer uma seção expansível “Como usar”, com orientações pontuadas.

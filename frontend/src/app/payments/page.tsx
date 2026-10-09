@@ -457,6 +457,15 @@ function Content() {
         open={Boolean(detail)}
         title={detail ? `Extrato · ${detail.period}` : "Extrato"}
         onClose={() => setDetail(null)}
+        help={{
+          intro: "O extrato detalha as aulas e os valores que formam esta competência.",
+          items: [
+            { title: "Aulas", content: "Confira turma, data, duração e valor de cada registro." },
+            { title: "Situação da aula", content: "Use o seletor ao lado do valor para marcar cancelamento, feriado ou substituição." },
+            { title: "Aula extra", content: "Adicione um encontro extra antes de confirmar o recebimento." },
+            { title: "Confirmação", content: "Confirme o recebimento somente depois de revisar o total." },
+          ],
+        }}
       >
         {detail && (
           <>

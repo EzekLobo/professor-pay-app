@@ -175,13 +175,14 @@ export function GuidedTourDialog({ tour }: { tour: GuidedTourController }) {
     let frame = 0;
     const updatePosition = (scrollTarget = false) => {
       const target = document.querySelector<HTMLElement>(tour.activeTargetSelector!);
+      const focusTarget = target?.querySelector<HTMLElement>("[data-tour-focus]") ?? target;
       const dialog = dialogRef.current;
-      if (!target || !dialog) return;
+      if (!focusTarget || !dialog) return;
 
-      if (scrollTarget) target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+      if (scrollTarget) focusTarget.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
-        const targetRect = target.getBoundingClientRect();
+        const targetRect = focusTarget.getBoundingClientRect();
         const margin = 8;
         const spotlightRect = {
           left: Math.max(4, targetRect.left - margin),

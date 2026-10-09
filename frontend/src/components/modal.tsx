@@ -2,6 +2,11 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 
+export type ModalHelp = {
+  intro: string;
+  items: readonly { title: string; content: string }[];
+};
+
 export function Modal({
   open,
   title,
@@ -9,6 +14,7 @@ export function Modal({
   children,
   className = "",
   titleNotice,
+  help,
 }: {
   open: boolean;
   title: string;
@@ -16,6 +22,7 @@ export function Modal({
   children: ReactNode;
   className?: string;
   titleNotice?: ReactNode;
+  help?: ModalHelp;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -53,6 +60,15 @@ export function Modal({
         </button>
       </div>
       {titleNotice && <div className="modal-title-notice">{titleNotice}</div>}
+      {help && (
+        <details className="modal-help">
+          <summary>Como usar</summary>
+          <p>{help.intro}</p>
+          <ul>
+            {help.items.map((item) => <li key={item.title}><strong>{item.title}:</strong> {item.content}</li>)}
+          </ul>
+        </details>
+      )}
       {children}
     </dialog>
   );

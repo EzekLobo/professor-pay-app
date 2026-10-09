@@ -568,6 +568,17 @@ select:focus-visible {
 .modal-dialog .management-form {
   margin-top: 0;
 }
+.modal-help {
+  margin: 0 0 16px;
+  border: 1px solid #315b88;
+  border-radius: 10px;
+  background: rgb(12 29 52 / 72%);
+  color: var(--muted);
+}
+.modal-help summary { padding: 10px 12px; color: var(--accent); cursor: pointer; font-weight: 800; }
+.modal-help > p { margin: 0 12px 10px; font-size: .9rem; }
+.modal-help ul { display: grid; gap: 7px; margin: 0; padding: 0 12px 12px 26px; font-size: .86rem; line-height: 1.4; }
+.modal-help strong { color: var(--text); }
 .schedule-sync-modal { width: min(560px, calc(100vw - 32px)); }
 .schedule-sync-modal .management-form { grid-template-columns: 1fr; }
 .panel h2 {

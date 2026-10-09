@@ -28,6 +28,7 @@ import {
   type DashboardResponse,
 } from "@/lib/api";
 import { kodlandLessonLocation } from "@/lib/kodland-lessons";
+import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { freeAvailabilityWindows } from "@/lib/availability-windows";
 import {
   kodlandExtraSchedulePresentation,
@@ -803,10 +804,16 @@ function DashboardPageContent() {
     setRefreshingSchedule(true);
     setSyncError("");
     setRefreshNotice("");
+    let synced = false;
     try {
       const result = await kodlandApi.sync(username, password);
-      window.localStorage.setItem("aulapay.kodland.username", username);
-      await rememberKodlandCredentials(form);
+      synced = true;
+      try {
+        window.localStorage.setItem("aulapay.kodland.username", username);
+        await rememberKodlandCredentials(form);
+      } catch {
+        // Browser credential storage is optional after a successful sync.
+      }
       setSyncPassword("");
       if (!(await load(true))) {
         throw new Error(
@@ -819,10 +826,10 @@ function DashboardPageContent() {
       );
     } catch (reason) {
       setSyncError(
-        reason instanceof ApiError
+        synced
+          ? "A sincronização foi concluída, mas não foi possível atualizar a grade. Recarregue a página."
+          : reason instanceof ApiError || reason instanceof KodlandSyncResponseError || reason instanceof KodlandSyncPersistenceError
           ? reason.message
-          : reason instanceof Error
-            ? reason.message
             : "Não foi possível atualizar a grade. Tente novamente.",
       );
     } finally {

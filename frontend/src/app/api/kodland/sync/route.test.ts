@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 import {
   availabilityFromTeacherTimetable,
   correctionUrlFor,
@@ -6,7 +7,31 @@ import {
   extrasFromTeacherAgenda,
   mergeExtraLessons,
   teacherCalendarWeekDates,
+  POST,
 } from "./route";
+
+describe("sync diagnostics", () => {
+  it("returns a traceable 401 without logging submitted credentials", async () => {
+    const syncId = "dcc96280-3a27-4353-83ab-9c89822a53b9";
+    const log = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    try {
+      const response = await POST(new NextRequest("https://example.test/api/kodland/sync", {
+        method: "POST",
+        headers: { "x-sync-id": syncId, "content-type": "application/json" },
+        body: JSON.stringify({ username: "private-user", password: "private-password" }),
+      }));
+      expect(response.status).toBe(401);
+      expect(response.headers.get("x-sync-id")).toBe(syncId);
+      expect(await response.json()).toEqual({ code: "firebase_session_expired" });
+      const output = log.mock.calls.flat().join(" ");
+      expect(output).toContain(syncId);
+      expect(output).not.toContain("private-user");
+      expect(output).not.toContain("private-password");
+    } finally {
+      log.mockRestore();
+    }
+  });
+});
 
 describe("correctionUrlFor", () => {
   it("builds a task review URL for the specific student when the API has no direct link", () => {

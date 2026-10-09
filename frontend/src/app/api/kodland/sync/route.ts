@@ -9,6 +9,31 @@ import { parseGuardianContact } from "@/lib/student-profile";
 
 export const runtime = "nodejs";
 
+type SyncFailureCode =
+  | "kodland_invalid_credentials"
+  | "kodland_rate_limited"
+  | "kodland_session_expired"
+  | "kodland_unavailable";
+
+class SyncFailure extends Error {
+  constructor(
+    public readonly code: SyncFailureCode,
+    public readonly status: number,
+  ) {
+    super(code);
+  }
+}
+
+const syncReference = (request: NextRequest) => {
+  const supplied = request.headers.get("x-sync-id");
+  return supplied && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(supplied)
+    ? supplied
+    : crypto.randomUUID();
+};
+
+const syncResponse = (syncId: string, body: Record<string, unknown>, status = 200) =>
+  Response.json(body, { status, headers: { "x-sync-id": syncId } });
+
 type Group = {
   external_id: string;
   title: string;
@@ -350,13 +375,11 @@ async function kodlandLogin(username: string, password: string) {
     cache: "no-store",
   });
   if (!response.ok)
-    throw new Error(
-      response.status === 401 || response.status === 403
-        ? "Usuário ou senha da Kodland inválidos."
-        : response.status === 429
-          ? "A Kodland bloqueou temporariamente novas tentativas. Aguarde alguns minutos antes de tentar novamente."
-        : "Não foi possível entrar na Kodland.",
-    );
+    throw response.status === 401 || response.status === 403
+      ? new SyncFailure("kodland_invalid_credentials", 403)
+      : response.status === 429
+        ? new SyncFailure("kodland_rate_limited", 429)
+        : new SyncFailure("kodland_unavailable", 503);
   const payload = (await response.json()) as { access_token?: string };
   if (!payload.access_token)
     throw new Error("A Kodland não retornou uma sessão válida.");
@@ -369,11 +392,11 @@ async function get(path: string, token: string) {
     cache: "no-store",
   });
   if (!response.ok)
-    throw new Error(
-      response.status === 401
-        ? "A sessão da Kodland expirou. Tente novamente."
-        : "A Kodland não respondeu como esperado.",
-    );
+    throw response.status === 401
+      ? new SyncFailure("kodland_session_expired", 502)
+      : response.status === 429
+        ? new SyncFailure("kodland_rate_limited", 429)
+        : new SyncFailure("kodland_unavailable", 503);
   return response.json();
 }
 
@@ -1182,20 +1205,60 @@ async function lessonsForGroup(
 }
 
 export async function POST(request: NextRequest) {
+  const syncId = syncReference(request);
+  const startedAt = Date.now();
+  let stage = "firebase_auth";
+  const trace = (event: string, counts: Record<string, number> = {}) => {
+    console.info("[kodland-sync]", JSON.stringify({
+      syncId,
+      event,
+      stage,
+      durationMs: Date.now() - startedAt,
+      ...counts,
+    }));
+  };
+  const runStage = async <T,>(
+    name: string,
+    operation: () => Promise<T>,
+    counts: (result: T) => Record<string, number> = () => ({}),
+  ): Promise<T> => {
+    stage = name;
+    const stageStartedAt = Date.now();
+    const result = await operation();
+    console.info("[kodland-sync]", JSON.stringify({
+      syncId,
+      event: "stage_complete",
+      stage,
+      durationMs: Date.now() - startedAt,
+      stageDurationMs: Date.now() - stageStartedAt,
+      ...counts(result),
+    }));
+    return result;
+  };
   try {
-    if (!(await requireFirebaseUser(request)))
-      return Response.json({ message: "Não autorizado." }, { status: 401 });
-    const body = (await request.json()) as {
+    trace("started");
+    if (!(await runStage("firebase_auth", () => requireFirebaseUser(request)))) {
+      trace("unauthorized");
+      return syncResponse(syncId, { code: "firebase_session_expired" }, 401);
+    }
+    stage = "request_validation";
+    let body: {
       username?: string;
       password?: string;
     };
-    if (!body.username?.trim() || !body.password)
-      return Response.json(
-        { message: "Informe usuário e senha da Kodland." },
-        { status: 400 },
-      );
-    const token = await kodlandLogin(body.username, body.password);
-    const groups = await groupsForTeacher(userId(token), token);
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      trace("invalid_request");
+      return syncResponse(syncId, { code: "invalid_request" }, 400);
+    }
+    if (!body || typeof body.username !== "string" || !body.username.trim() || typeof body.password !== "string" || !body.password) {
+      trace("invalid_request");
+      return syncResponse(syncId, { code: "missing_credentials" }, 400);
+    }
+    const token = await runStage("kodland_auth", () => kodlandLogin(body.username!, body.password!));
+    const groups = await runStage("groups", () => groupsForTeacher(userId(token), token),
+      (result) => ({ groupCount: result.length }));
     const active = groups.filter((group) => !group.archived);
     const profileCache = new Map<
       string,
@@ -1210,7 +1273,7 @@ export async function POST(request: NextRequest) {
     // Keep the teacher calendar ahead of the full course-material import. The
     // calendar is what drives availability and booked extras, while the
     // material import can make hundreds of auxiliary requests.
-    const groupsWithStudents = await Promise.all(
+    const groupsWithStudents = await runStage("students", () => Promise.all(
       active.map(async (group) => {
         const payload = await get(
           `student_groups/${group.external_id}/get_students_main_data/`,
@@ -1227,21 +1290,25 @@ export async function POST(request: NextRequest) {
           students,
         };
       }),
-    );
+    ), (result) => ({ activeGroupCount: result.length, studentCount: result.reduce((total, item) => total + item.students.length, 0) }));
     const students = groupsWithStudents.flatMap((item) => item.students);
     const teacherId = userId(token);
-    const [extraSnapshot, availabilityPayload] = await Promise.all([
+    const [extraSnapshot, availabilityPayload] = await runStage("calendar", () => Promise.all([
       extrasForStudents(students, teacherId, token),
       getOptional(`teacher_timetables/${teacherId}`, token),
-    ]);
-    const snapshots = await Promise.all(
+    ]), ([extras]) => ({ extraLessonCount: extras.items.length }));
+    const snapshots = await runStage("lessons_and_reviews", () => Promise.all(
       groupsWithStudents.map(async ({ group, payload, students }) => ({
         students,
         reviews: await reviewsForGroup(group, payload, token),
         lessons: await lessonsForGroup(group, token, courseLessonCache),
       })),
-    );
-    return Response.json({
+    ), (result) => ({
+      reviewCount: result.reduce((total, item) => total + item.reviews.length, 0),
+      lessonCount: result.reduce((total, item) => total + item.lessons.length, 0),
+    }));
+    stage = "response";
+    const response = syncResponse(syncId, {
       groups,
       students,
       reviews: snapshots.flatMap((item) => item.reviews),
@@ -1251,15 +1318,25 @@ export async function POST(request: NextRequest) {
       availability: availabilityFromTeacherTimetable(availabilityPayload),
       availability_synced: availabilityPayload !== undefined,
     });
+    trace("completed", {
+      groupCount: groups.length,
+      studentCount: students.length,
+      reviewCount: snapshots.reduce((total, item) => total + item.reviews.length, 0),
+      lessonCount: snapshots.reduce((total, item) => total + item.lessons.length, 0),
+    });
+    return response;
   } catch (error) {
-    return Response.json(
-      {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Não foi possível sincronizar com a Kodland.",
-      },
-      { status: 502 },
-    );
+    const known = error instanceof SyncFailure ? error : null;
+    const status = known?.status ?? 502;
+    const code = known?.code ?? "unexpected_sync_failure";
+    console.error("[kodland-sync]", JSON.stringify({
+      syncId,
+      event: "failed",
+      stage,
+      durationMs: Date.now() - startedAt,
+      code,
+      status,
+    }));
+    return syncResponse(syncId, { code }, status);
   }
 }

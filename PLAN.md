@@ -666,18 +666,20 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 
 #### Diagnóstico confirmado
 
-- A tela mostra a mensagem genérica somente quando o cliente não recebe uma
-  resposta JSON tratável da rota de sincronização; uma rejeição normal da
-  Kodland (incluindo credencial inválida) deveria chegar como `ApiError` com a
-  mensagem retornada pelo servidor.
+- A mensagem genérica pode vir de resposta não JSON, falha de rede, leitura ou
+  gravação no Firestore e até do recarregamento da tela: o `catch` atual cobre
+  todas essas etapas. O ponto exato ainda exige diagnóstico.
 - A rota `POST /api/kodland/sync` reúne turmas, alunos, agendas, extras,
   correções, aulas e enriquecimento de materiais no mesmo ciclo. Ela contém
   diversos blocos concorrentes e não declara `maxDuration`.
 - A hipótese principal é expiração ou interrupção da função em produção para
   contas com volume maior. Deve ser confirmada pelos logs da Vercel antes de
   atribuir a causa a credenciais ou à Kodland.
+- A coleta de perfis e agendas por aluno e de correções por aula também cresce
+  com o volume. Um `getOptional` que falha retorna `null`, mas algumas flags de
+  disponibilidade comparam com `undefined`; isso pode apagar dados anteriores.
 
-- [ ] R13.1 - Diagnóstico observável e seguro
+- [x] R13.1 - Diagnóstico observável e seguro
   - Escopo: adicionar um identificador de sincronização; registrar no servidor
     etapa, duração, quantidade de turmas/alunos/aulas e falha sanitizada;
     preservar o código HTTP e o `content-type` no cliente quando a resposta
@@ -693,8 +695,12 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - [ ] R13.2 - Separar sincronização essencial de enriquecimento pesado
   - Escopo: manter no caminho inicial somente autenticação Kodland, turmas,
     alunos, grade, agenda e dados financeiros indispensáveis; transferir a
-    coleta extensa de materiais, tarefas e detalhes de catálogo para carga sob
-    demanda ou uma atualização explícita de materiais.
+    coleta extensa de materiais, tarefas, detalhes de catálogo, perfis e
+    correções para carga sob demanda ou uma atualização explícita. Corrigir as
+    flags de disponibilidade para preservar dados antigos quando a fonte falhar.
+  - Identidade: manter no documento o ID original da aula Kodland além do ID
+    composto turma+aula usado no Firestore; uma consulta sob demanda não pode
+    usar o ID composto como parâmetro da API externa.
   - Preservação: dados já sincronizados continuam disponíveis se o
     enriquecimento posterior falhar; nenhuma coleção de outro usuário é
     sobrescrita.
@@ -722,3 +728,15 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   - Aceitação: typecheck, lint, Vitest, build e verificações de isolamento
     passam; logs da Vercel comprovam duração e conclusão do cenário de volume.
   - Depende de: R13.1, R13.2 e R13.3.
+
+#### Handoff R13.1
+
+- `POST /api/kodland/sync` inclui `x-sync-id`, código seguro e logs de etapa,
+  duração e contagens, sem credenciais, tokens ou dados pessoais.
+- O cliente distingue HTML/JSON inválido, falha de rede, HTTP e leitura ou
+  gravação no Firestore. Salvar credenciais no navegador é opcional e não
+  transforma uma sincronização concluída em falha.
+- Rechecado pelo orquestrador: 19 testes focados, typecheck, lint e diff check
+  passam. O diagnóstico por logs de produção permanece pendente porque o
+  projeto não está vinculado localmente ao CLI Vercel e o navegador conectado
+  não pôde abrir o painel.

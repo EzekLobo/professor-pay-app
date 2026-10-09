@@ -13,6 +13,11 @@ import {
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { reauthenticateWithFirebase } from "@/lib/firebase-auth";
 import type { KodlandLesson } from "@/lib/kodland-lessons";
+import {
+  KodlandSyncPersistenceError,
+  kodlandSyncNetworkError,
+  readKodlandSyncResponse,
+} from "@/lib/kodland-sync-response";
 
 export type User = { id: string; name: string; email: string };
 export type DashboardLesson = {
@@ -1213,22 +1218,24 @@ export const kodlandApi = {
     const token = await (
       authUser() as unknown as { getIdToken: () => Promise<string> }
     ).getIdToken();
-    const response = await fetch("/api/kodland/sync", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ username, password }),
-    });
-    const snapshot = (await response.json()) as KodlandSnapshot & {
-      message?: string;
-    };
-    if (!response.ok)
-      throw new ApiError(
-        response.status,
-        snapshot.message ?? "Não foi possível sincronizar com a Kodland.",
-      );
+    const syncId = crypto.randomUUID();
+    let response: Response;
+    try {
+      response = await fetch("/api/kodland/sync", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+          "x-sync-id": syncId,
+        },
+        body: JSON.stringify({ username, password }),
+      });
+    } catch {
+      throw kodlandSyncNetworkError(syncId);
+    }
+    const snapshot = await readKodlandSyncResponse<KodlandSnapshot>(response, syncId);
+    let persistencePhase: "leitura" | "gravação" = "leitura";
+    try {
     const createdAt = now();
     const oldGroups = await rows("kodland_groups");
     const links = new Map(
@@ -1363,6 +1370,7 @@ export const kodlandApi = {
         })),
       );
     }
+    persistencePhase = "gravação";
     await commitWrites(writes);
     return {
       group_count: snapshot.groups.length,
@@ -1371,6 +1379,9 @@ export const kodlandApi = {
       lesson_count: snapshot.lessons.length,
       extra_lesson_count: snapshot.extra_lessons.length,
     };
+    } catch {
+      throw new KodlandSyncPersistenceError(syncId, persistencePhase);
+    }
   },
   linkGroup: async (externalId: string, localClassId: string | null) => {
     await updateDoc(doc(ref("kodland_groups"), externalId), {

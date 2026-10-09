@@ -11,6 +11,7 @@ import {
   type KodlandGroup,
   type KodlandStudent,
 } from "@/lib/api";
+import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { whatsappUrl } from "@/lib/whatsapp";
 import {
   rememberKodlandCredentials,
@@ -217,8 +218,12 @@ function ClassesContent() {
     setError("");
     try {
       const result = await kodlandApi.sync(username.trim(), password);
-      window.localStorage.setItem("aulapay.kodland.username", username.trim());
-      await rememberKodlandCredentials(formElement);
+      try {
+        window.localStorage.setItem("aulapay.kodland.username", username.trim());
+        await rememberKodlandCredentials(formElement);
+      } catch {
+        // Browser credential storage is optional after a successful sync.
+      }
       setPassword("");
       setSyncOpen(false);
       setNotice(
@@ -227,7 +232,7 @@ function ClassesContent() {
       await load();
     } catch (reason) {
       setError(
-        reason instanceof ApiError
+        reason instanceof ApiError || reason instanceof KodlandSyncResponseError || reason instanceof KodlandSyncPersistenceError
           ? reason.message
           : "Não foi possível sincronizar os dados.",
       );

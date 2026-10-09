@@ -6,6 +6,7 @@ import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { ApiError, kodlandApi, type KodlandLesson, type KodlandReview } from "@/lib/api";
+import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import {
   rememberKodlandCredentials,
   restoreKodlandCredentials,
@@ -142,8 +143,12 @@ function Content() {
     const password = syncPassword;
     try {
       const result = await kodlandApi.sync(username, password);
-      window.localStorage.setItem("aulapay.kodland.username", username);
-      await rememberKodlandCredentials(form);
+      try {
+        window.localStorage.setItem("aulapay.kodland.username", username);
+        await rememberKodlandCredentials(form);
+      } catch {
+        // Browser credential storage is optional after a successful sync.
+      }
       setSyncPassword("");
       await load();
       setSyncOpen(false);
@@ -152,7 +157,7 @@ function Content() {
       );
     } catch (reason) {
       setSyncError(
-        reason instanceof ApiError
+        reason instanceof ApiError || reason instanceof KodlandSyncResponseError || reason instanceof KodlandSyncPersistenceError
           ? reason.message
           : "Não foi possível atualizar as correções.",
       );

@@ -263,10 +263,10 @@ export function DashboardContent(props: DashboardContentProps) {
         help={{
           intro: "O extrato detalha as aulas e os valores que formam esta competência.",
           items: [
-            { title: "Aulas", content: "Confira turma, data, duração e valor de cada registro." },
-            { title: "Situação da aula", content: "Use o seletor ao lado do valor para marcar cancelamento, feriado ou substituição." },
-            { title: "Aula extra", content: "Adicione um encontro extra antes de confirmar o recebimento." },
-            { title: "Navegação", content: "Use os botões finais para consultar a competência anterior ou a próxima." },
+            { title: "Aulas", content: "Confira turma, data, duração e valor de cada registro.", target: ".payment-statement-list" },
+            { title: "Situação da aula", content: "Use o seletor ao lado do valor para marcar cancelamento, feriado ou substituição.", target: ".payment-statement-row-actions" },
+            { title: "Aula extra", content: "Adicione um encontro extra antes de confirmar o recebimento.", target: ".payment-statement-heading-actions" },
+            { title: "Navegação", content: "Use os botões finais para consultar a competência anterior ou a próxima.", target: ".payment-statement-footer" },
           ],
         }}
       >

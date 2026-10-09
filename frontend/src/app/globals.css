@@ -572,12 +572,29 @@ select:focus-visible {
 .modal-dialog { position: relative; }
 .modal-help-trigger { min-height: 36px; padding: 6px 10px; color: #d4b7ff; font-size: .8rem; font-weight: 800; }
 .modal-help-trigger[aria-expanded="true"] { border-color: #b68cff; background: rgb(154 98 255 / 16%); }
+.modal-guide-layer {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: rgb(4 2 12 / 70%);
+  backdrop-filter: blur(3px);
+}
+.modal-guide-spotlight {
+  position: absolute;
+  z-index: 1;
+  border: 2px solid #b68cff;
+  border-radius: 12px;
+  box-shadow: 0 0 32px rgb(154 98 255 / 48%), 0 0 0 100vmax rgb(4 2 12 / 18%);
+  pointer-events: none;
+}
 .modal-help-popover {
   position: absolute;
   z-index: 2;
-  top: 68px;
-  right: 22px;
-  width: min(390px, calc(100% - 44px));
+  top: 18px;
+  right: 18px;
+  width: min(360px, calc(100% - 36px));
   border: 1px solid rgb(181 139 255 / 68%);
   border-radius: 16px;
   padding: 18px;
@@ -586,11 +603,14 @@ select:focus-visible {
   color: var(--text);
 }
 .modal-help-kicker { margin: 0 0 7px; color: #d4b7ff; font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.modal-help-progress { margin: 0 0 8px; color: #c9a9ff; font-size: .72rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
 .modal-help-popover h3 { margin: 0 0 8px; color: #f6f0ff; font-size: 1.05rem; }
 .modal-help-popover > p:not(.modal-help-kicker) { margin: 0; color: #d1c5e3; font-size: .88rem; line-height: 1.45; }
-.modal-help-popover ul { display: grid; gap: 7px; margin: 12px 0 0; padding-left: 18px; color: #d1c5e3; font-size: .82rem; line-height: 1.4; }
-.modal-help-popover li::marker { color: #bd91ff; }
-.modal-help-popover strong { color: #f3eaff; }
+.modal-help-intro { margin-top: 10px !important; color: #b9a8d5 !important; font-size: .8rem !important; }
+.modal-help-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.modal-help-actions button { min-height: 34px; border: 1px solid rgb(182 145 255 / 42%); border-radius: 9px; padding: 6px 10px; background: transparent; color: #d9c8f4; font: inherit; font-size: .78rem; font-weight: 800; }
+.modal-help-actions button:last-child { border-color: #8d5eff; background: linear-gradient(135deg, #7c4ff0, #a26cff); color: white; }
+.modal-help-actions button:disabled { opacity: .42; }
 .schedule-sync-modal { width: min(560px, calc(100vw - 32px)); }
 .schedule-sync-modal .management-form { grid-template-columns: 1fr; }
 .panel h2 {

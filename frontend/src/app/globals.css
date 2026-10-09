@@ -569,14 +569,14 @@ select:focus-visible {
 .modal-dialog .management-form {
   margin-top: 0;
 }
-.modal-dialog { position: relative; }
+.modal-dialog { position: relative; overflow: visible; }
 .modal-help-trigger { min-height: 36px; padding: 6px 10px; color: #d4b7ff; font-size: .8rem; font-weight: 800; }
 .modal-help-trigger[aria-expanded="true"] { border-color: #b68cff; background: rgb(154 98 255 / 16%); }
 .modal-guide-layer {
   position: absolute;
   z-index: 4;
   inset: 0;
-  overflow: hidden;
+  overflow: visible;
   border-radius: inherit;
   pointer-events: none;
 }
@@ -592,9 +592,7 @@ select:focus-visible {
 .modal-help-popover {
   position: absolute;
   z-index: 2;
-  top: 18px;
-  right: 18px;
-  width: min(360px, calc(100% - 36px));
+  position: fixed;
   border: 1px solid rgb(181 139 255 / 68%);
   border-radius: 16px;
   padding: 18px;

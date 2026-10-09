@@ -33,6 +33,7 @@ export function Modal({
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpStep, setHelpStep] = useState(0);
   const [spotlight, setSpotlight] = useState<{ left: number; top: number; width: number; height: number; right: number; bottom: number } | null>(null);
+  const [helpPosition, setHelpPosition] = useState<{ left: string; top: string; width: string } | null>(null);
 
   useEffect(() => {
     helpRef.current = help;
@@ -69,11 +70,13 @@ export function Modal({
     const item = activeHelp.items[helpStep];
     if (!dialog || !item?.target) {
       setSpotlight(null);
+      setHelpPosition(null);
       return;
     }
     const target = dialog.querySelector<HTMLElement>(item.target);
     if (!target) {
       setSpotlight(null);
+      setHelpPosition(null);
       return;
     }
     target.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -88,6 +91,18 @@ export function Modal({
         right: Math.max(0, dialogRect.right - targetRect.right - 8),
         bottom: Math.max(0, dialogRect.bottom - targetRect.bottom - 8),
       });
+      const viewportMargin = 16;
+      const preferredWidth = 360;
+      const rightSpace = window.innerWidth - dialogRect.right - viewportMargin;
+      const leftSpace = dialogRect.left - viewportMargin;
+      const useRight = rightSpace >= 280 || rightSpace >= leftSpace;
+      const availableWidth = Math.max(240, (useRight ? rightSpace : leftSpace) - 10);
+      const width = Math.min(preferredWidth, availableWidth);
+      const left = useRight
+        ? Math.min(window.innerWidth - width - viewportMargin, dialogRect.right + 10)
+        : Math.max(viewportMargin, dialogRect.left - width - 10);
+      const top = Math.max(viewportMargin, Math.min(window.innerHeight - 260, targetRect.top));
+      setHelpPosition({ left: `${left}px`, top: `${top}px`, width: `${width}px` });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [help?.id, helpOpen, helpStep]);
@@ -150,7 +165,7 @@ export function Modal({
             <div className="modal-guide-mask" style={{ top: `${spotlight.top + spotlight.height}px`, right: 0, bottom: 0, left: 0 }} aria-hidden="true" />
             <div className="modal-guide-spotlight" style={{ left: `${spotlight.left}px`, top: `${spotlight.top}px`, width: `${spotlight.width}px`, height: `${spotlight.height}px` }} aria-hidden="true" />
           </> : <div className="modal-guide-mask" style={{ inset: 0 }} aria-hidden="true" />}
-          <section className="modal-help-popover" role="dialog" aria-modal="true">
+          <section className="modal-help-popover" style={helpPosition ?? undefined} role="dialog" aria-modal="true">
             <p className="modal-help-kicker">Como funciona?</p>
             <p className="modal-help-progress">{helpStep + 1} de {help.items.length}</p>
             <h3>{help.items[helpStep]?.title}</h3>

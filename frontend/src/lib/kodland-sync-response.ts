@@ -10,8 +10,12 @@ export class KodlandSyncResponseError extends Error {
 }
 
 export class KodlandSyncPersistenceError extends Error {
-  constructor(public readonly syncId: string, phase: "leitura" | "gravação") {
-    super(`A Kodland respondeu, mas não foi possível concluir a ${phase} dos dados no NexusClass. Tente novamente ou informe a referência ${syncId} ao suporte.`);
+  constructor(
+    public readonly syncId: string,
+    phase: "leitura" | "gravação",
+    detail = "Tente novamente ou informe a referência ao suporte.",
+  ) {
+    super(`A Kodland respondeu, mas não foi possível concluir a ${phase} dos dados no NexusClass. ${detail} Referência ${syncId}.`);
   }
 }
 

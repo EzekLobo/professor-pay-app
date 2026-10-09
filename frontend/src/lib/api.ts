@@ -373,14 +373,42 @@ const rows = async (name: string): Promise<Row[]> =>
     id: item.id,
   }));
 type FirebaseWriteBatch = ReturnType<typeof writeBatch>;
+const uniqueBy = <T>(items: T[], key: (item: T) => string) => {
+  const unique = new Map<string, T>();
+  items.forEach((item) => unique.set(key(item), item));
+  return [...unique.values()];
+};
 const commitWrites = async (writes: Array<(batch: FirebaseWriteBatch) => void>) => {
   // Firestore accepts at most 500 operations per batch. A pedagogical snapshot
   // can include hundreds of catalog lessons, reviews and old records.
   for (let index = 0; index < writes.length; index += 400) {
     const batch = writeBatch(getFirebaseDb());
     writes.slice(index, index + 400).forEach((write) => write(batch));
-    await batch.commit();
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await batch.commit();
+        break;
+      } catch (error) {
+        if (attempt >= 1) throw error;
+        await new Promise<void>((resolve) => setTimeout(resolve, 350));
+      }
+    }
   }
+};
+const firestoreFailure = (error: unknown) => {
+  const code = typeof error === "object" && error && "code" in error
+    ? String((error as { code?: unknown }).code ?? "unknown")
+    : "unknown";
+  if (code === "permission-denied") {
+    return { code, detail: "O NexusClass não teve permissão para salvar seus dados. Entre novamente e tente outra vez." };
+  }
+  if (code === "unavailable" || code === "deadline-exceeded") {
+    return { code, detail: "O banco de dados ficou temporariamente indisponível. Aguarde alguns instantes e tente novamente." };
+  }
+  if (code === "invalid-argument" || code === "failed-precondition") {
+    return { code, detail: "A resposta recebida contém dados incompatíveis. Tente novamente; se persistir, informe a referência ao suporte." };
+  }
+  return { code, detail: "Tente novamente ou informe a referência ao suporte." };
 };
 const isoToday = () => new Date().toISOString().slice(0, 10);
 const now = () => new Date().toISOString();
@@ -1323,14 +1351,15 @@ export const kodlandApi = {
     };
     if (mode === "corrections") {
       const previousReviews = await rows("kodland_reviews");
-      const upserts: Array<(batch: FirebaseWriteBatch) => void> = snapshot.reviews.map(
+      const reviews = uniqueBy(snapshot.reviews, (item) => item.id);
+      const upserts: Array<(batch: FirebaseWriteBatch) => void> = reviews.map(
         (item) => (batch) =>
           batch.set(doc(syncCollection("kodland_reviews"), item.id), {
             ...item,
             created_at: createdAt,
           }),
       );
-      const incoming = new Set(snapshot.reviews.map((item) => item.id));
+      const incoming = new Set(reviews.map((item) => item.id));
       const deletes: Array<(batch: FirebaseWriteBatch) => void> = previousReviews
         .filter((item) => !incoming.has(String(item.id)))
         .map((item) => (batch) =>
@@ -1338,14 +1367,15 @@ export const kodlandApi = {
       persistencePhase = "gravação";
       await commitWrites(upserts);
       await commitWrites(deletes);
-      return finish({ group_count: 0, student_count: 0, review_count: snapshot.reviews.length, lesson_count: 0, extra_lesson_count: 0 });
+      return finish({ group_count: 0, student_count: 0, review_count: reviews.length, lesson_count: 0, extra_lesson_count: 0 });
     }
     if (mode === "profiles") {
       const previousStudents = await rows("kodland_students");
+      const students = uniqueBy(snapshot.students, (item) => item.id);
       const previousById = new Map(
         previousStudents.map((student) => [String(student.id), student]),
       );
-      const writes: Array<(batch: FirebaseWriteBatch) => void> = snapshot.students
+      const writes: Array<(batch: FirebaseWriteBatch) => void> = students
         .filter((student) => previousById.has(student.id))
         .map((student) => {
           const previous = previousById.get(student.id)!;
@@ -1372,9 +1402,17 @@ export const kodlandApi = {
     const oldLessons = await rows("kodland_lessons");
     const oldExtraLessons = await rows("kodland_extra_lessons");
     const oldAvailability = await rows("kodland_availability");
+    const groups = uniqueBy(snapshot.groups, (item) => item.external_id);
+    const students = uniqueBy(snapshot.students, (item) => item.id);
+    const lessons = uniqueBy(
+      snapshot.lessons,
+      (item) => kodlandLessonDocumentId(item),
+    );
+    const extraLessons = uniqueBy(snapshot.extra_lessons, (item) => item.id);
+    const availability = uniqueBy(snapshot.availability, (item) => item.id);
     const upserts: Array<(batch: FirebaseWriteBatch) => void> = [];
     const deletes: Array<(batch: FirebaseWriteBatch) => void> = [];
-    snapshot.groups.forEach((item) =>
+    groups.forEach((item) =>
       upserts.push((batch) =>
         batch.set(doc(syncCollection("kodland_groups"), item.external_id), {
           ...item,
@@ -1384,7 +1422,7 @@ export const kodlandApi = {
         }),
       ),
     );
-    snapshot.students.forEach((item) => {
+    students.forEach((item) => {
       const previous = oldStudents.find(
         (student) => String(student.id) === item.id,
       );
@@ -1411,7 +1449,7 @@ export const kodlandApi = {
         created_at: String(previous?.created_at ?? createdAt),
       }));
     });
-    snapshot.lessons.forEach((item) => {
+    lessons.forEach((item) => {
       const documentId = kodlandLessonDocumentId(item);
       const previous = oldLessons.find(
         (lesson) =>
@@ -1426,7 +1464,7 @@ export const kodlandApi = {
     // older lesson rather than treating a temporary upstream omission as a
     // deletion; a future full reconciliation can remove confirmed stale rows.
     if (snapshot.extra_lessons_synced === true) {
-      const incomingExtraIds = new Set(snapshot.extra_lessons.map((item) => item.id));
+      const incomingExtraIds = new Set(extraLessons.map((item) => item.id));
       oldExtraLessons
         .filter((item) =>
           item.completed !== true &&
@@ -1438,7 +1476,7 @@ export const kodlandApi = {
             batch.delete(doc(syncCollection("kodland_extra_lessons"), String(item.id))),
           ),
         );
-      snapshot.extra_lessons.forEach((item) => {
+      extraLessons.forEach((item) => {
         const previous = oldExtraLessons.find(
           (lesson) => String(lesson.id) === item.id,
         );
@@ -1462,7 +1500,7 @@ export const kodlandApi = {
       });
     }
     if (snapshot.availability_synced === true) {
-      const incomingAvailabilityIds = new Set(snapshot.availability.map((item) => item.id));
+      const incomingAvailabilityIds = new Set(availability.map((item) => item.id));
       oldAvailability
         .filter((item) => !incomingAvailabilityIds.has(String(item.id)))
         .forEach((item) =>
@@ -1470,7 +1508,7 @@ export const kodlandApi = {
           batch.delete(doc(syncCollection("kodland_availability"), String(item.id))),
         ),
       );
-      snapshot.availability.forEach((item) =>
+      availability.forEach((item) =>
         upserts.push((batch) => batch.set(doc(syncCollection("kodland_availability"), item.id), {
           ...item,
           created_at: createdAt,
@@ -1481,13 +1519,19 @@ export const kodlandApi = {
     await commitWrites(upserts);
     await commitWrites(deletes);
     return finish({
-      group_count: snapshot.groups.length,
-      student_count: snapshot.students.length,
+      group_count: groups.length,
+      student_count: students.length,
       review_count: 0,
-      lesson_count: snapshot.lessons.length,
-      extra_lesson_count: snapshot.extra_lessons.length,
+      lesson_count: lessons.length,
+      extra_lesson_count: extraLessons.length,
     });
-    } catch {
+    } catch (error) {
+      const failure = firestoreFailure(error);
+      console.error("[kodland-sync-persistence]", JSON.stringify({
+        syncId,
+        phase: persistencePhase,
+        code: failure.code,
+      }));
       try {
         await setDoc(syncStatusRef, {
           status: "failed",
@@ -1499,7 +1543,7 @@ export const kodlandApi = {
       } catch {
         // Preserve the original persistence error when even the status marker cannot be saved.
       }
-      throw new KodlandSyncPersistenceError(syncId, persistencePhase);
+      throw new KodlandSyncPersistenceError(syncId, persistencePhase, failure.detail);
     }
   },
   loadLessonMaterials: async (

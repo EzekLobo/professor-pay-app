@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 export type ModalHelp = {
   intro: string;
@@ -26,12 +26,17 @@ export function Modal({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const helpId = useId();
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
+    if (!open && dialog.open) {
+      dialog.close();
+      setHelpOpen(false);
+    }
   }, [open]);
 
   return (
@@ -49,25 +54,39 @@ export function Modal({
     >
       <div className="modal-heading">
         <h2 id={titleId}>{title}</h2>
-        <button
-          className="button button-ghost modal-close-button"
-          type="button"
-          aria-label="Fechar"
-          title="Fechar"
-          onClick={onClose}
-        >
-          ×
-        </button>
+        <div className="modal-heading-actions">
+          {help && (
+            <button
+              className="button button-ghost modal-help-trigger"
+              type="button"
+              aria-expanded={helpOpen}
+              aria-controls={helpId}
+              onClick={() => setHelpOpen((current) => !current)}
+            >
+              Como usar
+            </button>
+          )}
+          <button
+            className="button button-ghost modal-close-button"
+            type="button"
+            aria-label="Fechar"
+            title="Fechar"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
       </div>
       {titleNotice && <div className="modal-title-notice">{titleNotice}</div>}
-      {help && (
-        <details className="modal-help">
-          <summary>Como usar</summary>
+      {help && helpOpen && (
+        <section id={helpId} className="modal-help-popover" aria-label="Como usar este modal">
+          <p className="modal-help-kicker">Como funciona?</p>
+          <h3>Como usar este modal</h3>
           <p>{help.intro}</p>
           <ul>
             {help.items.map((item) => <li key={item.title}><strong>{item.title}:</strong> {item.content}</li>)}
           </ul>
-        </details>
+        </section>
       )}
       {children}
     </dialog>

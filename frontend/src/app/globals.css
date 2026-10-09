@@ -555,6 +555,7 @@ select:focus-visible {
 .modal-heading h2 {
   margin: 0;
 }
+.modal-heading-actions { display: inline-flex; align-items: center; gap: 8px; }
 .modal-close-button {
   display: inline-grid;
   width: 44px;
@@ -568,17 +569,28 @@ select:focus-visible {
 .modal-dialog .management-form {
   margin-top: 0;
 }
-.modal-help {
-  margin: 0 0 16px;
-  border: 1px solid #315b88;
-  border-radius: 10px;
-  background: rgb(12 29 52 / 72%);
-  color: var(--muted);
+.modal-dialog { position: relative; }
+.modal-help-trigger { min-height: 36px; padding: 6px 10px; color: #d4b7ff; font-size: .8rem; font-weight: 800; }
+.modal-help-trigger[aria-expanded="true"] { border-color: #b68cff; background: rgb(154 98 255 / 16%); }
+.modal-help-popover {
+  position: absolute;
+  z-index: 2;
+  top: 68px;
+  right: 22px;
+  width: min(390px, calc(100% - 44px));
+  border: 1px solid rgb(181 139 255 / 68%);
+  border-radius: 16px;
+  padding: 18px;
+  background: linear-gradient(145deg, #211337, #100817);
+  box-shadow: 0 22px 48px rgb(0 0 0 / 48%), 0 0 0 1px rgb(91 52 163 / 28%) inset;
+  color: var(--text);
 }
-.modal-help summary { padding: 10px 12px; color: var(--accent); cursor: pointer; font-weight: 800; }
-.modal-help > p { margin: 0 12px 10px; font-size: .9rem; }
-.modal-help ul { display: grid; gap: 7px; margin: 0; padding: 0 12px 12px 26px; font-size: .86rem; line-height: 1.4; }
-.modal-help strong { color: var(--text); }
+.modal-help-kicker { margin: 0 0 7px; color: #d4b7ff; font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.modal-help-popover h3 { margin: 0 0 8px; color: #f6f0ff; font-size: 1.05rem; }
+.modal-help-popover > p:not(.modal-help-kicker) { margin: 0; color: #d1c5e3; font-size: .88rem; line-height: 1.45; }
+.modal-help-popover ul { display: grid; gap: 7px; margin: 12px 0 0; padding-left: 18px; color: #d1c5e3; font-size: .82rem; line-height: 1.4; }
+.modal-help-popover li::marker { color: #bd91ff; }
+.modal-help-popover strong { color: #f3eaff; }
 .schedule-sync-modal { width: min(560px, calc(100vw - 32px)); }
 .schedule-sync-modal .management-form { grid-template-columns: 1fr; }
 .panel h2 {

@@ -6,6 +6,17 @@ import {
 } from "./api";
 
 describe("Firestore financial helpers", () => {
+  it("remove campos indefinidos antes de enviar um snapshot ao Firestore", () => {
+    expect(__test.firestorePayload({
+      title: "Aula",
+      optional: undefined,
+      resources: [{ url: "https://example.test" }, { title: undefined }],
+    })).toEqual({
+      title: "Aula",
+      resources: [{ url: "https://example.test" }, {}],
+    });
+  });
+
   it("preserva materiais e status financeiro durante a sincronização leve", () => {
     const synced = mergeSyncedKodlandLesson({
       id: "source-lesson",

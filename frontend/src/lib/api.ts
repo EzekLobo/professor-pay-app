@@ -378,6 +378,20 @@ const uniqueBy = <T>(items: T[], key: (item: T) => string) => {
   items.forEach((item) => unique.set(key(item), item));
   return [...unique.values()];
 };
+/** Firestore rejects undefined, while Kodland legitimately omits optional fields by account/course. */
+const firestorePayload = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map((item) => firestorePayload(item)) as T;
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, firestorePayload(item)]),
+    ) as T;
+  }
+  return value;
+};
 const commitWrites = async (writes: Array<(batch: FirebaseWriteBatch) => void>) => {
   // Firestore accepts at most 500 operations per batch. A pedagogical snapshot
   // can include hundreds of catalog lessons, reviews and old records.
@@ -1354,10 +1368,10 @@ export const kodlandApi = {
       const reviews = uniqueBy(snapshot.reviews, (item) => item.id);
       const upserts: Array<(batch: FirebaseWriteBatch) => void> = reviews.map(
         (item) => (batch) =>
-          batch.set(doc(syncCollection("kodland_reviews"), item.id), {
+          batch.set(doc(syncCollection("kodland_reviews"), item.id), firestorePayload({
             ...item,
             created_at: createdAt,
-          }),
+          })),
       );
       const incoming = new Set(reviews.map((item) => item.id));
       const deletes: Array<(batch: FirebaseWriteBatch) => void> = previousReviews
@@ -1414,19 +1428,19 @@ export const kodlandApi = {
     const deletes: Array<(batch: FirebaseWriteBatch) => void> = [];
     groups.forEach((item) =>
       upserts.push((batch) =>
-        batch.set(doc(syncCollection("kodland_groups"), item.external_id), {
+        batch.set(doc(syncCollection("kodland_groups"), item.external_id), firestorePayload({
           ...item,
           id: item.external_id,
           local_class_id: links.get(item.external_id) ?? null,
           created_at: createdAt,
-        }),
+        })),
       ),
     );
     students.forEach((item) => {
       const previous = oldStudents.find(
         (student) => String(student.id) === item.id,
       );
-      upserts.push((batch) => batch.set(doc(syncCollection("kodland_students"), item.id), {
+      upserts.push((batch) => batch.set(doc(syncCollection("kodland_students"), item.id), firestorePayload({
         ...item,
         local_note: String(previous?.local_note ?? ""),
         // Contact fields come from the latest read-only profile snapshot.
@@ -1447,7 +1461,7 @@ export const kodlandApi = {
         guardian_note: String(previous?.guardian_note ?? ""),
         hidden: Boolean(previous?.hidden ?? false),
         created_at: String(previous?.created_at ?? createdAt),
-      }));
+      })));
     });
     lessons.forEach((item) => {
       const documentId = kodlandLessonDocumentId(item);
@@ -1458,7 +1472,7 @@ export const kodlandApi = {
             String(lesson.external_class_id) === item.external_class_id),
       ) as Partial<KodlandLesson> | undefined;
       upserts.push((batch) => batch.set(doc(syncCollection("kodland_lessons"), documentId),
-        mergeSyncedKodlandLesson(item, previous, createdAt)));
+        firestorePayload(mergeSyncedKodlandLesson(item, previous, createdAt))));
     });
     // Lesson endpoints are optional during the lightweight refresh. Keep an
     // older lesson rather than treating a temporary upstream omission as a
@@ -1485,7 +1499,7 @@ export const kodlandApi = {
           | undefined;
         const manualStatus =
           previousManualStatus === "ACCOUNTED" ? "DONE" : previousManualStatus;
-        upserts.push((batch) => batch.set(doc(syncCollection("kodland_extra_lessons"), item.id), {
+        upserts.push((batch) => batch.set(doc(syncCollection("kodland_extra_lessons"), item.id), firestorePayload({
           ...item,
           manual_status: manualStatus,
           completed:
@@ -1496,7 +1510,7 @@ export const kodlandApi = {
                 : item.completed,
           created_at: String(previous?.created_at ?? createdAt),
           updated_at: createdAt,
-        }));
+        })));
       });
     }
     if (snapshot.availability_synced === true) {
@@ -1509,10 +1523,10 @@ export const kodlandApi = {
         ),
       );
       availability.forEach((item) =>
-        upserts.push((batch) => batch.set(doc(syncCollection("kodland_availability"), item.id), {
+        upserts.push((batch) => batch.set(doc(syncCollection("kodland_availability"), item.id), firestorePayload({
           ...item,
           created_at: createdAt,
-        })),
+        }))),
       );
     }
     persistencePhase = "gravação";
@@ -1863,4 +1877,5 @@ export const __test = {
   importPedagogicalRows,
   normalizeImportedCourseResult,
   importedLessonDocumentId,
+  firestorePayload,
 };

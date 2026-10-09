@@ -1,7 +1,85 @@
 import { describe, expect, it } from "vitest";
-import { __test } from "./api";
+import {
+  __test,
+  mergeLoadedKodlandMaterials,
+  mergeSyncedKodlandLesson,
+} from "./api";
 
 describe("Firestore financial helpers", () => {
+  it("preserva materiais e status financeiro durante a sincronização leve", () => {
+    const synced = mergeSyncedKodlandLesson({
+      id: "source-lesson",
+      source_lesson_id: "source-lesson",
+      materials_status: "pending",
+      external_class_id: "group-1",
+      external_class_name: "Turma 1",
+      lesson_number: 1,
+      course_index: 1,
+      title: "Aula 1",
+      theme: "",
+      lesson_date: "2026-10-09",
+      start_time: "19:00",
+      end_time: "20:30",
+      status: "",
+      lesson_passed: false,
+      external_url: "",
+      slides_url: "",
+      guide_url: "",
+      homework_url: "",
+      homework_title: "",
+      classroom_tasks: [],
+    }, {
+      id: "group-group-1-lesson-source-lesson",
+      source_lesson_id: "source-lesson",
+      financial_status: "PAID",
+      slides_url: "https://docs.example/slides",
+      classroom_tasks: [{ title: "Tarefa", url: "https://learn.example/task" }],
+      created_at: "2026-10-01",
+    }, "2026-10-09");
+
+    expect(synced).toMatchObject({
+      financial_status: "PAID",
+      slides_url: "https://docs.example/slides",
+      materials_status: "ready",
+      created_at: "2026-10-01",
+    });
+    expect(synced.classroom_tasks).toHaveLength(1);
+  });
+
+  it("recusa materiais retornados para outra aula", () => {
+    expect(() => mergeLoadedKodlandMaterials({
+      id: "lesson-1",
+      source_lesson_id: "source-1",
+      external_class_id: "group-1",
+      external_class_name: "Turma 1",
+      lesson_number: 1,
+      course_index: 1,
+      title: "Aula",
+      theme: "",
+      lesson_date: "",
+      start_time: "",
+      end_time: "",
+      status: "",
+      lesson_passed: false,
+      external_url: "",
+      slides_url: "",
+      guide_url: "",
+      homework_url: "",
+      homework_title: "",
+      classroom_tasks: [],
+      created_at: "2026-10-01",
+    }, {
+      group_id: "group-2",
+      source_lesson_id: "source-1",
+      materials_status: "ready",
+      slides_url: "",
+      guide_url: "",
+      homework_url: "",
+      homework_title: "",
+      classroom_tasks: [],
+    })).toThrow("mudou");
+  });
+
   it("calcula a competência mensal", () =>
     expect(__test.period("2026-09-14")).toBe("09/2026"));
 

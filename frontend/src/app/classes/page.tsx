@@ -157,6 +157,7 @@ function ClassesContent() {
   const [groups, setGroups] = useState<KodlandGroup[]>([]);
   const [students, setStudents] = useState<KodlandStudent[]>([]);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [syncMode, setSyncMode] = useState<"essential" | "profiles">("essential");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [username, setUsername] = useState(() =>
@@ -174,8 +175,9 @@ function ClassesContent() {
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
-  function openSync() {
+  function openSync(mode: "essential" | "profiles" = "essential") {
     setError("");
+    setSyncMode(mode);
     setSyncOpen(true);
     void restoreKodlandCredentials().then((credentials) => {
       if (!credentials) return;
@@ -217,7 +219,7 @@ function ClassesContent() {
     setSyncing(true);
     setError("");
     try {
-      const result = await kodlandApi.sync(username.trim(), password);
+      const result = await kodlandApi.sync(username.trim(), password, syncMode);
       try {
         window.localStorage.setItem("aulapay.kodland.username", username.trim());
         await rememberKodlandCredentials(formElement);
@@ -226,9 +228,13 @@ function ClassesContent() {
       }
       setPassword("");
       setSyncOpen(false);
-      setNotice(
-        `${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda da Kodland. Apenas as concluídas entram em Pagamentos.`,
-      );
+      if (syncMode === "profiles") {
+        setNotice(`${result.student_count ?? 0} contato(s) de responsáveis atualizado(s).`);
+      } else {
+        setNotice(
+          `${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda da Kodland. Apenas as concluídas entram em Pagamentos.`,
+        );
+      }
       await load();
     } catch (reason) {
       setError(
@@ -245,7 +251,7 @@ function ClassesContent() {
     <div className="management-grid">
       <Modal
         open={syncOpen}
-        title="Sincronizar turmas e alunos"
+        title={syncMode === "profiles" ? "Atualizar responsáveis" : "Sincronizar turmas e alunos"}
         onClose={() => !syncing && setSyncOpen(false)}
         className="schedule-sync-modal"
       >
@@ -305,9 +311,14 @@ function ClassesContent() {
           <div>
             <h2>Turmas</h2>
           </div>
-          <Button type="button" data-tour="classes-sync" onClick={openSync}>
-            Sincronizar dados
-          </Button>
+          <div className="card-actions">
+            <Button type="button" data-tour="classes-sync" onClick={() => openSync()}>
+              Sincronizar dados
+            </Button>
+            <Button type="button" className="button-ghost" onClick={() => openSync("profiles")}>
+              Atualizar responsáveis
+            </Button>
+          </div>
         </div>
         {loading ? (
           <p className="muted">Carregando turmas…</p>

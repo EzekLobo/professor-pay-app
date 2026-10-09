@@ -1,5 +1,9 @@
 export type KodlandLesson = {
   id: string;
+  /** Kodland catalog ID; Firestore's id also includes the class ID. */
+  source_lesson_id?: string;
+  /** Pending until this lesson is opened and its resources are requested. */
+  materials_status?: "pending" | "ready" | "empty" | "error" | "unavailable";
   external_class_id: string;
   external_class_name: string;
   module_number?: string;

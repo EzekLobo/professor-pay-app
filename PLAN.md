@@ -692,7 +692,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   - Aceitação: uma falha simulada de rede, HTML/504 e 4xx/5xx mostra uma causa
     distinguível para a pessoa e dados suficientes para suporte.
 
-- [ ] R13.2 - Separar sincronização essencial de enriquecimento pesado
+- [x] R13.2 - Separar sincronização essencial de enriquecimento pesado
   - Escopo: manter no caminho inicial somente autenticação Kodland, turmas,
     alunos, grade, agenda e dados financeiros indispensáveis; transferir a
     coleta extensa de materiais, tarefas, detalhes de catálogo, perfis e
@@ -709,7 +709,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     quando um material ainda precisa ser carregado.
   - Depende de: R13.1 para medir o ganho e identificar a etapa crítica.
 
-- [ ] R13.3 - Limites, retomada e tempo de execução
+- [x] R13.3 - Limites, retomada e tempo de execução
   - Escopo: aplicar concorrência limitada por etapa, timeout explícito para
     chamadas Kodland, repetição curta apenas para falhas transitórias e
     cancelamento limpo ao exceder o orçamento de tempo.
@@ -721,7 +721,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     marcada como concluída.
   - Depende de: R13.1 e R13.2.
 
-- [ ] R13.4 - Cobertura e validação de volume
+- [x] R13.4 - Cobertura e validação de volume
   - Escopo: testes de parse de respostas não JSON, erros HTTP, lotes grandes,
     concorrência e isolamento por usuário; teste integrado controlado contra
     uma conta autorizada com volume maior.
@@ -740,3 +740,22 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   passam. O diagnóstico por logs de produção permanece pendente porque o
   projeto não está vinculado localmente ao CLI Vercel e o navegador conectado
   não pôde abrir o painel.
+
+#### Handoff R13.2–R13.4
+
+- A sincronização essencial importa turmas, alunos, agenda, disponibilidade e
+  identificação das aulas. Materiais, contatos de responsáveis e correções são
+  atualizações explícitas e não ampliam o caminho inicial.
+- Cada aula mantém `source_lesson_id`, distinto do ID composto Firestore. O
+  modal consulta materiais somente para a aula aberta e preserva os links já
+  carregados se a nova consulta falhar.
+- As chamadas à Kodland têm timeout por requisição, uma repetição curta somente
+  para falhas transitórias e concorrência limitada. A rota encerra com erro
+  rastreável ao atingir o orçamento de tempo.
+- A gravação usa o UID capturado no início, marca `running`/`complete`/`failed`
+  em `sync_status/kodland`, grava dados novos antes de excluir obsoletos e não
+  remove agenda ou disponibilidade quando a respectiva origem está indisponível.
+- Validação local concluída: typecheck, lint, 75 testes Vitest, build e diff
+  check. A prova operacional com uma conta maior e os logs da Vercel seguem
+  pendentes de acesso autorizado; `maxDuration` não foi declarado porque o
+  limite efetivo do projeto Vercel não foi confirmado.

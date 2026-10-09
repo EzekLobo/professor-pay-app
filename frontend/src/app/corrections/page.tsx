@@ -142,7 +142,7 @@ function Content() {
     setNotice("");
     const password = syncPassword;
     try {
-      const result = await kodlandApi.sync(username, password);
+      const result = await kodlandApi.sync(username, password, "corrections");
       try {
         window.localStorage.setItem("aulapay.kodland.username", username);
         await rememberKodlandCredentials(form);

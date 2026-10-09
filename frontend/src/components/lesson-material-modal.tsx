@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Modal } from "@/components/modal";
-import { lessonNotesApi, type KodlandLesson } from "@/lib/api";
+import { kodlandApi, lessonNotesApi, type KodlandLesson } from "@/lib/api";
+import { restoreKodlandCredentials } from "@/lib/browser-credentials";
 
 export type LessonMaterialDetails = Pick<
   KodlandLesson,
@@ -13,7 +14,8 @@ export type LessonMaterialDetails = Pick<
   | "homework_title"
   | "external_url"
   | "classroom_tasks"
-> & { location: string; source: string; note_key?: string };
+> & { location: string; source: string; note_key?: string }
+  & Partial<Pick<KodlandLesson, "id" | "external_class_id" | "source_lesson_id" | "materials_status">>;
 
 function NoteIcon() {
   return (
@@ -32,6 +34,7 @@ export function LessonMaterialModal({
   children,
   className = "",
   titleNotice,
+  onMaterialsLoaded,
 }: {
   open: boolean;
   title: string;
@@ -40,12 +43,45 @@ export function LessonMaterialModal({
   children?: ReactNode;
   className?: string;
   titleNotice?: ReactNode;
+  onMaterialsLoaded?: (lesson: KodlandLesson) => void;
 }) {
   const [notesOpen, setNotesOpen] = useState(false);
   const [note, setNote] = useState("");
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteError, setNoteError] = useState("");
+  const [loadedMaterial, setLoadedMaterial] = useState<{ key: string; lesson: LessonMaterialDetails } | null>(null);
+  const [materialUsername, setMaterialUsername] = useState("");
+  const [materialPassword, setMaterialPassword] = useState("");
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [materialError, setMaterialError] = useState("");
+  const activeLesson = loadedMaterial && loadedMaterial.key === lesson?.note_key
+    ? loadedMaterial.lesson
+    : lesson;
+  const needsMaterials = Boolean(activeLesson?.id && activeLesson.external_class_id && activeLesson.source_lesson_id &&
+    (activeLesson.materials_status === "pending" || activeLesson.materials_status === "error"));
+
+  const loadMaterials = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeLesson?.id || !activeLesson.external_class_id || !activeLesson.source_lesson_id ||
+        !materialUsername.trim() || !materialPassword || loadingMaterials) return;
+    setLoadingMaterials(true);
+    setMaterialError("");
+    try {
+      const updated = await kodlandApi.loadLessonMaterials({
+        id: activeLesson.id,
+        external_class_id: activeLesson.external_class_id,
+        source_lesson_id: activeLesson.source_lesson_id,
+      }, materialUsername.trim(), materialPassword);
+      setLoadedMaterial({ key: lesson?.note_key ?? "", lesson: { ...activeLesson, ...updated } });
+      onMaterialsLoaded?.(updated);
+      setMaterialPassword("");
+    } catch (reason) {
+      setMaterialError(reason instanceof Error ? reason.message : "Não foi possível carregar os materiais da aula.");
+    } finally {
+      setLoadingMaterials(false);
+    }
+  };
 
   const openNotes = () => {
     if (!lesson?.note_key) return;
@@ -72,6 +108,8 @@ export function LessonMaterialModal({
   const closeModal = () => {
     setNotesOpen(false);
     setNoteError("");
+    setMaterialPassword("");
+    setMaterialError("");
     onClose();
   };
 
@@ -109,11 +147,11 @@ export function LessonMaterialModal({
       }}
     >
       {children}
-      {lesson && (
+      {activeLesson && (
         <div className="lesson-details">
           <div className="lesson-overview lesson-overview-actions">
-            <strong>{lesson.title}</strong>
-            {lesson.note_key && (
+            <strong>{activeLesson.title}</strong>
+            {activeLesson.note_key && (
               <button
                 className="lesson-note-toggle"
                 type="button"
@@ -166,80 +204,105 @@ export function LessonMaterialModal({
             </section>
           ) : (
             <>
+          {needsMaterials && (
+            <form className="form management-form" onSubmit={loadMaterials}>
+              <p className="muted">Os materiais desta aula ainda não foram consultados. Informe suas credenciais da Kodland para carregar apenas esta aula.</p>
+              <label className="field">Usuário ou e-mail
+                <input name="username" autoComplete="username" value={materialUsername} onChange={(event) => setMaterialUsername(event.target.value)} required disabled={loadingMaterials} />
+              </label>
+              <label className="field">Senha
+                <input name="password" type="password" autoComplete="current-password" value={materialPassword} onChange={(event) => setMaterialPassword(event.target.value)} required disabled={loadingMaterials} />
+              </label>
+              {materialError && <p className="form-error" role="alert">{materialError}</p>}
+              <div className="form-actions">
+                <button type="button" className="button button-ghost button-small" disabled={loadingMaterials} onClick={() => {
+                  void restoreKodlandCredentials().then((saved) => {
+                    if (saved) { setMaterialUsername(saved.username); setMaterialPassword(saved.password); }
+                  });
+                }}>Usar credenciais salvas</button>
+                <button type="submit" className="button button-primary" disabled={loadingMaterials}>
+                  {loadingMaterials ? "Carregando…" : "Carregar materiais"}
+                </button>
+              </div>
+            </form>
+          )}
+          {activeLesson.materials_status === "empty" && (
+            <p className="muted">A Kodland não retornou materiais para esta aula.</p>
+          )}
           <section className="lesson-material-section">
             <h3>Tarefas em sala</h3>
-            {lesson.classroom_tasks.length ? (
+            {activeLesson.classroom_tasks.length ? (
               <ul className="lesson-resource-list">
-                {lesson.classroom_tasks.map((task) => (
+                {activeLesson.classroom_tasks.map((task) => (
                   <li key={task.url}>
                     <a href={task.url} target="_blank" rel="noreferrer">
-                      {task.title || `Tarefa em sala ${lesson.location}`}
+                      {task.title || `Tarefa em sala ${activeLesson.location}`}
                     </a>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="muted">
-                Nenhuma tarefa em sala foi encontrada para esta aula.
+                {needsMaterials ? "Carregue os materiais para consultar as tarefas." : "Nenhuma tarefa em sala foi encontrada para esta aula."}
               </p>
             )}
           </section>
           <section className="lesson-material-section">
             <h3>Lição de casa</h3>
-            {lesson.homework_url ? (
+            {activeLesson.homework_url ? (
               <ul className="lesson-resource-list">
                 <li>
                   <a
-                    href={lesson.homework_url}
+                    href={activeLesson.homework_url}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    {lesson.homework_title ||
-                      `Lição de casa ${lesson.location}`}
+                    {activeLesson.homework_title ||
+                      `Lição de casa ${activeLesson.location}`}
                   </a>
                 </li>
               </ul>
             ) : (
               <p className="muted">
-                Nenhuma lição de casa foi encontrada para esta aula.
+                {needsMaterials ? "Carregue os materiais para consultar a lição de casa." : "Nenhuma lição de casa foi encontrada para esta aula."}
               </p>
             )}
           </section>
           <section className="lesson-material-section">
             <h3>Guias de estudo</h3>
-            {lesson.slides_url || lesson.guide_url ? (
+            {activeLesson.slides_url || activeLesson.guide_url ? (
               <ul className="lesson-resource-list">
-                {lesson.slides_url && (
+                {activeLesson.slides_url && (
                   <li>
                     <a
-                      href={lesson.slides_url}
+                      href={activeLesson.slides_url}
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Slides {lesson.location}
+                      Slides {activeLesson.location}
                     </a>
                   </li>
                 )}
-                {lesson.guide_url && (
+                {activeLesson.guide_url && (
                   <li>
                     <a
-                      href={lesson.guide_url}
+                      href={activeLesson.guide_url}
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Roteiro {lesson.location}
+                      Roteiro {activeLesson.location}
                     </a>
                   </li>
                 )}
               </ul>
             ) : (
-              <p className="muted">Slides e roteiro não foram encontrados.</p>
+              <p className="muted">{needsMaterials ? "Carregue os materiais para consultar slides e roteiro." : "Slides e roteiro não foram encontrados."}</p>
             )}
           </section>
-          {lesson.external_url && (
+          {activeLesson.external_url && (
             <a
               className="button secondary"
-              href={lesson.external_url}
+              href={activeLesson.external_url}
               target="_blank"
               rel="noreferrer"
             >

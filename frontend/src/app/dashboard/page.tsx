@@ -105,6 +105,7 @@ function WeekSchedule({
   refreshing,
   refreshNotice,
   onUpdateExtraStatus,
+  onMaterialsLoaded,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -118,6 +119,7 @@ function WeekSchedule({
     id: string,
     status: KodlandExtraManualStatus,
   ) => Promise<KodlandExtraLesson>;
+  onMaterialsLoaded: (lesson: KodlandLesson) => void;
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
@@ -505,6 +507,7 @@ function WeekSchedule({
             open={Boolean(selectedEntry)}
             title={modalTitle}
             lesson={modalTab === "lesson" ? materialDetails : null}
+            onMaterialsLoaded={onMaterialsLoaded}
             className={`class-schedule-modal${modalTab === "lesson" && viewingDifferentLesson ? " class-schedule-modal--adjacent" : ""}`}
             onClose={() => {
               setSelectedEntry(null);
@@ -678,6 +681,7 @@ function KodlandSummary({
   refreshing,
   refreshNotice,
   onUpdateExtraStatus,
+  onMaterialsLoaded,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -692,6 +696,7 @@ function KodlandSummary({
     id: string,
     status: KodlandExtraManualStatus,
   ) => Promise<KodlandExtraLesson>;
+  onMaterialsLoaded: (lesson: KodlandLesson) => void;
 }) {
   const active = groups.filter((group) => !group.archived);
   return (
@@ -720,6 +725,7 @@ function KodlandSummary({
         refreshing={refreshing}
         refreshNotice={refreshNotice}
         onUpdateExtraStatus={onUpdateExtraStatus}
+        onMaterialsLoaded={onMaterialsLoaded}
       />
     </div>
   );
@@ -912,6 +918,9 @@ function DashboardPageContent() {
         refreshing={refreshingSchedule}
         refreshNotice={refreshNotice}
         onUpdateExtraStatus={updateExtraStatus}
+        onMaterialsLoaded={(updated) => {
+          setLessons((items) => items.map((item) => item.id === updated.id ? updated : item));
+        }}
       />
       <DashboardContent
         state="ready"

@@ -191,6 +191,9 @@ function LessonsContent() {
         title={selectedMaterial ? `${selectedMaterial.source} · ${selectedMaterial.location}` : "Materiais da aula"}
         lesson={selectedMaterial}
         onClose={() => setSelectedMaterial(null)}
+        onMaterialsLoaded={(updated) => {
+          setCourseLessons((items) => items.map((item) => item.id === updated.id ? updated : item));
+        }}
       />
       <section className="panel">
         <div className="section-heading">
@@ -233,7 +236,10 @@ function LessonsContent() {
                                 <strong>Aula {(module.number ? lesson.lesson_number : lesson.course_index ?? lesson.lesson_number) || "—"}: {lesson.title || lesson.theme || "Aula"}</strong>
                                 <span>{lesson.lesson_date ? formatDate(lesson.lesson_date) : "Data a confirmar"}</span>
                               </div>
-                              <span className="course-lesson-hint">Ver materiais</span>
+                              <span className="course-lesson-hint">
+                                {lesson.materials_status === "pending" || lesson.materials_status === "error"
+                                  ? "Carregar materiais" : "Ver materiais"}
+                              </span>
                             </button>
                           ))}
                         </div>

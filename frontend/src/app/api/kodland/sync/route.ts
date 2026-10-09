@@ -13,6 +13,7 @@ type SyncFailureCode =
   | "kodland_invalid_credentials"
   | "kodland_rate_limited"
   | "kodland_session_expired"
+  | "kodland_timeout"
   | "kodland_unavailable";
 
 class SyncFailure extends Error {
@@ -173,6 +174,9 @@ const completedByScheduledDate = (
 
 const sso = "https://sso.production.kodland.org/";
 const api = "https://backoffice.kodland.org/api/v2/";
+const KODLAND_REQUEST_TIMEOUT_MS = 8_000;
+const SYNC_TIME_BUDGET_MS = 45_000;
+const KODLAND_CONCURRENCY = 3;
 const text = (value: unknown) =>
   typeof value === "string" || typeof value === "number"
     ? String(value).trim()
@@ -366,9 +370,35 @@ function userId(token: string) {
   return String(decoded.user_id);
 }
 
+async function fetchKodland(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), KODLAND_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new SyncFailure("kodland_timeout", 504);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+const waitForRetry = async (response: Response) => {
+  const retryAfter = Number(response.headers.get("retry-after"));
+  const delay = Number.isFinite(retryAfter) && retryAfter > 0
+    ? Math.min(retryAfter * 1_000, 1_000)
+    : 350;
+  await new Promise<void>((resolve) => setTimeout(resolve, delay));
+};
+
 async function kodlandLogin(username: string, password: string) {
   const form = new URLSearchParams({ username: username.trim(), password });
-  const response = await fetch(`${sso}login`, {
+  const response = await fetchKodland(`${sso}login`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: form,
@@ -387,17 +417,35 @@ async function kodlandLogin(username: string, password: string) {
 }
 
 async function get(path: string, token: string) {
-  const response = await fetch(`${api}${path}`, {
-    headers: { authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
-  if (!response.ok)
-    throw response.status === 401
-      ? new SyncFailure("kodland_session_expired", 502)
-      : response.status === 429
-        ? new SyncFailure("kodland_rate_limited", 429)
-        : new SyncFailure("kodland_unavailable", 503);
-  return response.json();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetchKodland(`${api}${path}`, {
+        headers: { authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (response.ok) return response.json();
+      const retryable = [429, 500, 502, 503, 504].includes(response.status);
+      if (retryable && attempt === 0) {
+        await waitForRetry(response);
+        continue;
+      }
+      throw response.status === 401 || response.status === 403
+        ? new SyncFailure("kodland_session_expired", 502)
+        : response.status === 429
+          ? new SyncFailure("kodland_rate_limited", 429)
+          : new SyncFailure("kodland_unavailable", 503);
+    } catch (error) {
+      const retryable = error instanceof SyncFailure &&
+        (error.code === "kodland_timeout" || error.code === "kodland_unavailable");
+      if (retryable && attempt === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 350));
+        continue;
+      }
+      if (error instanceof SyncFailure) throw error;
+      throw new SyncFailure("kodland_unavailable", 503);
+    }
+  }
+  throw new SyncFailure("kodland_unavailable", 503);
 }
 
 async function getOptional(path: string, token: string) {
@@ -406,6 +454,27 @@ async function getOptional(path: string, token: string) {
   } catch {
     return null;
   }
+}
+
+export async function mapWithConcurrency<T, R>(
+  values: T[],
+  limit: number,
+  work: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let cursor = 0;
+  const worker = async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= values.length) return;
+      results[index] = await work(values[index]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(Math.max(1, limit), values.length) }, worker),
+  );
+  return results;
 }
 
 async function groupsForTeacher(
@@ -545,8 +614,7 @@ async function studentsWithProfiles(
   token: string,
   cache: Map<string, ReturnType<typeof parseGuardianContact>>,
 ): Promise<Student[]> {
-  return Promise.all(
-    students.map(async (student) => {
+  return mapWithConcurrency(students, KODLAND_CONCURRENCY, async (student) => {
       let guardian = cache.get(student.external_id);
       if (!guardian) {
         const profile = await getOptional(
@@ -563,8 +631,7 @@ async function studentsWithProfiles(
         guardian_phone: guardian.phone,
         guardian_email: guardian.email,
       };
-    }),
-  );
+  });
 }
 
 /** Extra lessons are shown on the student's agenda and become billable only after Kodland marks them as completed. */
@@ -848,18 +915,18 @@ async function extrasForStudents(
   token: string,
 ): Promise<SyncCollection<ExtraLesson>> {
   const [snapshots, teacherSchedule, teacherExtraPayloads] = await Promise.all([
-    Promise.all(
-      students.map(async (student) => {
+    mapWithConcurrency(students, KODLAND_CONCURRENCY, async (student) => {
         const agenda = await getOptional(
           `students/${student.external_id}/schedule_view/`,
           token,
         );
         return agenda ? extrasFromStudentAgenda(agenda, student) : [];
       }),
-    ),
     getOptional(`teacher_timetables/${teacherId}`, token),
-    Promise.all(
-      [undefined, ...teacherCalendarWeekDates()].map((date) =>
+    mapWithConcurrency(
+      [undefined, ...teacherCalendarWeekDates()],
+      2,
+      (date) =>
         getOptional(
           `teachers/${teacherId}/get_teacher_extra_lessons_timetable/${
             date ? `?date=${date}` : ""
@@ -867,7 +934,6 @@ async function extrasForStudents(
           token,
         ),
       ),
-    ),
   ]);
   const byStudentId = new Map(
     students.map((student) => [student.external_id, student]),
@@ -936,23 +1002,23 @@ async function extrasForStudents(
       snapshots.flat(),
     ),
     source_available:
-      teacherSchedule !== undefined ||
-      teacherExtraPayloads.some((payload) => payload !== undefined) ||
+      teacherSchedule !== null ||
+      teacherExtraPayloads.some((payload) => payload !== null) ||
       snapshots.some((items) => items.length > 0),
   };
 }
 
 async function reviewsForGroup(
   group: Group,
-  studentsPayload: unknown,
   token: string,
 ): Promise<Review[]> {
-  try {
     const lessons = list(
       await get(`student_groups/${group.external_id}/lessons/`, token),
     ).filter((value) => record(value).lesson_passed === true);
-    const results = await Promise.all(
-      lessons.map(async (value) => {
+    const results = await mapWithConcurrency(
+      lessons,
+      KODLAND_CONCURRENCY,
+      async (value) => {
         const lesson = record(value);
         const lessonId = text(lesson.lesson_id ?? lesson.id);
         const progress = record(
@@ -1026,47 +1092,26 @@ async function reviewsForGroup(
             ];
           });
         });
-      }),
+      },
     );
     return results.flat();
-  } catch {
-    return [];
-  }
 }
 
 type CourseLessonCache = {
   catalog: Map<string, Promise<KodlandCourseLesson[]>>;
-  details: Map<string, Promise<KodlandCourseLesson>>;
-  pendingDetails: Array<() => void>;
-  activeDetails: number;
 };
-
-async function withLessonDetailSlot<T>(
-  cache: CourseLessonCache,
-  work: () => Promise<T>,
-): Promise<T> {
-  if (cache.activeDetails >= 2) {
-    await new Promise<void>((resolve) => cache.pendingDetails.push(resolve));
-  }
-  cache.activeDetails += 1;
-  try {
-    return await work();
-  } finally {
-    cache.activeDetails -= 1;
-    cache.pendingDetails.shift()?.();
-  }
-}
 
 async function courseLessons(
   courseId: string,
   token: string,
   cache: CourseLessonCache,
+  required = false,
 ): Promise<KodlandCourseLesson[]> {
   if (!courseId) return [];
   let catalogPromise = cache.catalog.get(courseId);
   if (!catalogPromise) {
     catalogPromise = (async () => {
-      const payload = await getOptional(
+      const payload = await (required ? get : getOptional)(
         `lessons/get_lessons_list?course=${encodeURIComponent(courseId)}`,
         token,
       );
@@ -1091,47 +1136,7 @@ async function courseLessons(
     })();
     cache.catalog.set(courseId, catalogPromise);
   }
-  const catalog = await catalogPromise;
-  const all = async <T, R>(values: T[], work: (value: T) => Promise<R>) => {
-    const results: R[] = [];
-    for (let index = 0; index < values.length; index += 2) {
-      results.push(...(await Promise.all(values.slice(index, index + 2).map(work))));
-    }
-    return results;
-  };
-  return all(
-    catalog,
-    async (lesson) => {
-      const key = `${courseId}:${lesson.id}`;
-      let details = cache.details.get(key);
-      if (!details) {
-        details = withLessonDetailSlot(cache, async () => {
-          const [materials, homework, classroom] = await Promise.all([
-            getOptional(
-              `materials?lesson=${encodeURIComponent(lesson.id)}`,
-              token,
-            ),
-            getOptional(
-              `tasks/get_tasks_list?lesson=${encodeURIComponent(lesson.id)}&is_hw=true`,
-              token,
-            ),
-            getOptional(
-              `tasks/get_tasks_list?lesson=${encodeURIComponent(lesson.id)}&is_hw=false`,
-              token,
-            ),
-          ]);
-          return {
-            ...lesson,
-            materials: list(materials),
-            homework: list(homework),
-            classroom: list(classroom),
-          };
-        });
-        cache.details.set(key, details);
-      }
-      return details;
-    },
-  );
+  return catalogPromise;
 }
 
 async function lessonsForGroup(
@@ -1201,7 +1206,15 @@ async function lessonsForGroup(
     [...catalogLessons.values()],
     catalog,
     group.course_id,
-  );
+  ).map((lesson) => {
+    const sourceLesson = catalog.find((item) => item.id === lesson.id)
+      ?? catalog.find((item) => item.course_index === lesson.course_index);
+    return {
+      ...lesson,
+      source_lesson_id: sourceLesson?.id ?? "",
+      materials_status: sourceLesson ? "pending" as const : "unavailable" as const,
+    };
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -1224,7 +1237,21 @@ export async function POST(request: NextRequest) {
   ): Promise<T> => {
     stage = name;
     const stageStartedAt = Date.now();
-    const result = await operation();
+    const remaining = SYNC_TIME_BUDGET_MS - (stageStartedAt - startedAt);
+    if (remaining <= 0) throw new SyncFailure("kodland_timeout", 504);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const budget = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new SyncFailure("kodland_timeout", 504)),
+        remaining,
+      );
+    });
+    let result: T;
+    try {
+      result = await Promise.race([operation(), budget]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
     console.info("[kodland-sync]", JSON.stringify({
       syncId,
       event: "stage_complete",
@@ -1245,6 +1272,9 @@ export async function POST(request: NextRequest) {
     let body: {
       username?: string;
       password?: string;
+      mode?: "essential" | "corrections" | "materials" | "profiles";
+      group_id?: string;
+      source_lesson_id?: string;
     };
     try {
       body = (await request.json()) as typeof body;
@@ -1256,72 +1286,149 @@ export async function POST(request: NextRequest) {
       trace("invalid_request");
       return syncResponse(syncId, { code: "missing_credentials" }, 400);
     }
+    const mode = body.mode ?? "essential";
+    if (!["essential", "corrections", "materials", "profiles"].includes(mode)) {
+      trace("invalid_request");
+      return syncResponse(syncId, { code: "invalid_request" }, 400);
+    }
     const token = await runStage("kodland_auth", () => kodlandLogin(body.username!, body.password!));
     const groups = await runStage("groups", () => groupsForTeacher(userId(token), token),
       (result) => ({ groupCount: result.length }));
     const active = groups.filter((group) => !group.archived);
+    const emptyCollections = () => ({
+      groups: [] as Group[],
+      students: [] as Student[],
+      reviews: [] as Review[],
+      lessons: [] as KodlandLesson[],
+      extra_lessons: [] as ExtraLesson[],
+      availability: [] as Availability[],
+      extra_lessons_synced: false,
+      availability_synced: false,
+    });
+    if (mode === "materials") {
+      const group = active.find((item) => item.external_id === body.group_id);
+      if (!group || !group.course_id || !body.source_lesson_id) {
+        trace("material_denied");
+        return syncResponse(syncId, { code: "material_not_authorized" }, 403);
+      }
+      const cache: CourseLessonCache = { catalog: new Map() };
+      const catalog = await runStage("material_catalog", () => courseLessons(group.course_id, token, cache, true),
+        (result) => ({ catalogLessonCount: result.length }));
+      const source = catalog.find((lesson) => lesson.id === body.source_lesson_id);
+      if (!source) {
+        trace("material_denied");
+        return syncResponse(syncId, { code: "material_not_authorized" }, 403);
+      }
+      const [materials, homework, classroom] = await runStage("material_details", () => Promise.all([
+        get(`materials?lesson=${encodeURIComponent(source.id)}`, token),
+        get(`tasks/get_tasks_list?lesson=${encodeURIComponent(source.id)}&is_hw=true`, token),
+        get(`tasks/get_tasks_list?lesson=${encodeURIComponent(source.id)}&is_hw=false`, token),
+      ]));
+      const enriched = enrichKodlandLessons([{
+        id: source.id,
+        external_class_id: group.external_id,
+        external_class_name: group.title,
+        lesson_number: source.lesson_number,
+        course_index: source.course_index,
+        title: source.title,
+        theme: "",
+        lesson_date: "",
+        start_time: "",
+        end_time: "",
+        status: "",
+        lesson_passed: false,
+        external_url: "",
+        slides_url: "",
+        guide_url: "",
+        homework_url: "",
+        homework_title: "",
+        classroom_tasks: [],
+      }], [{ ...source, materials: list(materials), homework: list(homework), classroom: list(classroom) }], group.course_id)[0];
+      const material = {
+        group_id: group.external_id,
+        source_lesson_id: source.id,
+        slides_url: enriched.slides_url,
+        guide_url: enriched.guide_url,
+        homework_url: enriched.homework_url,
+        homework_title: enriched.homework_title,
+        classroom_tasks: enriched.classroom_tasks,
+      };
+      trace("completed", { materialCount: list(materials).length + list(homework).length + list(classroom).length });
+      return syncResponse(syncId, { ...emptyCollections(), material: {
+        ...material,
+        materials_status: list(materials).length || list(homework).length || list(classroom).length ? "ready" : "empty",
+      } });
+    }
+    if (mode === "corrections") {
+      const reviews = await runStage("reviews", () => mapWithConcurrency(active, KODLAND_CONCURRENCY, (group) => reviewsForGroup(group, token)),
+        (result) => ({ reviewCount: result.reduce((total, items) => total + items.length, 0) }));
+      const items = reviews.flat();
+      trace("completed", { groupCount: active.length, reviewCount: items.length });
+      return syncResponse(syncId, { ...emptyCollections(), reviews: items });
+    }
     const profileCache = new Map<
       string,
       ReturnType<typeof parseGuardianContact>
     >();
     const courseLessonCache: CourseLessonCache = {
       catalog: new Map(),
-      details: new Map(),
-      pendingDetails: [],
-      activeDetails: 0,
     };
     // Keep the teacher calendar ahead of the full course-material import. The
     // calendar is what drives availability and booked extras, while the
     // material import can make hundreds of auxiliary requests.
-    const groupsWithStudents = await runStage("students", () => Promise.all(
-      active.map(async (group) => {
+    const groupsWithStudents = await runStage("students", () => mapWithConcurrency(
+      active,
+      KODLAND_CONCURRENCY,
+      async (group) => {
         const payload = await get(
           `student_groups/${group.external_id}/get_students_main_data/`,
           token,
         );
-        const students = await studentsWithProfiles(
-          studentsFromPayload(payload, group),
-          token,
-          profileCache,
-        );
+        const basicStudents = studentsFromPayload(payload, group);
+        const students = mode === "profiles"
+          ? await studentsWithProfiles(basicStudents, token, profileCache)
+          : basicStudents;
         return {
           group,
           payload,
           students,
         };
-      }),
+      },
     ), (result) => ({ activeGroupCount: result.length, studentCount: result.reduce((total, item) => total + item.students.length, 0) }));
     const students = groupsWithStudents.flatMap((item) => item.students);
+    if (mode === "profiles") {
+      trace("completed", { groupCount: active.length, studentCount: students.length });
+      return syncResponse(syncId, { ...emptyCollections(), students });
+    }
     const teacherId = userId(token);
     const [extraSnapshot, availabilityPayload] = await runStage("calendar", () => Promise.all([
       extrasForStudents(students, teacherId, token),
       getOptional(`teacher_timetables/${teacherId}`, token),
     ]), ([extras]) => ({ extraLessonCount: extras.items.length }));
-    const snapshots = await runStage("lessons_and_reviews", () => Promise.all(
-      groupsWithStudents.map(async ({ group, payload, students }) => ({
-        students,
-        reviews: await reviewsForGroup(group, payload, token),
+    const snapshots = await runStage("lessons", () => mapWithConcurrency(
+      groupsWithStudents,
+      KODLAND_CONCURRENCY,
+      async ({ group }) => ({
         lessons: await lessonsForGroup(group, token, courseLessonCache),
-      })),
+      }),
     ), (result) => ({
-      reviewCount: result.reduce((total, item) => total + item.reviews.length, 0),
       lessonCount: result.reduce((total, item) => total + item.lessons.length, 0),
     }));
     stage = "response";
     const response = syncResponse(syncId, {
       groups,
       students,
-      reviews: snapshots.flatMap((item) => item.reviews),
+      reviews: [],
       lessons: snapshots.flatMap((item) => item.lessons),
       extra_lessons: extraSnapshot.items,
       extra_lessons_synced: extraSnapshot.source_available,
       availability: availabilityFromTeacherTimetable(availabilityPayload),
-      availability_synced: availabilityPayload !== undefined,
+      availability_synced: availabilityPayload !== null,
     });
     trace("completed", {
       groupCount: groups.length,
       studentCount: students.length,
-      reviewCount: snapshots.reduce((total, item) => total + item.reviews.length, 0),
+      reviewCount: 0,
       lessonCount: snapshots.reduce((total, item) => total + item.lessons.length, 0),
     });
     return response;

@@ -278,10 +278,76 @@ type KodlandSnapshot = {
   availability_synced?: boolean;
 };
 
-const kodlandLessonDocumentId = (lesson: {
+type KodlandMaterial = {
+  group_id: string;
+  source_lesson_id: string;
+  materials_status: "ready" | "empty";
+  slides_url: string;
+  guide_url: string;
+  homework_url: string;
+  homework_title: string;
+  classroom_tasks: KodlandLesson["classroom_tasks"];
+};
+
+export const kodlandLessonDocumentId = (lesson: {
   id: string;
   external_class_id: string;
 }) => `group-${lesson.external_class_id}-lesson-${lesson.id}`;
+
+const hasKodlandMaterials = (lesson: Partial<KodlandLesson>) => Boolean(
+  lesson.slides_url || lesson.guide_url || lesson.homework_url || lesson.classroom_tasks?.length,
+);
+
+/** Keep manually managed and previously loaded data while the lightweight sync refreshes the timetable. */
+export function mergeSyncedKodlandLesson(
+  item: Omit<KodlandLesson, "created_at">,
+  previous: Partial<KodlandLesson> | undefined,
+  createdAt: string,
+) {
+  const sameSource = !previous?.source_lesson_id ||
+    !item.source_lesson_id || previous.source_lesson_id === item.source_lesson_id;
+  const preserved = sameSource ? previous : undefined;
+  const previousMaterialsStatus = preserved?.materials_status ??
+    (preserved && hasKodlandMaterials(preserved) ? "ready" : "pending");
+  const materialStatus = previousMaterialsStatus === "ready" || previousMaterialsStatus === "empty"
+    ? previousMaterialsStatus
+    : item.materials_status ?? previousMaterialsStatus;
+  return {
+    ...item,
+    id: kodlandLessonDocumentId(item),
+    source_lesson_id: item.source_lesson_id || preserved?.source_lesson_id || "",
+    materials_status: materialStatus,
+    financial_status: String(previous?.financial_status ?? ""),
+    external_url: item.external_url || preserved?.external_url || "",
+    slides_url: item.slides_url || preserved?.slides_url || "",
+    guide_url: item.guide_url || preserved?.guide_url || "",
+    homework_url: item.homework_url || preserved?.homework_url || "",
+    homework_title: item.homework_title || preserved?.homework_title || "",
+    classroom_tasks: item.classroom_tasks?.length
+      ? item.classroom_tasks : preserved?.classroom_tasks ?? [],
+    created_at: String(previous?.created_at ?? createdAt),
+  };
+}
+
+export function mergeLoadedKodlandMaterials(
+  previous: KodlandLesson,
+  material: KodlandMaterial,
+) {
+  if (previous.external_class_id !== material.group_id ||
+      previous.source_lesson_id !== material.source_lesson_id) {
+    throw new Error("A aula mudou desde a última sincronização. Atualize a página e tente novamente.");
+  }
+  const retained = hasKodlandMaterials(previous);
+  return {
+    slides_url: material.slides_url || previous.slides_url || "",
+    guide_url: material.guide_url || previous.guide_url || "",
+    homework_url: material.homework_url || previous.homework_url || "",
+    homework_title: material.homework_title || previous.homework_title || "",
+    classroom_tasks: material.classroom_tasks.length
+      ? material.classroom_tasks : previous.classroom_tasks ?? [],
+    materials_status: material.materials_status === "empty" && retained ? "ready" : material.materials_status,
+  };
+}
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -299,9 +365,8 @@ const authUser = () => {
   if (!user) throw new ApiError(401, "Faça login para continuar.");
   return user;
 };
-const userRoot = () => `users/${authUser().uid}`;
-const ref = (name: string) =>
-  collection(getFirebaseDb(), `${userRoot()}/${name}`);
+const ref = (name: string, userId = authUser().uid) =>
+  collection(getFirebaseDb(), `users/${userId}/${name}`);
 const rows = async (name: string): Promise<Row[]> =>
   (await getDocs(query(ref(name), orderBy("created_at")))).docs.map((item) => ({
     ...(item.data() as Row),
@@ -1214,9 +1279,13 @@ export const kodlandApi = {
     await updateDoc(doc(ref("kodland_extra_lessons"), id), updated);
     return updated as unknown as KodlandExtraLesson;
   },
-  sync: async (username: string, password: string) => {
+  sync: async (username: string, password: string, mode: "essential" | "corrections" | "profiles" = "essential") => {
+    const firebaseUser = authUser();
+    const firebaseUserId = firebaseUser.uid;
+    const syncCollection = (name: string) => ref(name, firebaseUserId);
+    const syncStatusRef = doc(syncCollection("sync_status"), "kodland");
     const token = await (
-      authUser() as unknown as { getIdToken: () => Promise<string> }
+      firebaseUser as unknown as { getIdToken: () => Promise<string> }
     ).getIdToken();
     const syncId = crypto.randomUUID();
     let response: Response;
@@ -1228,7 +1297,7 @@ export const kodlandApi = {
           authorization: `Bearer ${token}`,
           "x-sync-id": syncId,
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, mode }),
       });
     } catch {
       throw kodlandSyncNetworkError(syncId);
@@ -1237,6 +1306,61 @@ export const kodlandApi = {
     let persistencePhase: "leitura" | "gravação" = "leitura";
     try {
     const createdAt = now();
+    await setDoc(syncStatusRef, {
+      status: "running",
+      sync_id: syncId,
+      mode,
+      started_at: createdAt,
+    });
+    const finish = async <T,>(result: T) => {
+      await setDoc(syncStatusRef, {
+        status: "complete",
+        sync_id: syncId,
+        mode,
+        completed_at: now(),
+      });
+      return result;
+    };
+    if (mode === "corrections") {
+      const previousReviews = await rows("kodland_reviews");
+      const upserts: Array<(batch: FirebaseWriteBatch) => void> = snapshot.reviews.map(
+        (item) => (batch) =>
+          batch.set(doc(syncCollection("kodland_reviews"), item.id), {
+            ...item,
+            created_at: createdAt,
+          }),
+      );
+      const incoming = new Set(snapshot.reviews.map((item) => item.id));
+      const deletes: Array<(batch: FirebaseWriteBatch) => void> = previousReviews
+        .filter((item) => !incoming.has(String(item.id)))
+        .map((item) => (batch) =>
+          batch.delete(doc(syncCollection("kodland_reviews"), String(item.id))));
+      persistencePhase = "gravação";
+      await commitWrites(upserts);
+      await commitWrites(deletes);
+      return finish({ group_count: 0, student_count: 0, review_count: snapshot.reviews.length, lesson_count: 0, extra_lesson_count: 0 });
+    }
+    if (mode === "profiles") {
+      const previousStudents = await rows("kodland_students");
+      const previousById = new Map(
+        previousStudents.map((student) => [String(student.id), student]),
+      );
+      const writes: Array<(batch: FirebaseWriteBatch) => void> = snapshot.students
+        .filter((student) => previousById.has(student.id))
+        .map((student) => {
+          const previous = previousById.get(student.id)!;
+          return (batch) => batch.update(doc(syncCollection("kodland_students"), student.id), {
+            guardian_name: student.guardian_name || previous.guardian_name || "",
+            guardian_relationship: student.guardian_relationship || previous.guardian_relationship || "",
+            guardian_phone: student.guardian_phone || previous.guardian_phone || "",
+            guardian_email: student.guardian_email || previous.guardian_email || "",
+            updated_at: createdAt,
+          });
+        });
+      persistencePhase = "gravação";
+      await commitWrites(writes);
+      return finish({ group_count: 0, student_count: writes.length, review_count: 0, lesson_count: 0, extra_lesson_count: 0 });
+    }
     const oldGroups = await rows("kodland_groups");
     const links = new Map(
       oldGroups.map((item) => [
@@ -1245,24 +1369,14 @@ export const kodlandApi = {
       ]),
     );
     const oldStudents = await rows("kodland_students");
-    const oldReviews = await rows("kodland_reviews");
     const oldLessons = await rows("kodland_lessons");
     const oldExtraLessons = await rows("kodland_extra_lessons");
     const oldAvailability = await rows("kodland_availability");
-    const writes: Array<(batch: FirebaseWriteBatch) => void> = [];
-    oldReviews.forEach((item) =>
-      writes.push((batch) =>
-        batch.delete(doc(ref("kodland_reviews"), String(item.id))),
-      ),
-    );
-    oldLessons.forEach((item) =>
-      writes.push((batch) =>
-        batch.delete(doc(ref("kodland_lessons"), String(item.id))),
-      ),
-    );
+    const upserts: Array<(batch: FirebaseWriteBatch) => void> = [];
+    const deletes: Array<(batch: FirebaseWriteBatch) => void> = [];
     snapshot.groups.forEach((item) =>
-      writes.push((batch) =>
-        batch.set(doc(ref("kodland_groups"), item.external_id), {
+      upserts.push((batch) =>
+        batch.set(doc(syncCollection("kodland_groups"), item.external_id), {
           ...item,
           id: item.external_id,
           local_class_id: links.get(item.external_id) ?? null,
@@ -1274,7 +1388,7 @@ export const kodlandApi = {
       const previous = oldStudents.find(
         (student) => String(student.id) === item.id,
       );
-      writes.push((batch) => batch.set(doc(ref("kodland_students"), item.id), {
+      upserts.push((batch) => batch.set(doc(syncCollection("kodland_students"), item.id), {
         ...item,
         local_note: String(previous?.local_note ?? ""),
         // Contact fields come from the latest read-only profile snapshot.
@@ -1297,12 +1411,6 @@ export const kodlandApi = {
         created_at: String(previous?.created_at ?? createdAt),
       }));
     });
-    snapshot.reviews.forEach((item) =>
-      writes.push((batch) => batch.set(doc(ref("kodland_reviews"), item.id), {
-        ...item,
-        created_at: createdAt,
-      })),
-    );
     snapshot.lessons.forEach((item) => {
       const documentId = kodlandLessonDocumentId(item);
       const previous = oldLessons.find(
@@ -1311,27 +1419,23 @@ export const kodlandApi = {
           (String(lesson.id) === item.id &&
             String(lesson.external_class_id) === item.external_class_id),
       ) as Partial<KodlandLesson> | undefined;
-      writes.push((batch) => batch.set(doc(ref("kodland_lessons"), documentId), {
-        ...item,
-        id: documentId,
-        financial_status: String(previous?.financial_status ?? ""),
-        slides_url: item.slides_url || previous?.slides_url || "",
-        guide_url: item.guide_url || previous?.guide_url || "",
-        homework_url: item.homework_url || previous?.homework_url || "",
-        homework_title: item.homework_title || previous?.homework_title || "",
-        classroom_tasks:
-          item.classroom_tasks?.length
-            ? item.classroom_tasks
-            : previous?.classroom_tasks ?? [],
-        created_at: String(previous?.created_at ?? createdAt),
-      }));
+      upserts.push((batch) => batch.set(doc(syncCollection("kodland_lessons"), documentId),
+        mergeSyncedKodlandLesson(item, previous, createdAt)));
     });
-    if (snapshot.extra_lessons_synced !== false) {
+    // Lesson endpoints are optional during the lightweight refresh. Keep an
+    // older lesson rather than treating a temporary upstream omission as a
+    // deletion; a future full reconciliation can remove confirmed stale rows.
+    if (snapshot.extra_lessons_synced === true) {
+      const incomingExtraIds = new Set(snapshot.extra_lessons.map((item) => item.id));
       oldExtraLessons
-        .filter((item) => item.completed !== true && !item.manual_status)
+        .filter((item) =>
+          item.completed !== true &&
+          !item.manual_status &&
+          !incomingExtraIds.has(String(item.id)),
+        )
         .forEach((item) =>
-          writes.push((batch) =>
-            batch.delete(doc(ref("kodland_extra_lessons"), String(item.id))),
+          deletes.push((batch) =>
+            batch.delete(doc(syncCollection("kodland_extra_lessons"), String(item.id))),
           ),
         );
       snapshot.extra_lessons.forEach((item) => {
@@ -1343,7 +1447,7 @@ export const kodlandApi = {
           | undefined;
         const manualStatus =
           previousManualStatus === "ACCOUNTED" ? "DONE" : previousManualStatus;
-        writes.push((batch) => batch.set(doc(ref("kodland_extra_lessons"), item.id), {
+        upserts.push((batch) => batch.set(doc(syncCollection("kodland_extra_lessons"), item.id), {
           ...item,
           manual_status: manualStatus,
           completed:
@@ -1357,30 +1461,106 @@ export const kodlandApi = {
         }));
       });
     }
-    if (snapshot.availability_synced !== false) {
-      oldAvailability.forEach((item) =>
-        writes.push((batch) =>
-          batch.delete(doc(ref("kodland_availability"), String(item.id))),
+    if (snapshot.availability_synced === true) {
+      const incomingAvailabilityIds = new Set(snapshot.availability.map((item) => item.id));
+      oldAvailability
+        .filter((item) => !incomingAvailabilityIds.has(String(item.id)))
+        .forEach((item) =>
+        deletes.push((batch) =>
+          batch.delete(doc(syncCollection("kodland_availability"), String(item.id))),
         ),
       );
       snapshot.availability.forEach((item) =>
-        writes.push((batch) => batch.set(doc(ref("kodland_availability"), item.id), {
+        upserts.push((batch) => batch.set(doc(syncCollection("kodland_availability"), item.id), {
           ...item,
           created_at: createdAt,
         })),
       );
     }
     persistencePhase = "gravação";
-    await commitWrites(writes);
-    return {
+    await commitWrites(upserts);
+    await commitWrites(deletes);
+    return finish({
       group_count: snapshot.groups.length,
       student_count: snapshot.students.length,
-      review_count: snapshot.reviews.length,
+      review_count: 0,
       lesson_count: snapshot.lessons.length,
       extra_lesson_count: snapshot.extra_lessons.length,
-    };
+    });
     } catch {
+      try {
+        await setDoc(syncStatusRef, {
+          status: "failed",
+          sync_id: syncId,
+          mode,
+          failed_at: now(),
+          phase: persistencePhase,
+        });
+      } catch {
+        // Preserve the original persistence error when even the status marker cannot be saved.
+      }
       throw new KodlandSyncPersistenceError(syncId, persistencePhase);
+    }
+  },
+  loadLessonMaterials: async (
+    lesson: Pick<KodlandLesson, "id" | "external_class_id" | "source_lesson_id">,
+    username: string,
+    password: string,
+  ) => {
+    if (!lesson.source_lesson_id || !lesson.external_class_id) {
+      throw new ApiError(409, "Sincronize as turmas novamente para identificar esta aula na Kodland.");
+    }
+    const lessonRef = doc(ref("kodland_lessons"), lesson.id);
+    const currentSnapshot = await getDoc(lessonRef);
+    const current = currentSnapshot.data() as KodlandLesson | undefined;
+    if (!currentSnapshot.exists() || !current ||
+        current.external_class_id !== lesson.external_class_id ||
+        current.source_lesson_id !== lesson.source_lesson_id) {
+      throw new ApiError(409, "A aula mudou desde a última sincronização. Atualize a página e tente novamente.");
+    }
+    const hadLoadedMaterials = hasKodlandMaterials(current);
+    const token = await (
+      authUser() as unknown as { getIdToken: () => Promise<string> }
+    ).getIdToken();
+    const syncId = crypto.randomUUID();
+    try {
+      let response: Response;
+      try {
+        response = await fetch("/api/kodland/sync", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+            "x-sync-id": syncId,
+          },
+          body: JSON.stringify({
+            username,
+            password,
+            mode: "materials",
+            group_id: lesson.external_class_id,
+            source_lesson_id: lesson.source_lesson_id,
+          }),
+        });
+      } catch {
+        throw kodlandSyncNetworkError(syncId);
+      }
+      const result = await readKodlandSyncResponse<KodlandSnapshot & { material: KodlandMaterial }>(response, syncId);
+      if (!result.material || result.material.group_id !== lesson.external_class_id ||
+          result.material.source_lesson_id !== lesson.source_lesson_id) {
+        throw new Error("O servidor retornou materiais de outra aula. Tente novamente.");
+      }
+      const updates = mergeLoadedKodlandMaterials(current, result.material);
+      await updateDoc(lessonRef, { ...updates, updated_at: now() });
+      return { ...current, ...updates };
+    } catch (reason) {
+      if (!hadLoadedMaterials) {
+        try {
+          await updateDoc(lessonRef, { materials_status: "error", updated_at: now() });
+        } catch {
+          // Preserve the original failure; existing links remain untouched.
+        }
+      }
+      throw reason;
     }
   },
   linkGroup: async (externalId: string, localClassId: string | null) => {

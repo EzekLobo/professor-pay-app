@@ -923,6 +923,18 @@ select:focus-visible {
   display: grid;
   gap: 18px;
 }
+.lesson-material-load-form {
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 0;
+  padding: 14px;
+  border: 1px solid #28517e;
+  border-radius: 12px;
+  background: rgb(10 25 45 / 68%);
+}
+.lesson-material-load-form .muted {
+  margin: 0;
+  line-height: 1.45;
+}
 .lesson-overview,
 .lesson-material-section,
 .course-lesson {
@@ -1703,8 +1715,10 @@ select:focus-visible {
 .group-accordion-summary::-webkit-details-marker {
   display: none;
 }
-.group-accordion-summary > strong { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 9px; }
-.group-student-count { color: var(--muted); font-size: .78rem; font-weight: 700; }
+.group-summary-copy { display: grid; gap: 4px; min-width: 0; }
+.group-summary-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-course-name { color: #9eb5d2; font-size: .78rem; font-weight: 650; }
+.group-student-count { flex: 0 0 auto; color: var(--muted); font-size: .78rem; font-weight: 700; }
 .group-accordion[open] .group-accordion-summary {
   border-bottom: 1px solid var(--border);
   background: #10213a;

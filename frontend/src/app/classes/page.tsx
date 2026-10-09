@@ -50,12 +50,15 @@ function GroupAccordion({
     <>
       <details className="group-accordion" open={openByDefault}>
         <summary className="group-accordion-summary">
-          <strong>
-            {group.title}
-            <span className="group-student-count">
-              {activeStudents.length} aluno{activeStudents.length === 1 ? "" : "s"}
+          <span className="group-summary-copy">
+            <strong>{group.title}</strong>
+            <span className="group-course-name">
+              Curso: {group.course_name || "Não informado"}
             </span>
-          </strong>
+          </span>
+          <span className="group-student-count">
+            {activeStudents.length} aluno{activeStudents.length === 1 ? "" : "s"}
+          </span>
         </summary>
         <div className="group-accordion-body">
           {activeStudents.length === 0 ? (

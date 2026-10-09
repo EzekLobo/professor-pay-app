@@ -1,5 +1,7 @@
 # Estado atual
 
+- O painel `/admin` monitora acessos do app web via rotas servidor autenticadas (`/api/audit` e `/api/admin/analytics`): registra sessões, último pulso ativo e visitas de página em coleções administrativas que não são expostas ao navegador. O acesso é restrito por `ADMIN_EMAILS` e exige `FIREBASE_SERVICE_ACCOUNT_JSON` no ambiente de servidor; consulte `docs/FIREBASE.md` antes de publicar.
+
 - A navegação web tem uma única fonte de verdade em `frontend/src/lib/routes.ts`: o rótulo do menu também alimenta o título do topo. A antiga divergência de Resumo/Sua rotina e Dados/Seus dados foi removida; a área de dados está nomeada `Dados e backup`.
 
 - O NexusClass possui um tutorial “Como usar” em Resumo, Pagamentos, Turmas, Aulas, Correções e Dados. Os roteiros de Resumo, Pagamentos, Turmas, Aulas e Correções estão na versão 2: revelam conteúdos ocultos e explicam controles como visibilidade financeira e lista completa. Cada roteiro abre automaticamente uma vez por versão e permanece reabrível pelo cabeçalho; o progresso é salvo por usuário no Firestore, em `users/{uid}/tutorials/{roteiroId}`.

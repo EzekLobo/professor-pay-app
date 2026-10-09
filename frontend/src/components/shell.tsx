@@ -8,6 +8,7 @@ import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
 import { appRoutes, pageTitle } from "@/lib/routes";
 import { GuidedTourDialog, useGuidedTour } from "@/components/guided-tour";
+import { AccessTelemetry, endStoredAccessSession } from "@/components/access-telemetry";
 
 export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pathname = usePathname();
@@ -16,12 +17,14 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const isActive = (href: string) => pathname === href;
 
   async function logout() {
+    endStoredAccessSession();
     await logoutFromFirebase().catch(() => undefined);
     router.replace("/login");
   }
 
   return (
     <div className="app-shell">
+      <AccessTelemetry user={user} pathname={pathname} />
       <aside className="sidebar">
         <Link className="brand" href="/dashboard" aria-label="Ir para o resumo">
           <Image className="brand-mark" src="/nexusclass-icon.png" alt="" width={34} height={34} priority />
@@ -29,12 +32,15 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
         </Link>
         <p className="sidebar-caption">NAVEGAÇÃO</p>
         <nav className="nav" aria-label="Navegação principal">
-          {appRoutes.map((item) => (
-            <Link className={`nav-link${isActive(item.href) ? " nav-link-active" : ""}`} href={item.href} key={item.href}>
-              <span aria-hidden="true">{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          ))}
+          {appRoutes.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link className={`nav-link${isActive(item.href) ? " nav-link-active" : ""}`} href={item.href} key={item.href}>
+                <span aria-hidden="true"><Icon size={19} strokeWidth={2.1} /></span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
         <div className="sidebar-bottom">
           <button className="logout-button" type="button" onClick={logout}>

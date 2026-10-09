@@ -54,6 +54,25 @@ alteração exige novo deploy. O frontend não precisa de `NEXT_PUBLIC_API_URL`
 para os fluxos de produção; essa variável só existe para compatibilidade com a
 API Python legada durante a migração.
 
+## Administração e auditoria de acessos
+
+O painel `/admin` acompanha sessões, último acesso, tempo ativo estimado e
+visitas às áreas do app. Ele usa rotas de servidor e o Firebase Admin SDK: os
+eventos não ficam expostos nas regras do Firestore usadas pelo navegador.
+
+No ambiente **Production** e **Preview** da Vercel, configure as variáveis
+privadas abaixo (sem o prefixo `NEXT_PUBLIC_`):
+
+- `ADMIN_EMAILS`: e-mail, ou lista de e-mails separados por vírgula, de quem
+  pode consultar o painel.
+- `FIREBASE_SERVICE_ACCOUNT_JSON`: conteúdo JSON completo de uma chave de
+  service account do mesmo projeto Firebase, em uma única linha.
+
+Gere a chave em **Firebase Console > Configurações do projeto > Contas de
+serviço**. Nunca a coloque no Git, em arquivos públicos ou em uma variável
+`NEXT_PUBLIC_*`. Após cadastrar as variáveis, faça um novo deploy, entre com um
+e-mail listado em `ADMIN_EMAILS` e abra `/admin`.
+
 ## Migração do SQLite legado
 
 O diretório `backend/` e o arquivo SQLite continuam disponíveis como fonte de
@@ -74,3 +93,7 @@ As regras exigem que `request.auth.uid` seja igual ao `{uid}` da URL. O frontend
 usa lotes para gerar aulas de uma turma, importar dados e resetar as três
 coleções. As regras devem ser revisadas no Firebase Emulator Suite antes de uma
 mudança de esquema.
+
+As coleções `admin_access_sessions` e `admin_usage_daily` são gravadas apenas
+pelas rotas de servidor com credenciais administrativas. Elas não exigem nem
+recebem permissões adicionais nas regras do cliente.

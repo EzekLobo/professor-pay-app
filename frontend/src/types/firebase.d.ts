@@ -7,7 +7,7 @@ declare module "firebase/app" {
 }
 declare module "firebase/auth" {
   export type Auth = { currentUser: User | null };
-  export type User = { uid: string; displayName: string | null; email: string | null };
+  export type User = { uid: string; displayName: string | null; email: string | null; getIdToken(forceRefresh?: boolean): Promise<string> };
   export function getAuth(app: unknown): Auth;
   export function createUserWithEmailAndPassword(auth: Auth, email: string, password: string): Promise<{ user: User }>;
   export function signInWithEmailAndPassword(auth: Auth, email: string, password: string): Promise<{ user: User }>;

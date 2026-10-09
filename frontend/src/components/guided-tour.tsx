@@ -7,6 +7,7 @@ import { getRenderableTutorialSteps, getTutorialForPathname, tutorialSessionKey,
 const sessionCompletedTutorials = new Set<string>();
 const TARGET_WAIT_MS = 500;
 const TARGET_CHECK_INTERVAL_MS = 50;
+type SpotlightBounds = { left: number; top: number; width: number; height: number };
 
 export type GuidedTourController = {
   activeStep: TutorialStep | null;
@@ -126,7 +127,7 @@ export function GuidedTourDialog({ tour }: { tour: GuidedTourController }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
-  const [spotlight, setSpotlight] = useState<CSSProperties | null>(null);
+  const [spotlight, setSpotlight] = useState<SpotlightBounds | null>(null);
   const [dialogPosition, setDialogPosition] = useState<CSSProperties | null>(null);
 
   useEffect(() => {
@@ -188,12 +189,7 @@ export function GuidedTourDialog({ tour }: { tour: GuidedTourController }) {
           width: Math.min(window.innerWidth - Math.max(4, targetRect.left - margin) - 4, targetRect.width + margin * 2),
           height: Math.min(window.innerHeight - Math.max(4, targetRect.top - margin) - 4, targetRect.height + margin * 2),
         };
-        setSpotlight({
-          left: `${spotlightRect.left}px`,
-          top: `${spotlightRect.top}px`,
-          width: `${spotlightRect.width}px`,
-          height: `${spotlightRect.height}px`,
-        });
+        setSpotlight(spotlightRect);
 
         if (window.innerWidth <= 768) {
           setDialogPosition(null);
@@ -240,15 +236,43 @@ export function GuidedTourDialog({ tour }: { tour: GuidedTourController }) {
     };
   }, [tour.activeStep?.placement, tour.activeStep?.id, tour.activeTargetSelector, tour.isOpen]);
 
+  useEffect(() => {
+    const reveal = tour.activeStep?.reveal;
+    if (!tour.isOpen || !reveal) return;
+    if (reveal === "details") {
+      const target = tour.activeTargetSelector ? document.querySelector<HTMLElement>(tour.activeTargetSelector) : null;
+      const details = target?.matches("details") ? target : target?.querySelector<HTMLDetailsElement>("details");
+      if (details) details.open = true;
+      return;
+    }
+    window.dispatchEvent(new CustomEvent("nexusclass:tutorial-reveal", { detail: reveal }));
+  }, [tour.activeStep?.id, tour.activeStep?.reveal, tour.activeTargetSelector, tour.isOpen]);
+
   if (!tour.isOpen || !tour.activeStep) return null;
   const isLastStep = !tour.canGoNext;
+  const spotlightStyle: CSSProperties | undefined = spotlight
+    ? {
+      left: `${spotlight.left}px`,
+      top: `${spotlight.top}px`,
+      width: `${spotlight.width}px`,
+      height: `${spotlight.height}px`,
+    }
+    : undefined;
 
   return (
     <div className="guided-tour-layer" aria-hidden={false}>
-      <div className="guided-tour-backdrop" aria-hidden="true" />
-      {tour.activeTargetSelector && spotlight && <div className="guided-tour-spotlight" style={spotlight} aria-hidden="true" />}
+      {tour.activeTargetSelector && spotlight ? (
+        <>
+          <div className="guided-tour-mask" style={{ top: 0, right: 0, left: 0, height: `${spotlight.top}px` }} aria-hidden="true" />
+          <div className="guided-tour-mask" style={{ top: `${spotlight.top}px`, bottom: `${window.innerHeight - spotlight.top - spotlight.height}px`, left: 0, width: `${spotlight.left}px` }} aria-hidden="true" />
+          <div className="guided-tour-mask" style={{ top: `${spotlight.top}px`, right: 0, bottom: `${window.innerHeight - spotlight.top - spotlight.height}px`, left: `${spotlight.left + spotlight.width}px` }} aria-hidden="true" />
+          <div className="guided-tour-mask" style={{ top: `${spotlight.top + spotlight.height}px`, right: 0, bottom: 0, left: 0 }} aria-hidden="true" />
+          <div className="guided-tour-spotlight" style={spotlightStyle} aria-hidden="true" />
+        </>
+      ) : <div className="guided-tour-backdrop" aria-hidden="true" />}
       <div ref={dialogRef} className="guided-tour-dialog" style={tour.activeTargetSelector ? dialogPosition ?? undefined : undefined} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
         <button type="button" className="guided-tour-close" aria-label="Fechar guia" onClick={tour.close}>×</button>
+        <p className="guided-tour-kicker">Como funciona?</p>
         <p className="guided-tour-progress">{tour.stepIndex + 1} de {tour.stepCount}</p>
         <h2 id={titleId}>{tour.activeStep.title}</h2>
         <p id={descriptionId}>{tour.activeStep.description}</p>

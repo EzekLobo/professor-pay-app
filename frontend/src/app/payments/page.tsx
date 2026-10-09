@@ -79,6 +79,14 @@ function Content() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    const revealAllPayments = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === "show-all-payments") setShowAllPayments(true);
+    };
+    window.addEventListener("nexusclass:tutorial-reveal", revealAllPayments);
+    return () => window.removeEventListener("nexusclass:tutorial-reveal", revealAllPayments);
+  }, []);
   const carouselDragStart = useRef<number | null>(null);
   const carouselDragDistance = useRef(0);
   const carouselWheelLocked = useRef(false);
@@ -320,6 +328,7 @@ function Content() {
           {items.length > 0 && (
             <button
               className="button button-ghost button-small"
+              data-tour="payments-view-toggle"
               type="button"
               aria-expanded={showAllPayments}
               onClick={() => setShowAllPayments((current) => !current)}

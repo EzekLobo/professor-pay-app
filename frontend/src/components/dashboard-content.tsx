@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useRef,
   useState,
   type FormEvent,
@@ -85,6 +86,14 @@ export function DashboardContent(props: DashboardContentProps) {
       typeof window === "undefined" ||
       window.localStorage.getItem("aulapay.payments.visible") !== "false",
   );
+
+  useEffect(() => {
+    const revealPayments = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === "show-payments") setPaymentsVisible(true);
+    };
+    window.addEventListener("nexusclass:tutorial-reveal", revealPayments);
+    return () => window.removeEventListener("nexusclass:tutorial-reveal", revealPayments);
+  }, []);
   const [updatingLessonId, setUpdatingLessonId] = useState<string | null>(null);
   const [addingExtra, setAddingExtra] = useState(false);
   const [statusPayment, setStatusPayment] = useState<DashboardPayment | null>(null);
@@ -214,6 +223,7 @@ export function DashboardContent(props: DashboardContentProps) {
           </div>
           <button
             className="payment-visibility-toggle"
+            data-tour="dashboard-payment-visibility"
             type="button"
             aria-label={
               paymentsVisible

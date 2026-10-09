@@ -701,24 +701,34 @@ select:focus-visible {
   position: fixed;
   z-index: 10000;
   inset: 0;
+  pointer-events: none;
 }
 .guided-tour-backdrop {
   position: absolute;
+  z-index: 1;
   inset: 0;
   background: rgb(4 2 12 / 76%);
   backdrop-filter: blur(3px);
+  pointer-events: auto;
+}
+.guided-tour-mask {
+  position: fixed;
+  z-index: 1;
+  background: rgb(4 2 12 / 76%);
+  backdrop-filter: blur(3px);
+  pointer-events: auto;
 }
 .guided-tour-spotlight {
   position: fixed;
-  z-index: 1;
+  z-index: 2;
   border: 2px solid #b68cff;
   border-radius: 16px;
-  box-shadow: 0 0 0 9999px rgb(4 2 12 / 68%), 0 0 32px rgb(154 98 255 / 48%);
+  box-shadow: 0 0 32px rgb(154 98 255 / 48%);
   pointer-events: none;
 }
 .guided-tour-dialog {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   top: 50%;
   left: 50%;
   width: min(calc(100% - 40px), 390px);
@@ -729,6 +739,7 @@ select:focus-visible {
   background: linear-gradient(145deg, #211337, #100817);
   box-shadow: 0 26px 80px rgb(0 0 0 / 54%), 0 0 0 1px rgb(91 52 163 / 28%) inset;
   color: var(--text);
+  pointer-events: auto;
 }
 .guided-tour-dialog h2 {
   margin: 8px 30px 10px 0;
@@ -736,7 +747,16 @@ select:focus-visible {
   font-size: 1.32rem;
   letter-spacing: -.025em;
 }
-.guided-tour-dialog > p:not(.guided-tour-progress) {
+.guided-tour-kicker {
+  margin: 0 36px 9px;
+  color: #d4b7ff;
+  font-size: .78rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.guided-tour-dialog > p:not(.guided-tour-progress):not(.guided-tour-kicker) {
   margin: 0;
   color: #d1c5e3;
   font-size: .94rem;

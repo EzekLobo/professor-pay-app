@@ -21,7 +21,7 @@ const tutorials: readonly TutorialDefinition[] = [
   {
     id: "dashboard",
     pathname: "/dashboard",
-    version: 3,
+    version: 4,
     steps: [
       { id: "welcome", title: "Sua rotina", description: "Use o resumo para acompanhar o que acontece na semana.", placement: "center", items: [{ title: "Aulas", content: "Consulte a agenda e abra os detalhes de cada encontro." }, { title: "Competências", content: "Acompanhe os valores previstos, pagos e em atraso." }, { title: "Ajuda", content: "Abra “Como funciona?” novamente quando quiser revisar estas orientações." }] },
       { id: "schedule", title: "Agenda de aulas", description: "A grade reúne seus horários em uma visão semanal.", target: '[data-tour="dashboard-schedule"]', placement: "bottom", items: [{ title: "Navegação", content: "Use as setas para consultar as semanas anterior e seguinte." }, { title: "Semana atual", content: "Volte rapidamente ao período de hoje pelo botão central." }, { title: "Legenda", content: "As cores diferenciam aula, aula extra e horário disponível." }] },
@@ -33,7 +33,7 @@ const tutorials: readonly TutorialDefinition[] = [
   {
     id: "payments",
     pathname: "/payments",
-    version: 3,
+    version: 4,
     steps: [
       { id: "welcome", title: "Pagamentos", description: "Nesta tela você confere e atualiza suas competências mensais.", placement: "center", items: [{ title: "Resumo", content: "Veja o total estimado e o total já recebido." }, { title: "Competências", content: "Abra cada período para conferir o extrato das aulas." }, { title: "Status", content: "Atualize uma competência prevista ou em atraso quando necessário." }] },
       { id: "summary", title: "Resumo do período", description: "Os indicadores mostram a situação financeira em poucos segundos.", target: '[data-tour="payments-summary"]', placement: "bottom", items: [{ title: "Estimativa", content: "Soma o que ainda pode ser recebido." }, { title: "Recebido", content: "Soma as competências já marcadas como pagas." }] },
@@ -45,7 +45,7 @@ const tutorials: readonly TutorialDefinition[] = [
   {
     id: "classes",
     pathname: "/classes",
-    version: 2,
+    version: 3,
     steps: [
       { id: "welcome", title: "Turmas", description: "Sincronize e acompanhe suas turmas e alunos.", placement: "center" },
       { id: "sync", title: "Sincronização", description: "Atualize as turmas importadas quando precisar.", target: '[data-tour="classes-sync"]', placement: "bottom" },
@@ -55,7 +55,7 @@ const tutorials: readonly TutorialDefinition[] = [
   {
     id: "lessons",
     pathname: "/lessons",
-    version: 2,
+    version: 3,
     steps: [
       { id: "welcome", title: "Aulas", description: "Encontre materiais e acompanhe os cursos disponíveis.", placement: "center" },
       { id: "import", title: "Importar curso", description: "Importe um curso para disponibilizar seus materiais.", target: '[data-tour="lessons-import"]', placement: "bottom" },
@@ -65,7 +65,7 @@ const tutorials: readonly TutorialDefinition[] = [
   {
     id: "corrections",
     pathname: "/corrections",
-    version: 2,
+    version: 3,
     steps: [
       { id: "welcome", title: "Correções", description: "Organize as atividades que precisam de atenção.", placement: "center" },
       { id: "sync", title: "Sincronização", description: "Atualize as atividades importadas quando precisar.", target: '[data-tour="corrections-sync"]', placement: "bottom" },
@@ -76,7 +76,7 @@ const tutorials: readonly TutorialDefinition[] = [
   {
     id: "data",
     pathname: "/data",
-    version: 1,
+    version: 2,
     steps: [
       { id: "welcome", title: "Seus dados", description: "Mantenha uma cópia segura das suas informações.", placement: "center" },
       { id: "export", title: "Exportar backup", description: "Baixe uma cópia dos seus dados quando quiser.", target: '[data-tour="data-export"]', placement: "bottom" },

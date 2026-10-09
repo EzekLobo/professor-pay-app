@@ -459,7 +459,7 @@ function Content() {
         onClose={() => setDetail(null)}
         help={{
           id: "payment-statement",
-          version: 1,
+          version: 2,
           intro: "O extrato detalha as aulas e os valores que formam esta competência.",
           items: [
             { title: "Aulas", content: "Confira turma, data, duração e valor de cada registro.", target: ".payment-statement-list" },

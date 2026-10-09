@@ -136,7 +136,7 @@ export function LessonMaterialModal({
       titleNotice={titleNotice}
       help={{
         id: "lesson-material",
-        version: 2,
+        version: 3,
         intro: "Use este modal para preparar a aula e acompanhar a turma.",
         items: [
           { title: "Aulas", content: "Use as setas superiores para consultar a aula anterior ou a próxima.", target: ".class-lesson-navigation" },

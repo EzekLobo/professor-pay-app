@@ -97,11 +97,13 @@ export function LessonMaterialModal({
       className={className}
       titleNotice={titleNotice}
       help={{
+        id: "lesson-material",
+        version: 2,
         intro: "Use este modal para preparar a aula e acompanhar a turma.",
         items: [
           { title: "Aulas", content: "Use as setas superiores para consultar a aula anterior ou a próxima.", target: ".class-lesson-navigation" },
           { title: "Alunos", content: "Abra a aba Alunos para conferir o ranking e acessar a turma na plataforma.", target: ".class-modal-tab" },
-          { title: "Materiais", content: "Abra tarefas, lição de casa, slides e roteiro pelos links disponíveis.", target: ".lesson-details" },
+          { title: "Materiais", content: "Abra tarefas, lição de casa, slides e roteiro pelos links disponíveis.", target: ".lesson-material-section" },
           { title: "Anotações", content: "Use o ícone de folha para salvar lembretes particulares da aula.", target: ".lesson-note-toggle" },
         ],
       }}

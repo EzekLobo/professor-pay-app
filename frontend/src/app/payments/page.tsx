@@ -458,6 +458,8 @@ function Content() {
         title={detail ? `Extrato · ${detail.period}` : "Extrato"}
         onClose={() => setDetail(null)}
         help={{
+          id: "payment-statement",
+          version: 1,
           intro: "O extrato detalha as aulas e os valores que formam esta competência.",
           items: [
             { title: "Aulas", content: "Confira turma, data, duração e valor de cada registro.", target: ".payment-statement-list" },

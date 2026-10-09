@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 export type ModalHelp = {
+  id: string;
+  version?: number;
   intro: string;
   items: readonly { title: string; content: string; target?: string }[];
 };
@@ -27,9 +29,14 @@ export function Modal({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const helpId = useId();
+  const helpRef = useRef(help);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpStep, setHelpStep] = useState(0);
-  const [spotlight, setSpotlight] = useState<CSSProperties | null>(null);
+  const [spotlight, setSpotlight] = useState<{ left: number; top: number; width: number; height: number; right: number; bottom: number } | null>(null);
+
+  useEffect(() => {
+    helpRef.current = help;
+  }, [help]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -42,9 +49,24 @@ export function Modal({
   }, [open]);
 
   useEffect(() => {
-    if (!helpOpen || !help) return;
+    const activeHelp = helpRef.current;
+    if (!open || !activeHelp) return;
+    const key = `nexusclass:modal-guide:${activeHelp.id}:v${activeHelp.version ?? 1}`;
+    let shouldOpen = true;
+    try { shouldOpen = !window.localStorage.getItem(key); } catch { /* abre sem persistência */ }
+    if (!shouldOpen) return;
+    const timer = window.setTimeout(() => {
+      setHelpStep(0);
+      setHelpOpen(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [help?.id, help?.version, open]);
+
+  useEffect(() => {
+    const activeHelp = helpRef.current;
+    if (!helpOpen || !activeHelp) return;
     const dialog = dialogRef.current;
-    const item = help.items[helpStep];
+    const item = activeHelp.items[helpStep];
     if (!dialog || !item?.target) {
       setSpotlight(null);
       return;
@@ -59,14 +81,23 @@ export function Modal({
       const dialogRect = dialog.getBoundingClientRect();
       const targetRect = target.getBoundingClientRect();
       setSpotlight({
-        left: `${targetRect.left - dialogRect.left - 8}px`,
-        top: `${targetRect.top - dialogRect.top - 8}px`,
-        width: `${targetRect.width + 16}px`,
-        height: `${targetRect.height + 16}px`,
+        left: Math.max(4, targetRect.left - dialogRect.left - 8),
+        top: Math.max(4, targetRect.top - dialogRect.top - 8),
+        width: targetRect.width + 16,
+        height: targetRect.height + 16,
+        right: Math.max(0, dialogRect.right - targetRect.right - 8),
+        bottom: Math.max(0, dialogRect.bottom - targetRect.bottom - 8),
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [help, helpOpen, helpStep]);
+  }, [help?.id, helpOpen, helpStep]);
+
+  const finishHelp = () => {
+    if (help) {
+      try { window.localStorage.setItem(`nexusclass:modal-guide:${help.id}:v${help.version ?? 1}`, "completed"); } catch { /* a ajuda continua disponível pelo botão */ }
+    }
+    setHelpOpen(false);
+  };
 
   return (
     <dialog
@@ -112,7 +143,13 @@ export function Modal({
       {titleNotice && <div className="modal-title-notice">{titleNotice}</div>}
       {help && helpOpen && (
         <div className="modal-guide-layer" id={helpId} aria-label="Como usar este modal">
-          {spotlight && <div className="modal-guide-spotlight" style={spotlight} aria-hidden="true" />}
+          {spotlight ? <>
+            <div className="modal-guide-mask" style={{ top: 0, right: 0, left: 0, height: `${spotlight.top}px` }} aria-hidden="true" />
+            <div className="modal-guide-mask" style={{ top: `${spotlight.top}px`, bottom: `${spotlight.bottom}px`, left: 0, width: `${spotlight.left}px` }} aria-hidden="true" />
+            <div className="modal-guide-mask" style={{ top: `${spotlight.top}px`, right: 0, bottom: `${spotlight.bottom}px`, left: `${spotlight.left + spotlight.width}px` }} aria-hidden="true" />
+            <div className="modal-guide-mask" style={{ top: `${spotlight.top + spotlight.height}px`, right: 0, bottom: 0, left: 0 }} aria-hidden="true" />
+            <div className="modal-guide-spotlight" style={{ left: `${spotlight.left}px`, top: `${spotlight.top}px`, width: `${spotlight.width}px`, height: `${spotlight.height}px` }} aria-hidden="true" />
+          </> : <div className="modal-guide-mask" style={{ inset: 0 }} aria-hidden="true" />}
           <section className="modal-help-popover" role="dialog" aria-modal="true">
             <p className="modal-help-kicker">Como funciona?</p>
             <p className="modal-help-progress">{helpStep + 1} de {help.items.length}</p>
@@ -120,9 +157,9 @@ export function Modal({
             <p>{help.items[helpStep]?.content ?? help.intro}</p>
             {helpStep === 0 && <p className="modal-help-intro">{help.intro}</p>}
             <div className="modal-help-actions">
-              <button type="button" onClick={() => setHelpOpen(false)}>Pular</button>
+              <button type="button" onClick={finishHelp}>Pular</button>
               <button type="button" disabled={helpStep === 0} onClick={() => setHelpStep((step) => step - 1)}>Voltar</button>
-              <button type="button" onClick={() => helpStep === help.items.length - 1 ? setHelpOpen(false) : setHelpStep((step) => step + 1)}>{helpStep === help.items.length - 1 ? "Concluir" : "Próximo"}</button>
+              <button type="button" onClick={() => helpStep === help.items.length - 1 ? finishHelp() : setHelpStep((step) => step + 1)}>{helpStep === help.items.length - 1 ? "Concluir" : "Próximo"}</button>
             </div>
           </section>
         </div>

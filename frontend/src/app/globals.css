@@ -578,9 +578,9 @@ select:focus-visible {
   inset: 0;
   overflow: hidden;
   border-radius: inherit;
-  background: rgb(4 2 12 / 70%);
-  backdrop-filter: blur(3px);
+  pointer-events: none;
 }
+.modal-guide-mask { position: absolute; z-index: 1; background: rgb(4 2 12 / 76%); backdrop-filter: blur(3px); pointer-events: auto; }
 .modal-guide-spotlight {
   position: absolute;
   z-index: 1;
@@ -601,6 +601,7 @@ select:focus-visible {
   background: linear-gradient(145deg, #211337, #100817);
   box-shadow: 0 22px 48px rgb(0 0 0 / 48%), 0 0 0 1px rgb(91 52 163 / 28%) inset;
   color: var(--text);
+  pointer-events: auto;
 }
 .modal-help-kicker { margin: 0 0 7px; color: #d4b7ff; font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .modal-help-progress { margin: 0 0 8px; color: #c9a9ff; font-size: .72rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }

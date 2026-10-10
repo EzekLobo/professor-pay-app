@@ -1,5 +1,12 @@
 # Estado atual
 
+- A sincronização completa em **Dados e backup** agora também carrega os
+  materiais das aulas pendentes (slides, roteiros, tarefas em sala e lição de
+  casa). A carga é dividida automaticamente em lotes de quatro aulas, com no
+  máximo duas consultas detalhadas simultâneas, sem escrita na Kodland. Aulas
+  cujo material já está `ready` ou `empty` são preservadas e não voltam a ser
+  consultadas em sincronizações futuras.
+
 - A sincronização completa da Kodland foi centralizada em **Dados e backup**.
   Resumo oferece apenas atualização leve da grade, Turmas atualiza turmas ou
   responsáveis e Correções atualiza somente pendências. A carga completa ainda
@@ -84,7 +91,7 @@
 - O guia "Como funciona?" de Resumo e Pagamentos foi atualizado para a versão 3: explicações curtas acompanhadas de tópicos objetivos, inspirados no padrão consultivo do SGPI. A etapa da lista completa agora explica corretamente que ela já está aberta e que o botão alterna para o carrossel.
 - O destaque das competências usa o carrossel como foco visual, evitando que a moldura termine antes dos cartões. Os modais de aula e extrato passaram a oferecer uma seção expansível “Como usar”, com orientações pontuadas.
 
-- R13 reduziu a sincronização inicial da Kodland: ela não consulta mais materiais, perfis e correções para todas as aulas. As correções possuem atualização própria, responsáveis podem ser atualizados explicitamente em Turmas e o modal de uma aula carrega somente seus materiais sob demanda.
+- R13 mantém as atualizações específicas leves: Correções continua com ação própria e responsáveis podem ser atualizados explicitamente em Turmas. Já a ação **Sincronizar tudo** em Dados e backup complementa a carga com os materiais pendentes, em lotes seguros; o modal sob demanda permanece como contingência para uma aula que tenha falhado.
 - Cada aula salva o `source_lesson_id` original da Kodland além do ID Firestore composto. Materiais e status financeiro existentes são preservados em uma sincronização leve e uma falha posterior não remove links já carregados.
 - A rota limita a concorrência, aplica timeout por chamada, repete somente erros transitórios e devolve uma referência rastreável ao exceder o orçamento. A gravação mantém um marcador `sync_status/kodland` por usuário e só marca conclusão após os lotes; os dados novos são gravados antes das exclusões seguras.
 - R13 foi validada localmente com typecheck, lint, 75 testes Vitest, build e diff check. A validação operacional em uma conta Kodland maior e a confirmação dos limites Vercel permanecem pendentes de acesso autorizado; por isso não há `maxDuration` fixado no código.

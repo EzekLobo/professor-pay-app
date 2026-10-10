@@ -215,7 +215,7 @@ function Content() {
       >
         <form className="form management-form" autoComplete="on" onSubmit={synchronize}>
           <p className="muted">
-            Atualiza turmas, alunos, grade, aulas extras e correções em etapas.
+            Atualiza turmas, alunos, grade, aulas extras, correções e materiais em etapas.
           </p>
           <label className="field">
             Usuário ou e-mail

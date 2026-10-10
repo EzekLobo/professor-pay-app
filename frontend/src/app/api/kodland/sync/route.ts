@@ -186,6 +186,11 @@ const api = "https://backoffice.kodland.org/api/v2/";
 const KODLAND_REQUEST_TIMEOUT_MS = 8_000;
 const SYNC_TIME_BUDGET_MS = 45_000;
 const KODLAND_CONCURRENCY = 3;
+// A material request expands into three Kodland endpoints. Keep the batch
+// deliberately small so the browser can split a full import into resilient
+// requests instead of one long serverless invocation.
+const MATERIAL_REQUEST_BATCH_SIZE = 4;
+const MATERIAL_DETAIL_CONCURRENCY = 2;
 // Agenda and reviews can fan out to many endpoints. Keep these stages smaller
 // than the regular group import so a single user action remains reliable for
 // teachers with many students and classes.
@@ -1357,6 +1362,10 @@ export async function POST(request: NextRequest) {
       mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles";
       group_id?: string;
       source_lesson_id?: string;
+      material_requests?: Array<{
+        group_id?: string;
+        source_lesson_id?: string;
+      }>;
       pending_extra_student_ids?: string[];
       correction_group_ids?: string[];
     };
@@ -1396,58 +1405,137 @@ export async function POST(request: NextRequest) {
       availability_synced: false,
     });
     if (mode === "materials") {
-      const group = active.find((item) => item.external_id === body.group_id);
-      if (!group || !group.course_id || !body.source_lesson_id) {
+      const suppliedRequests = Array.isArray(body.material_requests)
+        ? body.material_requests
+            .map((item) => ({
+              group_id: text(item?.group_id),
+              source_lesson_id: text(item?.source_lesson_id),
+            }))
+            .filter((item) => item.group_id && item.source_lesson_id)
+        : [];
+      const requests = suppliedRequests.length
+        ? suppliedRequests
+        : [{
+            group_id: text(body.group_id),
+            source_lesson_id: text(body.source_lesson_id),
+          }];
+      const uniqueRequests = [...new Map(
+        requests.map((item) => [`${item.group_id}:${item.source_lesson_id}`, item]),
+      ).values()];
+      if (!uniqueRequests.length || uniqueRequests.length > MATERIAL_REQUEST_BATCH_SIZE) {
+        trace("invalid_material_request");
+        return syncResponse(syncId, { code: "invalid_request" }, 400);
+      }
+      const requestedGroups = uniqueRequests.map((request) => ({
+        ...request,
+        group: active.find((item) => item.external_id === request.group_id),
+      }));
+      if (requestedGroups.some((request) => !request.group?.course_id)) {
         trace("material_denied");
         return syncResponse(syncId, { code: "material_not_authorized" }, 403);
       }
       const cache: CourseLessonCache = { catalog: new Map() };
-      const catalog = await runStage("material_catalog", () => courseLessons(group.course_id, token, cache, true),
-        (result) => ({ catalogLessonCount: result.length }));
-      const source = catalog.find((lesson) => lesson.id === body.source_lesson_id);
-      if (!source) {
+      const prepared = await runStage("material_catalog", () => mapWithConcurrency(
+        requestedGroups,
+        KODLAND_CONCURRENCY,
+        async (request) => {
+          const group = request.group!;
+          const catalog = await courseLessons(group.course_id, token, cache, true);
+          return {
+            ...request,
+            group,
+            source: catalog.find((lesson) => lesson.id === request.source_lesson_id),
+          };
+        },
+      ), (result) => ({ materialRequestCount: result.length }));
+      if (prepared.some((request) => !request.source)) {
         trace("material_denied");
         return syncResponse(syncId, { code: "material_not_authorized" }, 403);
       }
-      const [materials, homework, classroom] = await runStage("material_details", () => Promise.all([
-        get(`materials?lesson=${encodeURIComponent(source.id)}`, token),
-        get(`tasks/get_tasks_list?lesson=${encodeURIComponent(source.id)}&is_hw=true`, token),
-        get(`tasks/get_tasks_list?lesson=${encodeURIComponent(source.id)}&is_hw=false`, token),
-      ]));
-      const enriched = enrichKodlandLessons([{
-        id: source.id,
-        external_class_id: group.external_id,
-        external_class_name: group.title,
-        lesson_number: source.lesson_number,
-        course_index: source.course_index,
-        title: source.title,
-        theme: "",
-        lesson_date: "",
-        start_time: "",
-        end_time: "",
-        status: "",
-        lesson_passed: false,
-        external_url: "",
-        slides_url: "",
-        guide_url: "",
-        homework_url: "",
-        homework_title: "",
-        classroom_tasks: [],
-      }], [{ ...source, materials: list(materials), homework: list(homework), classroom: list(classroom) }], group.course_id)[0];
-      const material = {
-        group_id: group.external_id,
-        source_lesson_id: source.id,
-        slides_url: enriched.slides_url,
-        guide_url: enriched.guide_url,
-        homework_url: enriched.homework_url,
-        homework_title: enriched.homework_title,
-        classroom_tasks: enriched.classroom_tasks,
+      const detailCache = new Map<string, Promise<{
+        slides_url: string;
+        guide_url: string;
+        homework_url: string;
+        homework_title: string;
+        classroom_tasks: KodlandLesson["classroom_tasks"];
+        detail_count: number;
+      }>>();
+      const loadDetails = (request: typeof prepared[number]) => {
+        const source = request.source!;
+        const key = `${request.group.course_id}:${source.id}`;
+        let details = detailCache.get(key);
+        if (!details) {
+          details = (async () => {
+            const [materials, homework, classroom] = await Promise.all([
+              get(`materials?lesson=${encodeURIComponent(source.id)}`, token),
+              get(`tasks/get_tasks_list?lesson=${encodeURIComponent(source.id)}&is_hw=true`, token),
+              get(`tasks/get_tasks_list?lesson=${encodeURIComponent(source.id)}&is_hw=false`, token),
+            ]);
+            const enriched = enrichKodlandLessons([{
+              id: source.id,
+              external_class_id: request.group.external_id,
+              external_class_name: request.group.title,
+              lesson_number: source.lesson_number,
+              course_index: source.course_index,
+              title: source.title,
+              theme: "",
+              lesson_date: "",
+              start_time: "",
+              end_time: "",
+              status: "",
+              lesson_passed: false,
+              external_url: "",
+              slides_url: "",
+              guide_url: "",
+              homework_url: "",
+              homework_title: "",
+              classroom_tasks: [],
+            }], [{
+              ...source,
+              materials: list(materials),
+              homework: list(homework),
+              classroom: list(classroom),
+            }], request.group.course_id)[0];
+            return {
+              slides_url: enriched?.slides_url ?? "",
+              guide_url: enriched?.guide_url ?? "",
+              homework_url: enriched?.homework_url ?? "",
+              homework_title: enriched?.homework_title ?? "",
+              classroom_tasks: enriched?.classroom_tasks ?? [],
+              detail_count: list(materials).length + list(homework).length + list(classroom).length,
+            };
+          })();
+          detailCache.set(key, details);
+        }
+        return details;
       };
-      trace("completed", { materialCount: list(materials).length + list(homework).length + list(classroom).length });
-      return syncResponse(syncId, { ...emptyCollections(), material: {
-        ...material,
-        materials_status: list(materials).length || list(homework).length || list(classroom).length ? "ready" : "empty",
-      } });
+      const materialResults = await runStage("material_details", () => mapWithConcurrency(
+        prepared,
+        MATERIAL_DETAIL_CONCURRENCY,
+        async (request) => {
+          const source = request.source!;
+          const details = await loadDetails(request);
+          return {
+            group_id: request.group.external_id,
+            source_lesson_id: source.id,
+            slides_url: details.slides_url,
+            guide_url: details.guide_url,
+            homework_url: details.homework_url,
+            homework_title: details.homework_title,
+            classroom_tasks: details.classroom_tasks,
+            materials_status: details.detail_count ? "ready" as const : "empty" as const,
+          };
+        },
+      ), (result) => ({
+        materialCount: result.length,
+        materialResourceCount: [...detailCache.values()].length,
+      }));
+      trace("completed", { materialCount: materialResults.length });
+      return syncResponse(syncId, {
+        ...emptyCollections(),
+        material: materialResults[0],
+        materials: materialResults,
+      });
     }
     if (mode === "corrections") {
       const requestedGroupIds = new Set(

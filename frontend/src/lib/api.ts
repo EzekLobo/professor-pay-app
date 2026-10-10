@@ -227,6 +227,7 @@ export type KodlandSyncResult = {
   review_count: number;
   lesson_count: number;
   extra_lesson_count: number;
+  material_count?: number;
   group_ids?: string[];
 };
 type KodlandSyncOptions = {
@@ -306,6 +307,13 @@ type KodlandMaterial = {
   classroom_tasks: KodlandLesson["classroom_tasks"];
 };
 
+type KodlandMaterialRequest = Pick<
+  KodlandMaterial,
+  "group_id" | "source_lesson_id"
+>;
+
+const KODLAND_MATERIAL_BATCH_SIZE = 4;
+
 export const kodlandLessonDocumentId = (lesson: {
   id: string;
   external_class_id: string;
@@ -364,6 +372,63 @@ export function mergeLoadedKodlandMaterials(
       ? material.classroom_tasks : previous.classroom_tasks ?? [],
     materials_status: material.materials_status === "empty" && retained ? "ready" : material.materials_status,
   };
+}
+
+const materialKey = (material: KodlandMaterialRequest) =>
+  `${material.group_id}:${material.source_lesson_id}`;
+
+async function requestKodlandMaterials(
+  username: string,
+  password: string,
+  requested: KodlandMaterialRequest[],
+): Promise<KodlandMaterial[]> {
+  const requests = uniqueBy(
+    requested.filter((item) => item.group_id && item.source_lesson_id),
+    materialKey,
+  );
+  if (!requests.length) return [];
+  if (requests.length > KODLAND_MATERIAL_BATCH_SIZE) {
+    throw new Error("A sincronizaÃ§Ã£o de materiais excedeu o tamanho seguro do lote.");
+  }
+  const token = await (
+    authUser() as unknown as { getIdToken: () => Promise<string> }
+  ).getIdToken();
+  const syncId = crypto.randomUUID();
+  let response: Response;
+  try {
+    response = await fetch("/api/kodland/sync", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+        "x-sync-id": syncId,
+      },
+      body: JSON.stringify({
+        username,
+        password,
+        mode: "materials",
+        material_requests: requests,
+      }),
+    });
+  } catch {
+    throw kodlandSyncNetworkError(syncId);
+  }
+  const result = await readKodlandSyncResponse<KodlandSnapshot & {
+    material?: KodlandMaterial;
+    materials?: KodlandMaterial[];
+  }>(response, syncId);
+  const materials = Array.isArray(result.materials)
+    ? result.materials
+    : result.material
+      ? [result.material]
+      : [];
+  const returned = uniqueBy(materials, materialKey);
+  const expectedKeys = new Set(requests.map(materialKey));
+  if (returned.length !== requests.length ||
+      returned.some((material) => !expectedKeys.has(materialKey(material)))) {
+    throw new Error("O servidor retornou materiais incompletos. Tente sincronizar novamente.");
+  }
+  return returned;
 }
 export class ApiError extends Error {
   constructor(
@@ -1630,9 +1695,58 @@ export const kodlandApi = {
       });
       reviewCount += result.review_count;
     }
+    const lessons = (await rows("kodland_lessons")) as unknown as KodlandLesson[];
+    const pendingLessons = lessons
+      .filter((lesson): lesson is KodlandLesson & { source_lesson_id: string } =>
+        Boolean(lesson.external_class_id && lesson.source_lesson_id) &&
+        lesson.materials_status !== "ready" &&
+        lesson.materials_status !== "empty" &&
+        !hasKodlandMaterials(lesson),
+      )
+      .sort((left, right) =>
+        String(left.source_lesson_id).localeCompare(String(right.source_lesson_id)) ||
+        String(left.external_class_id).localeCompare(String(right.external_class_id)),
+      );
+    const materialLessons = uniqueBy(pendingLessons, (lesson) => materialKey({
+      group_id: lesson.external_class_id,
+      source_lesson_id: lesson.source_lesson_id,
+    }));
+    const lessonsByMaterial = new Map(
+      materialLessons.map((lesson) => [materialKey({
+        group_id: lesson.external_class_id,
+        source_lesson_id: lesson.source_lesson_id,
+      }), lesson]),
+    );
+    let materialCount = 0;
+    for (let index = 0; index < materialLessons.length; index += KODLAND_MATERIAL_BATCH_SIZE) {
+      const batch = materialLessons.slice(index, index + KODLAND_MATERIAL_BATCH_SIZE);
+      const end = Math.min(index + batch.length, materialLessons.length);
+      onProgress?.(`Atualizando materiais: ${index + 1}â€“${end} de ${materialLessons.length} aula(s)â€¦`);
+      const materials = await requestKodlandMaterials(
+        username,
+        password,
+        batch.map((lesson) => ({
+          group_id: lesson.external_class_id,
+          source_lesson_id: lesson.source_lesson_id,
+        })),
+      );
+      const writes: Array<(batch: FirebaseWriteBatch) => void> = [];
+      materials.forEach((material) => {
+        const lesson = lessonsByMaterial.get(materialKey(material));
+        if (!lesson) return;
+        const updates = mergeLoadedKodlandMaterials(lesson, material);
+        writes.push((firestoreBatch) => firestoreBatch.update(
+          doc(ref("kodland_lessons"), lesson.id),
+          firestorePayload({ ...updates, updated_at: now() }),
+        ));
+      });
+      await commitWrites(writes);
+      materialCount += writes.length;
+    }
     return {
       ...core,
       review_count: reviewCount,
+      material_count: materialCount,
     };
   },
   loadLessonMaterials: async (
@@ -1652,37 +1766,16 @@ export const kodlandApi = {
       throw new ApiError(409, "A aula mudou desde a última sincronização. Atualize a página e tente novamente.");
     }
     const hadLoadedMaterials = hasKodlandMaterials(current);
-    const token = await (
-      authUser() as unknown as { getIdToken: () => Promise<string> }
-    ).getIdToken();
-    const syncId = crypto.randomUUID();
     try {
-      let response: Response;
-      try {
-        response = await fetch("/api/kodland/sync", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${token}`,
-            "x-sync-id": syncId,
-          },
-          body: JSON.stringify({
-            username,
-            password,
-            mode: "materials",
-            group_id: lesson.external_class_id,
-            source_lesson_id: lesson.source_lesson_id,
-          }),
-        });
-      } catch {
-        throw kodlandSyncNetworkError(syncId);
-      }
-      const result = await readKodlandSyncResponse<KodlandSnapshot & { material: KodlandMaterial }>(response, syncId);
-      if (!result.material || result.material.group_id !== lesson.external_class_id ||
-          result.material.source_lesson_id !== lesson.source_lesson_id) {
+      const [material] = await requestKodlandMaterials(username, password, [{
+        group_id: lesson.external_class_id,
+        source_lesson_id: lesson.source_lesson_id,
+      }]);
+      if (!material || material.group_id !== lesson.external_class_id ||
+          material.source_lesson_id !== lesson.source_lesson_id) {
         throw new Error("O servidor retornou materiais de outra aula. Tente novamente.");
       }
-      const updates = mergeLoadedKodlandMaterials(current, result.material);
+      const updates = mergeLoadedKodlandMaterials(current, material);
       await updateDoc(lessonRef, { ...updates, updated_at: now() });
       return { ...current, ...updates };
     } catch (reason) {

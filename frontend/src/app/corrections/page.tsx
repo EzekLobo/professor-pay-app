@@ -13,6 +13,7 @@ import {
 } from "@/lib/browser-credentials";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
+const savedCredentialsKey = "aulapay.kodland.server-credentials-saved";
 
 const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => lessons.find((lesson) => {
   if (lesson.external_class_id !== review.external_class_id) return false;
@@ -100,6 +101,11 @@ function Content() {
       : window.localStorage.getItem("aulapay.kodland.username") ?? "",
   );
   const [syncPassword, setSyncPassword] = useState("");
+  const [useSavedCredentials, setUseSavedCredentials] = useState(() =>
+    typeof window !== "undefined" &&
+    window.localStorage.getItem(savedCredentialsKey) === "true",
+  );
+  const [saveCredentials, setSaveCredentials] = useState(true);
 
   useEffect(() => {
     if (!notice) return;
@@ -111,6 +117,7 @@ function Content() {
     setSyncError("");
     setNotice("");
     setSyncOpen(true);
+    if (useSavedCredentials) return;
     void restoreKodlandCredentials().then((credentials) => {
       if (!credentials) return;
       setSyncUsername((current) => current || credentials.username);
@@ -136,18 +143,32 @@ function Content() {
     event.preventDefault();
     const form = event.currentTarget;
     const username = syncUsername.trim();
-    if (!username || !syncPassword || syncing) return;
+    if ((!useSavedCredentials && (!username || !syncPassword)) || syncing) return;
     setSyncing(true);
     setSyncError("");
     setNotice("");
     const password = syncPassword;
     try {
-      const result = await kodlandApi.sync(username, password, "corrections");
-      try {
-        window.localStorage.setItem("aulapay.kodland.username", username);
-        await rememberKodlandCredentials(form);
-      } catch {
-        // Browser credential storage is optional after a successful sync.
+      const result = await kodlandApi.sync(
+        useSavedCredentials ? "" : username,
+        useSavedCredentials ? "" : password,
+        "corrections",
+        {
+          useSavedCredentials,
+          saveCredentials: !useSavedCredentials && saveCredentials,
+        },
+      );
+      if (!useSavedCredentials) {
+        try {
+          window.localStorage.setItem("aulapay.kodland.username", username);
+          await rememberKodlandCredentials(form);
+        } catch {
+          // Browser credential storage is optional after a successful sync.
+        }
+        if (saveCredentials) {
+          window.localStorage.setItem(savedCredentialsKey, "true");
+          setUseSavedCredentials(true);
+        }
       }
       setSyncPassword("");
       await load();
@@ -190,34 +211,55 @@ function Content() {
         onClose={() => !syncing && setSyncOpen(false)}
       >
         <form className="form management-form" autoComplete="on" onSubmit={syncCorrections}>
-          <p className="muted">
-            O navegador pode salvar suas credenciais com segurança após a
-            primeira atualização. O NexusClass não armazena sua senha.
-          </p>
-          <label className="field">
-            Usuário ou e-mail
-            <Input
-              name="username"
-              type="text"
-              autoComplete="username"
-              required
-              disabled={syncing}
-              value={syncUsername}
-              onChange={(event) => setSyncUsername(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            Senha
-            <Input
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              disabled={syncing}
-              value={syncPassword}
-              onChange={(event) => setSyncPassword(event.target.value)}
-            />
-          </label>
+          {useSavedCredentials ? (
+            <div className="form">
+              <p className="muted">Usará as credenciais criptografadas desta conta.</p>
+              <Button
+                type="button"
+                className="button-ghost button-small"
+                disabled={syncing}
+                onClick={() => setUseSavedCredentials(false)}
+              >
+                Usar outras credenciais
+              </Button>
+            </div>
+          ) : (
+            <>
+              <label className="field">
+                Usuário ou e-mail
+                <Input
+                  name="username"
+                  type="text"
+                  autoComplete="username"
+                  required
+                  disabled={syncing}
+                  value={syncUsername}
+                  onChange={(event) => setSyncUsername(event.target.value)}
+                />
+              </label>
+              <label className="field">
+                Senha
+                <Input
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  disabled={syncing}
+                  value={syncPassword}
+                  onChange={(event) => setSyncPassword(event.target.value)}
+                />
+              </label>
+              <label className="field">
+                <input
+                  type="checkbox"
+                  checked={saveCredentials}
+                  disabled={syncing}
+                  onChange={(event) => setSaveCredentials(event.target.checked)}
+                />{" "}
+                Salvar credenciais criptografadas
+              </label>
+            </>
+          )}
           {syncError && <p className="form-error" role="alert">{syncError}</p>}
           <div className="form-actions">
             <Button type="submit" disabled={syncing}>

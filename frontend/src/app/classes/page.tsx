@@ -24,6 +24,7 @@ import {
 
 const absoluteUrl = (value: string) =>
   value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
+const savedCredentialsKey = "aulapay.kodland.server-credentials-saved";
 
 function GroupAccordion({
   group,
@@ -169,6 +170,11 @@ function ClassesContent() {
       : window.localStorage.getItem("aulapay.kodland.username") ?? "",
   );
   const [password, setPassword] = useState("");
+  const [useSavedCredentials, setUseSavedCredentials] = useState(() =>
+    typeof window !== "undefined" &&
+    window.localStorage.getItem(savedCredentialsKey) === "true",
+  );
+  const [saveCredentials, setSaveCredentials] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -182,6 +188,7 @@ function ClassesContent() {
     setError("");
     setSyncMode(mode);
     setSyncOpen(true);
+    if (useSavedCredentials) return;
     void restoreKodlandCredentials().then((credentials) => {
       if (!credentials) return;
       setUsername((current) => current || credentials.username);
@@ -218,16 +225,30 @@ function ClassesContent() {
   async function syncClasses(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
-    if (!username.trim() || !password || syncing) return;
+    if ((!useSavedCredentials && (!username.trim() || !password)) || syncing) return;
     setSyncing(true);
     setError("");
     try {
-      const result = await kodlandApi.sync(username.trim(), password, syncMode);
-      try {
-        window.localStorage.setItem("aulapay.kodland.username", username.trim());
-        await rememberKodlandCredentials(formElement);
-      } catch {
-        // Browser credential storage is optional after a successful sync.
+      const result = await kodlandApi.sync(
+        useSavedCredentials ? "" : username.trim(),
+        useSavedCredentials ? "" : password,
+        syncMode,
+        {
+          useSavedCredentials,
+          saveCredentials: !useSavedCredentials && saveCredentials,
+        },
+      );
+      if (!useSavedCredentials) {
+        try {
+          window.localStorage.setItem("aulapay.kodland.username", username.trim());
+          await rememberKodlandCredentials(formElement);
+        } catch {
+          // Browser credential storage is optional after a successful sync.
+        }
+        if (saveCredentials) {
+          window.localStorage.setItem(savedCredentialsKey, "true");
+          setUseSavedCredentials(true);
+        }
       }
       setPassword("");
       setSyncOpen(false);
@@ -254,37 +275,58 @@ function ClassesContent() {
     <div className="management-grid">
       <Modal
         open={syncOpen}
-        title={syncMode === "profiles" ? "Atualizar responsáveis" : "Sincronizar turmas e alunos"}
+        title={syncMode === "profiles" ? "Atualizar responsáveis" : "Atualizar turmas"}
         onClose={() => !syncing && setSyncOpen(false)}
         className="schedule-sync-modal"
       >
         <form className="form management-form" autoComplete="on" onSubmit={syncClasses}>
-          <p className="muted">
-            O navegador pode salvar suas credenciais com segurança após a
-            primeira sincronização. O NexusClass não armazena sua senha.
-          </p>
-          <label className="field">
-            Usuário ou e-mail
-            <Input
-              name="username"
-              type="text"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              required
-              autoComplete="username"
-            />
-          </label>
-          <label className="field">
-            Senha
-            <Input
-              name="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </label>
+          {useSavedCredentials ? (
+            <div className="form">
+              <p className="muted">Usará as credenciais criptografadas desta conta.</p>
+              <Button
+                type="button"
+                className="button-ghost button-small"
+                disabled={syncing}
+                onClick={() => setUseSavedCredentials(false)}
+              >
+                Usar outras credenciais
+              </Button>
+            </div>
+          ) : (
+            <>
+              <label className="field">
+                Usuário ou e-mail
+                <Input
+                  name="username"
+                  type="text"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  required
+                  autoComplete="username"
+                />
+              </label>
+              <label className="field">
+                Senha
+                <Input
+                  name="password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+              </label>
+              <label className="field">
+                <input
+                  type="checkbox"
+                  checked={saveCredentials}
+                  disabled={syncing}
+                  onChange={(event) => setSaveCredentials(event.target.checked)}
+                />{" "}
+                Salvar credenciais criptografadas
+              </label>
+            </>
+          )}
           {error && (
             <p className="form-error" role="alert">
               {error}
@@ -292,7 +334,7 @@ function ClassesContent() {
           )}
           <div className="form-actions">
             <Button type="submit" disabled={syncing}>
-              {syncing ? "Sincronizando…" : "Sincronizar"}
+              {syncing ? "Atualizando…" : "Atualizar"}
             </Button>
           </div>
         </form>
@@ -316,7 +358,7 @@ function ClassesContent() {
           </div>
           <div className="card-actions">
             <Button type="button" data-tour="classes-sync" onClick={() => openSync()}>
-              Sincronizar dados
+              Atualizar turmas
             </Button>
             <Button type="button" className="button-ghost" onClick={() => openSync("profiles")}>
               Atualizar responsáveis
@@ -327,7 +369,7 @@ function ClassesContent() {
           <p className="muted">Carregando turmas…</p>
         ) : groups.length === 0 ? (
           <p className="muted">
-            Nenhuma turma sincronizada. Use “Sincronizar dados” para importar
+            Nenhuma turma sincronizada. Use “Atualizar turmas” para importar
             suas turmas.
           </p>
         ) : (

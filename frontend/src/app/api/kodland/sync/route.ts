@@ -5,11 +5,17 @@ import {
   type KodlandCourseLesson,
   type KodlandLesson,
 } from "@/lib/kodland-lessons";
+import {
+  loadKodlandCredentials,
+  saveKodlandCredentials,
+} from "@/lib/kodland-credentials";
 import { parseGuardianContact } from "@/lib/student-profile";
 
 export const runtime = "nodejs";
 
 type SyncFailureCode =
+  | "kodland_credentials_missing"
+  | "kodland_credentials_unavailable"
   | "kodland_invalid_credentials"
   | "kodland_rate_limited"
   | "kodland_session_expired"
@@ -1346,7 +1352,11 @@ export async function POST(request: NextRequest) {
   };
   try {
     trace("started");
-    if (!(await runStage("firebase_auth", () => requireFirebaseUser(request)))) {
+    const firebaseUserId = await runStage(
+      "firebase_auth",
+      () => requireFirebaseUser(request),
+    );
+    if (!firebaseUserId) {
       trace("unauthorized");
       return syncResponse(syncId, { code: "firebase_session_expired" }, 401);
     }
@@ -1354,6 +1364,8 @@ export async function POST(request: NextRequest) {
     let body: {
       username?: string;
       password?: string;
+      use_saved_credentials?: boolean;
+      save_credentials?: boolean;
       mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles";
       group_id?: string;
       source_lesson_id?: string;
@@ -1366,7 +1378,38 @@ export async function POST(request: NextRequest) {
       trace("invalid_request");
       return syncResponse(syncId, { code: "invalid_request" }, 400);
     }
-    if (!body || typeof body.username !== "string" || !body.username.trim() || typeof body.password !== "string" || !body.password) {
+    if (!body) {
+      trace("invalid_request");
+      return syncResponse(syncId, { code: "missing_credentials" }, 400);
+    }
+    let username = typeof body.username === "string" ? body.username.trim() : "";
+    let password = typeof body.password === "string" ? body.password : "";
+    if ((!username || !password) && body.use_saved_credentials === true) {
+      try {
+        const saved = await runStage("credential_load", () =>
+          loadKodlandCredentials(firebaseUserId),
+        );
+        if (!saved) {
+          trace("credentials_missing");
+          return syncResponse(
+            syncId,
+            { code: "kodland_credentials_missing" },
+            400,
+          );
+        }
+        username = saved.username;
+        password = saved.password;
+      } catch (error) {
+        if (error instanceof SyncFailure) throw error;
+        trace("credentials_unavailable");
+        return syncResponse(
+          syncId,
+          { code: "kodland_credentials_unavailable" },
+          503,
+        );
+      }
+    }
+    if (!username || !password) {
       trace("invalid_request");
       return syncResponse(syncId, { code: "missing_credentials" }, 400);
     }
@@ -1375,7 +1418,22 @@ export async function POST(request: NextRequest) {
       trace("invalid_request");
       return syncResponse(syncId, { code: "invalid_request" }, 400);
     }
-    const token = await runStage("kodland_auth", () => kodlandLogin(body.username!, body.password!));
+    const token = await runStage("kodland_auth", () => kodlandLogin(username, password));
+    if (body.save_credentials === true) {
+      try {
+        await runStage("credential_save", () =>
+          saveKodlandCredentials(firebaseUserId, { username, password }),
+        );
+      } catch (error) {
+        if (error instanceof SyncFailure) throw error;
+        trace("credentials_unavailable");
+        return syncResponse(
+          syncId,
+          { code: "kodland_credentials_unavailable" },
+          503,
+        );
+      }
+    }
     const groups = await runStage("groups", () => groupsForTeacher(userId(token), token),
       (result) => ({ groupCount: result.length }));
     const active = groups.filter((group) => !group.archived);

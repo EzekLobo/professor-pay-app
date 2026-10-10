@@ -25,6 +25,10 @@ const validSyncId = (value: string | null) =>
     : null;
 
 const statusMessage = (status: number, code?: string) => {
+  if (code === "kodland_credentials_missing")
+    return "Não há credenciais salvas para esta conta. Informe usuário e senha da Kodland.";
+  if (code === "kodland_credentials_unavailable")
+    return "O cofre de credenciais não está disponível no servidor. Configure a chave privada e tente novamente.";
   if (code === "kodland_invalid_credentials")
     return "Usuário ou senha da Kodland inválidos. Confira os dados e tente novamente.";
   if (code === "kodland_rate_limited" || status === 429)

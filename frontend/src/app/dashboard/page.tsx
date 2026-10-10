@@ -37,6 +37,7 @@ import {
 import { activeStudentsRankedByPoints, kodlandStudentPoints } from "@/lib/student-ranking";
 
 const dayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+const savedCredentialsKey = "aulapay.kodland.server-credentials-saved";
 type ScheduleEntry = {
   id: string;
   day: number;
@@ -101,7 +102,6 @@ function WeekSchedule({
   lessons,
   extraLessons,
   availability,
-  onFullSync,
   onRefresh,
   refreshing,
   refreshNotice,
@@ -113,7 +113,6 @@ function WeekSchedule({
   lessons: KodlandLesson[];
   extraLessons: KodlandExtraLesson[];
   availability: KodlandAvailability[];
-  onFullSync: () => void;
   onRefresh: () => void;
   refreshing: boolean;
   refreshNotice: string;
@@ -260,14 +259,6 @@ function WeekSchedule({
       <div className="section-heading">
         <h2>Grade de horários</h2>
         <div className="week-actions">
-          <button
-            className="button button-small"
-            type="button"
-            onClick={onFullSync}
-            disabled={refreshing}
-          >
-            {refreshing ? "Sincronizando…" : "Sincronizar tudo"}
-          </button>
           <button
             className="button button-ghost button-small"
             type="button"
@@ -687,7 +678,6 @@ function KodlandSummary({
   lessons,
   extraLessons,
   availability,
-  onFullSync,
   onRefresh,
   refreshing,
   refreshNotice,
@@ -700,7 +690,6 @@ function KodlandSummary({
   lessons: KodlandLesson[];
   extraLessons: KodlandExtraLesson[];
   availability: KodlandAvailability[];
-  onFullSync: () => void;
   onRefresh: () => void;
   refreshing: boolean;
   refreshNotice: string;
@@ -733,7 +722,6 @@ function KodlandSummary({
         lessons={lessons}
         extraLessons={extraLessons}
         availability={availability}
-        onFullSync={onFullSync}
         onRefresh={onRefresh}
         refreshing={refreshing}
         refreshNotice={refreshNotice}
@@ -756,7 +744,6 @@ function DashboardPageContent() {
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncError, setSyncError] = useState("");
-  const [syncProgress, setSyncProgress] = useState("");
   const [refreshNotice, setRefreshNotice] = useState("");
   const [syncUsername, setSyncUsername] = useState(() =>
     typeof window === "undefined"
@@ -770,18 +757,21 @@ function DashboardPageContent() {
     return () => window.clearTimeout(timeout);
   }, [refreshNotice]);
   const [syncPassword, setSyncPassword] = useState("");
-  const [syncMode, setSyncMode] = useState<"full" | "schedule">("full");
-  const openSync = useCallback((mode: "full" | "schedule") => {
+  const [useSavedCredentials, setUseSavedCredentials] = useState(() =>
+    typeof window !== "undefined" &&
+    window.localStorage.getItem(savedCredentialsKey) === "true",
+  );
+  const [saveCredentials, setSaveCredentials] = useState(true);
+  const openSync = useCallback(() => {
     setSyncError("");
-    setSyncProgress("");
-    setSyncMode(mode);
     setSyncOpen(true);
+    if (useSavedCredentials) return;
     void restoreKodlandCredentials().then((credentials) => {
       if (!credentials) return;
       setSyncUsername((current) => current || credentials.username);
       setSyncPassword((current) => current || credentials.password);
     });
-  }, []);
+  }, [useSavedCredentials]);
   const load = useCallback(async (keepContent = false) => {
     setFailed(false);
     if (!keepContent) setDashboard(null);
@@ -822,22 +812,34 @@ function DashboardPageContent() {
     if (refreshingSchedule) return;
     const username = syncUsername.trim();
     const password = syncPassword;
-    if (!username || !password) return;
+    if (!useSavedCredentials && (!username || !password)) return;
 
     setRefreshingSchedule(true);
     setSyncError("");
     setRefreshNotice("");
     let synced = false;
     try {
-      const result = syncMode === "full"
-        ? await kodlandApi.syncAll(username, password, setSyncProgress)
-        : await kodlandApi.sync(username, password, "schedule");
+      const result = await kodlandApi.sync(
+        useSavedCredentials ? "" : username,
+        useSavedCredentials ? "" : password,
+        "schedule",
+        {
+          useSavedCredentials,
+          saveCredentials: !useSavedCredentials && saveCredentials,
+        },
+      );
       synced = true;
-      try {
-        window.localStorage.setItem("aulapay.kodland.username", username);
-        await rememberKodlandCredentials(form);
-      } catch {
-        // Browser credential storage is optional after a successful sync.
+      if (!useSavedCredentials) {
+        try {
+          window.localStorage.setItem("aulapay.kodland.username", username);
+          await rememberKodlandCredentials(form);
+        } catch {
+          // Browser credential storage is optional after a successful sync.
+        }
+        if (saveCredentials) {
+          window.localStorage.setItem(savedCredentialsKey, "true");
+          setUseSavedCredentials(true);
+        }
       }
       setSyncPassword("");
       if (!(await load(true))) {
@@ -847,9 +849,7 @@ function DashboardPageContent() {
       }
       setSyncOpen(false);
       setRefreshNotice(
-        syncMode === "full"
-          ? `Aplicação sincronizada. ${result.student_count ?? 0} aluno(s), ${result.review_count ?? 0} correção(ões) e ${result.extra_lesson_count ?? 0} aula(s) extra atualizados.`
-          : `Grade atualizada. ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s); somente as concluídas entram no extrato.`,
+        `Grade atualizada. ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s); somente as concluídas entram no extrato.`,
       );
     } catch (reason) {
       setSyncError(
@@ -861,9 +861,15 @@ function DashboardPageContent() {
       );
     } finally {
       setRefreshingSchedule(false);
-      setSyncProgress("");
     }
-  }, [load, refreshingSchedule, syncMode, syncPassword, syncUsername]);
+  }, [
+    load,
+    refreshingSchedule,
+    saveCredentials,
+    syncPassword,
+    syncUsername,
+    useSavedCredentials,
+  ]);
   const updateExtraStatus = useCallback(
     async (id: string, status: KodlandExtraManualStatus) => {
       const updated = await kodlandApi.updateExtraStatus(id, status);
@@ -884,43 +890,61 @@ function DashboardPageContent() {
     <>
       <Modal
         open={syncOpen}
-        title={syncMode === "full" ? "Sincronizar aplicação" : "Atualizar grade"}
+        title="Atualizar grade"
         onClose={() => !refreshingSchedule && setSyncOpen(false)}
         className="schedule-sync-modal"
       >
         <form className="form management-form" autoComplete="on" onSubmit={syncSchedule}>
-          <p className="muted">
-            {syncMode === "full"
-              ? "Uma única sincronização atualiza turmas, alunos, grade, aulas e correções. A carga é processada em etapas para reduzir o risco de tempo excedido."
-              : "Atualiza somente a grade e as aulas extras. O navegador pode preencher as credenciais salvas com segurança."}
-          </p>
-          {refreshingSchedule && syncProgress && (
-            <p className="notice" role="status">{syncProgress}</p>
+          <p className="muted">Atualiza somente a grade e as aulas extras.</p>
+          {useSavedCredentials ? (
+            <div className="form">
+              <p className="muted">Usará as credenciais criptografadas desta conta.</p>
+              <Button
+                type="button"
+                className="button-ghost button-small"
+                disabled={refreshingSchedule}
+                onClick={() => setUseSavedCredentials(false)}
+              >
+                Usar outras credenciais
+              </Button>
+            </div>
+          ) : (
+            <>
+              <label className="field">
+                Usuário ou e-mail
+                <Input
+                  name="username"
+                  type="text"
+                  required
+                  autoComplete="username"
+                  disabled={refreshingSchedule}
+                  value={syncUsername}
+                  onChange={(event) => setSyncUsername(event.target.value)}
+                />
+              </label>
+              <label className="field">
+                Senha
+                <Input
+                  name="password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  disabled={refreshingSchedule}
+                  value={syncPassword}
+                  onChange={(event) => setSyncPassword(event.target.value)}
+                />
+              </label>
+              <label className="field">
+                <input
+                  type="checkbox"
+                  checked={saveCredentials}
+                  disabled={refreshingSchedule}
+                  onChange={(event) => setSaveCredentials(event.target.checked)}
+                />{" "}
+                Salvar credenciais criptografadas
+              </label>
+            </>
           )}
-          <label className="field">
-            Usuário ou e-mail
-            <Input
-              name="username"
-              type="text"
-              required
-              autoComplete="username"
-              disabled={refreshingSchedule}
-              value={syncUsername}
-              onChange={(event) => setSyncUsername(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            Senha
-            <Input
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              disabled={refreshingSchedule}
-              value={syncPassword}
-              onChange={(event) => setSyncPassword(event.target.value)}
-            />
-          </label>
           {syncError && (
             <p className="form-error" role="alert">
               {syncError}
@@ -928,11 +952,7 @@ function DashboardPageContent() {
           )}
           <div className="form-actions">
             <Button type="submit" disabled={refreshingSchedule}>
-              {refreshingSchedule
-                ? "Sincronizando…"
-                : syncMode === "full"
-                  ? "Sincronizar tudo"
-                  : "Atualizar grade"}
+              {refreshingSchedule ? "Atualizando…" : "Atualizar grade"}
             </Button>
           </div>
         </form>
@@ -944,8 +964,7 @@ function DashboardPageContent() {
         lessons={lessons}
         extraLessons={extraLessons}
         availability={availability}
-        onFullSync={() => openSync("full")}
-        onRefresh={() => openSync("schedule")}
+        onRefresh={openSync}
         refreshing={refreshingSchedule}
         refreshNotice={refreshNotice}
         onUpdateExtraStatus={updateExtraStatus}

@@ -68,11 +68,25 @@ privadas abaixo (sem o prefixo `NEXT_PUBLIC_`):
   `ezeklobo.dev@gmail.com` já possui o acesso administrativo no aplicativo.
 - `FIREBASE_SERVICE_ACCOUNT_JSON`: conteúdo JSON completo de uma chave de
   service account do mesmo projeto Firebase, em uma única linha.
+- `KODLAND_CREDENTIALS_ENCRYPTION_KEY`: uma chave aleatória de 32 bytes em
+  Base64 (ou 64 caracteres hexadecimais), usada exclusivamente no servidor
+  para cifrar as credenciais da Kodland que o usuário optar por salvar. Gere
+  uma única vez e guarde-a com segurança; trocar a chave torna ilegíveis as
+  credenciais já salvas. Em PowerShell:
+
+  ```powershell
+  [Convert]::ToBase64String([byte[]](1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+  ```
 
 Gere a chave em **Firebase Console > Configurações do projeto > Contas de
 serviço**. Nunca a coloque no Git, em arquivos públicos ou em uma variável
 `NEXT_PUBLIC_*`. Após cadastrar as variáveis, faça um novo deploy, entre com um
 e-mail listado em `ADMIN_EMAILS` e abra `/admin`.
+
+As credenciais salvas da Kodland ficam em uma coleção privada, inacessível pelas
+regras do navegador, e são guardadas com AES-256-GCM. A senha nunca é devolvida
+ao cliente, colocada em `localStorage` ou registrada nos logs. Essa opção exige
+as duas variáveis privadas acima na Vercel.
 
 Pelo painel, o administrador também pode cadastrar e remover contas de acesso.
 O cadastro usa nome, e-mail e senha inicial; a conta é criada no Firebase

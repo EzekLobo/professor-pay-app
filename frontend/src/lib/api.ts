@@ -231,6 +231,8 @@ export type KodlandSyncResult = {
 };
 type KodlandSyncOptions = {
   correctionGroupIds?: string[];
+  useSavedCredentials?: boolean;
+  saveCredentials?: boolean;
 };
 export type KodlandAvailability = {
   id: string;
@@ -1379,6 +1381,8 @@ export const kodlandApi = {
           username,
           password,
           mode,
+          use_saved_credentials: options.useSavedCredentials === true,
+          save_credentials: options.saveCredentials === true,
           pending_extra_student_ids: pendingExtraStudentIds,
           correction_group_ids: options.correctionGroupIds,
         }),
@@ -1617,15 +1621,17 @@ export const kodlandApi = {
     username: string,
     password: string,
     onProgress?: (message: string) => void,
+    options: KodlandSyncOptions = {},
   ): Promise<KodlandSyncResult> => {
     onProgress?.("Atualizando turmas, alunos, agenda e aulas…");
-    const core = await kodlandApi.sync(username, password, "essential");
+    const core = await kodlandApi.sync(username, password, "essential", options);
     const groupIds = core.group_ids ?? [];
     let reviewCount = 0;
     for (let index = 0; index < groupIds.length; index += 1) {
       onProgress?.(`Atualizando correções: ${index + 1} de ${groupIds.length} turma(s)…`);
       const result = await kodlandApi.sync(username, password, "corrections", {
         correctionGroupIds: [groupIds[index]],
+        useSavedCredentials: options.useSavedCredentials,
       });
       reviewCount += result.review_count;
     }

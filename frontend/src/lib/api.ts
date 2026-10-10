@@ -231,8 +231,6 @@ export type KodlandSyncResult = {
 };
 type KodlandSyncOptions = {
   correctionGroupIds?: string[];
-  useSavedCredentials?: boolean;
-  saveCredentials?: boolean;
 };
 export type KodlandAvailability = {
   id: string;
@@ -1381,8 +1379,6 @@ export const kodlandApi = {
           username,
           password,
           mode,
-          use_saved_credentials: options.useSavedCredentials === true,
-          save_credentials: options.saveCredentials === true,
           pending_extra_student_ids: pendingExtraStudentIds,
           correction_group_ids: options.correctionGroupIds,
         }),
@@ -1631,7 +1627,6 @@ export const kodlandApi = {
       onProgress?.(`Atualizando correções: ${index + 1} de ${groupIds.length} turma(s)…`);
       const result = await kodlandApi.sync(username, password, "corrections", {
         correctionGroupIds: [groupIds[index]],
-        useSavedCredentials: options.useSavedCredentials,
       });
       reviewCount += result.review_count;
     }

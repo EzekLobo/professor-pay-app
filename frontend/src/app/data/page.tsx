@@ -21,8 +21,6 @@ import {
   KodlandSyncResponseError,
 } from "@/lib/kodland-sync-response";
 
-const savedCredentialsKey = "aulapay.kodland.server-credentials-saved";
-
 const summary = (report: ImportReport) =>
   `${report.class_count} turmas, ${report.lesson_count} aulas, ${report.payment_confirmation_count} confirmações (${formatMoney(report.total_cents)}), ${report.pedagogical_group_count} turmas pedagógicas, ${report.pedagogical_student_count} alunos, ${report.pedagogical_lesson_count} aulas sincronizadas e ${report.pedagogical_review_count} correções`;
 
@@ -44,10 +42,6 @@ function Content() {
       : window.localStorage.getItem("aulapay.kodland.username") ?? "",
   );
   const [syncPassword, setSyncPassword] = useState("");
-  const [useSavedCredentials, setUseSavedCredentials] = useState(() =>
-    typeof window !== "undefined" &&
-    window.localStorage.getItem(savedCredentialsKey) === "true",
-  );
   const [saveCredentials, setSaveCredentials] = useState(true);
 
   const message = (reason: unknown) =>
@@ -62,7 +56,6 @@ function Content() {
     setSyncError("");
     setSyncProgress("");
     setSyncOpen(true);
-    if (useSavedCredentials) return;
     void restoreKodlandCredentials().then((credentials) => {
       if (!credentials) return;
       setSyncUsername((current) => current || credentials.username);
@@ -74,31 +67,23 @@ function Content() {
     event.preventDefault();
     const form = event.currentTarget;
     const username = syncUsername.trim();
-    if (busy || (!useSavedCredentials && (!username || !syncPassword))) return;
+    if (busy || !username || !syncPassword) return;
 
     setBusy(true);
     setSyncError("");
     setSyncProgress("");
     try {
       const result = await kodlandApi.syncAll(
-        useSavedCredentials ? "" : username,
-        useSavedCredentials ? "" : syncPassword,
+        username,
+        syncPassword,
         setSyncProgress,
-        {
-          useSavedCredentials,
-          saveCredentials: !useSavedCredentials && saveCredentials,
-        },
       );
-      if (!useSavedCredentials && saveCredentials) {
-        window.localStorage.setItem(savedCredentialsKey, "true");
-        setUseSavedCredentials(true);
-      }
-      if (!useSavedCredentials) {
+      if (saveCredentials) {
         try {
           window.localStorage.setItem("aulapay.kodland.username", username);
           await rememberKodlandCredentials(form);
         } catch {
-          // Browser storage is optional after the encrypted server save.
+          // Browser password storage is optional and controlled by the browser.
         }
       }
       setSyncPassword("");
@@ -231,57 +216,39 @@ function Content() {
           <p className="muted">
             Atualiza turmas, alunos, grade, aulas extras e correções em etapas.
           </p>
-          {useSavedCredentials ? (
-            <div className="form">
-              <p className="muted">
-                Serão usadas as credenciais criptografadas vinculadas a esta conta.
-              </p>
-              <Button
-                type="button"
-                className="button-ghost button-small"
-                disabled={busy}
-                onClick={() => setUseSavedCredentials(false)}
-              >
-                Usar outras credenciais
-              </Button>
-            </div>
-          ) : (
-            <>
-              <label className="field">
-                Usuário ou e-mail
-                <Input
-                  name="username"
-                  type="text"
-                  required
-                  autoComplete="username"
-                  disabled={busy}
-                  value={syncUsername}
-                  onChange={(event) => setSyncUsername(event.target.value)}
-                />
-              </label>
-              <label className="field">
-                Senha
-                <Input
-                  name="password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  disabled={busy}
-                  value={syncPassword}
-                  onChange={(event) => setSyncPassword(event.target.value)}
-                />
-              </label>
-              <label className="field">
-                <input
-                  type="checkbox"
-                  checked={saveCredentials}
-                  disabled={busy}
-                  onChange={(event) => setSaveCredentials(event.target.checked)}
-                />{" "}
-                Salvar credenciais criptografadas para as próximas sincronizações
-              </label>
-            </>
-          )}
+          <label className="field">
+            Usuário ou e-mail
+            <Input
+              name="username"
+              type="text"
+              required
+              autoComplete="username"
+              disabled={busy}
+              value={syncUsername}
+              onChange={(event) => setSyncUsername(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            Senha
+            <Input
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              disabled={busy}
+              value={syncPassword}
+              onChange={(event) => setSyncPassword(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <input
+              type="checkbox"
+              checked={saveCredentials}
+              disabled={busy}
+              onChange={(event) => setSaveCredentials(event.target.checked)}
+            />{" "}
+            Salvar credenciais no navegador
+          </label>
           {syncProgress && <p className="notice" role="status">{syncProgress}</p>}
           {syncError && <p className="form-error" role="alert">{syncError}</p>}
           <div className="form-actions">

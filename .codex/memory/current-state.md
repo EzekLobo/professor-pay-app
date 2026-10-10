@@ -5,13 +5,10 @@
   responsáveis e Correções atualiza somente pendências. A carga completa ainda
   é repartida: dados essenciais primeiro e correções por turma depois.
 
-- O usuário pode optar por salvar as credenciais da Kodland. A senha é validada
-  antes do salvamento e fica cifrada com AES-256-GCM na coleção administrativa
-  privada `private_kodland_credentials/{uid}`, que não é acessível pelas regras
-  do navegador. O cliente guarda somente um indicador não sensível; para usar o
-  recurso em Vercel, defina `FIREBASE_SERVICE_ACCOUNT_JSON` e
-  `KODLAND_CREDENTIALS_ENCRYPTION_KEY` (Base64 de 32 bytes ou 64 hex) e faça
-  novo deploy. A troca dessa chave invalida os registros anteriores.
+- O usuário pode optar por salvar as credenciais da Kodland no gerenciador de
+  senhas do próprio navegador. A senha não é enviada para Firestore, não fica
+  em `localStorage` e não requer variável extra na Vercel; o navegador solicita
+  permissão e a recupera nos próximos modais de sincronização quando suportado.
 
 - Para extras, um `completed: false` antigo da Kodland não anula mais evidência posterior no mesmo evento: status de realização, flag positiva ou gravação marcam a aula como realizada; cancelamento e reagendamento preservam a pendência.
 

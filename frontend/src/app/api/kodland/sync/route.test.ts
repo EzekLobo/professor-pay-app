@@ -182,6 +182,25 @@ describe("extra lesson reconciliation", () => {
     expect(extra.completed).toBe(true);
   });
 
+  it("uses an explicit completed status when a stale boolean flag is false", () => {
+    const [extra] = extrasFromStudentAgenda(
+      [
+        {
+          extra_lesson_id: "stale-completion-flag",
+          is_extra: true,
+          date: "2026-10-03",
+          start_time: "18:00",
+          completed: false,
+          lesson_status: "Conducted",
+        },
+      ],
+      students[0],
+      "2026-10-10",
+    );
+
+    expect(extra.completed).toBe(true);
+  });
+
   it("does not treat an approved request without a recording as completed", () => {
     const [extra] = extrasFromStudentAgenda(
       [

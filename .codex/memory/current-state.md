@@ -1,5 +1,7 @@
 # Estado atual
 
+- Para extras, um `completed: false` antigo da Kodland não anula mais evidência posterior no mesmo evento: status de realização, flag positiva ou gravação marcam a aula como realizada; cancelamento e reagendamento preservam a pendência.
+
 - A conciliação de extras atualiza uma pendência quando a agenda do aluno confirma a mesma ocorrência. Além do ID estável, ela usa aluno + data + horário apenas como contingência para IDs diferentes entre a grade e o perfil; reconhece campos de conclusão e status como `Conducted`, sem concluir aulas futuras pela data.
 
 - A sincronização completa agora é uma ação única na grade: salva primeiro turmas, alunos, agenda e aulas e depois atualiza correções em lotes de uma turma, sem pedir novamente as credenciais. A atualização de grade é leve e específica. Para extras, a agenda do professor seleciona os alunos a consultar; extras pendentes sem decisão manual também são revisadas, evitando consultar todos os perfis.

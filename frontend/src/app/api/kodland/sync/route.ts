@@ -147,14 +147,17 @@ const recordingAvailable = (event: Record<string, unknown>) => {
  */
 const completedFromEvent = (event: Record<string, unknown>) => {
   const completion = completionFlag(event);
-  if (explicitBoolean(completion)) return flag(completion);
+  // Some agenda payloads keep `completed: false` even after their textual
+  // state has advanced to Conducted/Completed. An explicit positive flag is
+  // conclusive, while a stale false must not hide other completion evidence.
+  if (explicitBoolean(completion) && flag(completion)) return true;
 
   const status = normalized(event.status ?? event.lesson_status ?? event.state);
-  if (/completed|complete|passed|done|finished|held|conducted|given|realizada|concluida|ministrada/.test(status)) {
-    return true;
-  }
   if (/postpon|adiad|reschedul|reagend|moved|cancel/.test(status)) {
     return false;
+  }
+  if (/completed|complete|passed|done|finished|held|conducted|given|realizada|concluida|ministrada/.test(status)) {
+    return true;
   }
   if (recordingAvailable(event)) return true;
   return false;

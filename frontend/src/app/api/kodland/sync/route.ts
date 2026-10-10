@@ -108,6 +108,12 @@ type SyncCollection<T> = {
 const completionFlag = (event: Record<string, unknown>) =>
   event.completed ??
   event.is_completed ??
+  event.lesson_completed ??
+  event.is_lesson_completed ??
+  event.is_passed ??
+  event.is_done ??
+  event.is_finished ??
+  event.is_held ??
   event.lesson_passed ??
   event.passed;
 
@@ -144,7 +150,7 @@ const completedFromEvent = (event: Record<string, unknown>) => {
   if (explicitBoolean(completion)) return flag(completion);
 
   const status = normalized(event.status ?? event.lesson_status ?? event.state);
-  if (/completed|complete|passed|done|finished|held|realizada|concluida|ministrada/.test(status)) {
+  if (/completed|complete|passed|done|finished|held|conducted|given|realizada|concluida|ministrada/.test(status)) {
     return true;
   }
   if (/postpon|adiad|reschedul|reagend|moved|cancel/.test(status)) {
@@ -890,6 +896,43 @@ const mergeScheduledExtra = (
   completed: scheduled.completed || evidence.completed,
 });
 
+const normalizedName = (value: string) =>
+  normalized(value).replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * Some Kodland calendars expose a display-event ID while the student's
+ * schedule exposes the extra-lesson ID. Match that one occurrence by student
+ * and slot only when the stable IDs cannot be reconciled.
+ */
+const sameExtraOccurrence = (
+  scheduled: ExtraLesson,
+  evidence: ExtraLesson,
+) => {
+  if (
+    scheduled.external_student_id &&
+    evidence.external_student_id &&
+    scheduled.external_student_id !== evidence.external_student_id
+  ) {
+    return false;
+  }
+  if (!scheduled.external_student_id || !evidence.external_student_id) {
+    const scheduledName = normalizedName(scheduled.student_name);
+    const evidenceName = normalizedName(evidence.student_name);
+    if (
+      !scheduledName ||
+      !evidenceName ||
+      (scheduledName !== evidenceName &&
+        !scheduledName.includes(evidenceName) &&
+        !evidenceName.includes(scheduledName))
+    ) {
+      return false;
+    }
+  }
+  if (scheduled.lesson_date !== evidence.lesson_date) return false;
+  return !scheduled.start_time || !evidence.start_time ||
+    scheduled.start_time === evidence.start_time;
+};
+
 /**
  * Combines the calendar slot from the teacher agenda with completion evidence
  * from the student's agenda. The two endpoints use different local IDs for
@@ -908,7 +951,19 @@ export function mergeExtraLessons(
   for (const extra of studentExtras) {
     const key = extraIdentity(extra);
     const scheduled = merged.get(key);
-    merged.set(key, scheduled ? mergeScheduledExtra(scheduled, extra) : extra);
+    if (scheduled) {
+      merged.set(key, mergeScheduledExtra(scheduled, extra));
+      continue;
+    }
+    const matchingScheduledEntry = [...merged.entries()].find(([, candidate]) =>
+      sameExtraOccurrence(candidate, extra),
+    );
+    if (matchingScheduledEntry) {
+      const [scheduledKey, scheduledExtra] = matchingScheduledEntry;
+      merged.set(scheduledKey, mergeScheduledExtra(scheduledExtra, extra));
+      continue;
+    }
+    merged.set(key, extra);
   }
   return [...merged.values()];
 }

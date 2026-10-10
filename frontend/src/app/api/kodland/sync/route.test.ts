@@ -256,6 +256,44 @@ describe("extra lesson reconciliation", () => {
     ]);
   });
 
+  it("updates a pending calendar extra when the student agenda confirms the same slot", () => {
+    const [scheduled] = extrasFromTeacherAgenda(
+      [
+        {
+          id: "calendar-event-109",
+          start: "2026-10-03T18:00:00-03:00",
+          end: "2026-10-03T19:00:00-03:00",
+          student_full_name: "Lucas Martin",
+        },
+      ],
+      students,
+      "2026-10-10",
+    );
+    const [completed] = extrasFromStudentAgenda(
+      [
+        {
+          extra_lesson_id: "student-extra-778",
+          is_extra: true,
+          date: "2026-10-03",
+          start_time: "18:00",
+          lesson_completed: true,
+          status: "Conducted",
+        },
+      ],
+      students[0],
+      "2026-10-10",
+    );
+
+    expect(mergeExtraLessons([scheduled], [completed])).toEqual([
+      expect.objectContaining({
+        id: "kodland-extra-calendar-event-109",
+        lesson_date: "2026-10-03",
+        start_time: "18:00",
+        completed: true,
+      }),
+    ]);
+  });
+
   it("keeps a future extra pending even when its payload is prematurely marked complete", () => {
     const [extra] = extrasFromStudentAgenda(
       [

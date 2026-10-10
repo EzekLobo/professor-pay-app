@@ -216,6 +216,22 @@ export type KodlandExtraLesson = {
   created_at: string;
 };
 export type KodlandExtraManualStatus = "PENDING" | "ACCOUNTED" | "DONE";
+export type KodlandSyncMode =
+  | "essential"
+  | "schedule"
+  | "corrections"
+  | "profiles";
+export type KodlandSyncResult = {
+  group_count: number;
+  student_count: number;
+  review_count: number;
+  lesson_count: number;
+  extra_lesson_count: number;
+  group_ids?: string[];
+};
+type KodlandSyncOptions = {
+  correctionGroupIds?: string[];
+};
 export type KodlandAvailability = {
   id: string;
   weekday: number;
@@ -274,6 +290,7 @@ type KodlandSnapshot = {
   lessons: Omit<KodlandLesson, "created_at">[];
   extra_lessons: Omit<KodlandExtraLesson, "created_at">[];
   availability: Omit<KodlandAvailability, "created_at">[];
+  review_group_ids?: string[];
   extra_lessons_synced?: boolean;
   availability_synced?: boolean;
 };
@@ -1321,11 +1338,30 @@ export const kodlandApi = {
     await updateDoc(doc(ref("kodland_extra_lessons"), id), updated);
     return updated as unknown as KodlandExtraLesson;
   },
-  sync: async (username: string, password: string, mode: "essential" | "corrections" | "profiles" = "essential") => {
+  sync: async (
+    username: string,
+    password: string,
+    mode: KodlandSyncMode = "essential",
+    options: KodlandSyncOptions = {},
+  ): Promise<KodlandSyncResult> => {
     const firebaseUser = authUser();
     const firebaseUserId = firebaseUser.uid;
     const syncCollection = (name: string) => ref(name, firebaseUserId);
     const syncStatusRef = doc(syncCollection("sync_status"), "kodland");
+    const pendingExtraStudentIds = [
+      ...new Set(
+        (await rows("kodland_extra_lessons"))
+          .filter(
+            (lesson) =>
+              lesson.completed !== true &&
+              lesson.manual_status !== "PENDING" &&
+              lesson.manual_status !== "DONE" &&
+              lesson.manual_status !== "ACCOUNTED",
+          )
+          .map((lesson) => String(lesson.external_student_id ?? ""))
+          .filter(Boolean),
+      ),
+    ];
     const token = await (
       firebaseUser as unknown as { getIdToken: () => Promise<string> }
     ).getIdToken();
@@ -1339,7 +1375,13 @@ export const kodlandApi = {
           authorization: `Bearer ${token}`,
           "x-sync-id": syncId,
         },
-        body: JSON.stringify({ username, password, mode }),
+        body: JSON.stringify({
+          username,
+          password,
+          mode,
+          pending_extra_student_ids: pendingExtraStudentIds,
+          correction_group_ids: options.correctionGroupIds,
+        }),
       });
     } catch {
       throw kodlandSyncNetworkError(syncId);
@@ -1374,8 +1416,16 @@ export const kodlandApi = {
           })),
       );
       const incoming = new Set(reviews.map((item) => item.id));
+      const reviewedGroupIds = new Set(
+        snapshot.review_group_ids?.map(String) ??
+          reviews.map((review) => String(review.external_class_id)),
+      );
       const deletes: Array<(batch: FirebaseWriteBatch) => void> = previousReviews
-        .filter((item) => !incoming.has(String(item.id)))
+        .filter(
+          (item) =>
+            reviewedGroupIds.has(String(item.external_class_id)) &&
+            !incoming.has(String(item.id)),
+        )
         .map((item) => (batch) =>
           batch.delete(doc(syncCollection("kodland_reviews"), String(item.id))));
       persistencePhase = "gravação";
@@ -1538,6 +1588,9 @@ export const kodlandApi = {
       review_count: 0,
       lesson_count: lessons.length,
       extra_lesson_count: extraLessons.length,
+      group_ids: groups
+        .filter((group) => !group.archived)
+        .map((group) => group.external_id),
     });
     } catch (error) {
       const failure = firestoreFailure(error);
@@ -1559,6 +1612,27 @@ export const kodlandApi = {
       }
       throw new KodlandSyncPersistenceError(syncId, persistencePhase, failure.detail);
     }
+  },
+  syncAll: async (
+    username: string,
+    password: string,
+    onProgress?: (message: string) => void,
+  ): Promise<KodlandSyncResult> => {
+    onProgress?.("Atualizando turmas, alunos, agenda e aulas…");
+    const core = await kodlandApi.sync(username, password, "essential");
+    const groupIds = core.group_ids ?? [];
+    let reviewCount = 0;
+    for (let index = 0; index < groupIds.length; index += 1) {
+      onProgress?.(`Atualizando correções: ${index + 1} de ${groupIds.length} turma(s)…`);
+      const result = await kodlandApi.sync(username, password, "corrections", {
+        correctionGroupIds: [groupIds[index]],
+      });
+      reviewCount += result.review_count;
+    }
+    return {
+      ...core,
+      review_count: reviewCount,
+    };
   },
   loadLessonMaterials: async (
     lesson: Pick<KodlandLesson, "id" | "external_class_id" | "source_lesson_id">,

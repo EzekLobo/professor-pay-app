@@ -101,6 +101,7 @@ function WeekSchedule({
   lessons,
   extraLessons,
   availability,
+  onFullSync,
   onRefresh,
   refreshing,
   refreshNotice,
@@ -112,6 +113,7 @@ function WeekSchedule({
   lessons: KodlandLesson[];
   extraLessons: KodlandExtraLesson[];
   availability: KodlandAvailability[];
+  onFullSync: () => void;
   onRefresh: () => void;
   refreshing: boolean;
   refreshNotice: string;
@@ -258,6 +260,14 @@ function WeekSchedule({
       <div className="section-heading">
         <h2>Grade de horários</h2>
         <div className="week-actions">
+          <button
+            className="button button-small"
+            type="button"
+            onClick={onFullSync}
+            disabled={refreshing}
+          >
+            {refreshing ? "Sincronizando…" : "Sincronizar tudo"}
+          </button>
           <button
             className="button button-ghost button-small"
             type="button"
@@ -677,6 +687,7 @@ function KodlandSummary({
   lessons,
   extraLessons,
   availability,
+  onFullSync,
   onRefresh,
   refreshing,
   refreshNotice,
@@ -689,6 +700,7 @@ function KodlandSummary({
   lessons: KodlandLesson[];
   extraLessons: KodlandExtraLesson[];
   availability: KodlandAvailability[];
+  onFullSync: () => void;
   onRefresh: () => void;
   refreshing: boolean;
   refreshNotice: string;
@@ -721,6 +733,7 @@ function KodlandSummary({
         lessons={lessons}
         extraLessons={extraLessons}
         availability={availability}
+        onFullSync={onFullSync}
         onRefresh={onRefresh}
         refreshing={refreshing}
         refreshNotice={refreshNotice}
@@ -743,6 +756,7 @@ function DashboardPageContent() {
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncError, setSyncError] = useState("");
+  const [syncProgress, setSyncProgress] = useState("");
   const [refreshNotice, setRefreshNotice] = useState("");
   const [syncUsername, setSyncUsername] = useState(() =>
     typeof window === "undefined"
@@ -756,8 +770,11 @@ function DashboardPageContent() {
     return () => window.clearTimeout(timeout);
   }, [refreshNotice]);
   const [syncPassword, setSyncPassword] = useState("");
-  const openSync = useCallback(() => {
+  const [syncMode, setSyncMode] = useState<"full" | "schedule">("full");
+  const openSync = useCallback((mode: "full" | "schedule") => {
     setSyncError("");
+    setSyncProgress("");
+    setSyncMode(mode);
     setSyncOpen(true);
     void restoreKodlandCredentials().then((credentials) => {
       if (!credentials) return;
@@ -812,7 +829,9 @@ function DashboardPageContent() {
     setRefreshNotice("");
     let synced = false;
     try {
-      const result = await kodlandApi.sync(username, password);
+      const result = syncMode === "full"
+        ? await kodlandApi.syncAll(username, password, setSyncProgress)
+        : await kodlandApi.sync(username, password, "schedule");
       synced = true;
       try {
         window.localStorage.setItem("aulapay.kodland.username", username);
@@ -828,7 +847,9 @@ function DashboardPageContent() {
       }
       setSyncOpen(false);
       setRefreshNotice(
-        `Grade atualizada. ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s); somente as concluídas entram no extrato.`,
+        syncMode === "full"
+          ? `Aplicação sincronizada. ${result.student_count ?? 0} aluno(s), ${result.review_count ?? 0} correção(ões) e ${result.extra_lesson_count ?? 0} aula(s) extra atualizados.`
+          : `Grade atualizada. ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s); somente as concluídas entram no extrato.`,
       );
     } catch (reason) {
       setSyncError(
@@ -840,8 +861,9 @@ function DashboardPageContent() {
       );
     } finally {
       setRefreshingSchedule(false);
+      setSyncProgress("");
     }
-  }, [load, refreshingSchedule, syncPassword, syncUsername]);
+  }, [load, refreshingSchedule, syncMode, syncPassword, syncUsername]);
   const updateExtraStatus = useCallback(
     async (id: string, status: KodlandExtraManualStatus) => {
       const updated = await kodlandApi.updateExtraStatus(id, status);
@@ -862,15 +884,19 @@ function DashboardPageContent() {
     <>
       <Modal
         open={syncOpen}
-        title="Atualizar grade"
+        title={syncMode === "full" ? "Sincronizar aplicação" : "Atualizar grade"}
         onClose={() => !refreshingSchedule && setSyncOpen(false)}
         className="schedule-sync-modal"
       >
         <form className="form management-form" autoComplete="on" onSubmit={syncSchedule}>
           <p className="muted">
-            O navegador pode salvar suas credenciais com segurança após a
-            primeira atualização. O NexusClass não armazena sua senha.
+            {syncMode === "full"
+              ? "Uma única sincronização atualiza turmas, alunos, grade, aulas e correções. A carga é processada em etapas para reduzir o risco de tempo excedido."
+              : "Atualiza somente a grade e as aulas extras. O navegador pode preencher as credenciais salvas com segurança."}
           </p>
+          {refreshingSchedule && syncProgress && (
+            <p className="notice" role="status">{syncProgress}</p>
+          )}
           <label className="field">
             Usuário ou e-mail
             <Input
@@ -902,7 +928,11 @@ function DashboardPageContent() {
           )}
           <div className="form-actions">
             <Button type="submit" disabled={refreshingSchedule}>
-              {refreshingSchedule ? "Atualizando grade…" : "Atualizar grade"}
+              {refreshingSchedule
+                ? "Sincronizando…"
+                : syncMode === "full"
+                  ? "Sincronizar tudo"
+                  : "Atualizar grade"}
             </Button>
           </div>
         </form>
@@ -914,7 +944,8 @@ function DashboardPageContent() {
         lessons={lessons}
         extraLessons={extraLessons}
         availability={availability}
-        onRefresh={openSync}
+        onFullSync={() => openSync("full")}
+        onRefresh={() => openSync("schedule")}
         refreshing={refreshingSchedule}
         refreshNotice={refreshNotice}
         onUpdateExtraStatus={updateExtraStatus}

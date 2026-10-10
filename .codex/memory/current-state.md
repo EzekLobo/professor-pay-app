@@ -1,5 +1,7 @@
 # Estado atual
 
+- A sincronização completa agora é uma ação única na grade: salva primeiro turmas, alunos, agenda e aulas e depois atualiza correções em lotes de uma turma, sem pedir novamente as credenciais. A atualização de grade é leve e específica. Para extras, a agenda do professor seleciona os alunos a consultar; extras pendentes sem decisão manual também são revisadas, evitando consultar todos os perfis.
+
 - O cabeçalho exibe o atalho `Administração` exclusivamente para `ezeklobo.dev@gmail.com`, que também é o administrador proprietário inicial validado no servidor; `ADMIN_EMAILS` pode adicionar outros administradores. O painel `/admin` ocupa toda a largura disponível, lista contas Firebase (inclusive sem acesso registrado), mostra apenas o botão para abrir o modal de cadastro e permite remover contas comuns após confirmação. As rotas protegidas criam e removem a conta via Firebase Admin, sem expor credenciais no navegador; a própria conta em uso e a conta proprietária são bloqueadas contra remoção acidental, e a remoção preserva os registros de auditoria.
 
 - O painel `/admin` monitora acessos do app web via rotas servidor autenticadas (`/api/audit` e `/api/admin/analytics`): registra sessões, último pulso ativo e visitas de página em coleções administrativas que não são expostas ao navegador. O acesso é restrito por `ADMIN_EMAILS` e exige `FIREBASE_SERVICE_ACCOUNT_JSON` no ambiente de servidor; consulte `docs/FIREBASE.md` antes de publicar.

@@ -177,6 +177,10 @@ const api = "https://backoffice.kodland.org/api/v2/";
 const KODLAND_REQUEST_TIMEOUT_MS = 8_000;
 const SYNC_TIME_BUDGET_MS = 45_000;
 const KODLAND_CONCURRENCY = 3;
+// Agenda and reviews can fan out to many endpoints. Keep these stages smaller
+// than the regular group import so a single user action remains reliable for
+// teachers with many students and classes.
+const EXTRA_STUDENT_CONCURRENCY = 2;
 const text = (value: unknown) =>
   typeof value === "string" || typeof value === "number"
     ? String(value).trim()
@@ -913,15 +917,9 @@ async function extrasForStudents(
   students: Student[],
   teacherId: string,
   token: string,
+  pendingStudentIds: string[] = [],
 ): Promise<SyncCollection<ExtraLesson>> {
-  const [snapshots, teacherSchedule, teacherExtraPayloads] = await Promise.all([
-    mapWithConcurrency(students, KODLAND_CONCURRENCY, async (student) => {
-        const agenda = await getOptional(
-          `students/${student.external_id}/schedule_view/`,
-          token,
-        );
-        return agenda ? extrasFromStudentAgenda(agenda, student) : [];
-      }),
+  const [teacherSchedule, teacherExtraPayloads] = await Promise.all([
     getOptional(`teacher_timetables/${teacherId}`, token),
     mapWithConcurrency(
       [undefined, ...teacherCalendarWeekDates()],
@@ -932,8 +930,8 @@ async function extrasForStudents(
             date ? `?date=${date}` : ""
           }`,
           token,
-        ),
       ),
+    ),
   ]);
   const byStudentId = new Map(
     students.map((student) => [student.external_id, student]),
@@ -991,14 +989,40 @@ async function extrasForStudents(
       return extrasFromStudentAgenda([{ ...event, is_extra: true }], student);
     },
   );
+  const scheduledExtras = [
+    ...teacherExtraPayloads.flatMap((payload) =>
+      extrasFromTeacherAgenda(payload, students),
+    ),
+    ...fromTeacherSchedule,
+  ];
+  const candidateIds = new Set([
+    ...pendingStudentIds,
+    ...scheduledExtras.map((lesson) => lesson.external_student_id).filter(Boolean),
+  ]);
+  const candidateNames = scheduledExtras
+    .map((lesson) => normalized(lesson.student_name).replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const candidateStudents = students.filter((student) => {
+    if (candidateIds.has(student.external_id)) return true;
+    const studentName = normalized(student.name).replace(/\s+/g, " ").trim();
+    return candidateNames.some(
+      (name) => name === studentName || name.includes(studentName) || studentName.includes(name),
+    );
+  });
+  const snapshots = await mapWithConcurrency(
+    candidateStudents,
+    EXTRA_STUDENT_CONCURRENCY,
+    async (student) => {
+      const agenda = await getOptional(
+        `students/${student.external_id}/schedule_view/`,
+        token,
+      );
+      return agenda ? extrasFromStudentAgenda(agenda, student) : [];
+    },
+  );
   return {
     items: mergeExtraLessons(
-      [
-        ...teacherExtraPayloads.flatMap((payload) =>
-          extrasFromTeacherAgenda(payload, students),
-        ),
-        ...fromTeacherSchedule,
-      ],
+      scheduledExtras,
       snapshots.flat(),
     ),
     source_available:
@@ -1272,9 +1296,11 @@ export async function POST(request: NextRequest) {
     let body: {
       username?: string;
       password?: string;
-      mode?: "essential" | "corrections" | "materials" | "profiles";
+      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles";
       group_id?: string;
       source_lesson_id?: string;
+      pending_extra_student_ids?: string[];
+      correction_group_ids?: string[];
     };
     try {
       body = (await request.json()) as typeof body;
@@ -1287,7 +1313,7 @@ export async function POST(request: NextRequest) {
       return syncResponse(syncId, { code: "missing_credentials" }, 400);
     }
     const mode = body.mode ?? "essential";
-    if (!["essential", "corrections", "materials", "profiles"].includes(mode)) {
+    if (!["essential", "schedule", "corrections", "materials", "profiles"].includes(mode)) {
       trace("invalid_request");
       return syncResponse(syncId, { code: "invalid_request" }, 400);
     }
@@ -1360,11 +1386,24 @@ export async function POST(request: NextRequest) {
       } });
     }
     if (mode === "corrections") {
-      const reviews = await runStage("reviews", () => mapWithConcurrency(active, KODLAND_CONCURRENCY, (group) => reviewsForGroup(group, token)),
+      const requestedGroupIds = new Set(
+        Array.isArray(body.correction_group_ids)
+          ? body.correction_group_ids
+              .filter((id): id is string => typeof id === "string")
+          : [],
+      );
+      const correctionGroups = requestedGroupIds.size
+        ? active.filter((group) => requestedGroupIds.has(group.external_id))
+        : active;
+      const reviews = await runStage("reviews", () => mapWithConcurrency(correctionGroups, 1, (group) => reviewsForGroup(group, token)),
         (result) => ({ reviewCount: result.reduce((total, items) => total + items.length, 0) }));
       const items = reviews.flat();
-      trace("completed", { groupCount: active.length, reviewCount: items.length });
-      return syncResponse(syncId, { ...emptyCollections(), reviews: items });
+      trace("completed", { groupCount: correctionGroups.length, reviewCount: items.length });
+      return syncResponse(syncId, {
+        ...emptyCollections(),
+        reviews: items,
+        review_group_ids: correctionGroups.map((group) => group.external_id),
+      });
     }
     const profileCache = new Map<
       string,
@@ -1402,9 +1441,35 @@ export async function POST(request: NextRequest) {
     }
     const teacherId = userId(token);
     const [extraSnapshot, availabilityPayload] = await runStage("calendar", () => Promise.all([
-      extrasForStudents(students, teacherId, token),
+      extrasForStudents(
+        students,
+        teacherId,
+        token,
+        Array.isArray(body.pending_extra_student_ids)
+          ? body.pending_extra_student_ids
+              .filter((id): id is string => typeof id === "string")
+              .slice(0, students.length)
+          : [],
+      ),
       getOptional(`teacher_timetables/${teacherId}`, token),
     ]), ([extras]) => ({ extraLessonCount: extras.items.length }));
+    if (mode === "schedule") {
+      trace("completed", {
+        groupCount: groups.length,
+        studentCount: students.length,
+        extraLessonCount: extraSnapshot.items.length,
+      });
+      return syncResponse(syncId, {
+        groups,
+        students,
+        reviews: [],
+        lessons: [],
+        extra_lessons: extraSnapshot.items,
+        extra_lessons_synced: extraSnapshot.source_available,
+        availability: availabilityFromTeacherTimetable(availabilityPayload),
+        availability_synced: availabilityPayload !== null,
+      });
+    }
     const snapshots = await runStage("lessons", () => mapWithConcurrency(
       groupsWithStudents,
       KODLAND_CONCURRENCY,

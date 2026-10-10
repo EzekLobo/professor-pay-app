@@ -813,6 +813,7 @@ function DashboardPageContent() {
     setRefreshNotice("");
     let synced = false;
     try {
+      let savedInBrowser = false;
       const result = await kodlandApi.sync(
         username,
         password,
@@ -822,7 +823,7 @@ function DashboardPageContent() {
       if (saveCredentials) {
         try {
           window.localStorage.setItem("aulapay.kodland.username", username);
-          await rememberKodlandCredentials(form);
+          savedInBrowser = await rememberKodlandCredentials(form);
         } catch {
           // Browser credential storage is optional after a successful sync.
         }
@@ -835,7 +836,7 @@ function DashboardPageContent() {
       }
       setSyncOpen(false);
       setRefreshNotice(
-        `Grade atualizada. ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s); somente as concluídas entram no extrato.`,
+        `Grade atualizada. ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s); somente as concluídas entram no extrato.${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
       );
     } catch (reason) {
       setSyncError(

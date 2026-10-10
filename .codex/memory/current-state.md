@@ -5,10 +5,12 @@
   responsáveis e Correções atualiza somente pendências. A carga completa ainda
   é repartida: dados essenciais primeiro e correções por turma depois.
 
-- O usuário pode optar por salvar as credenciais da Kodland no gerenciador de
-  senhas do próprio navegador. A senha não é enviada para Firestore, não fica
-  em `localStorage` e não requer variável extra na Vercel; o navegador solicita
-  permissão e a recupera nos próximos modais de sincronização quando suportado.
+- O usuário pode optar por salvar as credenciais da Kodland neste navegador.
+  O app cifra os dados com AES-GCM e os guarda em IndexedDB com chave WebCrypto
+  não exportável, recuperando-os antes do gerenciador nativo de senhas. A senha
+  não é enviada para Firestore, não fica em `localStorage` e não requer variável
+  extra na Vercel; o aviso de sucesso confirma quando o navegador concluiu a
+  gravação local.
 
 - Para extras, um `completed: false` antigo da Kodland não anula mais evidência posterior no mesmo evento: status de realização, flag positiva ou gravação marcam a aula como realizada; cancelamento e reagendamento preservam a pendência.
 
@@ -24,7 +26,7 @@
 
 - O NexusClass possui um tutorial “Como usar” em Resumo, Pagamentos, Turmas, Aulas, Correções e Dados. Os roteiros de Resumo, Pagamentos, Turmas, Aulas e Correções estão na versão 2: revelam conteúdos ocultos e explicam controles como visibilidade financeira e lista completa. Cada roteiro abre automaticamente uma vez por versão e permanece reabrível pelo cabeçalho; o progresso é salvo por usuário no Firestore, em `users/{uid}/tutorials/{roteiroId}`.
 - O cabecalho nao exibe mais “Painel pessoal” nem saudacao duplicada: titulo da pagina fica centralizado e o perfil compacto permanece no canto direito.
-- Grade, Correcoes e Turmas usam o mesmo fluxo de sincronizacao: o e-mail e lembrado no navegador; apos sucesso, o app oferece as credenciais ao gerenciador seguro do navegador e, ao reabrir qualquer um desses modais, recupera automaticamente a credencial antes autorizada. A senha nunca e salva no localStorage nem no Firebase; em falha, ela permanece no formulario para nova tentativa. O snapshot e escrito em lotes de ate 400 operacoes para nao exceder o limite do Firestore. A Kodland retorna 403 para credenciais recusadas, tratado como erro de usuario/senha invalida.
+- Grade, Correcoes e Turmas usam o mesmo fluxo de sincronizacao: o e-mail e lembrado no navegador; apos sucesso, o app guarda usuario e senha em um cofre AES-GCM local no IndexedDB e oferece tambem ao gerenciador de senhas nativo. Ao reabrir qualquer modal, recupera automaticamente a credencial local. A senha nunca e salva no localStorage nem no Firebase; em falha, ela permanece no formulario para nova tentativa. O snapshot e escrito em lotes de ate 400 operacoes para nao exceder o limite do Firestore. A Kodland retorna 403 para credenciais recusadas, tratado como erro de usuario/senha invalida.
 - As aulas extras na grade distinguem apenas pendente e realizada; uma aula futura sempre permanece pendente ate sua data, mesmo que a API a marque prematuramente como concluida. Uma aula realizada (por status, gravacao ou confirmacao manual) compoe o extrato e usa borda roxa, distinta do azul das aulas de turma. O card extra abre um modal para o professor marcar Pendente ou Realizada; essa decisao manual e preservada nas proximas sincronizacoes.
 - Os indicadores de Turmas, Alunos e Correcoes pendentes no resumo usam formato compacto em linha para priorizar a grade semanal.
 - Em desktop, o resumo reduz os espacamentos verticais e a altura do carrossel para manter grade e competencias na mesma tela quando houver espaco suficiente; telas menores preservam a rolagem normal.

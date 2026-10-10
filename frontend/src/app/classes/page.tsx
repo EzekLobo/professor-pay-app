@@ -222,6 +222,7 @@ function ClassesContent() {
     setSyncing(true);
     setError("");
     try {
+      let savedInBrowser = false;
       const result = await kodlandApi.sync(
         username.trim(),
         password,
@@ -230,7 +231,7 @@ function ClassesContent() {
       if (saveCredentials) {
         try {
           window.localStorage.setItem("aulapay.kodland.username", username.trim());
-          await rememberKodlandCredentials(formElement);
+          savedInBrowser = await rememberKodlandCredentials(formElement);
         } catch {
           // Browser credential storage is optional after a successful sync.
         }
@@ -238,10 +239,10 @@ function ClassesContent() {
       setPassword("");
       setSyncOpen(false);
       if (syncMode === "profiles") {
-        setNotice(`${result.student_count ?? 0} contato(s) de responsáveis atualizado(s).`);
+        setNotice(`${result.student_count ?? 0} contato(s) de responsáveis atualizado(s).${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`);
       } else {
         setNotice(
-          `${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda da Kodland. Apenas as concluídas entram em Pagamentos.`,
+          `${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda da Kodland. Apenas as concluídas entram em Pagamentos.${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
         );
       }
       await load();

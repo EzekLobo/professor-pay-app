@@ -142,6 +142,7 @@ function Content() {
     setNotice("");
     const password = syncPassword;
     try {
+      let savedInBrowser = false;
       const result = await kodlandApi.sync(
         username,
         password,
@@ -150,7 +151,7 @@ function Content() {
       if (saveCredentials) {
         try {
           window.localStorage.setItem("aulapay.kodland.username", username);
-          await rememberKodlandCredentials(form);
+          savedInBrowser = await rememberKodlandCredentials(form);
         } catch {
           // Browser credential storage is optional after a successful sync.
         }
@@ -159,7 +160,7 @@ function Content() {
       await load();
       setSyncOpen(false);
       setNotice(
-        `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
+        `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
       );
     } catch (reason) {
       setSyncError(

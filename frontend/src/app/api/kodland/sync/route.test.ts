@@ -283,6 +283,28 @@ describe("extra lesson reconciliation", () => {
     expect(extra.completed).toBe(true);
   });
 
+  it("keeps the booking identifier needed to verify a recording separately", () => {
+    const [extra] = extrasFromStudentAgenda(
+      [
+        {
+          extra_lesson_id: "approved-extra-with-booking",
+          booking_id: "booking-8842",
+          is_extra: true,
+          date: "2026-10-07",
+          start_time: "20:00",
+          status: "Approved",
+        },
+      ],
+      students[0],
+      "2026-10-13",
+    );
+
+    expect(extra).toMatchObject({
+      completed: false,
+      recording_booking_id: "booking-8842",
+    });
+  });
+
   it("uses the teacher calendar's rescheduled slot without losing completion", () => {
     const [scheduled] = extrasFromTeacherAgenda(
       [

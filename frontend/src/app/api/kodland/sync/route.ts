@@ -88,6 +88,7 @@ type ExtraLesson = {
   student_name: string;
   external_class_id: string;
   external_class_name: string;
+  recording_booking_id: string;
   lesson_date: string;
   start_time: string;
   end_time: string;
@@ -212,6 +213,11 @@ const completedByScheduledDate = (
 
 const sso = "https://sso.production.kodland.org/";
 const api = "https://backoffice.kodland.org/api/v2/";
+const zoomServiceApi = "https://zoom-service.kodland.org/";
+// The Backoffice web client sends this public integration key with its own
+// recording lookup. It is not a teacher credential; teacher credentials stay
+// exclusively in the transient Kodland login flow below.
+const zoomServicePublicKey = "9df4fa08e2ff50268af2856eb34a79276bf51152c8ffaf429371cdf18c79";
 const KODLAND_REQUEST_TIMEOUT_MS = 8_000;
 const SYNC_TIME_BUDGET_MS = 45_000;
 const KODLAND_CONCURRENCY = 3;
@@ -503,6 +509,33 @@ async function getOptional(path: string, token: string) {
   }
 }
 
+/**
+ * The teacher and student schedules describe when an extra was booked, but
+ * the actual Zoom recording is exposed by a separate read-only Kodland
+ * service, keyed by the booking. `null` means the lookup failed; `false`
+ * means that Kodland explicitly returned no recording.
+ */
+async function recordingAvailableForBooking(bookingId: string): Promise<boolean | null> {
+  if (!bookingId) return false;
+  try {
+    const response = await fetchKodland(
+      `${zoomServiceApi}api/zoom_recording/get_videos_by_booking_id/${encodeURIComponent(bookingId)}`,
+      {
+        headers: {
+          "api-key": zoomServicePublicKey,
+        },
+        cache: "no-store",
+      },
+    );
+    if (response.status === 404) return false;
+    if (!response.ok) return null;
+    const payload = await response.json();
+    return list(payload).length > 0 || recordingAvailable(record(payload));
+  } catch {
+    return null;
+  }
+}
+
 export async function mapWithConcurrency<T, R>(
   values: T[],
   limit: number,
@@ -738,6 +771,15 @@ export function extrasFromStudentAgenda(
         event.event_id ??
         event.eventId,
     );
+    const recordingBookingId = text(
+      event.booking_id ??
+        event.bookingId ??
+        record(event.booking).id ??
+        event.zoom_booking_id ??
+        event.zoomBookingId ??
+        event.reservation_id ??
+        event.reservationId,
+    );
     if (!isExtra || !lessonDate || !externalId) return [];
     return [
       {
@@ -746,6 +788,7 @@ export function extrasFromStudentAgenda(
         student_name: student.name,
         external_class_id: student.external_class_id,
         external_class_name: student.external_class_name,
+        recording_booking_id: recordingBookingId,
         lesson_date: lessonDate,
         start_time: timeOnly(
           event.start_time ??
@@ -876,6 +919,15 @@ export function extrasFromTeacherAgenda(
       student?.external_class_name ||
       "Aula extra";
     const status = text(event.status ?? event.lesson_status ?? event.state);
+    const recordingBookingId = text(
+      event.booking_id ??
+        event.bookingId ??
+        record(event.booking).id ??
+        event.zoom_booking_id ??
+        event.zoomBookingId ??
+        event.reservation_id ??
+        event.reservationId,
+    );
     return [
       {
         id: `kodland-extra-${externalId || index + 1}`,
@@ -883,6 +935,7 @@ export function extrasFromTeacherAgenda(
         student_name: student?.name || titleName || "Aula extra",
         external_class_id: classId,
         external_class_name: className,
+        recording_booking_id: recordingBookingId,
         lesson_date: lessonDate,
         start_time: startLocal.time,
         end_time: calendarTimestamp(
@@ -925,6 +978,8 @@ const mergeScheduledExtra = (
   external_class_id: evidence.external_class_id || scheduled.external_class_id,
   external_class_name:
     evidence.external_class_name || scheduled.external_class_name,
+  recording_booking_id:
+    evidence.recording_booking_id || scheduled.recording_booking_id,
   // The teacher's agenda is authoritative for a postponed lesson's slot.
   lesson_date: scheduled.lesson_date || evidence.lesson_date,
   start_time: scheduled.start_time || evidence.start_time,
@@ -1114,14 +1169,35 @@ async function extrasForStudents(
       return agenda === null ? null : extrasFromStudentAgenda(agenda, student);
     },
   );
+  const reconciledExtras = mergeExtraLessons(
+    scheduledExtras,
+    snapshots.flatMap((items) => items ?? []),
+  );
+  const recordingChecks = await mapWithConcurrency(
+    reconciledExtras.filter((lesson) =>
+      !lesson.completed &&
+      lesson.lesson_date <= teacherToday() &&
+      Boolean(lesson.recording_booking_id),
+    ),
+    EXTRA_STUDENT_CONCURRENCY,
+    async (lesson) => ({
+      id: lesson.id,
+      available: await recordingAvailableForBooking(lesson.recording_booking_id),
+    }),
+  );
+  const recordingsByExtraId = new Map(
+    recordingChecks.map((check) => [check.id, check.available]),
+  );
+  const items = reconciledExtras.map((lesson) => ({
+    ...lesson,
+    completed: lesson.completed || recordingsByExtraId.get(lesson.id) === true,
+  }));
   const sourceComplete =
     teacherExtraPayloads.every((payload) => payload !== null) &&
-    snapshots.every((items) => items !== null);
+    snapshots.every((items) => items !== null) &&
+    recordingChecks.every((check) => check.available !== null);
   return {
-    items: mergeExtraLessons(
-      scheduledExtras,
-      snapshots.flatMap((items) => items ?? []),
-    ),
+    items,
     source_available:
       teacherSchedule !== null ||
       teacherExtraPayloads.some((payload) => payload !== null) ||

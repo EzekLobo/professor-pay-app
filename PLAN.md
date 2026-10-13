@@ -812,7 +812,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     recebida.
   - Depende de: nenhuma.
 
-- [ ] R14.2 - Calendário e sinalização da grade
+- [x] R14.2 - Calendário e sinalização da grade
   - Escopo: adicionar o botão de calendário ao cabeçalho e um modal mensal que
     mostra nacionais e personalizados, permite cadastrar/remover somente os
     personalizados e sinaliza feriados na grade semanal.
@@ -843,3 +843,13 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Para a próxima tarefa: a interface deve consumir `holidaysApi` e a propriedade
   `DashboardLesson.holiday`; `BILLABLE` é a exceção explícita para contabilizar
   uma aula que coincida com feriado.
+
+##### R14.2
+
+- Mudou: o cabeçalho ganhou o atalho acessível Feriados e o modal mensal para
+  visualizar nacionais, cadastrar/remover personalizados. A grade destaca o
+  dia e as ocorrências afetadas sem alterar a agenda sincronizada.
+- Verificado: typecheck, teste focado de feriados e diff check passam; lint
+  focado dos arquivos alterados passa.
+- Para a próxima tarefa: integrar o seletor financeiro ao estado explícito
+  `BILLABLE` e conferir o cálculo do extrato com o status derivado.

@@ -3,18 +3,20 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
-import { ShieldCheck } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { CalendarDays, ShieldCheck } from "lucide-react";
 import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
 import { appRoutes, pageTitle } from "@/lib/routes";
 import { GuidedTourDialog, useGuidedTour } from "@/components/guided-tour";
 import { AccessTelemetry, endStoredAccessSession } from "@/components/access-telemetry";
+import { HolidayCalendarDialog } from "@/components/holiday-calendar-dialog";
 
 export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const tour = useGuidedTour({ userId: user.id, pathname });
+  const [holidayCalendarOpen, setHolidayCalendarOpen] = useState(false);
   const isActive = (href: string) => pathname === href;
   const canOpenAdmin = user.email.trim().toLowerCase() === "ezeklobo.dev@gmail.com";
 
@@ -55,6 +57,10 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
         <header className="shell-header">
           <h1 className="shell-title">{pageTitle(pathname)}</h1>
           <div className="header-actions">
+            <button className="button button-ghost header-calendar-button" type="button" aria-label="Abrir calendário de feriados" title="Feriados" onClick={() => setHolidayCalendarOpen(true)}>
+              <CalendarDays size={18} strokeWidth={2.2} aria-hidden="true" />
+              <span>Feriados</span>
+            </button>
             {canOpenAdmin && (
               <Link className="header-admin-link" href="/admin" title="Abrir administração">
                 <ShieldCheck size={17} strokeWidth={2.2} aria-hidden="true" />
@@ -81,6 +87,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
         <main className="page-content">{children}</main>
       </section>
       <GuidedTourDialog tour={tour} />
+      <HolidayCalendarDialog open={holidayCalendarOpen} onClose={() => setHolidayCalendarOpen(false)} />
     </div>
   );
 }

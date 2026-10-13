@@ -17,6 +17,7 @@ import {
 import {
   ApiError,
   dashboardApi,
+  holidaysApi,
   kodlandApi,
   type KodlandExtraLesson,
   type KodlandExtraManualStatus,
@@ -27,6 +28,7 @@ import {
   type KodlandStudent,
   type DashboardResponse,
 } from "@/lib/api";
+import { holidaysForDate, type CustomHoliday } from "@/lib/holidays";
 import { kodlandLessonLocation } from "@/lib/kodland-lessons";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { freeAvailabilityWindows } from "@/lib/availability-windows";
@@ -50,6 +52,8 @@ type ScheduleEntry = {
   availability?: boolean;
   lesson?: KodlandLesson;
   group?: KodlandGroup;
+  date?: string;
+  holiday?: { name: string; source: "NATIONAL" | "CUSTOM" };
 };
 const dateOnly = (value: string) =>
   value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
@@ -106,6 +110,7 @@ function WeekSchedule({
   refreshNotice,
   onUpdateExtraStatus,
   onMaterialsLoaded,
+  customHolidays,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -120,6 +125,7 @@ function WeekSchedule({
     status: KodlandExtraManualStatus,
   ) => Promise<KodlandExtraLesson>;
   onMaterialsLoaded: (lesson: KodlandLesson) => void;
+  customHolidays: CustomHoliday[];
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
@@ -151,6 +157,7 @@ function WeekSchedule({
       extra: false,
       lesson,
       group: groups.find((group) => group.external_id === lesson.external_class_id),
+      date: dateOnly(lesson.lesson_date),
     }));
   const groupsWithEvent = new Set(entries.map((entry) => entry.title));
   active.forEach((group) => {
@@ -220,6 +227,7 @@ function WeekSchedule({
       extra: false,
       lesson: nearestLesson,
       group,
+      date: isoDate(days[day]),
     });
   });
   extraLessons
@@ -238,6 +246,7 @@ function WeekSchedule({
         extra: true,
         extraState: presentation.state,
         extraLesson: lesson,
+        date: dateOnly(lesson.lesson_date),
       });
     });
   freeAvailabilityWindows(availability, entries).forEach((slot) => {
@@ -251,6 +260,11 @@ function WeekSchedule({
       extra: false,
       availability: true,
     });
+  });
+  entries.forEach((entry) => {
+    if (entry.availability || !entry.date) return;
+    const holiday = holidaysForDate(entry.date, customHolidays)[0];
+    if (holiday) entry.holiday = { name: holiday.name, source: holiday.source };
   });
 
   return (
@@ -292,6 +306,7 @@ function WeekSchedule({
         <span className="week-legend-extra">Extra pendente</span>
         <span className="week-legend-done">Extra realizada</span>
         <span className="week-legend-availability">Disponível</span>
+        <span className="week-legend-holiday">Feriado</span>
       </div>
       <div
         className="week-grid"
@@ -300,6 +315,7 @@ function WeekSchedule({
         aria-label="Grade de horários semanal"
       >
         {days.map((date, day) => {
+          const dayHoliday = holidaysForDate(isoDate(date), customHolidays)[0];
           const dayEntries = entries
             .filter((entry) => entry.day === day)
             .sort((a, b) => a.start.localeCompare(b.start));
@@ -320,15 +336,17 @@ function WeekSchedule({
                     day: "2-digit",
                     month: "2-digit",
                   })}
+                  {dayHoliday && <small className="week-day-holiday">{dayHoliday.name}</small>}
                 </span>
               </header>
               {dayEntries.length ? (
                 dayEntries.map((entry) => {
-                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.extraState ? ` week-slot-extra-${entry.extraState}` : ""}${entry.availability ? " week-slot-availability" : ""}`;
+                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.extraState ? ` week-slot-extra-${entry.extraState}` : ""}${entry.availability ? " week-slot-availability" : ""}${entry.holiday ? " week-slot-holiday" : ""}`;
                   const contents = <>
                     <time>{entry.start} – {entry.end}</time>
                     <strong>{entry.title}</strong>
                     {entry.detail && <span>{entry.detail}</span>}
+                    {entry.holiday && <span className="week-slot-holiday-label">Feriado · {entry.holiday.name}</span>}
                   </>;
                   return entry.group || entry.availability || entry.extra ? (
                     <button
@@ -682,6 +700,7 @@ function KodlandSummary({
   refreshNotice,
   onUpdateExtraStatus,
   onMaterialsLoaded,
+  customHolidays,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -697,6 +716,7 @@ function KodlandSummary({
     status: KodlandExtraManualStatus,
   ) => Promise<KodlandExtraLesson>;
   onMaterialsLoaded: (lesson: KodlandLesson) => void;
+  customHolidays: CustomHoliday[];
 }) {
   const active = groups.filter((group) => !group.archived);
   return (
@@ -726,6 +746,7 @@ function KodlandSummary({
         refreshNotice={refreshNotice}
         onUpdateExtraStatus={onUpdateExtraStatus}
         onMaterialsLoaded={onMaterialsLoaded}
+        customHolidays={customHolidays}
       />
     </div>
   );
@@ -739,6 +760,7 @@ function DashboardPageContent() {
   const [lessons, setLessons] = useState<KodlandLesson[]>([]);
   const [extraLessons, setExtraLessons] = useState<KodlandExtraLesson[]>([]);
   const [availability, setAvailability] = useState<KodlandAvailability[]>([]);
+  const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   const [failed, setFailed] = useState(false);
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
@@ -778,6 +800,7 @@ function DashboardPageContent() {
         kodlandLessons,
         kodlandExtras,
         kodlandAvailability,
+        savedHolidays,
       ] = await Promise.all([
         dashboardApi.get(),
         kodlandApi.groups(),
@@ -786,6 +809,7 @@ function DashboardPageContent() {
         kodlandApi.lessons(),
         kodlandApi.extraLessons(),
         kodlandApi.availability(),
+        holidaysApi.list(),
       ]);
       setDashboard(financial);
       setGroups(kodlandGroups.items);
@@ -794,11 +818,17 @@ function DashboardPageContent() {
       setLessons(kodlandLessons.items);
       setExtraLessons(kodlandExtras.items);
       setAvailability(kodlandAvailability.items);
+      setCustomHolidays(savedHolidays);
       return true;
     } catch {
       setFailed(true);
       return false;
     }
+  }, []);
+  useEffect(() => {
+    const reloadHolidays = () => void holidaysApi.list().then(setCustomHolidays).catch(() => undefined);
+    window.addEventListener("nexusclass:holidays-changed", reloadHolidays);
+    return () => window.removeEventListener("nexusclass:holidays-changed", reloadHolidays);
   }, []);
   const syncSchedule = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -941,6 +971,7 @@ function DashboardPageContent() {
         onMaterialsLoaded={(updated) => {
           setLessons((items) => items.map((item) => item.id === updated.id ? updated : item));
         }}
+        customHolidays={customHolidays}
       />
       <DashboardContent
         state="ready"

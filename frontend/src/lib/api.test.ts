@@ -271,6 +271,21 @@ describe("Firestore financial helpers", () => {
     expect(april).toMatchObject({ lesson_count: 11, total_cents: 49500 });
   });
 
+  it("deixa a plataforma atualizar uma extra marcada manualmente como pendente", () => {
+    expect(__test.reconcileExtraSyncState("PENDING", true)).toEqual({
+      manual_status: undefined,
+      completed: true,
+    });
+    expect(__test.reconcileExtraSyncState("PENDING", false)).toEqual({
+      manual_status: undefined,
+      completed: false,
+    });
+    expect(__test.reconcileExtraSyncState("DONE", false)).toEqual({
+      manual_status: "DONE",
+      completed: true,
+    });
+  });
+
   it("não recalcula uma competência recebida quando a aula cai em feriado", () => {
     const dashboard = __test.dashboardFrom(
       [],

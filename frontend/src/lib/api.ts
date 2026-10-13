@@ -565,6 +565,23 @@ export type CustomHolidayPayload = {
 };
 const paymentWasReceived = (row: Row | undefined) =>
   Boolean(row?.received_at) || String(row?.status ?? "") === "RECEIVED";
+const reconcileExtraSyncState = (
+  previousManualStatus: KodlandExtraManualStatus | undefined,
+  platformCompleted: boolean,
+) => {
+  // "Pendente" is a local provisional choice: the next platform sync must be
+  // able to confirm that the occurrence was conducted. A manually completed
+  // extra remains protected as an explicit financial decision.
+  const manual_status = previousManualStatus === "ACCOUNTED"
+    ? "DONE"
+    : previousManualStatus === "PENDING"
+      ? undefined
+      : previousManualStatus;
+  return {
+    manual_status,
+    completed: manual_status === "DONE" ? true : platformCompleted,
+  };
+};
 const applyHolidayFinancialResolution = (
   lesson: Lesson,
   customHolidays: readonly CustomHoliday[],
@@ -1504,7 +1521,6 @@ export const kodlandApi = {
           .filter(
             (lesson) =>
               lesson.completed !== true &&
-              lesson.manual_status !== "PENDING" &&
               lesson.manual_status !== "DONE" &&
               lesson.manual_status !== "ACCOUNTED",
           )
@@ -1697,17 +1713,13 @@ export const kodlandApi = {
         const previousManualStatus = previous?.manual_status as
           | KodlandExtraManualStatus
           | undefined;
-        const manualStatus =
-          previousManualStatus === "ACCOUNTED" ? "DONE" : previousManualStatus;
+        const syncState = reconcileExtraSyncState(
+          previousManualStatus,
+          item.completed,
+        );
         upserts.push((batch) => batch.set(doc(syncCollection("kodland_extra_lessons"), item.id), firestorePayload({
           ...item,
-          manual_status: manualStatus,
-          completed:
-            manualStatus === "DONE"
-              ? true
-              : manualStatus === "PENDING"
-                ? false
-                : item.completed,
+          ...syncState,
           created_at: String(previous?.created_at ?? createdAt),
           updated_at: createdAt,
         })));
@@ -2131,4 +2143,5 @@ export const __test = {
   normalizeImportedCourseResult,
   importedLessonDocumentId,
   firestorePayload,
+  reconcileExtraSyncState,
 };

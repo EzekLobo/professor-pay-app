@@ -53,7 +53,6 @@ type ScheduleEntry = {
   lesson?: KodlandLesson;
   group?: KodlandGroup;
   date?: string;
-  holiday?: { name: string; source: "NATIONAL" | "CUSTOM" };
 };
 const dateOnly = (value: string) =>
   value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
@@ -261,12 +260,6 @@ function WeekSchedule({
       availability: true,
     });
   });
-  entries.forEach((entry) => {
-    if (entry.availability || !entry.date) return;
-    const holiday = holidaysForDate(entry.date, customHolidays)[0];
-    if (holiday) entry.holiday = { name: holiday.name, source: holiday.source };
-  });
-
   return (
     <section className="panel weekly-schedule" data-tour="dashboard-schedule">
       <div className="section-heading">
@@ -322,7 +315,7 @@ function WeekSchedule({
           const isToday = isoDate(date) === isoDate(new Date());
           return (
             <section
-              className={isToday ? "week-day is-today" : "week-day"}
+              className={`week-day${isToday ? " is-today" : ""}${dayHoliday ? " is-holiday" : ""}`}
               role="gridcell"
               key={isoDate(date)}
             >
@@ -341,12 +334,11 @@ function WeekSchedule({
               </header>
               {dayEntries.length ? (
                 dayEntries.map((entry) => {
-                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.extraState ? ` week-slot-extra-${entry.extraState}` : ""}${entry.availability ? " week-slot-availability" : ""}${entry.holiday ? " week-slot-holiday" : ""}`;
+                  const className = `week-slot${entry.extra ? " week-slot-extra" : ""}${entry.extraState ? ` week-slot-extra-${entry.extraState}` : ""}${entry.availability ? " week-slot-availability" : ""}`;
                   const contents = <>
                     <time>{entry.start} – {entry.end}</time>
                     <strong>{entry.title}</strong>
                     {entry.detail && <span>{entry.detail}</span>}
-                    {entry.holiday && <span className="week-slot-holiday-label">Feriado · {entry.holiday.name}</span>}
                   </>;
                   return entry.group || entry.availability || entry.extra ? (
                     <button

@@ -88,6 +88,8 @@ type ExtraLesson = {
   student_name: string;
   external_class_id: string;
   external_class_name: string;
+  /** Kodland's extra-lesson request, which contains the submitted report. */
+  request_id: string;
   recording_booking_id: string;
   lesson_date: string;
   start_time: string;
@@ -150,7 +152,20 @@ const recordingAvailable = (event: Record<string, unknown>) => {
  */
 const completedFromEvent = (event: Record<string, unknown>) => {
   const completion = completionFlag(event);
-  const status = normalized(event.status ?? event.lesson_status ?? event.state);
+  const status = normalized(
+    [
+      event.status,
+      event.lesson_status,
+      event.state,
+      event.result,
+      event.result_status,
+      event.report_status,
+      record(event.result).status,
+    ]
+      .map(text)
+      .filter(Boolean)
+      .join(" "),
+  );
   // A cancellation or a reschedule always wins over stale completion flags
   // that can still be present in provider calendar payloads.
   if (/postpon|adiad|reschedul|reagend|moved|cancel/.test(status)) {
@@ -536,6 +551,20 @@ async function recordingAvailableForBooking(bookingId: string): Promise<boolean 
   }
 }
 
+/**
+ * The additional-lessons screen fetches this exact resource to show the
+ * teacher report. Its result and recording are primary completion evidence;
+ * the schedule endpoint only tells us that the lesson was booked.
+ */
+async function extraLessonRequestWasCompleted(
+  requestId: string,
+  token: string,
+): Promise<boolean | null> {
+  if (!requestId) return false;
+  const request = await getOptional(`extra_lesson_requests/${requestId}/`, token);
+  return request === null ? null : completedFromEvent(record(request));
+}
+
 export async function mapWithConcurrency<T, R>(
   values: T[],
   limit: number,
@@ -780,6 +809,13 @@ export function extrasFromStudentAgenda(
         event.reservation_id ??
         event.reservationId,
     );
+    const requestId = text(
+      event.extra_lesson_request_id ??
+        event.extraLessonRequestId ??
+        event.extra_lesson_id ??
+        event.extraLessonId ??
+        externalId,
+    );
     if (!isExtra || !lessonDate || !externalId) return [];
     return [
       {
@@ -788,6 +824,7 @@ export function extrasFromStudentAgenda(
         student_name: student.name,
         external_class_id: student.external_class_id,
         external_class_name: student.external_class_name,
+        request_id: requestId,
         recording_booking_id: recordingBookingId,
         lesson_date: lessonDate,
         start_time: timeOnly(
@@ -928,6 +965,13 @@ export function extrasFromTeacherAgenda(
         event.reservation_id ??
         event.reservationId,
     );
+    const requestId = text(
+      event.extra_lesson_request_id ??
+        event.extraLessonRequestId ??
+        event.extra_lesson_id ??
+        event.extraLessonId ??
+        externalId,
+    );
     return [
       {
         id: `kodland-extra-${externalId || index + 1}`,
@@ -935,6 +979,7 @@ export function extrasFromTeacherAgenda(
         student_name: student?.name || titleName || "Aula extra",
         external_class_id: classId,
         external_class_name: className,
+        request_id: requestId,
         recording_booking_id: recordingBookingId,
         lesson_date: lessonDate,
         start_time: startLocal.time,
@@ -978,6 +1023,7 @@ const mergeScheduledExtra = (
   external_class_id: evidence.external_class_id || scheduled.external_class_id,
   external_class_name:
     evidence.external_class_name || scheduled.external_class_name,
+  request_id: evidence.request_id || scheduled.request_id,
   recording_booking_id:
     evidence.recording_booking_id || scheduled.recording_booking_id,
   // The teacher's agenda is authoritative for a postponed lesson's slot.
@@ -1188,14 +1234,33 @@ async function extrasForStudents(
   const recordingsByExtraId = new Map(
     recordingChecks.map((check) => [check.id, check.available]),
   );
+  const requestChecks = await mapWithConcurrency(
+    reconciledExtras.filter((lesson) =>
+      !lesson.completed &&
+      lesson.lesson_date <= teacherToday() &&
+      Boolean(lesson.request_id),
+    ),
+    EXTRA_STUDENT_CONCURRENCY,
+    async (lesson) => ({
+      id: lesson.id,
+      completed: await extraLessonRequestWasCompleted(lesson.request_id, token),
+    }),
+  );
+  const requestsByExtraId = new Map(
+    requestChecks.map((check) => [check.id, check.completed]),
+  );
   const items = reconciledExtras.map((lesson) => ({
     ...lesson,
-    completed: lesson.completed || recordingsByExtraId.get(lesson.id) === true,
+    completed:
+      lesson.completed ||
+      recordingsByExtraId.get(lesson.id) === true ||
+      requestsByExtraId.get(lesson.id) === true,
   }));
   const sourceComplete =
     teacherExtraPayloads.every((payload) => payload !== null) &&
     snapshots.every((items) => items !== null) &&
-    recordingChecks.every((check) => check.available !== null);
+    recordingChecks.every((check) => check.available !== null) &&
+    requestChecks.every((check) => check.completed !== null);
   return {
     items,
     source_available:

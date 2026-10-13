@@ -214,6 +214,7 @@ export type KodlandExtraLesson = {
   student_name: string;
   external_class_id: string;
   external_class_name: string;
+  request_id?: string;
   recording_booking_id?: string;
   lesson_date: string;
   start_time: string;

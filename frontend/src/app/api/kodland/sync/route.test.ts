@@ -301,7 +301,30 @@ describe("extra lesson reconciliation", () => {
 
     expect(extra).toMatchObject({
       completed: false,
+      request_id: "approved-extra-with-booking",
       recording_booking_id: "booking-8842",
+    });
+  });
+
+  it("recognizes the completed result in the additional-lesson report", () => {
+    const [extra] = extrasFromStudentAgenda(
+      [
+        {
+          extra_lesson_id: "completed-extra-request",
+          is_extra: true,
+          date: "2026-10-07",
+          start_time: "20:00",
+          result: "Completed",
+          status: "Approved",
+        },
+      ],
+      students[0],
+      "2026-10-13",
+    );
+
+    expect(extra).toMatchObject({
+      completed: true,
+      request_id: "completed-extra-request",
     });
   });
 

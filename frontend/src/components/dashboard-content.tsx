@@ -155,7 +155,7 @@ export function DashboardContent(props: DashboardContentProps) {
   };
   async function updateLessonStatus(
     lesson: DashboardLesson,
-    status: "" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
+    status: "" | "BILLABLE" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
   ) {
     if (!selectedPayment) return;
     setUpdatingLessonId(lesson.id);
@@ -516,7 +516,7 @@ export function PaymentStatement({
   onMove?: (step: number) => void;
   onLessonFinancialStatusChange?: (
     lesson: DashboardLesson,
-    status: "" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
+    status: "" | "BILLABLE" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
   ) => void;
   updatingLessonId?: string | null;
   onCreateExtra?: (payload: ExtraLessonPayload) => Promise<void> | void;
@@ -659,7 +659,7 @@ export function PaymentStatement({
                   <select
                     className="input button-small"
                     aria-label={`Status financeiro da aula ${lesson.number}`}
-                    value={lesson.financial_status ?? ""}
+                    value={lesson.financial_status === "BILLABLE" ? "BILLABLE" : lesson.financial_status ?? ""}
                     disabled={
                       payment.status === "RECEIVED" ||
                       updatingLessonId === lesson.id
@@ -668,14 +668,15 @@ export function PaymentStatement({
                       onLessonFinancialStatusChange(
                         lesson,
                         event.target.value as
-                          | ""
+                          | "BILLABLE"
                           | "SUBSTITUTION"
                           | "HOLIDAY"
                           | "CANCELED",
                       )
                     }
                   >
-                    <option value="">Contabilizar</option>
+                    <option value="">Usar calendário</option>
+                    <option value="BILLABLE">Contabilizar</option>
                     <option value="SUBSTITUTION">Substituição</option>
                     <option value="HOLIDAY">Feriado</option>
                     <option value="CANCELED">Cancelada</option>

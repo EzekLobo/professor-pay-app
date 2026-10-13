@@ -1,5 +1,12 @@
 # Estado atual
 
+- O atalho **Feriados** no cabeçalho abre um calendário mensal com feriados
+  nacionais derivados localmente e feriados personalizados por usuário. Dias
+  nacionais são somente leitura; o usuário pode criar ou remover seus próprios
+  dias. Em competências abertas, aulas em feriado ficam fora da previsão sem
+  alterar a agenda Kodland. A exceção `BILLABLE` permite contabilizar uma
+  reposição; competências recebidas preservam o histórico.
+
 - A sincronização completa em **Dados e backup** agora também carrega os
   materiais das aulas pendentes (slides, roteiros, tarefas em sala e lição de
   casa). A carga é dividida automaticamente em lotes de quatro aulas, com no

@@ -99,11 +99,19 @@ Cada conta usa somente as subcoleções abaixo:
 - `users/{uid}/classes`
 - `users/{uid}/lessons`
 - `users/{uid}/payments`
+- `users/{uid}/holidays`
 
 As regras exigem que `request.auth.uid` seja igual ao `{uid}` da URL. O frontend
 usa lotes para gerar aulas de uma turma, importar dados e resetar as três
 coleções. As regras devem ser revisadas no Firebase Emulator Suite antes de uma
 mudança de esquema.
+
+## Calendário de feriados
+
+O aplicativo deriva os feriados nacionais no próprio cliente. Apenas feriados
+personalizados são gravados em `users/{uid}/holidays/{YYYY-MM-DD}`, com data,
+nome e datas de auditoria. Uma aula em feriado deixa de compor somente uma
+competência ainda aberta; pagamentos recebidos preservam o histórico financeiro.
 
 As coleções `admin_access_sessions` e `admin_usage_daily` são gravadas apenas
 pelas rotas de servidor com credenciais administrativas. Elas não exigem nem

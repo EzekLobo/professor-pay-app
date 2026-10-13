@@ -200,7 +200,7 @@ function Content() {
   }
   async function updateLessonFinancialStatus(
     lesson: DashboardLesson,
-    status: "" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
+    status: "" | "BILLABLE" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
   ) {
     if (!detail) return;
     setUpdatingLessonId(lesson.id);

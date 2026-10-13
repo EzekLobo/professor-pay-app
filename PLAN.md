@@ -821,7 +821,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     grade com o rótulo Feriado.
   - Depende de: R14.1.
 
-- [ ] R14.3 - Extrato, documentação e validação final
+- [x] R14.3 - Extrato, documentação e validação final
   - Escopo: integrar o status derivado ao resumo e a Pagamentos, migrar o
     seletor "Contabilizar" para `BILLABLE`, documentar o modelo Firestore e
     executar as validações completas.
@@ -853,3 +853,12 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   focado dos arquivos alterados passa.
 - Para a próxima tarefa: integrar o seletor financeiro ao estado explícito
   `BILLABLE` e conferir o cálculo do extrato com o status derivado.
+
+##### R14.3
+
+- Mudou: o extrato usa `BILLABLE` para contabilizar explicitamente uma aula em
+  feriado e mantém “Usar calendário” para remover a exceção. A documentação
+  descreve a subcoleção privada de feriados.
+- Verificado: typecheck, testes de API, build e diff check passam. O lint
+  completo permanece bloqueado por mudança local não relacionada em
+  `frontend/src/app/demo/page.tsx`, que acessa `ref.current` durante render.

@@ -172,8 +172,8 @@ describe("Firestore financial helpers", () => {
     ).toMatchObject({
       period: "10/2026",
       payment_date: "2026-11-15",
-      lesson_count: 4,
-      total_cents: 18000,
+      lesson_count: 3,
+      total_cents: 13500,
     });
   });
 
@@ -267,8 +267,31 @@ describe("Firestore financial helpers", () => {
       (payment) => payment.period === "04/2026",
     );
 
-    // Abril teria 13 encontros semanais das três turmas; a substituição não entra no orçamento.
-    expect(april).toMatchObject({ lesson_count: 12, total_cents: 54000 });
+    // Abril teria 13 encontros semanais; substituição e Tiradentes não entram no orçamento.
+    expect(april).toMatchObject({ lesson_count: 11, total_cents: 49500 });
+  });
+
+  it("não recalcula uma competência recebida quando a aula cai em feriado", () => {
+    const dashboard = __test.dashboardFrom(
+      [],
+      [{
+        id: "good-friday",
+        lesson_date: "2026-04-03",
+        duration_minutes: 60,
+        hourly_rate_cents: 3000,
+        active: true,
+        canceled: false,
+        type: "NORMAL",
+        created_at: "2026-01-01",
+      }],
+      [{ id: "2026-05-15", payment_date: "2026-05-15", status: "RECEIVED", received_at: "2026-05-15T12:00:00Z" }],
+      [],
+      [],
+      "2026-04-01",
+    );
+
+    expect(dashboard.total_planned_cents).toBe(3000);
+    expect(dashboard.payments[0]).toMatchObject({ status: "RECEIVED", total_cents: 3000 });
   });
 
   it("normaliza aulas importadas em uma colecao separada da agenda sincronizada", () => {

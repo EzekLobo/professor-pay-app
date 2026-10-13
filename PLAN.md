@@ -792,3 +792,54 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   check. A prova operacional com uma conta maior e os logs da Vercel seguem
   pendentes de acesso autorizado; `maxDuration` não foi declarado porque o
   limite efetivo do projeto Vercel não foi confirmado.
+
+### R14 - Calendário de feriados e regra financeira automática
+
+> Estado: em execução. Feriados nacionais são derivados no cliente por data em
+> `America/Sao_Paulo`; feriados personalizados são privados por usuário. A
+> agenda Kodland não será alterada: o calendário afeta a identificação visual e
+> a previsão financeira das competências ainda não recebidas.
+
+- [x] R14.1 - Domínio de feriados e resolução financeira
+  - Escopo: criar o catálogo de feriados nacionais e a persistência de feriados
+    personalizados; resolver o status financeiro efetivo por aula sem gravar
+    automaticamente sobre os dados sincronizados.
+  - Regra: uma exceção explícita da aula (`BILLABLE`, `HOLIDAY`,
+    `SUBSTITUTION` ou `CANCELED`) prevalece sobre o calendário. Status vazio
+    significa ausência de exceção. Competências recebidas não são recalculadas.
+  - Aceitação: testes cobrem feriados fixos e móveis, fuso de São Paulo,
+    isolamento por usuário, `BILLABLE` em feriado e preservação de competência
+    recebida.
+  - Depende de: nenhuma.
+
+- [ ] R14.2 - Calendário e sinalização da grade
+  - Escopo: adicionar o botão de calendário ao cabeçalho e um modal mensal que
+    mostra nacionais e personalizados, permite cadastrar/remover somente os
+    personalizados e sinaliza feriados na grade semanal.
+  - Aceitação: o botão é acessível; nacionais são somente leitura;
+    personalizados podem ser criados/removidos; uma aula afetada permanece na
+    grade com o rótulo Feriado.
+  - Depende de: R14.1.
+
+- [ ] R14.3 - Extrato, documentação e validação final
+  - Escopo: integrar o status derivado ao resumo e a Pagamentos, migrar o
+    seletor "Contabilizar" para `BILLABLE`, documentar o modelo Firestore e
+    executar as validações completas.
+  - Aceitação: aulas em feriado não entram em competências abertas; uma
+    reposição explicitamente contabilizável entra no total; competências
+    recebidas seguem imutáveis; typecheck, lint, Vitest, build e diff check
+    passam.
+  - Depende de: R14.1, R14.2.
+
+#### Handoff R14
+
+##### R14.1
+
+- Mudou: `frontend/src/lib/holidays.ts` gera o calendário nacional e resolve o
+  status financeiro sem regravar dados da Kodland. `holidaysApi` persiste apenas
+  feriados personalizados sob o usuário autenticado.
+- Verificado: `npm.cmd test -- holidays`, `npm.cmd run typecheck` e
+  `git diff --check` passam.
+- Para a próxima tarefa: a interface deve consumir `holidaysApi` e a propriedade
+  `DashboardLesson.holiday`; `BILLABLE` é a exceção explícita para contabilizar
+  uma aula que coincida com feriado.

@@ -12,6 +12,12 @@ import {
 } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { reauthenticateWithFirebase } from "@/lib/firebase-auth";
+import {
+  customHolidayDocumentId,
+  type CustomHoliday,
+  type FinancialOverrideStatus,
+  resolveFinancialStatus,
+} from "@/lib/holidays";
 import type { KodlandLesson } from "@/lib/kodland-lessons";
 import {
   KodlandSyncPersistenceError,
@@ -36,6 +42,7 @@ export type DashboardLesson = {
   status: string;
   financial_status?: string;
   financial_source_id?: string;
+  holiday?: { date: string; name: string; source: "NATIONAL" | "CUSTOM" };
 };
 export type DashboardPayment = {
   payment_date: string;
@@ -552,6 +559,36 @@ const asLesson = (row: Row, today = isoToday()): Lesson => {
       : undefined,
   };
 };
+export type CustomHolidayPayload = {
+  date: string;
+  name: string;
+};
+const paymentWasReceived = (row: Row | undefined) =>
+  Boolean(row?.received_at) || String(row?.status ?? "") === "RECEIVED";
+const applyHolidayFinancialResolution = (
+  lesson: Lesson,
+  customHolidays: readonly CustomHoliday[],
+  paymentReceived: boolean,
+): Lesson => {
+  const resolution = resolveFinancialStatus({
+    lessonDate: lesson.lesson_date,
+    financialStatus: lesson.financial_status,
+    customHolidays,
+    paymentReceived,
+  });
+  // Received competencies are a historical record: automatic calendar changes
+  // must not alter their persisted financial result.
+  if (paymentReceived) return lesson;
+  const canceled = lesson.canceled || !resolution.isBillable;
+  return {
+    ...lesson,
+    active: lesson.active && !canceled,
+    canceled,
+    status: !lesson.active || canceled ? "CANCELED" : lesson.status,
+    financial_status: resolution.financialStatus || lesson.financial_status,
+    holiday: resolution.holiday ?? undefined,
+  };
+};
 const dateOnly = (value: unknown) => {
   const match = String(value ?? "").match(/^\d{4}-\d{2}-\d{2}/);
   return match?.[0] ?? "";
@@ -741,7 +778,11 @@ const dashboardFrom = (
   today = isoToday(),
   kodlandExtraLessons: Row[] = [],
   financialOverrides: Row[] = [],
+  customHolidays: CustomHoliday[] = [],
 ): DashboardResponse => {
+  const receivedPaymentDates = new Set(
+    confirmations.filter(paymentWasReceived).map((item) => String(item.payment_date)),
+  );
   const lessons = [
     ...lessonRows.map((row) => asLesson(row, today)),
     ...kodlandFinancialLessons(
@@ -752,7 +793,11 @@ const dashboardFrom = (
       financialOverrides,
     ),
     ...kodlandExtraFinancialLessons(kodlandExtraLessons, today),
-  ];
+  ].map((lesson) => applyHolidayFinancialResolution(
+    lesson,
+    customHolidays,
+    receivedPaymentDates.has(lesson.payment_date),
+  ));
   const billable = lessons.filter((item) => item.active && !item.canceled);
   const lessonsByPaymentDate = new Map<string, Lesson[]>();
   lessons.forEach((item) =>
@@ -1127,7 +1172,47 @@ export const dashboardApi = {
       isoToday(),
       await rows("kodland_extra_lessons"),
       await rows("kodland_financial_overrides"),
+      (await rows("holidays")) as unknown as CustomHoliday[],
     ),
+};
+export const holidaysApi = {
+  list: async (): Promise<CustomHoliday[]> =>
+    (await rows("holidays"))
+      .filter((item) => item.source === "CUSTOM")
+      .map((item) => ({
+        id: String(item.id),
+        date: String(item.date),
+        name: String(item.name),
+        source: "CUSTOM" as const,
+        affects_financial_total: true as const,
+        created_at: String(item.created_at),
+        updated_at: String(item.updated_at ?? item.created_at),
+      })),
+  save: async ({ date, name }: CustomHolidayPayload): Promise<CustomHoliday> => {
+    const id = customHolidayDocumentId(date);
+    const normalizedName = name.trim().slice(0, 120);
+    if (!normalizedName) throw new ApiError(400, "Informe o nome do feriado.");
+    const existing = await getDoc(doc(ref("holidays"), id));
+    const existingData = existing.data();
+    const createdAt = existing.exists()
+      ? String(existingData?.created_at ?? now())
+      : now();
+    const record: CustomHoliday = {
+      id,
+      date,
+      name: normalizedName,
+      source: "CUSTOM",
+      affects_financial_total: true,
+      created_at: createdAt,
+      updated_at: now(),
+    };
+    await setDoc(doc(ref("holidays"), id), record);
+    return record;
+  },
+  remove: async (date: string) => {
+    const id = customHolidayDocumentId(date);
+    await deleteDoc(doc(ref("holidays"), id));
+  },
 };
 export const classesApi = {
   list: async (active = true) => {
@@ -1317,7 +1402,7 @@ export const paymentsApi = {
     paymentDate: string,
     financialLessonId: string,
     sourceLessonId: string | undefined,
-    status: "" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED",
+    status: "" | FinancialOverrideStatus,
   ) => {
     if (
       (await rows("payments")).some(

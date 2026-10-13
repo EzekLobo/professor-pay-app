@@ -272,18 +272,28 @@ describe("Firestore financial helpers", () => {
   });
 
   it("deixa a plataforma atualizar uma extra marcada manualmente como pendente", () => {
-    expect(__test.reconcileExtraSyncState("PENDING", true)).toEqual({
+    expect(__test.reconcileExtraSyncState("PENDING", true, false)).toEqual({
       manual_status: undefined,
       completed: true,
     });
-    expect(__test.reconcileExtraSyncState("PENDING", false)).toEqual({
+    expect(__test.reconcileExtraSyncState("PENDING", false, true)).toEqual({
       manual_status: undefined,
       completed: false,
     });
-    expect(__test.reconcileExtraSyncState("DONE", false)).toEqual({
+    expect(__test.reconcileExtraSyncState("PENDING", false, false)).toEqual({
+      manual_status: "PENDING",
+      completed: false,
+    });
+    expect(__test.reconcileExtraSyncState("DONE", false, false)).toEqual({
       manual_status: "DONE",
       completed: true,
     });
+  });
+
+  it("não apaga extras pendentes quando a plataforma respondeu parcialmente", () => {
+    const item = { id: "extra-1", completed: false } as never;
+    expect(__test.shouldDeleteStaleExtra(item, new Set(), false)).toBe(false);
+    expect(__test.shouldDeleteStaleExtra(item, new Set(), true)).toBe(true);
   });
 
   it("não recalcula uma competência recebida quando a aula cai em feriado", () => {

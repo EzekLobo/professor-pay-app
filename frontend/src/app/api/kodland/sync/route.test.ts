@@ -201,6 +201,52 @@ describe("extra lesson reconciliation", () => {
     expect(extra.completed).toBe(true);
   });
 
+  it("keeps a cancelled extra pending even when a stale completion flag is true", () => {
+    const [extra] = extrasFromStudentAgenda(
+      [{
+        extra_lesson_id: "cancelled-extra",
+        is_extra: true,
+        date: "2026-10-03",
+        start_time: "18:00",
+        end_time: "19:00",
+        completed: true,
+        status: "Cancelled",
+      }],
+      students[0],
+      "2026-10-10",
+    );
+
+    expect(extra.completed).toBe(false);
+  });
+
+  it("keeps a same-day extra pending until its scheduled end", () => {
+    const payload = [{
+      extra_lesson_id: "today-extra",
+      is_extra: true,
+      date: "2026-10-14",
+      start_time: "19:00",
+      end_time: "20:00",
+      completed: true,
+      status: "Completed",
+    }];
+
+    const [beforeEnd] = extrasFromStudentAgenda(
+      payload,
+      students[0],
+      "2026-10-14",
+      new Date("2026-10-14T19:30:00-03:00"),
+    );
+    const [afterEnd] = extrasFromStudentAgenda(
+      payload,
+      students[0],
+      "2026-10-14",
+      new Date("2026-10-14T20:01:00-03:00"),
+    );
+
+    expect(beforeEnd.completed).toBe(false);
+    expect(afterEnd.completed).toBe(true);
+  });
+
   it("does not treat an approved request without a recording as completed", () => {
     const [extra] = extrasFromStudentAgenda(
       [

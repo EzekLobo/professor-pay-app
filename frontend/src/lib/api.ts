@@ -300,6 +300,7 @@ type KodlandSnapshot = {
   availability: Omit<KodlandAvailability, "created_at">[];
   review_group_ids?: string[];
   extra_lessons_synced?: boolean;
+  extra_lessons_complete?: boolean;
   availability_synced?: boolean;
 };
 
@@ -568,6 +569,7 @@ const paymentWasReceived = (row: Row | undefined) =>
 const reconcileExtraSyncState = (
   previousManualStatus: KodlandExtraManualStatus | undefined,
   platformCompleted: boolean,
+  platformVerificationComplete: boolean,
 ) => {
   // "Pendente" is a local provisional choice: the next platform sync must be
   // able to confirm that the occurrence was conducted. A manually completed
@@ -575,13 +577,25 @@ const reconcileExtraSyncState = (
   const manual_status = previousManualStatus === "ACCOUNTED"
     ? "DONE"
     : previousManualStatus === "PENDING"
-      ? undefined
+      // Do not replace a human decision with an absence of provider data.
+      // A confirmed completion remains enough to promote the lesson even if
+      // an unrelated calendar source had a transient failure.
+      ? platformCompleted || platformVerificationComplete ? undefined : "PENDING"
       : previousManualStatus;
   return {
     manual_status,
     completed: manual_status === "DONE" ? true : platformCompleted,
   };
 };
+const shouldDeleteStaleExtra = (
+  item: Row,
+  incomingExtraIds: ReadonlySet<string>,
+  platformVerificationComplete: boolean,
+) =>
+  platformVerificationComplete &&
+  item.completed !== true &&
+  !item.manual_status &&
+  !incomingExtraIds.has(String(item.id));
 const applyHolidayFinancialResolution = (
   lesson: Lesson,
   customHolidays: readonly CustomHoliday[],
@@ -1697,9 +1711,11 @@ export const kodlandApi = {
       const incomingExtraIds = new Set(extraLessons.map((item) => item.id));
       oldExtraLessons
         .filter((item) =>
-          item.completed !== true &&
-          !item.manual_status &&
-          !incomingExtraIds.has(String(item.id)),
+          shouldDeleteStaleExtra(
+            item,
+            incomingExtraIds,
+            snapshot.extra_lessons_complete === true,
+          ),
         )
         .forEach((item) =>
           deletes.push((batch) =>
@@ -1716,6 +1732,7 @@ export const kodlandApi = {
         const syncState = reconcileExtraSyncState(
           previousManualStatus,
           item.completed,
+          snapshot.extra_lessons_complete === true,
         );
         upserts.push((batch) => batch.set(doc(syncCollection("kodland_extra_lessons"), item.id), firestorePayload({
           ...item,
@@ -2144,4 +2161,5 @@ export const __test = {
   importedLessonDocumentId,
   firestorePayload,
   reconcileExtraSyncState,
+  shouldDeleteStaleExtra,
 };

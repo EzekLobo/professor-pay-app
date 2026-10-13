@@ -103,6 +103,8 @@ type Availability = {
 type SyncCollection<T> = {
   items: T[];
   source_available: boolean;
+  /** True only when every source needed to reconcile this collection replied. */
+  source_complete: boolean;
 };
 
 const completionFlag = (event: Record<string, unknown>) =>
@@ -147,15 +149,17 @@ const recordingAvailable = (event: Record<string, unknown>) => {
  */
 const completedFromEvent = (event: Record<string, unknown>) => {
   const completion = completionFlag(event);
+  const status = normalized(event.status ?? event.lesson_status ?? event.state);
+  // A cancellation or a reschedule always wins over stale completion flags
+  // that can still be present in provider calendar payloads.
+  if (/postpon|adiad|reschedul|reagend|moved|cancel/.test(status)) {
+    return false;
+  }
   // Some agenda payloads keep `completed: false` even after their textual
   // state has advanced to Conducted/Completed. An explicit positive flag is
   // conclusive, while a stale false must not hide other completion evidence.
   if (explicitBoolean(completion) && flag(completion)) return true;
 
-  const status = normalized(event.status ?? event.lesson_status ?? event.state);
-  if (/postpon|adiad|reschedul|reagend|moved|cancel/.test(status)) {
-    return false;
-  }
   if (/completed|complete|passed|done|finished|held|conducted|given|realizada|concluida|ministrada/.test(status)) {
     return true;
   }
@@ -175,11 +179,36 @@ const teacherToday = (reference = new Date()) => {
   return `${part("year")}-${part("month")}-${part("day")}`;
 };
 
+const teacherTime = (reference = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(reference);
+  const part = (type: string) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("hour")}:${part("minute")}`;
+};
+
 const completedByScheduledDate = (
   event: Record<string, unknown>,
   lessonDate: string,
   today: string,
-) => lessonDate <= today && completedFromEvent(event);
+  reference = new Date(),
+) => {
+  if (lessonDate > today || !completedFromEvent(event)) return false;
+  // A provider may create the event with a premature completed flag. On the
+  // current day, wait until its scheduled end before it affects finances.
+  // `today` can be injected by reconciliation tests and historical imports;
+  // only the actual current date needs the hour-level protection.
+  if (lessonDate !== teacherToday(reference)) return true;
+  const scheduledEnd = timeOnly(
+    event.end_time ?? event.endTime ?? event.end ?? event.end_at ??
+      event.endAt ?? event.finish_at ?? event.finishAt,
+  );
+  return Boolean(scheduledEnd) && scheduledEnd <= teacherTime(reference);
+};
 
 const sso = "https://sso.production.kodland.org/";
 const api = "https://backoffice.kodland.org/api/v2/";
@@ -657,6 +686,7 @@ export function extrasFromStudentAgenda(
   payload: unknown,
   student: Student,
   today = teacherToday(),
+  reference = new Date(),
 ): ExtraLesson[] {
   return scheduleItems(payload).flatMap((value, index) => {
     const item = record(value);
@@ -699,7 +729,7 @@ export function extrasFromStudentAgenda(
         event.datetime,
     );
     const status = text(event.status ?? event.lesson_status ?? event.state);
-    const completed = completedByScheduledDate(event, lessonDate, today);
+    const completed = completedByScheduledDate(event, lessonDate, today, reference);
     const externalId = text(
       event.extra_lesson_id ??
         event.id ??
@@ -746,6 +776,7 @@ export function extrasFromTeacherAgenda(
   payload: unknown,
   students: Student[],
   today = teacherToday(),
+  reference = new Date(),
 ): ExtraLesson[] {
   const byStudentId = new Map(
     students.map((student) => [student.external_id, student]),
@@ -863,7 +894,7 @@ export function extrasFromTeacherAgenda(
             event.finishAt,
         ).time,
         status,
-        completed: completedByScheduledDate(event, lessonDate, today),
+        completed: completedByScheduledDate(event, lessonDate, today, reference),
       },
     ];
   });
@@ -1080,18 +1111,22 @@ async function extrasForStudents(
         `students/${student.external_id}/schedule_view/`,
         token,
       );
-      return agenda ? extrasFromStudentAgenda(agenda, student) : [];
+      return agenda === null ? null : extrasFromStudentAgenda(agenda, student);
     },
   );
+  const sourceComplete =
+    teacherExtraPayloads.every((payload) => payload !== null) &&
+    snapshots.every((items) => items !== null);
   return {
     items: mergeExtraLessons(
       scheduledExtras,
-      snapshots.flat(),
+      snapshots.flatMap((items) => items ?? []),
     ),
     source_available:
       teacherSchedule !== null ||
       teacherExtraPayloads.some((payload) => payload !== null) ||
-      snapshots.some((items) => items.length > 0),
+      snapshots.some((items) => (items?.length ?? 0) > 0),
+    source_complete: sourceComplete,
   };
 }
 
@@ -1402,6 +1437,7 @@ export async function POST(request: NextRequest) {
       extra_lessons: [] as ExtraLesson[],
       availability: [] as Availability[],
       extra_lessons_synced: false,
+      extra_lessons_complete: false,
       availability_synced: false,
     });
     if (mode === "materials") {
@@ -1618,6 +1654,7 @@ export async function POST(request: NextRequest) {
         lessons: [],
         extra_lessons: extraSnapshot.items,
         extra_lessons_synced: extraSnapshot.source_available,
+        extra_lessons_complete: extraSnapshot.source_complete,
         availability: availabilityFromTeacherTimetable(availabilityPayload),
         availability_synced: availabilityPayload !== null,
       });
@@ -1639,6 +1676,7 @@ export async function POST(request: NextRequest) {
       lessons: snapshots.flatMap((item) => item.lessons),
       extra_lessons: extraSnapshot.items,
       extra_lessons_synced: extraSnapshot.source_available,
+      extra_lessons_complete: extraSnapshot.source_complete,
       availability: availabilityFromTeacherTimetable(availabilityPayload),
       availability_synced: availabilityPayload !== null,
     });

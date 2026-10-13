@@ -359,23 +359,29 @@ select:focus-visible {
 }
 .header-calendar-button { min-height: 38px; display: inline-flex; align-items: center; gap: 7px; border-color: rgb(250 204 21 / 42%); color: #fde68a; font-size: .78rem; font-weight: 800; }
 .header-calendar-button:hover { background: rgb(250 204 21 / 10%); color: #fef3c7; }
-.holiday-calendar-modal { width: min(720px, calc(100vw - 32px)); }
+.holiday-calendar-modal {
+  width: min(720px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 22px;
+}
 .holiday-calendar-navigation { display: grid; grid-template-columns: 42px 1fr 42px; align-items: center; gap: 10px; margin: 18px 0 12px; text-align: center; text-transform: capitalize; }
 .calendar-nav-button { display: grid; width: 38px; min-height: 38px; place-items: center; padding: 0; }
 .holiday-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .holiday-calendar-weekday { padding: 4px; color: var(--subtle); font-size: .72rem; font-weight: 800; text-align: center; text-transform: uppercase; }
-.holiday-calendar-day { display: flex; min-height: 62px; flex-direction: column; gap: 4px; border: 1px solid var(--border); border-radius: 9px; padding: 7px; color: var(--muted); font-size: .72rem; }
+.holiday-calendar-day { display: flex; min-height: 48px; flex-direction: column; gap: 2px; border: 1px solid var(--border); border-radius: 9px; padding: 6px; color: var(--muted); font-size: .72rem; }
 .holiday-calendar-day time { color: var(--text); font-size: .82rem; font-weight: 800; }
-.holiday-calendar-day small { overflow: hidden; color: inherit; font-size: .65rem; line-height: 1.2; text-overflow: ellipsis; }
+.holiday-calendar-day small { overflow: hidden; color: inherit; font-size: .61rem; line-height: 1.1; text-overflow: ellipsis; }
 .holiday-calendar-day-national { border-color: rgb(250 204 21 / 58%); background: rgb(250 204 21 / 12%); color: #fde68a; }
 .holiday-calendar-day-custom { border-color: rgb(168 120 255 / 62%); background: rgb(168 120 255 / 13%); color: #dbc8ff; }
 .holiday-calendar-legend { display: flex; gap: 12px; margin: 12px 0; color: var(--muted); font-size: .75rem; }
 .holiday-calendar-legend span::before { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 999px; content: ""; }
 .holiday-national::before { background: #facc15; }.holiday-custom::before { background: #a878ff; }
-.holiday-list { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 14px; }.holiday-list h3, .holiday-form h3 { margin: 0 0 10px; font-size: .9rem; }
+.holiday-list { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }.holiday-list h3, .holiday-form h3 { margin: 0 0 8px; font-size: .9rem; }
 .holiday-list ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }.holiday-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--border); border-radius: 9px; padding: 9px 10px; }.holiday-list small { display: block; margin-top: 2px; color: var(--subtle); font-size: .72rem; }
 .holiday-remove-button { display: grid; min-width: 34px; min-height: 34px; place-items: center; border: 1px solid rgb(248 113 113 / 48%); border-radius: 8px; background: transparent; color: #fca5a5; }.holiday-remove-button:hover { background: rgb(248 113 113 / 12%); }
-.holiday-form { display: grid; grid-template-columns: minmax(150px, .65fr) 1fr; gap: 12px; margin-top: 18px; border-top: 1px solid var(--border); padding-top: 14px; }.holiday-form h3, .holiday-form .form-error, .holiday-form .form-actions { grid-column: 1 / -1; }.holiday-form .form-actions { margin-top: 0; }
+.holiday-form { display: grid; grid-template-columns: minmax(150px, .65fr) 1fr; gap: 10px; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }.holiday-form h3, .holiday-form .form-error, .holiday-form .form-actions { grid-column: 1 / -1; }.holiday-form .form-actions { margin-top: 0; }
 .header-admin-link {
   display: inline-flex;
   min-height: 36px;
@@ -631,6 +637,11 @@ select:focus-visible {
   margin-top: 0;
 }
 .modal-dialog { position: relative; overflow: visible; }
+.modal-dialog.holiday-calendar-modal {
+  max-height: calc(100dvh - 24px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
 .modal-help-trigger { min-height: 36px; padding: 6px 10px; color: #d4b7ff; font-size: .8rem; font-weight: 800; }
 .modal-help-trigger[aria-expanded="true"] { border-color: #b68cff; background: rgb(154 98 255 / 16%); }
 .modal-guide-layer {

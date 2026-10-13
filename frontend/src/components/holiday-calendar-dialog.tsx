@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modal";
 import { Button, Input } from "@/components/ui";
@@ -18,10 +18,9 @@ export function HolidayCalendarDialog({ open, onClose }: { open: boolean; onClos
   const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   const [date, setDate] = useState("");
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const load = async () => { setLoading(true); setError(""); try { setCustomHolidays(await holidaysApi.list()); } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível carregar os feriados personalizados."); } finally { setLoading(false); } };
+  const load = async () => { setError(""); try { setCustomHolidays(await holidaysApi.list()); } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível carregar os feriados personalizados."); } };
   // Loading starts only when the dialog becomes visible; this synchronizes the
   // dialog with the authenticated Firestore collection, not with render state.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -33,14 +32,12 @@ export function HolidayCalendarDialog({ open, onClose }: { open: boolean; onClos
   const changeMonth = (delta: number) => setCursor((current) => { const next = new Date(Date.UTC(current.year, current.month + delta, 1)); return { year: next.getUTCFullYear(), month: next.getUTCMonth() }; });
   const changed = () => window.dispatchEvent(new Event("nexusclass:holidays-changed"));
   const save = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (saving) return; setSaving(true); setError(""); try { const saved = await holidaysApi.save({ date, name }); setCustomHolidays((items) => [...items.filter((item) => item.id !== saved.id), saved]); setDate(""); setName(""); changed(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível salvar o feriado."); } finally { setSaving(false); } };
-  const remove = async (holiday: CustomHoliday) => { if (saving) return; setSaving(true); setError(""); try { await holidaysApi.remove(holiday.date); setCustomHolidays((items) => items.filter((item) => item.id !== holiday.id)); changed(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível remover o feriado."); } finally { setSaving(false); } };
   const label = monthName.format(new Date(Date.UTC(cursor.year, cursor.month, 1)));
   return <Modal open={open} onClose={() => !saving && onClose()} title="Calendário de feriados" className="holiday-calendar-modal">
     <p className="muted">Feriados nacionais não entram automaticamente na previsão. Cadastre também os dias locais, escolares ou pessoais.</p>
     <div className="holiday-calendar-navigation"><button type="button" className="button button-ghost calendar-nav-button" aria-label="Mês anterior" onClick={() => changeMonth(-1)}><ChevronLeft size={18} aria-hidden="true" /></button><strong>{label}</strong><button type="button" className="button button-ghost calendar-nav-button" aria-label="Próximo mês" onClick={() => changeMonth(1)}><ChevronRight size={18} aria-hidden="true" /></button></div>
     <div className="holiday-calendar-grid" role="grid" aria-label={`Calendário de ${label}`}>{weekdayNames.map((weekday) => <span className="holiday-calendar-weekday" role="columnheader" key={weekday}>{weekday}</span>)}{days.map((day, index) => { if (!day) return <span className="holiday-calendar-empty" aria-hidden="true" key={`empty-${index}`} />; const iso = monthDate(cursor.year, cursor.month, day); const holiday = holidaysByDate.get(iso); return <span className={holiday ? `holiday-calendar-day holiday-calendar-day-${holiday.source.toLowerCase()}` : "holiday-calendar-day"} role="gridcell" title={holiday ? `${holiday.name} (${holiday.source === "NATIONAL" ? "nacional" : "personalizado"})` : undefined} key={iso}><time dateTime={iso}>{day}</time>{holiday && <small>{holiday.name}</small>}</span>; })}</div>
     <div className="holiday-calendar-legend" aria-label="Legenda"><span className="holiday-national">Nacional</span><span className="holiday-custom">Personalizado</span></div>
-    <section className="holiday-list" aria-live="polite"><h3>Feriados do mês</h3>{loading ? <p className="muted">Carregando…</p> : monthHolidays.length ? <ul>{monthHolidays.map((holiday) => <li key={`${holiday.source}-${holiday.date}-${holiday.name}`}><span><strong>{holiday.name}</strong><small>{holiday.date.split("-").reverse().join("/")} · {holiday.source === "NATIONAL" ? "Nacional" : "Personalizado"}</small></span>{holiday.source === "CUSTOM" && <button type="button" className="holiday-remove-button" aria-label={`Remover ${holiday.name}`} title="Remover feriado personalizado" disabled={saving} onClick={() => void remove(holiday as CustomHoliday)}><Trash2 size={16} aria-hidden="true" /></button>}</li>)}</ul> : <p className="muted">Nenhum feriado neste mês.</p>}</section>
     <form className="form holiday-form" onSubmit={save}><h3>Adicionar feriado personalizado</h3><label className="field">Data<Input type="date" required value={date} disabled={saving} onChange={(event) => setDate(event.target.value)} /></label><label className="field">Nome<Input required maxLength={120} value={name} disabled={saving} placeholder="Ex.: Feriado municipal" onChange={(event) => setName(event.target.value)} /></label>{error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions"><Button type="submit" disabled={saving}>{saving ? "Salvando…" : "Adicionar feriado"}</Button></div></form>
   </Modal>;
 }

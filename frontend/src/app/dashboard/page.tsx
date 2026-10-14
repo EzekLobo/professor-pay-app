@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { DashboardContent } from "@/components/dashboard-content";
 import {
@@ -10,11 +10,7 @@ import {
 } from "@/components/lesson-material-modal";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
-import { Button, Input } from "@/components/ui";
-import {
-  rememberKodlandCredentials,
-  restoreKodlandCredentials,
-} from "@/lib/browser-credentials";
+import { restoreKodlandCredentials } from "@/lib/browser-credentials";
 import {
   ApiError,
   dashboardApi,
@@ -756,31 +752,13 @@ function DashboardPageContent() {
   const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   const [failed, setFailed] = useState(false);
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
-  const [syncOpen, setSyncOpen] = useState(false);
-  const [syncError, setSyncError] = useState("");
   const [refreshNotice, setRefreshNotice] = useState("");
-  const [syncUsername, setSyncUsername] = useState(() =>
-    typeof window === "undefined"
-      ? ""
-      : window.localStorage.getItem("aulapay.kodland.username") ?? "",
-  );
 
   useEffect(() => {
     if (!refreshNotice) return;
     const timeout = window.setTimeout(() => setRefreshNotice(""), 6000);
     return () => window.clearTimeout(timeout);
   }, [refreshNotice]);
-  const [syncPassword, setSyncPassword] = useState("");
-  const [saveCredentials, setSaveCredentials] = useState(true);
-  const openSync = useCallback(() => {
-    setSyncError("");
-    setSyncOpen(true);
-    void restoreKodlandCredentials().then((credentials) => {
-      if (!credentials) return;
-      setSyncUsername((current) => current || credentials.username);
-      setSyncPassword((current) => current || credentials.password);
-    });
-  }, []);
   const load = useCallback(async (keepContent = false) => {
     setFailed(false);
     if (!keepContent) setDashboard(null);
@@ -823,46 +801,36 @@ function DashboardPageContent() {
     window.addEventListener("nexusclass:holidays-changed", reloadHolidays);
     return () => window.removeEventListener("nexusclass:holidays-changed", reloadHolidays);
   }, []);
-  const syncSchedule = useCallback(async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = event.currentTarget;
+  const refreshSchedule = useCallback(async () => {
     if (refreshingSchedule) return;
-    const username = syncUsername.trim();
-    const password = syncPassword;
-    if (!username || !password) return;
+    const credentials = await restoreKodlandCredentials();
+    if (!credentials) {
+      setRefreshNotice("Salve as credenciais em Dados e backup antes de atualizar a grade.");
+      return;
+    }
+    const username = credentials.username.trim();
+    const password = credentials.password;
 
     setRefreshingSchedule(true);
-    setSyncError("");
     setRefreshNotice("");
     let synced = false;
     try {
-      let savedInBrowser = false;
       const result = await kodlandApi.sync(
         username,
         password,
         "schedule",
       );
       synced = true;
-      if (saveCredentials) {
-        try {
-          window.localStorage.setItem("aulapay.kodland.username", username);
-          savedInBrowser = await rememberKodlandCredentials(form);
-        } catch {
-          // Browser credential storage is optional after a successful sync.
-        }
-      }
-      setSyncPassword("");
       if (!(await load(true))) {
         throw new Error(
           "A sincronização foi concluída, mas não foi possível recarregar a grade.",
         );
       }
-      setSyncOpen(false);
       setRefreshNotice(
-        `Grade atualizada. ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s); somente as concluídas entram no extrato.${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
+        `Grade atualizada. ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s); somente as concluídas entram no extrato.`,
       );
     } catch (reason) {
-      setSyncError(
+      setRefreshNotice(
         synced
           ? "A sincronização foi concluída, mas não foi possível atualizar a grade. Recarregue a página."
           : reason instanceof ApiError || reason instanceof KodlandSyncResponseError || reason instanceof KodlandSyncPersistenceError
@@ -875,9 +843,6 @@ function DashboardPageContent() {
   }, [
     load,
     refreshingSchedule,
-    saveCredentials,
-    syncPassword,
-    syncUsername,
   ]);
   const updateExtraStatus = useCallback(
     async (id: string, status: KodlandExtraManualStatus) => {
@@ -897,59 +862,6 @@ function DashboardPageContent() {
   if (!dashboard) return <DashboardContent state="loading" />;
   return (
     <>
-      <Modal
-        open={syncOpen}
-        title="Atualizar grade"
-        onClose={() => !refreshingSchedule && setSyncOpen(false)}
-        className="schedule-sync-modal"
-      >
-        <form className="form management-form" autoComplete="on" onSubmit={syncSchedule}>
-          <p className="muted">Atualiza somente a grade e as aulas extras.</p>
-          <label className="field">
-            Usuário ou e-mail
-            <Input
-              name="username"
-              type="text"
-              required
-              autoComplete="username"
-              disabled={refreshingSchedule}
-              value={syncUsername}
-              onChange={(event) => setSyncUsername(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            Senha
-            <Input
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              disabled={refreshingSchedule}
-              value={syncPassword}
-              onChange={(event) => setSyncPassword(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            <input
-              type="checkbox"
-              checked={saveCredentials}
-              disabled={refreshingSchedule}
-              onChange={(event) => setSaveCredentials(event.target.checked)}
-            />{" "}
-            Salvar credenciais no navegador
-          </label>
-          {syncError && (
-            <p className="form-error" role="alert">
-              {syncError}
-            </p>
-          )}
-          <div className="form-actions">
-            <Button type="submit" disabled={refreshingSchedule}>
-              {refreshingSchedule ? "Atualizando…" : "Atualizar grade"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
       <KodlandSummary
         groups={groups}
         students={students}
@@ -957,7 +869,7 @@ function DashboardPageContent() {
         lessons={lessons}
         extraLessons={extraLessons}
         availability={availability}
-        onRefresh={openSync}
+        onRefresh={() => void refreshSchedule()}
         refreshing={refreshingSchedule}
         refreshNotice={refreshNotice}
         onUpdateExtraStatus={updateExtraStatus}

@@ -1,16 +1,12 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
-import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { ApiError, kodlandApi, type KodlandLesson, type KodlandReview } from "@/lib/api";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
-import {
-  rememberKodlandCredentials,
-  restoreKodlandCredentials,
-} from "@/lib/browser-credentials";
+import { restoreKodlandCredentials } from "@/lib/browser-credentials";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => lessons.find((lesson) => {
@@ -91,33 +87,13 @@ function Content() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
-  const [syncOpen, setSyncOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [syncError, setSyncError] = useState("");
-  const [syncUsername, setSyncUsername] = useState(() =>
-    typeof window === "undefined"
-      ? ""
-      : window.localStorage.getItem("aulapay.kodland.username") ?? "",
-  );
-  const [syncPassword, setSyncPassword] = useState("");
-  const [saveCredentials, setSaveCredentials] = useState(true);
 
   useEffect(() => {
     if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(""), 6000);
     return () => window.clearTimeout(timeout);
   }, [notice]);
-
-  function openSync() {
-    setSyncError("");
-    setNotice("");
-    setSyncOpen(true);
-    void restoreKodlandCredentials().then((credentials) => {
-      if (!credentials) return;
-      setSyncUsername((current) => current || credentials.username);
-      setSyncPassword((current) => current || credentials.password);
-    });
-  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,38 +109,28 @@ function Content() {
     }
   }, []);
 
-  async function syncCorrections(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const username = syncUsername.trim();
-    if (!username || !syncPassword || syncing) return;
+  async function syncCorrections() {
+    if (syncing) return;
+    const credentials = await restoreKodlandCredentials();
+    if (!credentials) {
+      setError("Salve as credenciais em Dados e backup antes de atualizar as correções.");
+      return;
+    }
     setSyncing(true);
-    setSyncError("");
+    setError("");
     setNotice("");
-    const password = syncPassword;
     try {
-      let savedInBrowser = false;
       const result = await kodlandApi.sync(
-        username,
-        password,
+        credentials.username.trim(),
+        credentials.password,
         "corrections",
       );
-      if (saveCredentials) {
-        try {
-          window.localStorage.setItem("aulapay.kodland.username", username);
-          savedInBrowser = await rememberKodlandCredentials(form);
-        } catch {
-          // Browser credential storage is optional after a successful sync.
-        }
-      }
-      setSyncPassword("");
       await load();
-      setSyncOpen(false);
       setNotice(
-        `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
+        `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
       );
     } catch (reason) {
-      setSyncError(
+      setError(
         reason instanceof ApiError || reason instanceof KodlandSyncResponseError || reason instanceof KodlandSyncPersistenceError
           ? reason.message
           : "Não foi possível atualizar as correções.",
@@ -191,54 +157,6 @@ function Content() {
 
   return (
     <div className="management-grid">
-      <Modal
-        open={syncOpen}
-        title="Atualizar correções"
-        className="schedule-sync-modal"
-        onClose={() => !syncing && setSyncOpen(false)}
-      >
-        <form className="form management-form" autoComplete="on" onSubmit={syncCorrections}>
-          <label className="field">
-            Usuário ou e-mail
-            <Input
-              name="username"
-              type="text"
-              autoComplete="username"
-              required
-              disabled={syncing}
-              value={syncUsername}
-              onChange={(event) => setSyncUsername(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            Senha
-            <Input
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              disabled={syncing}
-              value={syncPassword}
-              onChange={(event) => setSyncPassword(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            <input
-              type="checkbox"
-              checked={saveCredentials}
-              disabled={syncing}
-              onChange={(event) => setSaveCredentials(event.target.checked)}
-            />{" "}
-            Salvar credenciais no navegador
-          </label>
-          {syncError && <p className="form-error" role="alert">{syncError}</p>}
-          <div className="form-actions">
-            <Button type="submit" disabled={syncing}>
-              {syncing ? "Atualizando correções…" : "Atualizar correções"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
       <section className="page-heading">
         <div>
           <p className="eyebrow">Pendências</p>
@@ -255,8 +173,8 @@ function Content() {
           </div>
           <div className="correction-heading-actions">
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
-            <Button type="button" data-tour="corrections-sync" onClick={openSync}>
-              Atualizar correções
+            <Button type="button" data-tour="corrections-sync" onClick={() => void syncCorrections()} disabled={syncing}>
+              {syncing ? "Atualizando correções…" : "Atualizar correções"}
             </Button>
           </div>
         </div>

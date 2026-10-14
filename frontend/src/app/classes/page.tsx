@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
-import { Button, Input } from "@/components/ui";
+import { Button } from "@/components/ui";
 import {
   ApiError,
   kodlandApi,
@@ -13,10 +13,7 @@ import {
 } from "@/lib/api";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { whatsappUrl } from "@/lib/whatsapp";
-import {
-  rememberKodlandCredentials,
-  restoreKodlandCredentials,
-} from "@/lib/browser-credentials";
+import { restoreKodlandCredentials } from "@/lib/browser-credentials";
 import {
   activeStudentsRankedByPoints,
   kodlandStudentPoints,
@@ -158,17 +155,8 @@ function GroupAccordion({
 function ClassesContent() {
   const [groups, setGroups] = useState<KodlandGroup[]>([]);
   const [students, setStudents] = useState<KodlandStudent[]>([]);
-  const [syncOpen, setSyncOpen] = useState(false);
-  const [syncMode, setSyncMode] = useState<"essential" | "profiles">("essential");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [username, setUsername] = useState(() =>
-    typeof window === "undefined"
-      ? ""
-      : window.localStorage.getItem("aulapay.kodland.username") ?? "",
-  );
-  const [password, setPassword] = useState("");
-  const [saveCredentials, setSaveCredentials] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -177,17 +165,6 @@ function ClassesContent() {
     const timeout = window.setTimeout(() => setNotice(""), 6000);
     return () => window.clearTimeout(timeout);
   }, [notice]);
-
-  function openSync(mode: "essential" | "profiles" = "essential") {
-    setError("");
-    setSyncMode(mode);
-    setSyncOpen(true);
-    void restoreKodlandCredentials().then((credentials) => {
-      if (!credentials) return;
-      setUsername((current) => current || credentials.username);
-      setPassword((current) => current || credentials.password);
-    });
-  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -215,36 +192,24 @@ function ClassesContent() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  async function syncClasses(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    if (!username.trim() || !password || syncing) return;
+  async function syncClasses() {
+    if (syncing) return;
+    const credentials = await restoreKodlandCredentials();
+    if (!credentials) {
+      setError("Salve as credenciais em Dados e backup antes de atualizar as turmas.");
+      return;
+    }
     setSyncing(true);
     setError("");
     try {
-      let savedInBrowser = false;
       const result = await kodlandApi.sync(
-        username.trim(),
-        password,
-        syncMode,
+        credentials.username.trim(),
+        credentials.password,
+        "essential",
       );
-      if (saveCredentials) {
-        try {
-          window.localStorage.setItem("aulapay.kodland.username", username.trim());
-          savedInBrowser = await rememberKodlandCredentials(formElement);
-        } catch {
-          // Browser credential storage is optional after a successful sync.
-        }
-      }
-      setPassword("");
-      setSyncOpen(false);
-      if (syncMode === "profiles") {
-        setNotice(`${result.student_count ?? 0} contato(s) de responsáveis atualizado(s).${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`);
-      } else {
-        setNotice(
-          `${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda da Kodland. Apenas as concluídas entram em Pagamentos.${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
-        );
-      }
+      setNotice(
+        `${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda da Kodland. Apenas as concluídas entram em Pagamentos.`,
+      );
       await load();
     } catch (reason) {
       setError(
@@ -259,58 +224,7 @@ function ClassesContent() {
 
   return (
     <div className="management-grid">
-      <Modal
-        open={syncOpen}
-        title={syncMode === "profiles" ? "Atualizar responsáveis" : "Atualizar turmas"}
-        onClose={() => !syncing && setSyncOpen(false)}
-        className="schedule-sync-modal"
-      >
-        <form className="form management-form" autoComplete="on" onSubmit={syncClasses}>
-          <label className="field">
-            Usuário ou e-mail
-            <Input
-              name="username"
-              type="text"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              required
-              autoComplete="username"
-            />
-          </label>
-          <label className="field">
-            Senha
-            <Input
-              name="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </label>
-          <label className="field">
-            <input
-              type="checkbox"
-              checked={saveCredentials}
-              disabled={syncing}
-              onChange={(event) => setSaveCredentials(event.target.checked)}
-            />{" "}
-            Salvar credenciais no navegador
-          </label>
-          {error && (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          )}
-          <div className="form-actions">
-            <Button type="submit" disabled={syncing}>
-              {syncing ? "Atualizando…" : "Atualizar"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {error && !syncOpen && (
+      {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
@@ -327,8 +241,8 @@ function ClassesContent() {
             <h2>Turmas</h2>
           </div>
           <div className="card-actions">
-            <Button type="button" data-tour="classes-sync" onClick={() => openSync()}>
-              Atualizar turmas
+            <Button type="button" data-tour="classes-sync" onClick={() => void syncClasses()} disabled={syncing}>
+              {syncing ? "Atualizando…" : "Atualizar turmas"}
             </Button>
           </div>
         </div>

@@ -35,6 +35,14 @@ e estilos privados, sem autenticação, telemetria ou chamadas de APIs na demo.
   entrada visitante sem credenciais, filtros/correção, persistência após reload,
   reset, modais sem credenciais e recálculo financeiro. Screenshot sintético
   em `docs/images/nexusclass-demo.png`. Publicação pendente da verificação final.
+- Vercel `fbee0e4` falhou em TS7006 nos handlers opcionais de `Link` em
+  ShellFrame e KodlandSummary, embora o build local tenha passado. Tipar
+  eventos como `MouseEvent<HTMLAnchorElement>` explicitamente e verificar
+  o build remoto, não inferir publicação pelo teste local.
+- Causa da diferença confirmada: instalação local TypeScript 7.0.2 diverge do
+  manifest 6.0.3. Para reproduzir Vercel, executar `npx --package=typescript@6.0.3
+  tsc --noEmit -p <frontend/tsconfig.json>` fora do projeto (dentro dele o npx
+  seleciona o binário local). Nenhuma dependência/versionamento foi alterado.
 
 - O modal de log administrativo limita altura ao viewport e rola a tabela
   internamente, com cabeçalho das colunas fixo. Ao corrigir modais longos,

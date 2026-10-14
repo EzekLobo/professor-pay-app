@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { type MouseEvent, useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { DashboardContent } from "@/components/dashboard-content";
 import {
@@ -743,7 +743,7 @@ export function KodlandSummary({
           <span>Alunos ativos</span>
           <strong>{activeStudentsRankedByPoints(students).length}</strong>
         </article>
-        <Link className="metric-card metric-card-link" href={demoMode ? "#corrections" : "/corrections"} onClick={demoMode ? (event) => { event.preventDefault(); onOpenCorrections?.(); } : undefined} aria-label={`Abrir correções: ${reviews.length} pendente(s)`}>
+        <Link className="metric-card metric-card-link" href={demoMode ? "#corrections" : "/corrections"} onClick={demoMode ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onOpenCorrections?.(); } : undefined} aria-label={`Abrir correções: ${reviews.length} pendente(s)`}>
           <span>Correções pendentes</span>
           <strong>{reviews.length}</strong>
         </Link>

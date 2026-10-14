@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useState } from "react";
+import { type MouseEvent, type ReactNode, useState } from "react";
 import { CalendarDays, ShieldCheck } from "lucide-react";
 import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
@@ -29,7 +29,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <Link className="brand" href={routeHref("/dashboard")} aria-label="Ir para o resumo" onClick={onNavigate ? (event) => { event.preventDefault(); onNavigate("/dashboard"); } : undefined}>
+        <Link className="brand" href={routeHref("/dashboard")} aria-label="Ir para o resumo" onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate("/dashboard"); } : undefined}>
           <Image className="brand-mark" src="/nexusclass-icon.png" alt="" width={34} height={34} priority />
           <span>NexusClass</span>
         </Link>
@@ -38,7 +38,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
           {appRoutes.map((item) => {
             const Icon = item.icon;
             return (
-              <Link className={`nav-link${isActive(item.href) ? " nav-link-active" : ""}`} href={routeHref(item.href)} key={item.href} onClick={onNavigate ? (event) => { event.preventDefault(); onNavigate(item.href); } : undefined}>
+              <Link className={`nav-link${isActive(item.href) ? " nav-link-active" : ""}`} href={routeHref(item.href)} key={item.href} onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate(item.href); } : undefined}>
                 <span aria-hidden="true"><Icon size={19} strokeWidth={2.1} /></span>
                 <span>{item.label}</span>
               </Link>

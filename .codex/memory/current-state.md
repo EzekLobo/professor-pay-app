@@ -19,7 +19,7 @@ e estilos privados, sem autenticação, telemetria ou chamadas de APIs na demo.
 - [x] Substituir demo de CRUD manual por menu e telas reais (Resumo, Pagamentos,
   Turmas, Aulas, Correções, Dados e backup), com dados fictícios e ações locais.
   Remover Alunos separado; preservar identidade visual e modais.
-- [ ] Validar build/lint/testes e navegação na demo publicada; documentar o que
+- [x] Validar build/lint/testes e navegação na demo publicada; documentar o que
   é simulado, atualizar screenshot/README e sincronizar ao concluir.
 
 - Confirmado: `/demo` usa ShellFrame e os conteúdos reais de todas as páginas,
@@ -34,7 +34,9 @@ e estilos privados, sem autenticação, telemetria ou chamadas de APIs na demo.
 - Confirmado localmente: build, typecheck e 105 testes; navegador verificou
   entrada visitante sem credenciais, filtros/correção, persistência após reload,
   reset, modais sem credenciais e recálculo financeiro. Screenshot sintético
-  em `docs/images/nexusclass-demo.png`. Publicação pendente da verificação final.
+  em `docs/images/nexusclass-demo.png`. Vercel `a0d2ced` publicado com sucesso;
+  teste no domínio público confirmou login → Entrar como visitante → grade
+  sem credenciais. Código entregue em `fbee0e4` + correção `a0d2ced`.
 - Vercel `fbee0e4` falhou em TS7006 nos handlers opcionais de `Link` em
   ShellFrame e KodlandSummary, embora o build local tenha passado. Tipar
   eventos como `MouseEvent<HTMLAnchorElement>` explicitamente e verificar

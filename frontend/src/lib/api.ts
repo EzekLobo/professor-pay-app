@@ -589,6 +589,22 @@ const reconcileExtraSyncState = (
     completed: manual_status === "DONE" ? true : platformCompleted,
   };
 };
+const samePersistedExtra = (
+  previous: Row,
+  incoming: Omit<KodlandExtraLesson, "created_at">,
+) => {
+  if (String(previous.id) === incoming.id) return true;
+  const previousRequestId = String(previous.request_id ?? "");
+  if (previousRequestId && incoming.request_id) {
+    return previousRequestId === incoming.request_id;
+  }
+  return Boolean(
+    previous.external_student_id &&
+      String(previous.external_student_id) === incoming.external_student_id &&
+      String(previous.lesson_date ?? "") === incoming.lesson_date &&
+      String(previous.start_time ?? "") === incoming.start_time,
+  );
+};
 const shouldDeleteStaleExtra = (
   item: Row,
   incomingExtraIds: ReadonlySet<string>,
@@ -1717,17 +1733,21 @@ export const kodlandApi = {
             item,
             incomingExtraIds,
             snapshot.extra_lessons_complete === true,
-          ),
+          ) && !extraLessons.some((incoming) => samePersistedExtra(item, incoming)),
         )
         .forEach((item) =>
           deletes.push((batch) =>
             batch.delete(doc(syncCollection("kodland_extra_lessons"), String(item.id))),
           ),
         );
+      const updatedExtraIds = new Set<string>();
       extraLessons.forEach((item) => {
-        const previous = oldExtraLessons.find(
-          (lesson) => String(lesson.id) === item.id,
+        const previous = oldExtraLessons.find((lesson) =>
+          samePersistedExtra(lesson, item),
         );
+        const documentId = String(previous?.id ?? item.id);
+        if (updatedExtraIds.has(documentId)) return;
+        updatedExtraIds.add(documentId);
         const previousManualStatus = previous?.manual_status as
           | KodlandExtraManualStatus
           | undefined;
@@ -1736,8 +1756,9 @@ export const kodlandApi = {
           item.completed,
           snapshot.extra_lessons_complete === true,
         );
-        upserts.push((batch) => batch.set(doc(syncCollection("kodland_extra_lessons"), item.id), firestorePayload({
+        upserts.push((batch) => batch.set(doc(syncCollection("kodland_extra_lessons"), documentId), firestorePayload({
           ...item,
+          id: documentId,
           ...syncState,
           created_at: String(previous?.created_at ?? createdAt),
           updated_at: createdAt,
@@ -2163,5 +2184,6 @@ export const __test = {
   importedLessonDocumentId,
   firestorePayload,
   reconcileExtraSyncState,
+  samePersistedExtra,
   shouldDeleteStaleExtra,
 };

@@ -290,6 +290,28 @@ describe("Firestore financial helpers", () => {
     });
   });
 
+  it("reconhece a mesma extra quando a Kodland troca o identificador da agenda", () => {
+    expect(__test.samePersistedExtra({
+      id: "calendar-event-109",
+      request_id: "request-778",
+      external_student_id: "student-rafael",
+      lesson_date: "2026-10-07",
+      start_time: "20:00",
+    }, {
+      id: "kodland-extra-student-rafael-request-778",
+      request_id: "request-778",
+      external_student_id: "student-rafael",
+      student_name: "Rafael",
+      external_class_id: "class-1",
+      external_class_name: "Turma",
+      lesson_date: "2026-10-07",
+      start_time: "20:00",
+      end_time: "21:00",
+      status: "Completed",
+      completed: true,
+    })).toBe(true);
+  });
+
   it("não apaga extras pendentes quando a plataforma respondeu parcialmente", () => {
     const item = { id: "extra-1", completed: false } as never;
     expect(__test.shouldDeleteStaleExtra(item, new Set(), false)).toBe(false);

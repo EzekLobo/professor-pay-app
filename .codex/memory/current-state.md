@@ -1,5 +1,11 @@
 # Estado atual
 
+- A reconciliação de aulas extras também identifica a mesma ocorrência quando
+  a Kodland troca o ID entre a agenda e a confirmação do aluno: prioriza o
+  `request_id` e usa aluno + data + horário como contingência. Assim, uma
+  extra marcada manualmente como pendente volta a ser promovida para realizada
+  quando a plataforma a confirma.
+
 - O atalho **Feriados** no cabeçalho abre um calendário mensal com feriados
   nacionais derivados localmente e feriados personalizados por usuário. Dias
   nacionais são somente leitura; o usuário pode criar ou remover seus próprios

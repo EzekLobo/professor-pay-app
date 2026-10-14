@@ -35,7 +35,6 @@ function LessonLinks({ lesson }: { lesson: KodlandLesson | undefined }) {
   const links = [
     ["Slides", lesson.slides_url],
     ["Roteiro", lesson.guide_url],
-    ["Atividade", lesson.homework_url],
   ].filter((item): item is [string, string] => Boolean(item[1]));
   const hasMaterial = links.length > 0;
   return (
@@ -49,16 +48,18 @@ function LessonLinks({ lesson }: { lesson: KodlandLesson | undefined }) {
 function ReviewCard({
   review,
   lessons,
+  showStudent = true,
 }: {
   review: KodlandReview;
   lessons: KodlandLesson[];
+  showStudent?: boolean;
 }) {
   const lesson = lessonForReview(review, lessons);
   return (
     <article className="entity-card correction-card" key={review.id}>
       <div className="correction-card-copy">
-        <div className="entity-title">
-          <h4>{review.student_name}</h4>
+        <div className="correction-card-top">
+          {showStudent && <h4>{review.student_name}</h4>}
           <StatusBadge tone="warning">{review.status_label}</StatusBadge>
         </div>
         <p className="correction-card-lesson">{lessonLabel(review)}</p>
@@ -303,10 +304,10 @@ function Content() {
                 ) : (
                   <div className="correction-subgroup-list">
                     {internalGroups.map(([label, groupedReviews]) => (
-                      <section className="correction-subgroup" key={label}>
-                        <h4>{label}</h4>
+                      <section className={`correction-subgroup${grouping === "student" ? " correction-subgroup-student" : ""}`} key={label}>
+                        <div className="correction-subgroup-heading"><h4>{label}</h4><span>{groupedReviews.length} pendência{groupedReviews.length === 1 ? "" : "s"}</span></div>
                         <div className="entity-list">
-                          {groupedReviews.map((review) => <ReviewCard review={review} lessons={lessons} key={review.id} />)}
+                          {groupedReviews.map((review) => <ReviewCard review={review} lessons={lessons} showStudent={grouping !== "student"} key={review.id} />)}
                         </div>
                       </section>
                     ))}

@@ -171,12 +171,14 @@ describe("extra lesson reconciliation", () => {
           is_extra: true,
           date: "2026-10-14",
           start_time: "19:00",
+          end_time: "20:00",
           status: "Approved",
           recording_url: "https://recordings.example/approved-extra",
         },
       ],
       students[0],
       "2026-10-14",
+      new Date("2026-10-14T20:01:00-03:00"),
     );
 
     expect(extra.completed).toBe(true);
@@ -273,11 +275,13 @@ describe("extra lesson reconciliation", () => {
           is_extra: true,
           date: "2026-10-14",
           start_time: "19:00",
+          end_time: "20:00",
           recording_url: "https://recordings.example/recorded-extra",
         },
       ],
       students[0],
       "2026-10-14",
+      new Date("2026-10-14T20:01:00-03:00"),
     );
 
     expect(extra.completed).toBe(true);
@@ -348,12 +352,14 @@ describe("extra lesson reconciliation", () => {
           is_extra: true,
           date: "2026-10-14",
           start_time: "19:00",
+          end_time: "20:00",
           completed: true,
           status: "Completed",
         },
       ],
       students[0],
       "2026-10-14",
+      new Date("2026-10-14T20:01:00-03:00"),
     );
 
     expect(mergeExtraLessons([scheduled], [completed])).toEqual([

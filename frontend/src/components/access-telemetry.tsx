@@ -5,6 +5,7 @@ import type { User } from "@/lib/api";
 import {
   endAccessSession,
   heartbeatAccessSession,
+  leavePageView,
   startAccessSession,
   trackPageView,
 } from "@/lib/audit-client";
@@ -13,7 +14,13 @@ const storageKey = "nexusclass.access-session.v1";
 const idleWindowMs = 2 * 60 * 1000;
 const heartbeatMs = 60 * 1000;
 
-type StoredSession = { id: string; userId: string; lastSeenAt: number };
+type StoredSession = {
+  id: string;
+  userId: string;
+  lastSeenAt: number;
+  pathname?: string;
+  pageVisitId?: string;
+};
 
 function loadSession(userId: string): StoredSession {
   const raw = window.localStorage.getItem(storageKey);
@@ -36,7 +43,7 @@ export function endStoredAccessSession() {
   if (typeof window === "undefined") return;
   try {
     const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "null") as StoredSession | null;
-    if (saved?.id) void endAccessSession(saved.id);
+    if (saved?.id) void endAccessSession(saved.id, saved.pathname, saved.pageVisitId);
     window.localStorage.removeItem(storageKey);
   } catch {
     window.localStorage.removeItem(storageKey);
@@ -55,7 +62,11 @@ export function AccessTelemetry({ user, pathname }: { user: User; pathname: stri
     const pulse = () => {
       if (document.visibilityState === "hidden" || !sessionRef.current) return;
       saveSession(sessionRef.current);
-      void heartbeatAccessSession(sessionRef.current.id).catch(() => undefined);
+      void heartbeatAccessSession(
+        sessionRef.current.id,
+        sessionRef.current.pathname,
+        sessionRef.current.pageVisitId,
+      ).catch(() => undefined);
     };
     const interval = window.setInterval(pulse, heartbeatMs);
     document.addEventListener("visibilitychange", pulse);
@@ -68,8 +79,14 @@ export function AccessTelemetry({ user, pathname }: { user: User; pathname: stri
   useEffect(() => {
     const session = sessionRef.current;
     if (!session) return;
-    saveSession(session);
-    void trackPageView(session.id, pathname).catch(() => undefined);
+    const pageVisitId = crypto.randomUUID();
+    const pageSession = { ...session, pathname, pageVisitId };
+    sessionRef.current = pageSession;
+    saveSession(pageSession);
+    void trackPageView(pageSession.id, pathname, pageVisitId).catch(() => undefined);
+    return () => {
+      void leavePageView(pageSession.id, pathname, pageVisitId).catch(() => undefined);
+    };
   }, [pathname]);
 
   return null;

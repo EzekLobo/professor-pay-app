@@ -14,6 +14,14 @@ type Session = {
 };
 
 type Usage = { feature?: string; views?: number };
+type PageVisit = {
+  userId: string;
+  feature?: string;
+  pathname?: string;
+  startedAt?: Timestamp;
+  lastSeenAt?: Timestamp;
+  activeSeconds?: number;
+};
 
 const asDate = (value: unknown) => value instanceof Timestamp ? value.toDate() : null;
 const dateKey = (value: Date) => value.toISOString().slice(0, 10);
@@ -32,7 +40,7 @@ export async function GET(request: Request) {
     const since = new Date(now);
     since.setDate(since.getDate() - days);
     const db = getAdminDb();
-    const [sessions, usage, registeredUsers] = await Promise.all([
+    const [sessions, usage, pageVisits, registeredUsers] = await Promise.all([
       db.collection("admin_access_sessions")
         .where("lastSeenAt", ">=", Timestamp.fromDate(since))
         .orderBy("lastSeenAt", "desc")
@@ -42,6 +50,11 @@ export async function GET(request: Request) {
         .where("date", ">=", dateKey(since))
         .orderBy("date", "desc")
         .limit(3000)
+        .get(),
+      db.collection("admin_page_visits")
+        .where("lastSeenAt", ">=", Timestamp.fromDate(since))
+        .orderBy("lastSeenAt", "desc")
+        .limit(5000)
         .get(),
       getAdminAuth().listUsers(1000),
     ]);
@@ -86,6 +99,23 @@ export async function GET(request: Request) {
       const feature = item.feature ?? "Outra funcionalidade";
       features.set(feature, (features.get(feature) ?? 0) + Number(item.views ?? 0));
     });
+    const pageVisitsByUser = new Map<string, Array<{
+      feature: string; pathname: string; startedAt: string | null;
+      lastSeenAt: string | null; activeSeconds: number;
+    }>>();
+    pageVisits.docs.forEach((document) => {
+      const visit = document.data() as PageVisit;
+      if (!visit.userId) return;
+      const entries = pageVisitsByUser.get(visit.userId) ?? [];
+      entries.push({
+        feature: visit.feature ?? "Outra funcionalidade",
+        pathname: visit.pathname ?? "",
+        startedAt: asDate(visit.startedAt)?.toISOString() ?? null,
+        lastSeenAt: asDate(visit.lastSeenAt)?.toISOString() ?? null,
+        activeSeconds: Number(visit.activeSeconds ?? 0),
+      });
+      pageVisitsByUser.set(visit.userId, entries);
+    });
     const userList = [...users.values()].sort((a, b) =>
       new Date(b.lastSeenAt ?? 0).getTime() - new Date(a.lastSeenAt ?? 0).getTime(),
     );
@@ -100,7 +130,12 @@ export async function GET(request: Request) {
         activeSeconds: totalActiveSeconds,
         pageViews: [...features.values()].reduce((total, value) => total + value, 0),
       },
-      users: userList,
+      users: userList.map((item) => ({
+        ...item,
+        pageVisits: (pageVisitsByUser.get(item.id) ?? []).sort((left, right) =>
+          new Date(right.lastSeenAt ?? 0).getTime() - new Date(left.lastSeenAt ?? 0).getTime(),
+        ),
+      })),
       features: [...features.entries()]
         .map(([feature, views]) => ({ feature, views }))
         .sort((a, b) => b.views - a.views),

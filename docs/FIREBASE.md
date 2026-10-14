@@ -113,6 +113,6 @@ personalizados são gravados em `users/{uid}/holidays/{YYYY-MM-DD}`, com data,
 nome e datas de auditoria. Uma aula em feriado deixa de compor somente uma
 competência ainda aberta; pagamentos recebidos preservam o histórico financeiro.
 
-As coleções `admin_access_sessions` e `admin_usage_daily` são gravadas apenas
+As coleções `admin_access_sessions`, `admin_usage_daily` e `admin_page_visits` são gravadas apenas
 pelas rotas de servidor com credenciais administrativas. Elas não exigem nem
 recebem permissões adicionais nas regras do cliente.

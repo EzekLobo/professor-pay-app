@@ -14,6 +14,10 @@ type Analytics = {
   users: Array<{
     id: string; name: string; email: string; lastSeenAt: string | null;
     activeSeconds: number; sessions: number; active: boolean;
+    pageVisits: Array<{
+      feature: string; pathname: string; startedAt: string | null;
+      lastSeenAt: string | null; activeSeconds: number;
+    }>;
   }>;
   features: Array<{ feature: string; views: number }>;
 };
@@ -35,6 +39,7 @@ function AdminContent() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [removingUser, setRemovingUser] = useState<Analytics["users"][number] | null>(null);
+  const [logUser, setLogUser] = useState<Analytics["users"][number] | null>(null);
   const [removingId, setRemovingId] = useState("");
   const [removeError, setRemoveError] = useState("");
   const [notice, setNotice] = useState("");
@@ -172,6 +177,17 @@ function AdminContent() {
           </div>
         </>}
       </Modal>
+      <Modal
+        open={Boolean(logUser)}
+        title={logUser ? `Log de acesso: ${logUser.name}` : "Log de acesso"}
+        className="admin-log-modal"
+        onClose={() => setLogUser(null)}
+      >
+        {logUser && <>
+          <p className="muted">{logUser.email || "E-mail não informado"} · {logUser.pageVisits.length} página(s) acessada(s) no período selecionado.</p>
+          {logUser.pageVisits.length ? <div className="admin-table-wrap"><table className="admin-table admin-log-table"><thead><tr><th>Página</th><th>Entrada</th><th>Última atividade</th><th>Tempo ativo</th></tr></thead><tbody>{logUser.pageVisits.map((visit, index) => <tr key={`${visit.pathname}-${visit.startedAt}-${index}`}><td><strong>{visit.feature}</strong><small>{visit.pathname}</small></td><td>{visit.startedAt ? dateTime.format(new Date(visit.startedAt)) : "—"}</td><td>{visit.lastSeenAt ? dateTime.format(new Date(visit.lastSeenAt)) : "—"}</td><td>{duration(visit.activeSeconds)}</td></tr>)}</tbody></table></div> : <p className="muted">Ainda não há visitas de páginas detalhadas neste período.</p>}
+        </>}
+      </Modal>
       <section className="page-heading">
         <p className="eyebrow">Acessos e adoção</p>
         <h1>Administração</h1>
@@ -199,7 +215,7 @@ function AdminContent() {
           <div className="admin-panel-heading"><div><h2>Usuários e último acesso</h2><p className="muted">Tempo ativo calculado por atividade em primeiro plano; não mede tempo com a página minimizada.</p></div><small>Atualizado {dateTime.format(new Date(data.generatedAt))}</small></div>
           {data.users.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Usuário</th><th>Último acesso</th><th>Tempo ativo</th><th>Sessões</th><th>Status</th><th>Ações</th></tr></thead><tbody>{data.users.map((item) => {
             const protectedAccount = item.id === getFirebaseAuth().currentUser?.uid || item.email.toLowerCase() === "ezeklobo.dev@gmail.com";
-            return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.email}</small></td><td>{item.lastSeenAt ? dateTime.format(new Date(item.lastSeenAt)) : "—"}</td><td>{duration(item.activeSeconds)}</td><td>{item.sessions}</td><td><span className={item.active ? "admin-status active" : "admin-status"}>{item.active ? "Ativo agora" : "Offline"}</span></td><td><button className="button button-danger admin-remove-user-button" type="button" disabled={protectedAccount || removingId === item.id} title={protectedAccount ? "Esta conta administrativa é protegida." : "Remover acesso"} onClick={() => { setRemoveError(""); setRemovingUser(item); }}>{protectedAccount ? "Protegido" : "Remover"}</button></td></tr>;
+            return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.email}</small></td><td>{item.lastSeenAt ? dateTime.format(new Date(item.lastSeenAt)) : "—"}</td><td>{duration(item.activeSeconds)}</td><td>{item.sessions}</td><td><span className={item.active ? "admin-status active" : "admin-status"}>{item.active ? "Ativo agora" : "Offline"}</span></td><td><div className="admin-user-actions"><button className="button button-ghost admin-remove-user-button" type="button" onClick={() => setLogUser(item)}>Ver log</button><button className="button button-danger admin-remove-user-button" type="button" disabled={protectedAccount || removingId === item.id} title={protectedAccount ? "Esta conta administrativa é protegida." : "Remover acesso"} onClick={() => { setRemoveError(""); setRemovingUser(item); }}>{protectedAccount ? "Protegido" : "Remover"}</button></div></td></tr>;
           })}</tbody></table></div> : <p className="muted">Ainda não há acessos registrados neste período.</p>}
         </section>
         <section className="panel admin-panel">

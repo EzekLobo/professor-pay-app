@@ -330,9 +330,6 @@ function ClassesContent() {
             <Button type="button" data-tour="classes-sync" onClick={() => openSync()}>
               Atualizar turmas
             </Button>
-            <Button type="button" className="button-ghost" onClick={() => openSync("profiles")}>
-              Atualizar responsáveis
-            </Button>
           </div>
         </div>
         {loading ? (

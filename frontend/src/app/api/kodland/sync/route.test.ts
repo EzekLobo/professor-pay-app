@@ -5,6 +5,7 @@ import {
   correctionUrlFor,
   extrasFromStudentAgenda,
   extrasFromTeacherAgenda,
+  extraLessonReportWasCompleted,
   mergeExtraLessons,
   mapWithConcurrency,
   teacherCalendarWeekDates,
@@ -163,6 +164,21 @@ describe("extrasFromTeacherAgenda", () => {
 });
 
 describe("extra lesson reconciliation", () => {
+  it("reads completion from the report endpoint and outcome used by Kodland", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ outcome: "completed", comment: "Aula realizada" }),
+    );
+    try {
+      expect(await extraLessonReportWasCompleted("extra-778", "test-token")).toBe(true);
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        "https://backoffice.kodland.org/api/v2/extra_lesson_reports/by_extra_lesson/extra-778/",
+      );
+      fetchMock.mockResolvedValueOnce(Response.json({ outcome: "cancelled" }));
+      expect(await extraLessonReportWasCompleted("extra-778", "test-token")).toBe(false);
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
   it("treats an approved request with a recording as a completed financial lesson", () => {
     const [extra] = extrasFromStudentAgenda(
       [

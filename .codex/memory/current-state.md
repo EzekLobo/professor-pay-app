@@ -1,5 +1,12 @@
 # Estado atual
 
+- Teste real de 14/10 reproduziu Rafael (07/10, 20h) pendente após atualização,
+  embora a Kodland exibisse relatório concluído. O código público do modal
+  confirmou a fonte: `extra_lesson_reports/by_extra_lesson/{extra_lesson_id}/`
+  e campo `outcome: completed`; consultar `extra_lesson_requests/{id}/` não
+  verifica esse relatório. A sincronização passou a consultar o endpoint de
+  relatório usando o ID da aula, separado do UUID da solicitação.
+
 - A reconciliação de aulas extras também identifica a mesma ocorrência quando
   a Kodland troca o ID entre a agenda e a confirmação do aluno: prioriza o
   `request_id` e usa aluno + data + horário como contingência. Assim, uma

@@ -160,6 +160,7 @@ const completedFromEvent = (event: Record<string, unknown>) => {
       event.result,
       event.result_status,
       event.report_status,
+      event.outcome,
       record(event.result).status,
     ]
       .map(text)
@@ -552,17 +553,19 @@ async function recordingAvailableForBooking(bookingId: string): Promise<boolean 
 }
 
 /**
- * The additional-lessons screen fetches this exact resource to show the
- * teacher report. Its result and recording are primary completion evidence;
- * the schedule endpoint only tells us that the lesson was booked.
+ * The Kodland report modal reads this separate resource, keyed by the extra
+ * lesson ID (not the UUID of its request). Its `outcome` confirms completion.
  */
-async function extraLessonRequestWasCompleted(
-  requestId: string,
+export async function extraLessonReportWasCompleted(
+  extraLessonId: string,
   token: string,
 ): Promise<boolean | null> {
-  if (!requestId) return false;
-  const request = await getOptional(`extra_lesson_requests/${requestId}/`, token);
-  return request === null ? null : completedFromEvent(record(request));
+  if (!extraLessonId) return false;
+  const report = await getOptional(
+    `extra_lesson_reports/by_extra_lesson/${encodeURIComponent(extraLessonId)}/`,
+    token,
+  );
+  return report === null ? null : completedFromEvent(record(report));
 }
 
 export async function mapWithConcurrency<T, R>(
@@ -998,7 +1001,7 @@ export function extrasFromTeacherAgenda(
   });
 }
 
-const extraIdentity = (lesson: ExtraLesson) => {
+const providerExtraId = (lesson: ExtraLesson) => {
   const prefix = "kodland-extra-";
   const rawId = lesson.id.startsWith(prefix)
     ? lesson.id.slice(prefix.length)
@@ -1009,8 +1012,10 @@ const extraIdentity = (lesson: ExtraLesson) => {
   const externalId = studentPrefix && rawId.startsWith(studentPrefix)
     ? rawId.slice(studentPrefix.length)
     : rawId;
-  return `${lesson.external_student_id}:${externalId}`;
+  return externalId;
 };
+const extraIdentity = (lesson: ExtraLesson) =>
+  `${lesson.external_student_id}:${providerExtraId(lesson)}`;
 
 const mergeScheduledExtra = (
   scheduled: ExtraLesson,
@@ -1234,33 +1239,33 @@ async function extrasForStudents(
   const recordingsByExtraId = new Map(
     recordingChecks.map((check) => [check.id, check.available]),
   );
-  const requestChecks = await mapWithConcurrency(
+  const reportChecks = await mapWithConcurrency(
     reconciledExtras.filter((lesson) =>
       !lesson.completed &&
       lesson.lesson_date <= teacherToday() &&
-      Boolean(lesson.request_id),
+      Boolean(providerExtraId(lesson)),
     ),
     EXTRA_STUDENT_CONCURRENCY,
     async (lesson) => ({
       id: lesson.id,
-      completed: await extraLessonRequestWasCompleted(lesson.request_id, token),
+      completed: await extraLessonReportWasCompleted(providerExtraId(lesson), token),
     }),
   );
-  const requestsByExtraId = new Map(
-    requestChecks.map((check) => [check.id, check.completed]),
+  const reportsByExtraId = new Map(
+    reportChecks.map((check) => [check.id, check.completed]),
   );
   const items = reconciledExtras.map((lesson) => ({
     ...lesson,
     completed:
       lesson.completed ||
       recordingsByExtraId.get(lesson.id) === true ||
-      requestsByExtraId.get(lesson.id) === true,
+      reportsByExtraId.get(lesson.id) === true,
   }));
   const sourceComplete =
     teacherExtraPayloads.every((payload) => payload !== null) &&
     snapshots.every((items) => items !== null) &&
     recordingChecks.every((check) => check.available !== null) &&
-    requestChecks.every((check) => check.completed !== null);
+    reportChecks.every((check) => check.completed !== null);
   return {
     items,
     source_available:

@@ -1490,6 +1490,13 @@ export const paymentsApi = {
   },
 };
 export const kodlandApi = {
+  scheduleLastUpdatedAt: async (): Promise<string | null> => {
+    const status = await getDoc(doc(ref("sync_status"), "schedule"));
+    const completedAt = status.data()?.completed_at;
+    return typeof completedAt === "string" && !Number.isNaN(Date.parse(completedAt))
+      ? completedAt
+      : null;
+  },
   groups: async () => ({
     items: (await rows("kodland_groups")) as unknown as KodlandGroup[],
   }),
@@ -1595,12 +1602,18 @@ export const kodlandApi = {
       started_at: createdAt,
     });
     const finish = async <T,>(result: T) => {
+      const completedAt = now();
       await setDoc(syncStatusRef, {
         status: "complete",
         sync_id: syncId,
         mode,
-        completed_at: now(),
+        completed_at: completedAt,
       });
+      if (mode === "schedule" || mode === "essential") {
+        await setDoc(doc(syncCollection("sync_status"), "schedule"), {
+          completed_at: completedAt,
+        });
+      }
       return result;
     };
     if (mode === "corrections") {

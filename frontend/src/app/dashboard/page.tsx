@@ -104,6 +104,7 @@ function WeekSchedule({
   onRefresh,
   refreshing,
   refreshNotice,
+  scheduleLastUpdatedAt,
   onUpdateExtraStatus,
   onMaterialsLoaded,
   customHolidays,
@@ -116,6 +117,7 @@ function WeekSchedule({
   onRefresh: () => void;
   refreshing: boolean;
   refreshNotice: string;
+  scheduleLastUpdatedAt: string | null;
   onUpdateExtraStatus: (
     id: string,
     status: KodlandExtraManualStatus,
@@ -260,7 +262,20 @@ function WeekSchedule({
   return (
     <section className="panel weekly-schedule" data-tour="dashboard-schedule">
       <div className="section-heading">
-        <h2>Grade de horários</h2>
+        <div className="week-heading-copy">
+          <h2>Grade de horários</h2>
+          <p className="muted week-last-updated">
+            Última atualização: {scheduleLastUpdatedAt ? (
+              <time dateTime={scheduleLastUpdatedAt}>
+                {new Intl.DateTimeFormat("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }).format(new Date(scheduleLastUpdatedAt))}
+              </time>
+            ) : "não registrada"}
+          </p>
+        </div>
         <div className="week-actions">
           <button
             className="button button-ghost button-small"
@@ -687,6 +702,7 @@ function KodlandSummary({
   onRefresh,
   refreshing,
   refreshNotice,
+  scheduleLastUpdatedAt,
   onUpdateExtraStatus,
   onMaterialsLoaded,
   customHolidays,
@@ -700,6 +716,7 @@ function KodlandSummary({
   onRefresh: () => void;
   refreshing: boolean;
   refreshNotice: string;
+  scheduleLastUpdatedAt: string | null;
   onUpdateExtraStatus: (
     id: string,
     status: KodlandExtraManualStatus,
@@ -733,6 +750,7 @@ function KodlandSummary({
         onRefresh={onRefresh}
         refreshing={refreshing}
         refreshNotice={refreshNotice}
+        scheduleLastUpdatedAt={scheduleLastUpdatedAt}
         onUpdateExtraStatus={onUpdateExtraStatus}
         onMaterialsLoaded={onMaterialsLoaded}
         customHolidays={customHolidays}
@@ -753,6 +771,7 @@ function DashboardPageContent() {
   const [failed, setFailed] = useState(false);
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
   const [refreshNotice, setRefreshNotice] = useState("");
+  const [scheduleLastUpdatedAt, setScheduleLastUpdatedAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (!refreshNotice) return;
@@ -772,6 +791,7 @@ function DashboardPageContent() {
         kodlandExtras,
         kodlandAvailability,
         savedHolidays,
+        scheduleUpdatedAt,
       ] = await Promise.all([
         dashboardApi.get(),
         kodlandApi.groups(),
@@ -781,6 +801,7 @@ function DashboardPageContent() {
         kodlandApi.extraLessons(),
         kodlandApi.availability(),
         holidaysApi.list(),
+        kodlandApi.scheduleLastUpdatedAt(),
       ]);
       setDashboard(financial);
       setGroups(kodlandGroups.items);
@@ -790,6 +811,7 @@ function DashboardPageContent() {
       setExtraLessons(kodlandExtras.items);
       setAvailability(kodlandAvailability.items);
       setCustomHolidays(savedHolidays);
+      setScheduleLastUpdatedAt(scheduleUpdatedAt);
       return true;
     } catch {
       setFailed(true);
@@ -872,6 +894,7 @@ function DashboardPageContent() {
         onRefresh={() => void refreshSchedule()}
         refreshing={refreshingSchedule}
         refreshNotice={refreshNotice}
+        scheduleLastUpdatedAt={scheduleLastUpdatedAt}
         onUpdateExtraStatus={updateExtraStatus}
         onMaterialsLoaded={(updated) => {
           setLessons((items) => items.map((item) => item.id === updated.id ? updated : item));

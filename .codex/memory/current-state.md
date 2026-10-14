@@ -1,5 +1,10 @@
 # Estado atual
 
+- O cabeçalho da grade exibe a última atualização bem-sucedida em horário de
+  São Paulo. O instante é persistido por usuário em `sync_status/schedule`
+  após sincronizações `schedule` ou `essential`; correções e falhas preservam
+  a data anterior. Contas sem esse registro exibem “não registrada”.
+
 - Teste real de 14/10 reproduziu Rafael (07/10, 20h) pendente após atualização,
   embora a Kodland exibisse relatório concluído. O código público do modal
   confirmou a fonte: `extra_lesson_reports/by_extra_lesson/{extra_lesson_id}/`

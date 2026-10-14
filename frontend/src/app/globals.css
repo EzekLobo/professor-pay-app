@@ -709,6 +709,9 @@ select:focus-visible {
   justify-content: flex-end;
   gap: 10px;
 }
+.week-heading-copy { display: grid; gap: 4px; }
+.week-heading-copy h2, .week-last-updated { margin: 0; }
+.week-last-updated { font-size: .75rem; }
 .week-state {
   min-width: 64px;
   color: var(--text);

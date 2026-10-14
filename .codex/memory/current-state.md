@@ -1,5 +1,10 @@
 # Estado atual
 
+- O modal de log administrativo limita altura ao viewport e rola a tabela
+  internamente, com cabeçalho das colunas fixo. Ao corrigir modais longos,
+  considerar a regra global tardia `.modal-dialog { overflow: visible; }`:
+  usar seletor específico e `min-height: 0` no conteúdo flex rolável.
+
 ## Correções — abertura externa restaurada
 
 - A pedido do usuário, “Corrigir” voltou a abrir o link individual da Kodland

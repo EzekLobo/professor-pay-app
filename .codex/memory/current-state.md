@@ -1,11 +1,40 @@
 # Estado atual
 
-- A entrada `/` apresenta o NexusClass como projeto de portfólio, com link ao
-  repositório e demonstração pública `/demo`. A demo usa somente o adaptador
-  local `demo-data`, com CRUD fictício e restauração; não importa Firebase,
-  credenciais ou APIs Kodland. Os estilos públicos estão em `visitor.css` e
-  os formulários usam o modal acessível compartilhado. README contém links de
-  visita, tecnologias e distinção entre demo e conta privada.
+## Demonstração fiel para visitantes
+
+Direção atual: entrada `/` abre login com botão “Entrar como visitante”.
+Visitante e conta privada compartilham UI e cálculo de domínio; somente
+persistência e permissões variam. Próximas tarefas independentes: entrada
+(page/AuthForm/demo navigation) e cálculo financeiro compartilhado
+(api/demo-snapshot/testes). Verificação final depende de ambas.
+
+Dependências: adaptadores de conteúdo (Resumo/Pagamentos/Turmas/Aulas),
+ShellFrame puro e conteúdo Correções/Dados são extrações independentes em
+arquivos disjuntos. A integração `/demo` depende dessas três entregas;
+validação e publicação dependem da integração. Critério: mesmas estruturas
+e estilos privados, sem autenticação, telemetria ou chamadas de APIs na demo.
+
+- [x] Reutilizar grade/resumo e financeiro reais com adaptadores locais, sem
+  chamadas Firebase/Kodland; preservar comportamento privado padrão.
+- [x] Substituir demo de CRUD manual por menu e telas reais (Resumo, Pagamentos,
+  Turmas, Aulas, Correções, Dados e backup), com dados fictícios e ações locais.
+  Remover Alunos separado; preservar identidade visual e modais.
+- [ ] Validar build/lint/testes e navegação na demo publicada; documentar o que
+  é simulado, atualizar screenshot/README e sincronizar ao concluir.
+
+- Confirmado: `/demo` usa ShellFrame e os conteúdos reais de todas as páginas,
+  extraídos em `components/*-page.tsx`; wrappers privados preservam AuthGuard.
+  `api.calculateDashboard` é o cálculo puro compartilhado com a conta privada.
+  Não manter uma segunda implementação de regras financeiras na demo.
+- Persistência visitante: `nexusclass.demo.v2` e notas `nexusclass.demo.note.*`.
+  Restauração aceita somente ações permitidas, mantendo identidades/links do
+  seed fictício; não monta AuthGuard, telemetria ou integrações privadas.
+  Sincronização e materiais externos são simulados; arquivos pessoais e
+  administração são indisponíveis. Entrada privada continua protegida.
+- Confirmado localmente: build, typecheck e 105 testes; navegador verificou
+  entrada visitante sem credenciais, filtros/correção, persistência após reload,
+  reset, modais sem credenciais e recálculo financeiro. Screenshot sintético
+  em `docs/images/nexusclass-demo.png`. Publicação pendente da verificação final.
 
 - O modal de log administrativo limita altura ao viewport e rola a tabela
   internamente, com cabeçalho das colunas fixo. Ao corrigir modais longos,

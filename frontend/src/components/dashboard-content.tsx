@@ -77,14 +77,21 @@ export type DashboardContentProps =
       state: "ready";
       dashboard: DashboardResponse;
       onRefresh?: () => Promise<void> | void;
+      storageKey?: string;
+      actions?: {
+        updateLesson: (paymentDate: string, lesson: DashboardLesson, status: "" | "BILLABLE" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED") => Promise<void>;
+        createExtra: (payload: ExtraLessonPayload) => Promise<void>;
+        setPaymentStatus: (paymentDate: string, status: "RECEIVED" | "OVERDUE") => Promise<void>;
+      };
     };
 
 export function DashboardContent(props: DashboardContentProps) {
   const [statementDate, setStatementDate] = useState<string | null>(null);
   const [paymentsVisible, setPaymentsVisible] = useState(
-    () =>
-      typeof window === "undefined" ||
-      window.localStorage.getItem("aulapay.payments.visible") !== "false",
+    () => {
+      if (typeof window === "undefined") return true;
+      try { return window.localStorage.getItem(props.state === "ready" ? props.storageKey ?? "aulapay.payments.visible" : "aulapay.payments.visible") !== "false"; } catch { return true; }
+    },
   );
 
   useEffect(() => {
@@ -102,7 +109,7 @@ export function DashboardContent(props: DashboardContentProps) {
   const togglePaymentsVisibility = () => {
     setPaymentsVisible((visible) => {
       const next = !visible;
-      window.localStorage.setItem("aulapay.payments.visible", String(next));
+      try { window.localStorage.setItem(props.state === "ready" ? props.storageKey ?? "aulapay.payments.visible" : "aulapay.payments.visible", String(next)); } catch { /* Preference stays available for this visit. */ }
       return next;
     });
   };
@@ -122,7 +129,7 @@ export function DashboardContent(props: DashboardContentProps) {
         </button>
       </section>
     );
-  const { dashboard, onRefresh } = props;
+  const { dashboard, onRefresh, actions } = props;
   if (dashboard.total_lessons === 0)
     return (
       <section className="dashboard-state">
@@ -161,7 +168,8 @@ export function DashboardContent(props: DashboardContentProps) {
     setUpdatingLessonId(lesson.id);
     setError("");
     try {
-      await paymentsApi.updateLessonFinancialStatus(
+      if (actions) await actions.updateLesson(selectedPayment.payment_date, lesson, status);
+      else await paymentsApi.updateLessonFinancialStatus(
         selectedPayment.payment_date,
         lesson.id,
         lesson.financial_source_id,
@@ -182,7 +190,8 @@ export function DashboardContent(props: DashboardContentProps) {
     setAddingExtra(true);
     setError("");
     try {
-      await lessonsApi.createExtra(payload);
+      if (actions) await actions.createExtra(payload);
+      else await lessonsApi.createExtra(payload);
       await onRefresh?.();
     } catch (reason) {
       setError(
@@ -200,7 +209,8 @@ export function DashboardContent(props: DashboardContentProps) {
     setUpdatingPaymentStatus(true);
     setError("");
     try {
-      await paymentsApi.setStatus(statusPayment.payment_date, status);
+      if (actions) await actions.setPaymentStatus(statusPayment.payment_date, status);
+      else await paymentsApi.setStatus(statusPayment.payment_date, status);
       await onRefresh?.();
       setStatusPayment(null);
     } catch (reason) {
@@ -261,7 +271,7 @@ export function DashboardContent(props: DashboardContentProps) {
         }
         onClose={() => setStatementDate(null)}
         help={{
-          id: "payment-statement",
+          id: props.actions ? "demo-payment-statement" : "payment-statement",
           version: 2,
           intro: "O extrato detalha as aulas e os valores que formam esta competência.",
           items: [
@@ -643,7 +653,7 @@ export function PaymentStatement({
                   {lesson.type === "EXTRA" ? "Extra" : "Normal"}
                 </span>
                 {lesson.student && <span>{lesson.student}</span>}
-                {lesson.financial_status && (
+                {["SUBSTITUTION", "HOLIDAY", "CANCELED"].includes(lesson.financial_status ?? "") && (
                   <span className="payment-lesson-excluded">
                     {lesson.financial_status === "SUBSTITUTION"
                       ? "Substituição"

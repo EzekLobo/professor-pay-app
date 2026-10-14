@@ -35,6 +35,7 @@ export function LessonMaterialModal({
   className = "",
   titleNotice,
   onMaterialsLoaded,
+  demoMode = false,
 }: {
   open: boolean;
   title: string;
@@ -44,6 +45,7 @@ export function LessonMaterialModal({
   className?: string;
   titleNotice?: ReactNode;
   onMaterialsLoaded?: (lesson: KodlandLesson) => void;
+  demoMode?: boolean;
 }) {
   const [notesOpen, setNotesOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -58,7 +60,7 @@ export function LessonMaterialModal({
   const activeLesson = loadedMaterial && loadedMaterial.key === lesson?.note_key
     ? loadedMaterial.lesson
     : lesson;
-  const needsMaterials = Boolean(activeLesson?.id && activeLesson.external_class_id && activeLesson.source_lesson_id &&
+  const needsMaterials = !demoMode && Boolean(activeLesson?.id && activeLesson.external_class_id && activeLesson.source_lesson_id &&
     (activeLesson.materials_status === "pending" || activeLesson.materials_status === "error"));
 
   const loadMaterials = async (event: FormEvent<HTMLFormElement>) => {
@@ -85,6 +87,11 @@ export function LessonMaterialModal({
 
   const openNotes = () => {
     if (!lesson?.note_key) return;
+    if (demoMode) {
+      setNotesOpen(true);
+      try { setNote(window.localStorage.getItem(`nexusclass.demo.note.${lesson.note_key}`) ?? ""); } catch { setNote(""); }
+      return;
+    }
     let active = true;
     setNotesOpen(true);
     setNoteLoading(true);
@@ -115,6 +122,10 @@ export function LessonMaterialModal({
 
   const saveNote = async () => {
     if (!lesson?.note_key || noteSaving) return;
+    if (demoMode) {
+      try { window.localStorage.setItem(`nexusclass.demo.note.${lesson.note_key}`, note.trim()); setNotesOpen(false); } catch { setNoteError("Não foi possível salvar a anotação neste navegador."); }
+      return;
+    }
     setNoteSaving(true);
     setNoteError("");
     try {
@@ -135,7 +146,7 @@ export function LessonMaterialModal({
       className={className}
       titleNotice={titleNotice}
       help={{
-        id: "lesson-material",
+        id: demoMode ? "demo-lesson-material" : "lesson-material",
         version: 3,
         intro: "Use este modal para preparar a aula e acompanhar a turma.",
         items: [

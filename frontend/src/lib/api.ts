@@ -818,7 +818,8 @@ const kodlandExtraFinancialLessons = (
       ];
     });
 
-const dashboardFrom = (
+/** Shared pure financial calculation; callers provide rows without persistence. */
+export const calculateDashboard = (
   classRows: Row[],
   lessonRows: Row[],
   confirmations: Row[],
@@ -946,6 +947,8 @@ const dashboardFrom = (
     }),
   };
 };
+
+const dashboardFrom = calculateDashboard;
 
 const lessonsForClass = (
   id: string,

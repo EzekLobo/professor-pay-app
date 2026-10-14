@@ -1,0 +1,375 @@
+"use client";
+
+import { type ChangeEvent, type FormEvent, useState } from "react";
+import { AuthGuard } from "@/components/auth-guard";
+import { Modal } from "@/components/modal";
+import { Shell } from "@/components/shell";
+import { Button, Input } from "@/components/ui";
+import {
+  ApiError,
+  dataApi,
+  kodlandApi,
+  type ImportReport,
+} from "@/lib/api";
+import {
+  rememberKodlandCredentials,
+  restoreKodlandCredentials,
+} from "@/lib/browser-credentials";
+import { formatMoney } from "@/lib/finance";
+import {
+  KodlandSyncPersistenceError,
+  KodlandSyncResponseError,
+} from "@/lib/kodland-sync-response";
+
+const summary = (report: ImportReport) =>
+  `${report.class_count} turmas, ${report.lesson_count} aulas, ${report.payment_confirmation_count} confirmações (${formatMoney(report.total_cents)}), ${report.pedagogical_group_count} turmas pedagógicas, ${report.pedagogical_student_count} alunos, ${report.pedagogical_lesson_count} aulas sincronizadas e ${report.pedagogical_review_count} correções`;
+
+export interface DataDemoAdapter {
+  snapshot: object;
+  onSync: () => void | Promise<void>;
+  onReset: () => void;
+  onNotice?: (message: string) => void;
+}
+
+export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
+  const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
+  const [preview, setPreview] = useState<ImportReport | null>(null);
+  const [report, setReport] = useState<ImportReport | null>(null);
+  const [password, setPassword] = useState("");
+  const [phrase, setPhrase] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [syncError, setSyncError] = useState("");
+  const [syncProgress, setSyncProgress] = useState("");
+  const [syncUsername, setSyncUsername] = useState(() =>
+    demo || typeof window === "undefined"
+      ? ""
+      : window.localStorage.getItem("aulapay.kodland.username") ?? "",
+  );
+  const [syncPassword, setSyncPassword] = useState("");
+  const [saveCredentials, setSaveCredentials] = useState(true);
+
+  const message = (reason: unknown) =>
+    setError(
+      reason instanceof Error
+        ? reason.message
+        : "Não foi possível concluir a operação.",
+    );
+
+  function openSync() {
+    setError("");
+    setSyncError("");
+    setSyncProgress("");
+    setSyncOpen(true);
+    if (demo) return;
+    void restoreKodlandCredentials().then((credentials) => {
+      if (!credentials) return;
+      setSyncUsername((current) => current || credentials.username);
+      setSyncPassword((current) => current || credentials.password);
+    });
+  }
+
+  async function synchronize(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (demo) {
+      if (busy) return;
+      setBusy(true);
+      try {
+        await demo.onSync();
+        setSyncOpen(false);
+        setNotice("Sincronização simulada com dados fictícios. Nenhuma conexão com a Kodland foi feita.");
+      } catch (reason) {
+        setSyncError(reason instanceof Error ? reason.message : "Não foi possível atualizar a demonstração.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    const form = event.currentTarget;
+    const username = syncUsername.trim();
+    if (busy || !username || !syncPassword) return;
+
+    setBusy(true);
+    setSyncError("");
+    setSyncProgress("");
+    try {
+      let savedInBrowser = false;
+      const result = await kodlandApi.syncAll(
+        username,
+        syncPassword,
+        setSyncProgress,
+      );
+      if (saveCredentials) {
+        try {
+          window.localStorage.setItem("aulapay.kodland.username", username);
+          savedInBrowser = await rememberKodlandCredentials(form);
+        } catch {
+          // Browser password storage is optional and controlled by the browser.
+        }
+      }
+      setSyncPassword("");
+      setSyncOpen(false);
+      setNotice(
+        `Sincronização concluída: ${result.group_count} turma(s), ${result.student_count} aluno(s), ${result.lesson_count} aula(s), ${result.extra_lesson_count} extra(s) e ${result.review_count} correção(ões).${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
+      );
+    } catch (reason) {
+      setSyncError(
+        reason instanceof ApiError ||
+          reason instanceof KodlandSyncResponseError ||
+          reason instanceof KodlandSyncPersistenceError
+          ? reason.message
+          : "Não foi possível sincronizar os dados da Kodland.",
+      );
+    } finally {
+      setBusy(false);
+      setSyncProgress("");
+    }
+  }
+
+  async function download() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const data = demo
+        ? { ...demo.snapshot, exported_at: new Date().toISOString(), demonstration: true }
+        : await dataApi.export();
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+      );
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${demo ? "nexusclass-demo" : "aulapay-backup"}-${data.exported_at.slice(0, 10)}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setNotice(demo ? "Backup demonstrativo baixado: contém apenas dados fictícios." : "Backup baixado.");
+    } catch (reason) {
+      message(reason);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function file(event: ChangeEvent<HTMLInputElement>) {
+    if (demo) {
+      setNotice("Importação indisponível na demonstração: seus arquivos pessoais não serão lidos.");
+      return;
+    }
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const value: unknown = JSON.parse(String(reader.result));
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          throw new Error("Invalid backup");
+        }
+        setPayload(value as Record<string, unknown>);
+        setPreview(null);
+        setReport(null);
+        setNotice("Arquivo carregado. Gere a prévia antes de importar.");
+      } catch {
+        setError("O arquivo não contém um JSON válido.");
+      }
+    };
+    reader.readAsText(selected, "UTF-8");
+  }
+
+  async function check() {
+    if (demo) return;
+    if (!payload || busy) return;
+    setBusy(true);
+    try {
+      setPreview(await dataApi.previewImport(payload));
+    } catch (reason) {
+      message(reason);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importIt() {
+    if (demo) return;
+    if (!payload || !preview || busy || !window.confirm("Importar estes dados?")) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await dataApi.import(payload);
+      setReport(result);
+      setPreview(null);
+      setPayload(null);
+      setNotice(
+        result.already_imported
+          ? "Esta exportação já havia sido importada."
+          : "Dados importados com sucesso.",
+      );
+    } catch (reason) {
+      message(reason);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (demo) {
+      if (busy || phrase !== "RESETAR") return;
+      demo.onReset();
+      setPhrase("");
+      setPassword("");
+      setNotice("Demonstração restaurada. Nenhum dado de uma conta real foi alterado.");
+      return;
+    }
+    if (
+      phrase !== "RESETAR" ||
+      !password ||
+      busy ||
+      !window.confirm("Apagar permanentemente todos os seus dados?")
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await dataApi.reset(password);
+      setPhrase("");
+      setPassword("");
+      setNotice("Dados apagados.");
+    } catch (reason) {
+      message(reason);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="management-grid">
+      <Modal
+        open={syncOpen}
+        title="Sincronizar aplicação"
+        className="schedule-sync-modal"
+        onClose={() => !busy && setSyncOpen(false)}
+      >
+        <form className="form management-form" autoComplete={demo ? "off" : "on"} onSubmit={synchronize}>
+          <p className="muted">
+            Atualiza turmas, alunos, grade, aulas extras, correções e materiais em etapas.
+          </p>
+          {demo ? <p className="notice">Na demonstração, esta operação utiliza apenas dados fictícios e não solicita credenciais.</p> : <><label className="field">
+            Usuário ou e-mail
+            <Input
+              name="username"
+              type="text"
+              required
+              autoComplete="username"
+              disabled={busy}
+              value={syncUsername}
+              onChange={(event) => setSyncUsername(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            Senha
+            <Input
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              disabled={busy}
+              value={syncPassword}
+              onChange={(event) => setSyncPassword(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <input
+              type="checkbox"
+              checked={saveCredentials}
+              disabled={busy}
+              onChange={(event) => setSaveCredentials(event.target.checked)}
+            />{" "}
+            Salvar credenciais no navegador
+          </label>
+          </>}
+          {syncProgress && <p className="notice" role="status">{syncProgress}</p>}
+          {syncError && <p className="form-error" role="alert">{syncError}</p>}
+          <div className="form-actions">
+            <Button type="submit" disabled={busy}>
+              {busy ? "Sincronizando…" : "Sincronizar tudo"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <section className="page-heading">
+        <p className="eyebrow">Privacidade e backup</p>
+        <h1>Dados e backup</h1>
+      </section>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {notice && <p className="notice" role="status">{notice}</p>}
+
+      <section className="panel" data-tour="data-sync">
+        <h2>Sincronização Kodland</h2>
+        <p className="muted">
+          Importe toda a aplicação de uma vez. As atualizações específicas continuam disponíveis em cada tela.
+        </p>
+        <Button type="button" disabled={busy} onClick={openSync}>
+          Sincronizar tudo
+        </Button>
+      </section>
+
+      <section className="panel" data-tour="data-export">
+        <h2>Exportar backup</h2>
+        <p className="muted">Baixe um JSON com seus dados e guarde-o em local seguro.</p>
+        <Button disabled={busy} onClick={() => void download()}>
+          {busy ? "Preparando…" : "Baixar backup JSON"}
+        </Button>
+      </section>
+
+      <section className="panel" data-tour="data-import">
+        <h2>Importar do aplicativo Expo</h2>
+        <p className="muted">Selecione o JSON, confira a prévia e então confirme.</p>
+        <div className="form">
+          <Input type="file" accept="application/json,.json" disabled={busy || Boolean(demo)} onChange={file} />
+          {demo && <p className="muted">Importação de arquivos pessoais indisponível na demonstração.</p>}
+          {payload && (
+            <Button type="button" disabled={busy} onClick={() => void check()}>
+              Gerar prévia
+            </Button>
+          )}
+        </div>
+        {preview && (
+          <div className="form">
+            <p className="muted">
+              Prévia: {summary(preview)}{preview.already_imported ? ". Já importado." : "."}
+            </p>
+            <Button disabled={busy} onClick={() => void importIt()}>
+              Confirmar importação
+            </Button>
+          </div>
+        )}
+        {report && <p className="notice">Importação: {summary(report)}</p>}
+      </section>
+
+      <section className="panel" data-tour="data-delete">
+        <h2>Apagar todos os dados</h2>
+        <p className="muted">{demo ? "Restaure o exemplo inicial. Apenas as alterações locais desta demonstração serão removidas." : "Turmas, aulas e confirmações serão removidas; sua conta continua existindo."}</p>
+        <form className="form" onSubmit={reset}>
+          <label className="field">
+            Digite RESETAR
+            <Input value={phrase} onChange={(event) => setPhrase(event.target.value)} />
+          </label>
+          <label className="field">
+            Senha atual
+            <Input type="password" autoComplete={demo ? "off" : undefined} disabled={Boolean(demo)} placeholder={demo ? "Não exigida na demonstração" : undefined} value={password} onChange={(event) => setPassword(event.target.value)} />
+          </label>
+          <button className="button button-primary" disabled={busy || phrase !== "RESETAR" || (!demo && !password)}>
+            {demo ? "Restaurar dados demonstrativos" : "Apagar dados permanentemente"}
+          </button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+export default function DataPage() {
+  return <AuthGuard>{(user) => <Shell user={user}><DataContent /></Shell>}</AuthGuard>;
+}

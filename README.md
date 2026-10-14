@@ -4,24 +4,32 @@ Projeto de portfólio de **Ezequiel Oliveira**: gestão da rotina pedagógica e
 financeira de professores, com agenda semanal, turmas, alunos, correções e
 acompanhamento de pagamentos.
 
-[Conheça o projeto](https://nexusclass.vercel.app) ·
+[Abrir o projeto](https://nexusclass.vercel.app) ·
 [Experimente sem login](https://nexusclass.vercel.app/demo)
 
 ## Demonstração para visitantes
 
-A página inicial apresenta o produto e a rota pública `/demo` permite explorar
-Resumo, Turmas, Alunos, Aulas, Pagamentos e exemplos de Correções. É possível
-cadastrar, editar e remover registros fictícios, confirmar um pagamento e
-restaurar o cenário original pelo botão **Restaurar demonstração**.
+A página inicial abre a tela de entrada com o botão **Entrar como visitante**,
+para compartilhar o link do projeto em um portfólio já existente. A rota
+pública `/demo` também permite explorar sem login
+o mesmo menu do ambiente de trabalho: **Resumo, Pagamentos, Turmas, Aulas,
+Correções e Dados e backup**. A demonstração reutiliza a interface real: grade semanal, a
+navegação por competências e o extrato, os alunos dentro das turmas e a
+organização das pendências, usando registros fictícios.
+
+![Demonstração do NexusClass com dados fictícios](docs/images/nexusclass-demo.png)
 
 Os dados da demo ficam apenas no navegador, em armazenamento separado das
 contas reais. Não há login obrigatório, consulta à Kodland nem escrita no
-Firebase nesse modo. Correções são exemplos visuais; os cadastros manuais da
-demo ilustram a gestão e não substituem o fluxo sincronizado da área privada.
+Firebase nesse modo. Atualizações, correções e mudanças financeiras são
+simuladas localmente; a integração real exige a conta privada. Não use dados
+reais na demonstração. Em **Dados e backup**, **Restaurar dados demonstrativos**
+retorna ao cenário inicial.
 
 **Tecnologias:** Next.js, React, TypeScript, Firebase Authentication,
-Cloud Firestore e publicação na Vercel. A demo usa um adaptador local testado
-para operações de cadastro, edição, exclusão, indicadores e restauração.
+Cloud Firestore e publicação na Vercel. A demonstração reaproveita componentes
+da aplicação e o mesmo cálculo de negócio da conta privada. Adaptadores locais
+separam a persistência, e operações externas ficam simuladas por segurança.
 
 Para testar localmente: `npm install`, `npm run web:dev` e abra
 `http://localhost:3000/demo`. A demonstração não precisa de credenciais Firebase

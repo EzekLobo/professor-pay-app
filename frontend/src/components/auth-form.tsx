@@ -65,8 +65,11 @@ export function AuthForm() {
           {error && <p className="form-error" role="alert">{error}</p>}
           <Button type="submit" disabled={submitting}>{submitting ? "Aguarde…" : "Entrar"}</Button>
         </form>
+        <button className="button button-ghost" type="button" style={{ width: "100%", marginTop: 12 }} onClick={() => router.push("/demo")}>
+          Entrar como visitante
+        </button>
+        <p className="auth-footer">Explore com dados fictícios, sem informar credenciais.</p>
         <p className="auth-footer">O acesso é liberado pelo administrador.</p>
-        <p className="auth-footer"><Link href="/demo">Conhecer a demonstração sem entrar →</Link></p>
       </section>
     </main>
   );

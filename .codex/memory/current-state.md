@@ -2,6 +2,15 @@
 
 ## Correção em modal — implementado
 
+- Login automático usa as credenciais restauradas do cofre e a rota autenticada
+  `/api/kodland/session` para obter a sessão SSO. O middleware público do Learn
+  (`/_nuxt/BuLqfykB.js`, observado em 14/10) recebe `token` e `refresh_token`
+  na URL da atividade; ambos são necessários para `hasAuth`. São enviados
+  somente ao iframe HTTPS de `learn.kodland.org`, sem senha na URL, sem logs
+  ou persistência no NexusClass, resposta no-store e iframe no-referrer.
+  Falhas mantêm login da Kodland e acesso externo. Sete testes de sessão/URL,
+  TypeScript, lint e build passaram.
+
 - [x] Abrir link sincronizado no modal amplo e responsivo; manter filtros e
   posição; anterior/próxima seguem a ordem visual filtrada. Dependência: nenhuma.
 - [x] Atualizar pendências dentro do modal usando o cofre existente, preservar

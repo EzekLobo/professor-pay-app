@@ -1490,6 +1490,20 @@ export const paymentsApi = {
   },
 };
 export const kodlandApi = {
+  activitySession: async (username: string, password: string): Promise<{ access_token: string; refresh_token: string }> => {
+    const token = await authUser().getIdToken();
+    const result = await fetch("/api/kodland/session", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ username, password }), cache: "no-store",
+    });
+    const payload = await result.json();
+    if (!result.ok) throw new Error(payload.message || "Não foi possível entrar na Kodland.");
+    if (typeof payload.access_token !== "string" || typeof payload.refresh_token !== "string") {
+      throw new Error("A Kodland não retornou uma sessão válida.");
+    }
+    return { access_token: payload.access_token, refresh_token: payload.refresh_token };
+  },
   scheduleLastUpdatedAt: async (): Promise<string | null> => {
     const status = await getDoc(doc(ref("sync_status"), "schedule"));
     const completedAt = status.data()?.completed_at;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { KodlandReview } from "./api";
-import { correctionUrl, orderedReviews } from "./correction-navigation";
+import { authenticatedCorrectionUrl, correctionUrl, orderedReviews } from "./correction-navigation";
 
 const review = (id: string, student: string, className: string, lesson: number) => ({
   id, student_name: student, external_class_name: className,
@@ -8,6 +8,15 @@ const review = (id: string, student: string, className: string, lesson: number) 
 } as KodlandReview);
 
 describe("correctionUrl", () => {
+  it("passes sessions only to the official learning platform", () => {
+    const tokens = { access_token: "access", refresh_token: "refresh" };
+    const url = new URL(authenticatedCorrectionUrl("https://learn.kodland.org/pt/task/123/check/456", tokens)!);
+    expect(url.pathname).toBe("/pt/task/123/check/456");
+    expect(url.searchParams.get("token")).toBe("access");
+    expect(url.searchParams.get("refresh_token")).toBe("refresh");
+    expect(authenticatedCorrectionUrl("https://evil.test/activity", tokens)).toBeNull();
+    expect(authenticatedCorrectionUrl("https://bo.kodland.org/activity", tokens)).toBe("https://bo.kodland.org/activity");
+  });
   it("normaliza links relativos e aceita apenas as duas origens HTTPS da Kodland", () => {
     expect(correctionUrl("/task/123/check/456")).toBe("https://bo.kodland.org/task/123/check/456");
     expect(correctionUrl("https://learn.kodland.org/task/123")).toBe("https://learn.kodland.org/task/123");

@@ -30,15 +30,3 @@ export function correctionUrl(value: string): string | null {
     return null;
   }
 }
-
-export function authenticatedCorrectionUrl(value: string, tokens: { access_token: string; refresh_token: string }) {
-  const safeUrl = correctionUrl(value);
-  if (!safeUrl) return null;
-  const url = new URL(safeUrl);
-  if (url.origin !== "https://learn.kodland.org") return safeUrl;
-  // Official Learn middleware consumes both query parameters to initialize its
-  // own session. Passwords are never included. Keep this URL only in the iframe.
-  url.searchParams.set("token", tokens.access_token);
-  url.searchParams.set("refresh_token", tokens.refresh_token);
-  return url.href;
-}

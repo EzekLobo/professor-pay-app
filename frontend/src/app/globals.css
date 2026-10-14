@@ -643,38 +643,6 @@ select:focus-visible {
   margin-top: 0;
 }
 .modal-dialog { position: relative; overflow: visible; }
-.modal-dialog.correction-modal {
-  width: min(1400px, 96vw);
-  height: 90vh;
-  height: 90dvh;
-  max-height: 90dvh;
-  overflow: hidden;
-  padding: clamp(12px, 2vw, 23px);
-}
-.correction-modal[open] { display: flex; flex-direction: column; gap: 10px; }
-.correction-modal .modal-heading { flex-shrink: 0; }
-.correction-modal-context { display: grid; gap: 3px; font-size: .85rem; flex-shrink: 0; }
-.correction-modal-context strong { font-size: 1rem; }
-.correction-modal-context span { color: var(--muted); overflow-wrap: anywhere; }
-.correction-modal-toolbar, .correction-modal-actions, .correction-modal-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.correction-modal-toolbar { justify-content: space-between; flex-shrink: 0; }
-.correction-modal .button { padding: 9px 12px; font-size: .8rem; }
-.correction-modal-navigation > span { font-size: .8rem; color: var(--muted); }
-.correction-modal-hint { margin: 0; font-size: .75rem; color: var(--muted); flex-shrink: 0; }
-.correction-modal > .notice, .correction-modal > .form-error { margin: 0; font-size: .8rem; flex-shrink: 0; }
-.correction-modal-frame { position: relative; flex: 1; min-height: 80px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
-.correction-modal-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
-.correction-modal-frame > .muted { padding: 20px; color: #334155; }
-.correction-frame-loading { position: absolute; top: 12px; left: 12px; right: 12px; margin: 0; padding: 12px; border-radius: 8px; background: #111f36; color: #fff; pointer-events: none; }
-@media (max-width: 600px) {
-  .correction-modal-context { max-height: 100px; overflow: auto; }
-  .correction-modal-toolbar { gap: 6px; }
-  .correction-modal-actions { flex: 1; }
-}
-@media (max-height: 600px) {
-  .modal-dialog.correction-modal { overflow: auto; }
-  .correction-modal-frame { flex: none; height: max(220px, 50dvh); }
-}
 .modal-dialog.holiday-calendar-modal {
   max-height: calc(100dvh - 24px);
   overflow-x: hidden;

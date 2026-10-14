@@ -1,14 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { ApiError, kodlandApi, type KodlandLesson, type KodlandReview } from "@/lib/api";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
-import { CorrectionModal } from "@/components/correction-modal";
-import { groupReviews as groupBy, lessonLabel, orderedReviews, type ReviewGrouping } from "@/lib/correction-navigation";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => lessons.find((lesson) => {
@@ -16,6 +14,17 @@ const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => les
   if (lesson.id === review.lesson_id) return true;
   return review.lesson_number > 0 && lesson.lesson_number === review.lesson_number;
 });
+type ReviewGrouping = "class" | "student" | "lesson";
+const lessonLabel = (review: KodlandReview) =>
+  `Aula ${review.lesson_number || "–"}: ${review.lesson_title || "Sem título"}`;
+const groupBy = <T,>(items: T[], keyFor: (item: T) => string) =>
+  [...items.reduce((groups, item) => {
+    const key = keyFor(item);
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+    return groups;
+  }, new Map<string, T[]>())].sort(([first], [second]) =>
+    first.localeCompare(second, "pt-BR"),
+  );
 
 function LessonLinks({ lesson }: { lesson: KodlandLesson | undefined }) {
   if (!lesson) return null;
@@ -36,12 +45,10 @@ function ReviewCard({
   review,
   lessons,
   showStudent = true,
-  onCorrect,
 }: {
   review: KodlandReview;
   lessons: KodlandLesson[];
   showStudent?: boolean;
-  onCorrect: (review: KodlandReview) => void;
 }) {
   const lesson = lessonForReview(review, lessons);
   return (
@@ -59,13 +66,14 @@ function ReviewCard({
       </div>
       <div className="card-actions">
         <LessonLinks lesson={lesson} />
-        <button
+        <a
           className="button button-primary correction-action"
-          type="button"
-          onClick={() => onCorrect(review)}
+          target="_blank"
+          rel="noreferrer"
+          href={review.correction_url}
         >
           Corrigir
-        </button>
+        </a>
       </div>
     </article>
   );
@@ -80,10 +88,6 @@ function Content() {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const syncInProgress = useRef(false);
-  const [correctionSession, setCorrectionSession] = useState<{ items: KodlandReview[]; position: number } | null>(null);
-  const [openClasses, setOpenClasses] = useState<Record<string, boolean>>({});
-  const pageScroll = useRef(0);
 
   useEffect(() => {
     if (!notice) return;
@@ -91,43 +95,40 @@ function Content() {
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
-  const load = useCallback(async (background = false) => {
-    if (!background) setLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     setError("");
     try {
       const [reviewResult, lessonResult] = await Promise.all([kodlandApi.reviews(), kodlandApi.lessons()]);
       setReviews(reviewResult.items);
       setLessons(lessonResult.items);
-      return true;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");
-      return false;
     } finally {
-      if (!background) setLoading(false);
+      setLoading(false);
     }
   }, []);
 
   async function syncCorrections() {
-    if (syncInProgress.current) return;
-    syncInProgress.current = true;
+    if (syncing) return;
+    const credentials = await restoreKodlandCredentials();
+    if (!credentials) {
+      setError("Salve as credenciais em Dados e backup antes de atualizar as correções.");
+      return;
+    }
     setSyncing(true);
     setError("");
     setNotice("");
     try {
-      const credentials = await restoreKodlandCredentials();
-      if (!credentials) {
-        setError("Salve as credenciais em Dados e backup antes de atualizar as correções.");
-        return;
-      }
-      const scroll = window.scrollY;
       const result = await kodlandApi.sync(
         credentials.username.trim(),
         credentials.password,
         "corrections",
       );
-      const refreshed = await load(true);
-      window.requestAnimationFrame(() => window.scrollTo({ top: scroll, behavior: "instant" }));
-      if (refreshed) setNotice(`${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`);
+      await load();
+      setNotice(
+        `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
+      );
     } catch (reason) {
       setError(
         reason instanceof ApiError || reason instanceof KodlandSyncResponseError || reason instanceof KodlandSyncPersistenceError
@@ -136,7 +137,6 @@ function Content() {
       );
     } finally {
       setSyncing(false);
-      syncInProgress.current = false;
     }
   }
 
@@ -154,18 +154,6 @@ function Content() {
     () => groupBy(visibleReviews, (review) => review.external_class_name || "Turma não informada"),
     [visibleReviews],
   );
-  const navigationReviews = useMemo(() => orderedReviews(visibleReviews, grouping), [visibleReviews, grouping]);
-  const openCorrection = (review: KodlandReview) => {
-    pageScroll.current = window.scrollY;
-    setNotice("");
-    setError("");
-    setCorrectionSession({ items: navigationReviews, position: navigationReviews.findIndex((item) => item.id === review.id) });
-  };
-  const selectedReview = correctionSession?.items[correctionSession.position];
-  const closeCorrection = () => {
-    setCorrectionSession(null);
-    window.requestAnimationFrame(() => window.scrollTo({ top: pageScroll.current, behavior: "instant" }));
-  };
 
   return (
     <div className="management-grid">
@@ -218,10 +206,7 @@ function Content() {
                     ? (review) => review.student_name || "Aluno não informado"
                     : lessonLabel,
                 );
-            return <details className="correction-class-group" key={className} open={openClasses[className] ?? false} onToggle={(event) => {
-              const open = event.currentTarget.open;
-              setOpenClasses((current) => current[className] === open ? current : { ...current, [className]: open });
-            }}>
+            return <details className="correction-class-group" key={className}>
               <summary className="correction-class-heading">
                 <div>
                   <h3>{className}</h3>
@@ -232,7 +217,7 @@ function Content() {
               <div className="correction-class-body">
                 {grouping === "class" ? (
                   <div className="entity-list">
-                    {classReviews.map((review) => <ReviewCard review={review} lessons={lessons} onCorrect={openCorrection} key={review.id} />)}
+                    {classReviews.map((review) => <ReviewCard review={review} lessons={lessons} key={review.id} />)}
                   </div>
                 ) : (
                   <div className="correction-subgroup-list">
@@ -240,7 +225,7 @@ function Content() {
                       <section className={`correction-subgroup${grouping === "student" ? " correction-subgroup-student" : ""}`} key={label}>
                         <div className="correction-subgroup-heading"><h4>{label}</h4><span>{groupedReviews.length} pendência{groupedReviews.length === 1 ? "" : "s"}</span></div>
                         <div className="entity-list">
-                          {groupedReviews.map((review) => <ReviewCard review={review} lessons={lessons} showStudent={grouping !== "student"} onCorrect={openCorrection} key={review.id} />)}
+                          {groupedReviews.map((review) => <ReviewCard review={review} lessons={lessons} showStudent={grouping !== "student"} key={review.id} />)}
                         </div>
                       </section>
                     ))}
@@ -251,20 +236,6 @@ function Content() {
           })}
         </div>}
       </section>
-      {selectedReview && correctionSession && <CorrectionModal
-        key={selectedReview.id}
-        review={selectedReview}
-        position={correctionSession.position}
-        count={correctionSession.items.length}
-        pending={reviews.some((review) => review.id === selectedReview.id)}
-        syncing={syncing}
-        error={error}
-        notice={notice}
-        onClose={closeCorrection}
-        onPrevious={() => setCorrectionSession((current) => current && ({ ...current, position: Math.max(0, current.position - 1) }))}
-        onNext={() => setCorrectionSession((current) => current && ({ ...current, position: Math.min(current.items.length - 1, current.position + 1) }))}
-        onSync={() => void syncCorrections()}
-      />}
     </div>
   );
 }

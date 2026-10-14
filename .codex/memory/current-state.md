@@ -1,6 +1,10 @@
 # Estado atual
 
-## Correção em modal — implementado
+## Correções — abertura externa restaurada
+
+- A pedido do usuário, “Corrigir” voltou a abrir o link individual da Kodland
+  em uma nova aba. Modal, navegação incorporada e seus estilos foram removidos.
+  A atualização de correções continua usando as credenciais salvas.
 
 - Teste real de login automático em 14/10 (Lucas, tarefa 110876): SSO com
   credenciais locais retornou sessão; middleware Learn aceita `token` e
@@ -10,16 +14,6 @@
   não recebeu a sessão da aba autenticada. A tentativa `bbbe4b2` foi retirada
   após falhar no teste. Não adicionar login por tokens como solução validada;
   é necessário suporte da Kodland ao bootstrap do perfil no contexto incorporado.
-
-- [x] Abrir link sincronizado no modal amplo e responsivo; manter filtros e
-  posição; anterior/próxima seguem a ordem visual filtrada. Dependência: nenhuma.
-- [x] Atualizar pendências dentro do modal usando o cofre existente, preservar
-  atividade aberta mesmo quando deixar de ser pendente e exibir erros no modal.
-  Dependência: modal. Login ocorre na própria Kodland; acesso externo disponível.
-- [x] TypeScript, lint, build e três testes de origens/ordenação passaram.
-  A conta real estava sem pendências: validação de envio de avaliação permanece
-  pendente pelo professor. O teste isolado prévio mostrou login adicional no
-  iframe, mesmo com a aba normal autenticada; há alternativa externa permanente.
 
 
 - O cabeçalho da grade exibe a última atualização bem-sucedida em horário de

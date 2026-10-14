@@ -6,6 +6,9 @@
   e campo `outcome: completed`; consultar `extra_lesson_requests/{id}/` não
   verifica esse relatório. A sincronização passou a consultar o endpoint de
   relatório usando o ID da aula, separado do UUID da solicitação.
+  Validado em produção após o deploy `a684618`: Atualizar grade promoveu Rafael
+  de pendente para realizada sem intervenção manual; competência de novembro
+  aumentou de R$ 495 para R$ 525. Typecheck, lint e 36 testes específicos passaram.
 
 - A reconciliação de aulas extras também identifica a mesma ocorrência quando
   a Kodland troca o ID entre a agenda e a confirmação do aluno: prioriza o

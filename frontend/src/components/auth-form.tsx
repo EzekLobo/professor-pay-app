@@ -66,6 +66,7 @@ export function AuthForm() {
           <Button type="submit" disabled={submitting}>{submitting ? "Aguarde…" : "Entrar"}</Button>
         </form>
         <p className="auth-footer">O acesso é liberado pelo administrador.</p>
+        <p className="auth-footer"><Link href="/demo">Conhecer a demonstração sem entrar →</Link></p>
       </section>
     </main>
   );

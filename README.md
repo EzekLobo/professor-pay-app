@@ -1,5 +1,34 @@
 # NexusClass
 
+Projeto de portfólio de **Ezequiel Oliveira**: gestão da rotina pedagógica e
+financeira de professores, com agenda semanal, turmas, alunos, correções e
+acompanhamento de pagamentos.
+
+[Conheça o projeto](https://nexusclass.vercel.app) ·
+[Experimente sem login](https://nexusclass.vercel.app/demo)
+
+## Demonstração para visitantes
+
+A página inicial apresenta o produto e a rota pública `/demo` permite explorar
+Resumo, Turmas, Alunos, Aulas, Pagamentos e exemplos de Correções. É possível
+cadastrar, editar e remover registros fictícios, confirmar um pagamento e
+restaurar o cenário original pelo botão **Restaurar demonstração**.
+
+Os dados da demo ficam apenas no navegador, em armazenamento separado das
+contas reais. Não há login obrigatório, consulta à Kodland nem escrita no
+Firebase nesse modo. Correções são exemplos visuais; os cadastros manuais da
+demo ilustram a gestão e não substituem o fluxo sincronizado da área privada.
+
+**Tecnologias:** Next.js, React, TypeScript, Firebase Authentication,
+Cloud Firestore e publicação na Vercel. A demo usa um adaptador local testado
+para operações de cadastro, edição, exclusão, indicadores e restauração.
+
+Para testar localmente: `npm install`, `npm run web:dev` e abra
+`http://localhost:3000/demo`. A demonstração não precisa de credenciais Firebase
+ou Kodland; elas são necessárias somente para a área privada.
+
+## Arquitetura e histórico
+
 O aplicativo Expo existente permanece na raiz durante a migração. A versão web
 fica em `frontend` (Next.js) e usa Firebase Authentication + Cloud Firestore
 diretamente no navegador; a publicação recomendada é na Vercel. A API em

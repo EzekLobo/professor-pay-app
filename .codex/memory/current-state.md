@@ -1,5 +1,12 @@
 # Estado atual
 
+- A entrada `/` apresenta o NexusClass como projeto de portfólio, com link ao
+  repositório e demonstração pública `/demo`. A demo usa somente o adaptador
+  local `demo-data`, com CRUD fictício e restauração; não importa Firebase,
+  credenciais ou APIs Kodland. Os estilos públicos estão em `visitor.css` e
+  os formulários usam o modal acessível compartilhado. README contém links de
+  visita, tecnologias e distinção entre demo e conta privada.
+
 - O modal de log administrativo limita altura ao viewport e rola a tabela
   internamente, com cabeçalho das colunas fixo. Ao corrigir modais longos,
   considerar a regra global tardia `.modal-dialog { overflow: visible; }`:

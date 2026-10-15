@@ -5,6 +5,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button } from "@/components/ui";
+import { ManualClassesPanel } from "@/components/manual-classes-panel";
 import {
   ApiError,
   kodlandApi,
@@ -270,6 +271,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
           </div>
         )}
       </section>
+      {!demo && <ManualClassesPanel groups={groups} />}
     </div>
   );
 }

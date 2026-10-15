@@ -883,7 +883,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     typecheck passa.
   - Depende de: nenhuma.
 
-- [ ] R15.2 - Persistência privada, turmas e alunos manuais
+- [x] R15.2 - Persistência privada, turmas e alunos manuais
   - Escopo: CRUD Firestore de alunos/turmas próprios, vários horários,
     valor padrão ou específico, dia de recebimento e exceções por ocorrência;
     adaptar Turmas e o resumo para exibir ambas as origens, mantendo os IDs
@@ -927,3 +927,15 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   `payment_day` e o padrão por conta; mudanças no mesmo dia gravam
   `effective_from_local` usando `saoPauloLocalTimestamp()`. Recibos anteriores
   continuam sem snapshot até R15.4.
+
+##### R15.2
+
+- Mudou: coleções privadas `manual_students`, `manual_classes`,
+  `teaching_settings` e `kodland_class_settings`; Turmas cadastra alunos,
+  horários, tarifas e vencimento. Resumo/grade/competências somam fontes
+  manuais e sincronizadas sem gravar escolhas locais nos registros Kodland.
+- Verificado pelo orquestrador: 46 testes focados, typecheck, lint, build e
+  diff check passam. UI autenticada Firestore ainda precisa smoke visual.
+- Próximo: R15.3 deve incluir atividades/correções manuais nas métricas e usar
+  os IDs de ocorrência estáveis para vincular conteúdo, preservando eventos
+  de histórico e não exigindo `correction_url`.

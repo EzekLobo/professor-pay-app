@@ -13,7 +13,8 @@ export type RatePeriod = {
   effective_from: string;
   /** São Paulo civil date/time; use for changes during a teaching day. */
   effective_from_local?: string;
-  hourly_rate_cents: number;
+  /** Null ends a class-specific override and resumes the account default. */
+  hourly_rate_cents: number | null;
 };
 
 export type RecurringClass = {
@@ -88,14 +89,17 @@ export const effectiveHourlyRate = (
     .filter((item) => item.effective_from <= lessonDate &&
       (!item.effective_from_local ||
         item.effective_from_local <= `${lessonDate}T${lessonStartTime}`) &&
-      Number.isInteger(item.hourly_rate_cents) && item.hourly_rate_cents >= 0)
+      (item.hourly_rate_cents === null ||
+        (Number.isInteger(item.hourly_rate_cents) && item.hourly_rate_cents >= 0)))
     .sort((a, b) =>
-      (b.effective_from_local ?? b.effective_from).localeCompare(
-        a.effective_from_local ?? a.effective_from,
+      (a.effective_from_local ?? a.effective_from).localeCompare(
+        b.effective_from_local ?? b.effective_from,
       ),
-    )[0]
-    ?.hourly_rate_cents;
-  const selected = applicable(classHistory) ?? classRate ?? applicable(defaultHistory) ?? legacyRate;
+    ).at(-1);
+  const classPeriod = applicable(classHistory);
+  const selected = classPeriod
+    ? classPeriod.hourly_rate_cents ?? applicable(defaultHistory)?.hourly_rate_cents ?? legacyRate
+    : classRate ?? applicable(defaultHistory)?.hourly_rate_cents ?? legacyRate;
   if (!Number.isInteger(selected) || selected < 0) {
     throw new RangeError("Valor por hora inválido.");
   }

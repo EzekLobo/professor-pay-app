@@ -34,6 +34,17 @@ import {
   type RecurringClass,
   type WeeklySlot,
 } from "@/lib/teaching-finance";
+import {
+  effectivePaymentDay,
+  reconcileWeeklySlots,
+  tomorrowCivilDate,
+  validateManualClassInput,
+  type KodlandClassSettings,
+  type ManualClass,
+  type ManualClassInput,
+  type ManualStudent,
+  type PaymentDayPeriod,
+} from "@/lib/manual-teaching";
 
 export type User = { id: string; name: string; email: string };
 export type DashboardLesson = {
@@ -674,7 +685,9 @@ const kodlandFinancialLessons = (
   today: string,
   financialOverrides: Row[] = [],
   defaultRateHistory: RatePeriod[] = [],
+  kodlandSettings: Row[] = [],
 ): Lesson[] => {
+  const settingsByGroup = new Map(kodlandSettings.map((item) => [String(item.id), item]));
   const overrideStatusByLessonId = new Map(
     financialOverrides.map((item) => [
       String(item.financial_lesson_id ?? ""),
@@ -689,7 +702,15 @@ const kodlandFinancialLessons = (
       ),
   );
   const byGroup = new Map(
-    activeGroups.map((group) => [String(group.external_id ?? group.id), group]),
+    activeGroups.map((group) => {
+      const groupId = String(group.external_id ?? group.id);
+      const settings = settingsByGroup.get(groupId);
+      return [groupId, settings ? {
+        ...group,
+        rate_history: rateHistory(settings.rate_history).length
+          ? rateHistory(settings.rate_history) : rateHistory(group.rate_history),
+      } : group] as const;
+    }),
   );
   const byGroupAndDate = new Map<string, Row[]>();
   scheduled.forEach((item) => {
@@ -736,7 +757,11 @@ const kodlandFinancialLessons = (
           3000,
           String(event?.start_time ?? group.start_time ?? "00:00").slice(0, 5),
         ),
-        payment_day: group.payment_day ?? 15,
+        payment_day: effectivePaymentDay(
+          lessonDate,
+          (settingsByGroup.get(groupId)?.payment_day_history ?? []) as PaymentDayPeriod[],
+          Number(group.payment_day ?? 15),
+        ),
         active: true,
         canceled: false,
         financial_status: financialStatus,
@@ -748,7 +773,7 @@ const kodlandFinancialLessons = (
     );
   };
 
-  return activeGroups.flatMap((group) => {
+  return [...byGroup.values()].flatMap((group) => {
     const groupId = String(group.external_id ?? group.id);
     const firstDate =
       dateOnly(group.start_date) || dateOnly(group.next_lesson_date);
@@ -803,6 +828,7 @@ const kodlandExtraFinancialLessons = (
   today: string,
   kodlandGroups: Row[] = [],
   defaultRateHistory: RatePeriod[] = [],
+  kodlandSettings: Row[] = [],
 ): Lesson[] =>
   extraLessons
     .filter((item) =>
@@ -820,6 +846,9 @@ const kodlandExtraFinancialLessons = (
       const group = kodlandGroups.find((candidate) =>
         String(candidate.external_id ?? candidate.id) === String(item.external_class_id ?? ""),
       );
+      const settings = kodlandSettings.find((candidate) =>
+        String(candidate.id) === String(item.external_class_id ?? ""),
+      );
       return [
         asLesson(
           {
@@ -835,13 +864,18 @@ const kodlandExtraFinancialLessons = (
               ? effectiveHourlyRate(
                   lessonDate,
                   group?.hourly_rate_cents == null ? null : Number(group.hourly_rate_cents),
-                  rateHistory(group?.rate_history),
+                  rateHistory(settings?.rate_history).length
+                    ? rateHistory(settings?.rate_history) : rateHistory(group?.rate_history),
                   defaultRateHistory,
                   3000,
                   String(item.start_time ?? "00:00").slice(0, 5),
                 )
               : Number(item.hourly_rate_cents),
-            payment_day: group?.payment_day ?? 15,
+            payment_day: effectivePaymentDay(
+              lessonDate,
+              (settings?.payment_day_history ?? []) as PaymentDayPeriod[],
+              Number(group?.payment_day ?? 15),
+            ),
             active: true,
             canceled: false,
             note: "Aula extra concluída na Kodland",
@@ -874,6 +908,7 @@ export const calculateDashboard = (
   financialOverrides: Row[] = [],
   customHolidays: CustomHoliday[] = [],
   defaultRateHistory: RatePeriod[] = [],
+  kodlandSettings: Row[] = [],
 ): DashboardResponse => {
   const receivedPaymentDates = new Set(
     confirmations.filter(paymentWasReceived).map((item) => String(item.payment_date)),
@@ -893,15 +928,27 @@ export const calculateDashboard = (
       from,
       to,
       lessonRows,
-      defaultRateHistory,
+      row.source === "manual" && Number.isInteger(row.initial_default_rate_cents)
+        ? [{ effective_from: from, hourly_rate_cents: Number(row.initial_default_rate_cents) }, ...defaultRateHistory]
+        : defaultRateHistory,
     ).map((occurrence) => asLesson({
       ...occurrence,
+      payment_date: nextMonthPaymentDate(
+        occurrence.lesson_date,
+        effectivePaymentDay(
+          occurrence.lesson_date,
+          (row.payment_day_history ?? []) as PaymentDayPeriod[],
+          Number(row.payment_day ?? 15),
+        ),
+      ),
       number: 1,
       student: "",
       type: "NORMAL",
       active: true,
       canceled: false,
       note: "Horário semanal",
+      financial_status: financialOverrides.find((item) =>
+        item.financial_lesson_id === occurrence.id)?.financial_status ?? "",
     }, today));
   });
   const lessons = [
@@ -914,8 +961,9 @@ export const calculateDashboard = (
       today,
       financialOverrides,
       defaultRateHistory,
+      kodlandSettings,
     ),
-    ...kodlandExtraFinancialLessons(kodlandExtraLessons, today, kodlandGroups, defaultRateHistory),
+    ...kodlandExtraFinancialLessons(kodlandExtraLessons, today, kodlandGroups, defaultRateHistory, kodlandSettings),
   ].map((lesson) => applyHolidayFinancialResolution(
     lesson,
     customHolidays,
@@ -1297,9 +1345,14 @@ export const authApi = {
   logout: async () => undefined,
 };
 export const dashboardApi = {
-  get: async () =>
-    dashboardFrom(
-      await rows("classes"),
+  get: async () => {
+    const [legacyClasses, manualClasses, settings, kodlandSettings] = await Promise.all([
+      rows("classes"), rows("manual_classes"),
+      getDoc(doc(ref("teaching_settings"), "finance")),
+      rows("kodland_class_settings"),
+    ]);
+    return dashboardFrom(
+      [...legacyClasses, ...manualClasses],
       await rows("lessons"),
       await rows("payments"),
       await rows("kodland_groups"),
@@ -1308,7 +1361,10 @@ export const dashboardApi = {
       await rows("kodland_extra_lessons"),
       await rows("kodland_financial_overrides"),
       (await rows("holidays")) as unknown as CustomHoliday[],
-    ),
+      rateHistory(settings.data()?.rate_history),
+      kodlandSettings,
+    );
+  },
 };
 export const holidaysApi = {
   list: async (): Promise<CustomHoliday[]> =>
@@ -1426,6 +1482,163 @@ export const classesApi = {
       );
     await batch.commit();
     return { id, active: false };
+  },
+};
+const validRate = (value: number) => {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new ApiError(400, "Informe um valor por hora maior que zero.");
+  }
+};
+const nextRatePeriod = (hourlyRateCents: number | null): RatePeriod => {
+  const local = saoPauloLocalTimestamp();
+  return {
+    effective_from: local.slice(0, 10),
+    effective_from_local: local,
+    hourly_rate_cents: hourlyRateCents,
+  };
+};
+export const teachingSettingsApi = {
+  get: async (): Promise<{ rate_history: RatePeriod[]; default_hourly_rate_cents: number | null }> => {
+    const snapshot = await getDoc(doc(ref("teaching_settings"), "finance"));
+    const history = rateHistory(snapshot.data()?.rate_history);
+    return {
+      rate_history: history,
+      default_hourly_rate_cents: history.at(-1)?.hourly_rate_cents ?? null,
+    };
+  },
+  setDefaultRate: async (hourlyRateCents: number) => {
+    validRate(hourlyRateCents);
+    const existing = await teachingSettingsApi.get();
+    const rate_history = [...existing.rate_history, nextRatePeriod(hourlyRateCents)];
+    await setDoc(doc(ref("teaching_settings"), "finance"), {
+      rate_history,
+      updated_at: now(),
+      created_at: now(),
+    });
+    return { rate_history, default_hourly_rate_cents: hourlyRateCents };
+  },
+};
+export const manualTeachingApi = {
+  students: async (): Promise<ManualStudent[]> =>
+    (await rows("manual_students")) as unknown as ManualStudent[],
+  saveStudent: async (payload: { id?: string; name: string; email?: string; phone?: string; active?: boolean }): Promise<ManualStudent> => {
+    if (!payload.name.trim()) throw new ApiError(400, "Informe o nome do aluno.");
+    const id = payload.id || crypto.randomUUID();
+    const previous = await getDoc(doc(ref("manual_students"), id));
+    const record: ManualStudent = {
+      id,
+      name: payload.name.trim(),
+      email: payload.email?.trim() ?? "",
+      phone: payload.phone?.trim() ?? "",
+      active: payload.active ?? true,
+      created_at: String(previous.data()?.created_at ?? now()),
+      updated_at: now(),
+    };
+    await setDoc(doc(ref("manual_students"), id), record);
+    return record;
+  },
+  deactivateStudent: async (id: string) => {
+    const snapshot = await getDoc(doc(ref("manual_students"), id));
+    if (!snapshot.exists()) throw new ApiError(404, "Aluno não encontrado.");
+    await updateDoc(doc(ref("manual_students"), id), { active: false, updated_at: now() });
+  },
+  classes: async (): Promise<ManualClass[]> =>
+    (await rows("manual_classes")) as unknown as ManualClass[],
+  saveClass: async (payload: ManualClassInput & { id?: string }): Promise<ManualClass> => {
+    const [settings, students] = await Promise.all([
+      teachingSettingsApi.get(), manualTeachingApi.students(),
+    ]);
+    validateManualClassInput(payload, settings.default_hourly_rate_cents != null);
+    const validStudentIds = new Set(students.filter((student) => student.active).map((student) => student.id));
+    if (payload.student_ids.some((id) => !validStudentIds.has(id))) {
+      throw new ApiError(400, "Selecione alunos próprios ativos.");
+    }
+    const id = payload.id || crypto.randomUUID();
+    const snapshot = payload.id ? await getDoc(doc(ref("manual_classes"), id)) : null;
+    if (payload.id && !snapshot?.exists()) throw new ApiError(404, "Turma não encontrada.");
+    const previous = snapshot?.data() as ManualClass | undefined;
+    const today = isoToday();
+    const schedule_slots = previous
+      ? reconcileWeeklySlots(previous.schedule_slots ?? [], payload.schedule_slots, today)
+      : payload.schedule_slots.map((slot) => ({
+          ...slot, effective_from: payload.first_lesson_date,
+        }));
+    const changedRate = previous &&
+      (previous.rate_history?.at(-1)?.hourly_rate_cents ?? null) !== payload.hourly_rate_cents;
+    const rate_history: RatePeriod[] = previous
+      ? [...(previous.rate_history ?? []), ...(changedRate ? [nextRatePeriod(payload.hourly_rate_cents)] : [])]
+      : payload.hourly_rate_cents == null ? [] : [{
+          effective_from: payload.first_lesson_date,
+          hourly_rate_cents: payload.hourly_rate_cents,
+        }];
+    const record: ManualClass = {
+      id,
+      source: "manual",
+      name: payload.name.trim(),
+      first_lesson_date: previous?.first_lesson_date ?? payload.first_lesson_date,
+      end_date: previous?.end_date && previous.end_date < today
+        ? previous.end_date : payload.end_date || null,
+      schedule_slots,
+      hourly_rate_cents: null,
+      rate_history,
+      initial_default_rate_cents: previous?.initial_default_rate_cents ?? settings.default_hourly_rate_cents,
+      payment_day: payload.payment_day,
+      payment_day_history: previous
+        ? [...(previous.payment_day_history ?? [{ effective_from: previous.first_lesson_date, payment_day: previous.payment_day ?? 15 }]),
+            ...(previous.payment_day === payload.payment_day ? [] : [{ effective_from: tomorrowCivilDate(today), payment_day: payload.payment_day }])]
+        : [{ effective_from: payload.first_lesson_date, payment_day: payload.payment_day }],
+      student_ids: [...new Set(payload.student_ids)],
+      active: previous?.active ?? true,
+      created_at: previous?.created_at ?? now(),
+      updated_at: now(),
+    };
+    await setDoc(doc(ref("manual_classes"), id), record);
+    return record;
+  },
+  deactivateClass: async (id: string) => {
+    const snapshot = await getDoc(doc(ref("manual_classes"), id));
+    if (!snapshot.exists()) throw new ApiError(404, "Turma não encontrada.");
+    const current = snapshot.data() as ManualClass;
+    await updateDoc(doc(ref("manual_classes"), id), {
+      active: false,
+      end_date: isoToday(),
+      updated_at: now(),
+      schedule_slots: (current.schedule_slots ?? []).map((slot) =>
+        slot.effective_until && slot.effective_until < isoToday()
+          ? slot : { ...slot, effective_until: isoToday() }),
+    });
+  },
+};
+export const kodlandClassSettingsApi = {
+  list: async (): Promise<KodlandClassSettings[]> =>
+    (await rows("kodland_class_settings")) as unknown as KodlandClassSettings[],
+  save: async (externalId: string, input: { hourly_rate_cents: number | null; payment_day: number }) => {
+    const group = (await rows("kodland_groups")).find((item) => String(item.external_id) === externalId);
+    if (!group) throw new ApiError(404, "Turma Kodland não encontrada.");
+    if (!Number.isInteger(input.payment_day) || input.payment_day < 1 || input.payment_day > 31) {
+      throw new ApiError(400, "O dia de recebimento deve estar entre 1 e 31.");
+    }
+    if (input.hourly_rate_cents != null) validRate(input.hourly_rate_cents);
+    const reference = doc(ref("kodland_class_settings"), externalId);
+    const snapshot = await getDoc(reference);
+    const previous = snapshot.data();
+    const history = rateHistory(previous?.rate_history);
+    const latest = history.length ? history.at(-1)?.hourly_rate_cents : null;
+    const record: KodlandClassSettings = {
+      id: externalId,
+      rate_history: latest === input.hourly_rate_cents
+        ? history : [...history, nextRatePeriod(input.hourly_rate_cents)],
+      payment_day: input.payment_day,
+      payment_day_history: [
+        ...((previous?.payment_day_history ?? []) as PaymentDayPeriod[]),
+        ...(Number(previous?.payment_day ?? 15) === input.payment_day ? []
+          : [{ effective_from: tomorrowCivilDate(isoToday()), payment_day: input.payment_day }]),
+      ],
+      created_at: String(previous?.created_at ?? now()),
+      updated_at: now(),
+    };
+    await setDoc(reference, record);
+    return record;
   },
 };
 export const lessonsApi = {

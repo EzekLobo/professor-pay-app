@@ -3,6 +3,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Modal } from "@/components/modal";
+import { ManualLessonsSection } from "@/components/manual-lessons-section";
 import {
   LessonMaterialModal,
   type LessonMaterialDetails,
@@ -155,6 +156,7 @@ export function LessonsContent({ demoData, onDemoAction }: { demoData?: { groups
   );
   return (
     <div className="management-grid">
+      {!demoData && <ManualLessonsSection />}
       {error && !importOpen && (
         <p className="form-error" role="alert">
           {error}

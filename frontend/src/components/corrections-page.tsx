@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
-import { ApiError, kodlandApi, type KodlandLesson, type KodlandReview } from "@/lib/api";
+import { Modal } from "@/components/modal";
+import { ApiError, kodlandApi, manualPedagogyApi, manualTeachingApi, type KodlandLesson, type KodlandReview } from "@/lib/api";
+import type { ManualActivity } from "@/lib/manual-pedagogy";
+import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
+import { pendingManualActivities } from "@/lib/manual-pedagogy";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
 
@@ -100,6 +104,13 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(!demo);
   const [syncing, setSyncing] = useState(false);
+  const [manualActivities, setManualActivities] = useState<ManualActivity[]>([]);
+  const [manualClasses, setManualClasses] = useState<ManualClass[]>([]);
+  const [manualStudents, setManualStudents] = useState<ManualStudent[]>([]);
+  const [hasKodlandGroups, setHasKodlandGroups] = useState(false);
+  const [editingManual, setEditingManual] = useState<ManualActivity | null>(null);
+  const [feedback, setFeedback] = useState("");
+  const [savingManual, setSavingManual] = useState(false);
 
   useEffect(() => {
     if (!notice) return;
@@ -112,9 +123,16 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
     setLoading(true);
     setError("");
     try {
-      const [reviewResult, lessonResult] = await Promise.all([kodlandApi.reviews(), kodlandApi.lessons()]);
+      const [reviewResult, lessonResult, groupResult, ownActivities, ownClasses, ownStudents] = await Promise.all([
+        kodlandApi.reviews(), kodlandApi.lessons(), kodlandApi.groups(),
+        manualPedagogyApi.activities(), manualTeachingApi.classes(), manualTeachingApi.students(),
+      ]);
       setReviews(reviewResult.items);
       setLessons(lessonResult.items);
+      setHasKodlandGroups(groupResult.items.length > 0);
+      setManualActivities(ownActivities);
+      setManualClasses(ownClasses);
+      setManualStudents(ownStudents);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");
     } finally {
@@ -176,6 +194,13 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
     if (!normalized) return reviews;
     return reviews.filter((review) => `${review.student_name} ${review.external_class_name} ${review.lesson_title} ${review.task_title}`.toLowerCase().includes(normalized));
   }, [query, reviews]);
+  const pendingOwn = useMemo(() => pendingManualActivities(manualActivities), [manualActivities]);
+  const visibleOwn = useMemo(() => pendingOwn.filter((item) => {
+    const student = manualStudents.find((row) => row.id === item.student_id)?.name ?? "";
+    const className = manualClasses.find((row) => row.id === item.class_id)?.name ?? "";
+    return `${student} ${className} ${item.title} ${item.description}`.toLowerCase().includes(query.trim().toLowerCase());
+  }), [pendingOwn, manualClasses, manualStudents, query]);
+  const ownByClass = useMemo(() => groupBy(visibleOwn, (item) => manualClasses.find((row) => row.id === item.class_id)?.name || "Turma própria"), [visibleOwn, manualClasses]);
   const reviewsByClass = useMemo(
     () => groupBy(visibleReviews, (review) => review.external_class_name || "Turma não informada"),
     [visibleReviews],
@@ -183,6 +208,24 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
 
   return (
     <div className="management-grid">
+      <Modal open={Boolean(editingManual)} title="Corrigir atividade própria" onClose={() => { if (!savingManual) setEditingManual(null); }}>
+        {editingManual && <form className="form management-form" onSubmit={async (event) => {
+          event.preventDefault(); setSavingManual(true); setError("");
+          try {
+            const updated = await manualPedagogyApi.saveActivity({ ...editingManual, feedback, status: "completed" });
+            setManualActivities((current) => current.map((item) => item.id === updated.id ? updated : item));
+            setEditingManual(null); setNotice("Atividade corrigida.");
+          } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível salvar a correção."); }
+          finally { setSavingManual(false); }
+        }}>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <p><strong>{editingManual.title}</strong></p>
+          {editingManual.submission_text && <p>Entrega: {editingManual.submission_text}</p>}
+          {editingManual.submission_url && <a href={editingManual.submission_url} target="_blank" rel="noreferrer">Abrir entrega</a>}
+          <label className="field">Feedback<textarea className="input" value={feedback} onChange={(event) => setFeedback(event.target.value)} /></label>
+          <div className="form-actions"><Button type="submit" disabled={savingManual}>{savingManual ? "Salvando…" : "Concluir correção"}</Button></div>
+        </form>}
+      </Modal>
       <section className="page-heading">
         <div>
           <p className="eyebrow">Pendências</p>
@@ -195,13 +238,13 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
         <div className="section-heading">
           <div>
             <h2>Atividades entregues</h2>
-            <span className="correction-result-count">{visibleReviews.length} de {reviews.length} pendentes</span>
+            <span className="correction-result-count">{visibleReviews.length + visibleOwn.length} de {reviews.length + pendingOwn.length} pendentes</span>
           </div>
           <div className="correction-heading-actions">
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
-            <Button type="button" data-tour="corrections-sync" onClick={() => void syncCorrections()} disabled={syncing}>
+            {(demo || hasKodlandGroups) && <Button type="button" data-tour="corrections-sync" onClick={() => void syncCorrections()} disabled={syncing}>
               {syncing ? "Atualizando correções…" : "Atualizar correções"}
-            </Button>
+            </Button>}
           </div>
         </div>
         <div className="correction-filters" data-tour="corrections-filters" role="group" aria-label="Organizar correções">
@@ -222,7 +265,29 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
             </button>
           ))}
         </div>
-        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length === 0 ? <p className="muted">Sem pendências para os filtros atuais.</p> : <div className="correction-class-list" data-tour="corrections-cards">
+        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted">Sem pendências para os filtros atuais.</p> : <div className="correction-class-list" data-tour="corrections-cards">
+          {ownByClass.map(([className, classActivities]) => {
+            const ownGroups = grouping === "class" ? [] : groupBy(classActivities, (item) => grouping === "student"
+              ? manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno"
+              : item.occurrence_id);
+            const card = (item: ManualActivity, showStudent: boolean) => <article className="entity-card correction-card" key={item.id}>
+              <div className="correction-card-copy"><div className="correction-card-top">
+                {showStudent && <h4>{manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno"}</h4>}
+                <StatusBadge tone="warning">Entregue</StatusBadge>
+              </div><p className="correction-card-lesson">Aula {item.occurrence_id.split(":").at(-1)}</p>
+                <p className="correction-card-task"><span>Atividade</span>{item.title}</p></div>
+              <div className="card-actions"><Button type="button" className="correction-action" onClick={() => { setEditingManual(item); setFeedback(item.feedback); }}>Corrigir</Button></div>
+            </article>;
+            return <details className="correction-class-group" key={`manual:${className}`}>
+              <summary className="correction-class-heading"><div><h3>{className}</h3><span>{classActivities.length} pendência{classActivities.length === 1 ? "" : "s"}</span></div><span className="correction-disclosure" aria-hidden="true">⌄</span></summary>
+              <div className="correction-class-body">{grouping === "class"
+                ? <div className="entity-list">{classActivities.map((item) => card(item, true))}</div>
+                : <div className="correction-subgroup-list">{ownGroups.map(([label, items]) => <section className={`correction-subgroup${grouping === "student" ? " correction-subgroup-student" : ""}`} key={label}>
+                  <div className="correction-subgroup-heading"><h4>{label}</h4><span>{items.length} pendência{items.length === 1 ? "" : "s"}</span></div>
+                  <div className="entity-list">{items.map((item) => card(item, grouping !== "student"))}</div>
+                </section>)}</div>}</div>
+            </details>;
+          })}
           {reviewsByClass.map(([className, classReviews]) => {
             const internalGroups = grouping === "class"
               ? []

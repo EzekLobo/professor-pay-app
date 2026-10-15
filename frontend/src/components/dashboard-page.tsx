@@ -17,6 +17,7 @@ import {
   holidaysApi,
   kodlandApi,
   manualTeachingApi,
+  manualPedagogyApi,
   type KodlandExtraLesson,
   type KodlandExtraManualStatus,
   type KodlandAvailability,
@@ -36,6 +37,7 @@ import {
 } from "@/lib/kodland-extra-status";
 import { activeStudentsRankedByPoints, kodlandStudentPoints } from "@/lib/student-ranking";
 import { generateRecurringOccurrences } from "@/lib/teaching-finance";
+import { pendingManualActivities } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 
 const dayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -740,6 +742,7 @@ export function KodlandSummary({
   customHolidays,
   manualClasses = [],
   manualStudents = [],
+  manualPendingCount = 0,
   demoMode = false,
   onOpenCorrections,
 }: {
@@ -761,6 +764,7 @@ export function KodlandSummary({
   customHolidays: CustomHoliday[];
   manualClasses?: ManualClass[];
   manualStudents?: ManualStudent[];
+  manualPendingCount?: number;
   demoMode?: boolean;
   onOpenCorrections?: () => void;
 }) {
@@ -776,9 +780,9 @@ export function KodlandSummary({
           <span>Alunos ativos</span>
           <strong>{activeStudentsRankedByPoints(students).length + manualStudents.filter((item) => item.active).length}</strong>
         </article>
-        <Link className="metric-card metric-card-link" href={demoMode ? "#corrections" : "/corrections"} onClick={demoMode ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onOpenCorrections?.(); } : undefined} aria-label={`Abrir correções: ${reviews.length} pendente(s)`}>
+        <Link className="metric-card metric-card-link" href={demoMode ? "#corrections" : "/corrections"} onClick={demoMode ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onOpenCorrections?.(); } : undefined} aria-label={`Abrir correções: ${reviews.length + manualPendingCount} pendente(s)`}>
           <span>Correções pendentes</span>
-          <strong>{reviews.length}</strong>
+          <strong>{reviews.length + manualPendingCount}</strong>
         </Link>
       </section>
       <WeekSchedule
@@ -812,6 +816,7 @@ function DashboardPageContent() {
   const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   const [manualClasses, setManualClasses] = useState<ManualClass[]>([]);
   const [manualStudents, setManualStudents] = useState<ManualStudent[]>([]);
+  const [manualPendingCount, setManualPendingCount] = useState(0);
   const [failed, setFailed] = useState(false);
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
   const [refreshNotice, setRefreshNotice] = useState("");
@@ -838,6 +843,7 @@ function DashboardPageContent() {
         scheduleUpdatedAt,
         ownClasses,
         ownStudents,
+        ownActivities,
       ] = await Promise.all([
         dashboardApi.get(),
         kodlandApi.groups(),
@@ -850,6 +856,7 @@ function DashboardPageContent() {
         kodlandApi.scheduleLastUpdatedAt(),
         manualTeachingApi.classes(),
         manualTeachingApi.students(),
+        manualPedagogyApi.activities(),
       ]);
       setDashboard(financial);
       setGroups(kodlandGroups.items);
@@ -862,6 +869,7 @@ function DashboardPageContent() {
       setScheduleLastUpdatedAt(scheduleUpdatedAt);
       setManualClasses(ownClasses);
       setManualStudents(ownStudents);
+      setManualPendingCount(pendingManualActivities(ownActivities).length);
       return true;
     } catch {
       setFailed(true);
@@ -957,6 +965,7 @@ function DashboardPageContent() {
         customHolidays={customHolidays}
         manualClasses={manualClasses}
         manualStudents={manualStudents}
+        manualPendingCount={manualPendingCount}
       />
       <DashboardContent
         state="ready"

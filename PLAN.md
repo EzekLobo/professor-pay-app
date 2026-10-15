@@ -894,7 +894,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     sobrescreve o manual; testes focados e typecheck passam.
   - Depende de: R15.1.
 
-- [ ] R15.3 - Aulas, atividades e correções próprias
+- [x] R15.3 - Aulas, atividades e correções próprias
   - Escopo: cadastrar para turmas próprias conteúdos, roteiros, links, tarefas,
     entrega em texto/link, feedback e status pendente/concluído; mostrar nas
     telas Aulas e Correções com ações locais e sem links obrigatórios Kodland.
@@ -939,3 +939,14 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Próximo: R15.3 deve incluir atividades/correções manuais nas métricas e usar
   os IDs de ocorrência estáveis para vincular conteúdo, preservando eventos
   de histórico e não exigindo `correction_url`.
+
+##### R15.3
+
+- Mudou: coleções privadas `manual_lesson_content` e `manual_activities`;
+  Aulas próprias cadastra conteúdo, roteiro, links e atividades por aluno;
+  Correções mostra entregas próprias e conclui com feedback; Resumo agrega
+  pendências manuais e Kodland.
+- Verificado pelo orquestrador: 40 testes focados, typecheck, lint, build e
+  diff check passam.
+- Próximo: R15.4 inclui esses registros em backup e demonstração e faz
+  migração/backfill de recibos legados. Smoke visual autenticado ainda pendente.

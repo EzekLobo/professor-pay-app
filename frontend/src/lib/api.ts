@@ -19,6 +19,7 @@ import {
   resolveFinancialStatus,
 } from "@/lib/holidays";
 import type { KodlandLesson } from "@/lib/kodland-lessons";
+import { isHttpUrl, type ManualActivity, type ManualLessonContent } from "@/lib/manual-pedagogy";
 import {
   KodlandSyncPersistenceError,
   kodlandSyncNetworkError,
@@ -1607,6 +1608,86 @@ export const manualTeachingApi = {
         slot.effective_until && slot.effective_until < isoToday()
           ? slot : { ...slot, effective_until: isoToday() }),
     });
+  },
+};
+export const manualPedagogyApi = {
+  lessons: async (): Promise<ManualLessonContent[]> =>
+    (await rows("manual_lesson_content")) as unknown as ManualLessonContent[],
+  activities: async (): Promise<ManualActivity[]> =>
+    (await rows("manual_activities")) as unknown as ManualActivity[],
+  saveLesson: async (input: {
+    id?: string; class_id: string; occurrence_id?: string | null;
+    title: string; content?: string; guide?: string;
+    links?: { label: string; url: string }[];
+  }): Promise<ManualLessonContent> => {
+    const ownClass = (await manualTeachingApi.classes()).find((item) => item.id === input.class_id);
+    if (!ownClass) throw new ApiError(404, "Turma própria não encontrada.");
+    if (!input.title.trim()) throw new ApiError(400, "Informe o título da aula.");
+    if (input.occurrence_id) {
+      const date = input.occurrence_id.split(":").at(-1) ?? "";
+      let valid = false;
+      try { valid = generateRecurringOccurrences(ownClass, date, date).some((item) => item.id === input.occurrence_id); }
+      catch { /* invalid civil date */ }
+      if (!valid) throw new ApiError(400, "Ocorrência incompatível com a turma.");
+    }
+    const links = (input.links ?? []).map((item) => ({ label: item.label.trim(), url: item.url.trim() }));
+    if (links.some((item) => !item.label || !isHttpUrl(item.url))) {
+      throw new ApiError(400, "Informe nome e endereço http(s) válido para cada link.");
+    }
+    const id = input.id || crypto.randomUUID();
+    const reference = doc(ref("manual_lesson_content"), id);
+    const previous = await getDoc(reference);
+    if (input.id && (!previous.exists() || previous.data()?.class_id !== ownClass.id)) {
+      throw new ApiError(404, "Aula própria não encontrada.");
+    }
+    const record: ManualLessonContent = {
+      id, class_id: ownClass.id, occurrence_id: input.occurrence_id || null,
+      title: input.title.trim(), content: input.content?.trim() ?? "",
+      guide: input.guide?.trim() ?? "", links,
+      created_at: String(previous.data()?.created_at ?? now()), updated_at: now(),
+    };
+    await setDoc(reference, record);
+    return record;
+  },
+  saveActivity: async (input: {
+    id?: string; class_id: string; student_id: string; occurrence_id: string;
+    title: string; description?: string; submission_text?: string;
+    submission_url?: string; feedback?: string; status?: "pending" | "completed";
+  }): Promise<ManualActivity> => {
+    const [ownClass, students] = await Promise.all([
+      manualTeachingApi.classes().then((items) => items.find((item) => item.id === input.class_id)),
+      manualTeachingApi.students(),
+    ]);
+    if (!ownClass) throw new ApiError(404, "Turma própria não encontrada.");
+    if (!ownClass.student_ids.includes(input.student_id) || !students.some((item) => item.id === input.student_id)) {
+      throw new ApiError(400, "Selecione um aluno desta turma.");
+    }
+    const occurrenceDate = input.occurrence_id.split(":").at(-1) ?? "";
+    let validOccurrence = false;
+    try { validOccurrence = generateRecurringOccurrences(ownClass, occurrenceDate, occurrenceDate)
+      .some((item) => item.id === input.occurrence_id); }
+    catch { /* invalid civil date */ }
+    if (!validOccurrence) throw new ApiError(400, "Selecione uma ocorrência desta turma.");
+    if (!input.title.trim()) throw new ApiError(400, "Informe a atividade.");
+    if (input.submission_url?.trim() && !isHttpUrl(input.submission_url.trim())) {
+      throw new ApiError(400, "Informe um link de entrega http(s) válido.");
+    }
+    const id = input.id || crypto.randomUUID();
+    const reference = doc(ref("manual_activities"), id);
+    const previous = await getDoc(reference);
+    if (input.id && (!previous.exists() || previous.data()?.class_id !== ownClass.id)) {
+      throw new ApiError(404, "Atividade própria não encontrada.");
+    }
+    const record: ManualActivity = {
+      id, class_id: ownClass.id, student_id: input.student_id,
+      occurrence_id: input.occurrence_id, title: input.title.trim(),
+      description: input.description?.trim() ?? "", submission_text: input.submission_text?.trim() ?? "",
+      submission_url: input.submission_url?.trim() ?? "", feedback: input.feedback?.trim() ?? "",
+      status: input.status ?? "pending",
+      created_at: String(previous.data()?.created_at ?? now()), updated_at: now(),
+    };
+    await setDoc(reference, record);
+    return record;
   },
 };
 export const kodlandClassSettingsApi = {

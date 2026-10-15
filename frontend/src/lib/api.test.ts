@@ -177,6 +177,72 @@ describe("Firestore financial helpers", () => {
     });
   });
 
+  it("mescla turma própria e Kodland e mantém o pagamento recebido congelado", () => {
+    const localClass = {
+      id: "own-1",
+      name: "Particular",
+      first_lesson_date: "2026-10-13",
+      hourly_rate_cents: 5000,
+      payment_day: 20,
+      active: true,
+      schedule_slots: [{
+        id: "tue-19", week_day: 1, start_time: "19:00",
+        duration_minutes: 60, effective_from: "2026-10-13",
+      }],
+    };
+    const kodland = {
+      id: "k1", external_id: "k1", title: "Kodland",
+      course_name: "[60 min][4 L]", start_date: "2026-10-13",
+      archived: false,
+    };
+    const initial = __test.dashboardFrom(
+      [localClass], [], [], [kodland], [], "2026-10-14",
+    );
+    expect(initial.payments.find((item) => item.payment_date === "2026-11-20"))
+      .toMatchObject({ total_cents: 15000, lesson_count: 3 });
+    expect(initial.payments.find((item) => item.payment_date === "2026-11-15"))
+      .toMatchObject({ total_cents: 9000, lesson_count: 3 });
+    const closed = initial.payments.find((item) => item.payment_date === "2026-11-20")!;
+    const afterChanges = __test.dashboardFrom(
+      [{ ...localClass, hourly_rate_cents: 9000 }], [], [{
+        id: "2026-11-20", payment_date: "2026-11-20",
+        status: "RECEIVED", received_at: "2026-11-20T12:00:00Z",
+        payment_snapshot: closed,
+      }], [kodland], [], "2026-11-21", [], [], [{
+        id: "holiday", date: "2026-10-20", name: "Feriado local",
+        source: "CUSTOM", affects_financial_total: true,
+        created_at: "2026-10-01", updated_at: "2026-10-01",
+      }],
+    );
+    expect(afterChanges.payments.find((item) => item.payment_date === "2026-11-20"))
+      .toMatchObject({ total_cents: 15000, lesson_count: 3, status: "RECEIVED" });
+    const withoutCurrentRows = __test.dashboardFrom(
+      [], [], [{
+        id: "2026-11-20", payment_date: "2026-11-20",
+        status: "RECEIVED", received_at: "2026-11-20T12:00:00Z",
+        payment_snapshot: closed,
+      }], [], [], "2026-11-21",
+    );
+    expect(withoutCurrentRows.payments).toMatchObject([{
+      payment_date: "2026-11-20", total_cents: 15000,
+      lesson_count: 3, status: "RECEIVED",
+    }]);
+  });
+
+  it("mantém a tarifa Kodland histórica até a vigência do padrão configurado", () => {
+    const dashboard = __test.dashboardFrom(
+      [], [], [], [{
+        id: "k2", external_id: "k2", title: "Kodland",
+        course_name: "[60 min][4 L]", start_date: "2026-10-13",
+        archived: false,
+      }], [], "2026-10-14", [], [], [], [{
+        effective_from: "2026-10-20", hourly_rate_cents: 4000,
+      }],
+    );
+    expect(dashboard.payments.find((item) => item.payment_date === "2026-11-15"))
+      .toMatchObject({ total_cents: 11000, lesson_count: 3 });
+  });
+
   it("contabiliza apenas aulas extras concluídas da Kodland", () => {
     const dashboard = __test.dashboardFrom([], [], [], [], [], "2026-10-04", [
       {

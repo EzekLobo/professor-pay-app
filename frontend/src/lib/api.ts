@@ -24,6 +24,16 @@ import {
   kodlandSyncNetworkError,
   readKodlandSyncResponse,
 } from "@/lib/kodland-sync-response";
+import {
+  effectiveHourlyRate,
+  generateRecurringOccurrences,
+  lessonValueCents,
+  nextMonthPaymentDate,
+  saoPauloLocalTimestamp,
+  type RatePeriod,
+  type RecurringClass,
+  type WeeklySlot,
+} from "@/lib/teaching-finance";
 
 export type User = { id: string; name: string; email: string };
 export type DashboardLesson = {
@@ -91,6 +101,10 @@ export type ClassRecord = {
   duration_minutes: number;
   hourly_rate_cents: number;
   active: boolean;
+  schedule_slots?: WeeklySlot[];
+  rate_history?: RatePeriod[];
+  payment_day?: number;
+  end_date?: string | null;
 };
 export type ClassPayload = Omit<ClassRecord, "id" | "active">;
 export type Lesson = DashboardLesson & {
@@ -516,19 +530,13 @@ const firestoreFailure = (error: unknown) => {
   }
   return { code, detail: "Tente novamente ou informe a referência ao suporte." };
 };
-const isoToday = () => new Date().toISOString().slice(0, 10);
+const isoToday = () => saoPauloLocalTimestamp().slice(0, 10);
 const now = () => new Date().toISOString();
-const paymentDate = (value: string) => {
-  const d = new Date(`${value}T00:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + 1, 15);
-  return d.toISOString().slice(0, 10);
-};
+const paymentDate = nextMonthPaymentDate;
 const period = (value: string) => `${value.slice(5, 7)}/${value.slice(0, 4)}`;
-const cents = (row: Row) =>
-  Math.round(
-    (Number(row.duration_minutes ?? 0) * Number(row.hourly_rate_cents ?? 0)) /
-      60,
-  );
+const cents = (row: Row) => lessonValueCents(
+  Number(row.duration_minutes ?? 0), Number(row.hourly_rate_cents ?? 0),
+);
 const isNonBillableFinancialStatus = (status: unknown) =>
   /substitu|replacement|feriado|holiday|cancel/i.test(String(status ?? ""));
 const asLesson = (row: Row, today = isoToday()): Lesson => {
@@ -553,7 +561,7 @@ const asLesson = (row: Row, today = isoToday()): Lesson => {
     canceled,
     note: String(row.note ?? ""),
     period: period(date),
-    payment_date: paymentDate(date),
+    payment_date: String(row.payment_date ?? paymentDate(date, Number(row.payment_day ?? 15))),
     value_cents: cents(row),
     status,
     financial_status: financialStatus,
@@ -646,6 +654,8 @@ const minutesFromTime = (value: unknown) => {
   const match = String(value ?? "").match(/(\d{1,2}):(\d{2})/);
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 };
+const rateHistory = (value: unknown): RatePeriod[] =>
+  Array.isArray(value) ? value as RatePeriod[] : [];
 const courseDuration = (value: unknown) =>
   Number(String(value ?? "").match(/\[(\d+)\s*min\]/i)?.[1] ?? 90);
 const courseLessonCount = (value: unknown) =>
@@ -663,6 +673,7 @@ const kodlandFinancialLessons = (
   localClasses: Row[],
   today: string,
   financialOverrides: Row[] = [],
+  defaultRateHistory: RatePeriod[] = [],
 ): Lesson[] => {
   const overrideStatusByLessonId = new Map(
     financialOverrides.map((item) => [
@@ -717,7 +728,15 @@ const kodlandFinancialLessons = (
         student: "",
         type: "NORMAL",
         duration_minutes: duration,
-        hourly_rate_cents: 3000,
+        hourly_rate_cents: effectiveHourlyRate(
+          lessonDate,
+          group.hourly_rate_cents == null ? null : Number(group.hourly_rate_cents),
+          rateHistory(group.rate_history),
+          defaultRateHistory,
+          3000,
+          String(event?.start_time ?? group.start_time ?? "00:00").slice(0, 5),
+        ),
+        payment_day: group.payment_day ?? 15,
         active: true,
         canceled: false,
         financial_status: financialStatus,
@@ -782,6 +801,8 @@ const kodlandFinancialLessons = (
 const kodlandExtraFinancialLessons = (
   extraLessons: Row[],
   today: string,
+  kodlandGroups: Row[] = [],
+  defaultRateHistory: RatePeriod[] = [],
 ): Lesson[] =>
   extraLessons
     .filter((item) =>
@@ -796,6 +817,9 @@ const kodlandExtraFinancialLessons = (
       const end = minutesFromTime(item.end_time);
       const duration =
         start !== null && end !== null && end > start ? end - start : 60;
+      const group = kodlandGroups.find((candidate) =>
+        String(candidate.external_id ?? candidate.id) === String(item.external_class_id ?? ""),
+      );
       return [
         asLesson(
           {
@@ -807,7 +831,17 @@ const kodlandExtraFinancialLessons = (
             student: String(item.student_name ?? ""),
             type: "EXTRA",
             duration_minutes: duration,
-            hourly_rate_cents: 3000,
+            hourly_rate_cents: item.hourly_rate_cents == null
+              ? effectiveHourlyRate(
+                  lessonDate,
+                  group?.hourly_rate_cents == null ? null : Number(group.hourly_rate_cents),
+                  rateHistory(group?.rate_history),
+                  defaultRateHistory,
+                  3000,
+                  String(item.start_time ?? "00:00").slice(0, 5),
+                )
+              : Number(item.hourly_rate_cents),
+            payment_day: group?.payment_day ?? 15,
             active: true,
             canceled: false,
             note: "Aula extra concluída na Kodland",
@@ -817,6 +851,16 @@ const kodlandExtraFinancialLessons = (
         ),
       ];
     });
+
+const confirmedSnapshot = (confirmation: Row | undefined): DashboardPayment | null => {
+  if (!confirmation || !paymentWasReceived(confirmation)) return null;
+  const value = confirmation.payment_snapshot;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const snapshot = value as Partial<DashboardPayment>;
+  if (snapshot.payment_date !== confirmation.payment_date ||
+      !Number.isInteger(snapshot.total_cents) || !Array.isArray(snapshot.lessons)) return null;
+  return { ...snapshot, status: "RECEIVED" } as DashboardPayment;
+};
 
 /** Shared pure financial calculation; callers provide rows without persistence. */
 export const calculateDashboard = (
@@ -829,20 +873,49 @@ export const calculateDashboard = (
   kodlandExtraLessons: Row[] = [],
   financialOverrides: Row[] = [],
   customHolidays: CustomHoliday[] = [],
+  defaultRateHistory: RatePeriod[] = [],
 ): DashboardResponse => {
   const receivedPaymentDates = new Set(
     confirmations.filter(paymentWasReceived).map((item) => String(item.payment_date)),
   );
+  const forecastEnd = new Date(`${today}T12:00:00Z`);
+  forecastEnd.setUTCFullYear(forecastEnd.getUTCFullYear() + 1);
+  const recurringLessons = classRows.flatMap((row) => {
+    if (!Array.isArray(row.schedule_slots) || !row.schedule_slots.length) return [];
+    const classRecord = row as unknown as RecurringClass;
+    const from = String(row.first_lesson_date ?? today);
+    const to = row.active === false && !row.end_date
+      ? today
+      : forecastEnd.toISOString().slice(0, 10);
+    if (from > to) return [];
+    return generateRecurringOccurrences(
+      classRecord,
+      from,
+      to,
+      lessonRows,
+      defaultRateHistory,
+    ).map((occurrence) => asLesson({
+      ...occurrence,
+      number: 1,
+      student: "",
+      type: "NORMAL",
+      active: true,
+      canceled: false,
+      note: "Horário semanal",
+    }, today));
+  });
   const lessons = [
     ...lessonRows.map((row) => asLesson(row, today)),
+    ...recurringLessons,
     ...kodlandFinancialLessons(
       kodlandGroups,
       kodlandLessons,
       classRows,
       today,
       financialOverrides,
+      defaultRateHistory,
     ),
-    ...kodlandExtraFinancialLessons(kodlandExtraLessons, today),
+    ...kodlandExtraFinancialLessons(kodlandExtraLessons, today, kodlandGroups, defaultRateHistory),
   ].map((lesson) => applyHolidayFinancialResolution(
     lesson,
     customHolidays,
@@ -863,7 +936,12 @@ export const calculateDashboard = (
       item,
     ]),
   );
-  const payments = [...groups.entries()]
+  const paymentDates = new Set([
+    ...groups.keys(),
+    ...confirmations.filter((item) => confirmedSnapshot(item)).map((item) => String(item.payment_date)),
+  ]);
+  const payments = [...paymentDates]
+    .map((date) => [date, groups.get(date) ?? []] as const)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, group]) => {
       const normal = group.filter((item) => item.type === "NORMAL");
@@ -873,9 +951,11 @@ export const calculateDashboard = (
       );
       const manualStatus = String(confirmation?.status ?? "");
       const received = Boolean(confirmation?.received_at) || manualStatus === "RECEIVED";
+      const snapshot = confirmedSnapshot(confirmation);
+      if (snapshot) return snapshot;
       return {
         payment_date: date,
-        period: period(group[0].lesson_date),
+        period: group.length ? period(group[0].lesson_date) : period(date),
         lesson_count: group.length,
         normal_count: normal.length,
         extra_count: extra.length,
@@ -1049,6 +1129,9 @@ const normalizePayment = (value: Record<string, unknown>): Row => ({
   received_at: String(value.received_at ?? value.receivedAt ?? ""),
   status: String(value.status ?? "RECEIVED"),
   note: String(value.note ?? ""),
+  ...(value.payment_snapshot && typeof value.payment_snapshot === "object"
+    ? { payment_snapshot: value.payment_snapshot }
+    : {}),
   created_at: String(value.created_at ?? value.createdAt ?? now()),
 });
 const importRows = (
@@ -1425,16 +1508,23 @@ export const paymentsApi = {
   get: paymentDetail,
   confirm: async (date: string, note = "") => {
     const payment = await paymentDetail(date);
+    const receivedAt = now();
+    const snapshot: DashboardPayment = {
+      ...payment,
+      status: "RECEIVED",
+      lessons: payment.lessons.map((lesson) => ({ ...lesson })),
+    };
     await setDoc(doc(ref("payments"), date), {
       payment_date: date,
       status: "RECEIVED",
-      received_at: now(),
+      received_at: receivedAt,
       note,
-      created_at: now(),
+      payment_snapshot: firestorePayload(snapshot),
+      created_at: receivedAt,
     });
     return {
-      payment: { ...payment, status: "RECEIVED" },
-      received_at: now(),
+      payment: snapshot,
+      received_at: receivedAt,
       note,
     };
   },

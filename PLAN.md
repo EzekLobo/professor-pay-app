@@ -862,3 +862,68 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Verificado: typecheck, testes de API, build e diff check passam. O lint
   completo permanece bloqueado por mudança local não relacionada em
   `frontend/src/app/demo/page.tsx`, que acessa `ref.current` durante render.
+
+### R15 - Turmas próprias e financeiro configurável
+
+> Solicitação de 15/10/2026. Contas continuam criadas pelo administrador. O
+> mesmo usuário pode ter turmas próprias e turmas Kodland. A demonstração usa
+> somente dados fictícios locais. Alterações de tarifa/agenda afetam apenas
+> encontros futuros; pagamentos recebidos guardam extrato fechado.
+
+- [x] R15.1 - Domínio de recorrência, tarifas e pagamentos
+  - Escopo: modelar horários semanais múltiplos, ocorrências estáveis por
+    turma/horário/data, tarifa padrão e exceção por turma com vigência temporal,
+    dia de recebimento por turma no mês seguinte (1–31, ajustado ao último dia)
+    e snapshot de pagamentos recebidos. Preservar dados legados: R$ 30/h da
+    Kodland até configuração, tarifas de turmas locais existentes e datas de
+    pagamento já registradas. Não gravar infinitas aulas futuras.
+  - Aceitação: testes puros cobrem recorrência sem duplicação, centavos por
+    aula, horários em São Paulo, mudança de tarifa apenas futura, vencimento
+    em meses curtos, mistura de fontes, feriados e recebidos imutáveis;
+    typecheck passa.
+  - Depende de: nenhuma.
+
+- [ ] R15.2 - Persistência privada, turmas e alunos manuais
+  - Escopo: CRUD Firestore de alunos/turmas próprios, vários horários,
+    valor padrão ou específico, dia de recebimento e exceções por ocorrência;
+    adaptar Turmas e o resumo para exibir ambas as origens, mantendo os IDs
+    Kodland estáveis e a sincronização isolada. Conta manual não exige senha
+    Kodland. Edições de agenda/tarifa só valem para encontros futuros.
+  - Aceitação: cadastro, edição e desativação sobrevivem a reload;
+    grade, contagens e extrato exibem manual + Kodland; sincronização não
+    sobrescreve o manual; testes focados e typecheck passam.
+  - Depende de: R15.1.
+
+- [ ] R15.3 - Aulas, atividades e correções próprias
+  - Escopo: cadastrar para turmas próprias conteúdos, roteiros, links, tarefas,
+    entrega em texto/link, feedback e status pendente/concluído; mostrar nas
+    telas Aulas e Correções com ações locais e sem links obrigatórios Kodland.
+    Sem upload ou hospedagem de arquivos.
+  - Aceitação: professor sem Kodland administra aula e corrige atividade;
+    turma mista preserva ações da Kodland; filtros/contagens e testes passam.
+  - Depende de: R15.2.
+
+- [ ] R15.4 - Backup, demonstração, migração e verificação final
+  - Escopo: exportar/importar/restaurar todos os novos registros e snapshots;
+    aceitar backups v1, migrar no primeiro acesso sem duplicar aulas locais
+    antigas e congelar os recibos legados pelo valor então exibido. Integrar
+    o fluxo manual à demo local, atualizar tutoriais/docs/estado do projeto.
+  - Aceitação: backup antigo e novo restauram sem duplicação, demo nunca chama
+    Firebase/Kodland, Vitest/lint/typecheck/build e smoke visual passam.
+  - Depende de: R15.1, R15.2 e R15.3.
+
+#### Handoff R15
+
+> Registrar aqui uma entrada curta por tarefa após verificação e commit.
+
+##### R15.1
+
+- Mudou: `teaching-finance.ts` gera ocorrências por horário com ID estável,
+  resolve tarifas com vigência local, calcula centavos por aula e vencimentos
+  configuráveis; `api.ts` integra o domínio ao dashboard e grava snapshots para
+  novos recebimentos.
+- Verificado pelo orquestrador: 43 testes focados, typecheck e diff check passam.
+- Próximo: R15.2 deve persistir `schedule_slots`, `rate_history`,
+  `payment_day` e o padrão por conta; mudanças no mesmo dia gravam
+  `effective_from_local` usando `saoPauloLocalTimestamp()`. Recibos anteriores
+  continuam sem snapshot até R15.4.

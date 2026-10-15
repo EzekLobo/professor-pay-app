@@ -27,10 +27,14 @@ declare module "firebase/firestore" {
   export function doc(...args: unknown[]): DocumentReference;
   export function getDocs(query: unknown): Promise<QuerySnapshot>;
   export function getDoc(ref: unknown): Promise<{ exists(): boolean; id: string; data(): DocumentData | undefined }>;
-  export function setDoc(ref: unknown, data: DocumentData): Promise<void>;
+  export function setDoc(ref: unknown, data: DocumentData, options?: { merge: boolean }): Promise<void>;
   export function updateDoc(ref: unknown, data: DocumentData): Promise<void>;
   export function deleteDoc(ref: unknown): Promise<void>;
-  export function writeBatch(db: unknown): { set(ref: unknown, data: DocumentData): unknown; update(ref: unknown, data: DocumentData): unknown; delete(ref: unknown): unknown; commit(): Promise<void> };
+  export function writeBatch(db: unknown): { set(ref: unknown, data: DocumentData, options?: { merge: boolean }): unknown; update(ref: unknown, data: DocumentData): unknown; delete(ref: unknown): unknown; commit(): Promise<void> };
+  export function runTransaction<T>(db: unknown, update: (transaction: {
+    get(ref: unknown): Promise<{ exists(): boolean; data(): DocumentData | undefined }>;
+    update(ref: unknown, data: DocumentData): unknown;
+  }) => Promise<T>): Promise<T>;
   export function query(...args: unknown[]): Query;
   export function where(...args: unknown[]): unknown;
   export function orderBy(...args: unknown[]): unknown;

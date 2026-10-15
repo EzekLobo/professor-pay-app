@@ -6,6 +6,7 @@ import {
   getDocs,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   writeBatch,
@@ -161,9 +162,13 @@ export type ImportReport = {
   pedagogical_student_count: number;
   pedagogical_review_count: number;
   pedagogical_lesson_count: number;
+  manual_student_count: number;
+  manual_class_count: number;
+  manual_lesson_count: number;
+  manual_activity_count: number;
 };
 export type DataExport = {
-  schema_version: "1.0";
+  schema_version: "2.0";
   exported_at: string;
   user: User;
   classes: unknown[];
@@ -178,6 +183,16 @@ export type DataExport = {
   kodland_availability?: unknown[];
   imported_courses?: unknown[];
   imported_course_lessons?: unknown[];
+  manual_students: unknown[];
+  manual_classes: unknown[];
+  manual_lesson_content: unknown[];
+  manual_activities: unknown[];
+  teaching_settings: Record<string, unknown> | null;
+  kodland_class_settings: unknown[];
+  kodland_financial_overrides: unknown[];
+  holidays: unknown[];
+  lesson_notes: unknown[];
+  tutorials: unknown[];
 };
 export type KodlandGroup = {
   id: string;
@@ -487,6 +502,11 @@ const ref = (name: string, userId = authUser().uid) =>
   collection(getFirebaseDb(), `users/${userId}/${name}`);
 const rows = async (name: string): Promise<Row[]> =>
   (await getDocs(query(ref(name), orderBy("created_at")))).docs.map((item) => ({
+    ...(item.data() as Row),
+    id: item.id,
+  }));
+const allRows = async (name: string): Promise<Row[]> =>
+  (await getDocs(ref(name))).docs.map((item) => ({
     ...(item.data() as Row),
     id: item.id,
   }));
@@ -1079,6 +1099,59 @@ export const calculateDashboard = (
 
 const dashboardFrom = calculateDashboard;
 
+// A received payment created before snapshots existed must be closed against
+// the financial view the teacher sees on the first access. A transaction keeps
+// a second tab from replacing a snapshot written by the first one.
+const legacySnapshotWrites = new Map<string, Promise<Map<string, DashboardPayment>>>();
+const backfillReceivedSnapshots = async (
+  confirmations: Row[],
+  dashboard: DashboardResponse,
+): Promise<Row[]> => {
+  const missing = confirmations.filter((item) =>
+    paymentWasReceived(item) && !confirmedSnapshot(item) &&
+    dashboard.payments.some((payment) => payment.payment_date === item.payment_date),
+  );
+  if (!missing.length) return confirmations;
+  const userId = authUser().uid;
+  const previous = legacySnapshotWrites.get(userId);
+  if (previous) await previous;
+  const writes = Promise.all(missing.map(async (item) => {
+    const candidate = dashboard.payments.find((payment) => payment.payment_date === item.payment_date)!;
+    const reference = doc(ref("payments", userId), String(item.id));
+    let snapshot: DashboardPayment | null = null;
+    try {
+      snapshot = await runTransaction(getFirebaseDb(), async (transaction) => {
+        const current = await transaction.get(reference);
+        if (!current.exists() || !paymentWasReceived(current.data() as Row)) return null;
+        const closed = confirmedSnapshot(current.data() as Row);
+        if (closed) return closed;
+        // Preserve an unexpected pre-existing snapshot instead of overwriting it.
+        if (current.data()?.payment_snapshot != null) return null;
+        const closedCandidate = { ...candidate, status: "RECEIVED" };
+        transaction.update(reference, {
+          payment_snapshot: firestorePayload(closedCandidate),
+          snapshot_migrated_at: now(),
+        });
+        return closedCandidate;
+      });
+    } catch (error) {
+      // A temporarily unavailable write must not hide the financial view.
+      console.warn("Não foi possível congelar um recibo antigo; nova tentativa no próximo acesso.", error);
+    }
+    return [String(item.id), snapshot] as const;
+  })).then((entries) => new Map(entries.filter((entry): entry is readonly [string, DashboardPayment] => entry[1] !== null)));
+  legacySnapshotWrites.set(userId, writes);
+  try {
+    const snapshots = await writes;
+    return confirmations.map((item) => {
+      const snapshot = snapshots.get(String(item.id));
+      return snapshot ? { ...item, payment_snapshot: snapshot } : item;
+    });
+  } finally {
+    if (legacySnapshotWrites.get(userId) === writes) legacySnapshotWrites.delete(userId);
+  }
+};
+
 const lessonsForClass = (
   id: string,
   payload: ClassPayload,
@@ -1183,27 +1256,70 @@ const normalizePayment = (value: Record<string, unknown>): Row => ({
     : {}),
   created_at: String(value.created_at ?? value.createdAt ?? now()),
 });
-const importRows = (
-  payload: ImportPayload,
-  name: "classes" | "lessons" | "payments",
-) => {
-  const source =
-    name === "payments"
-      ? (payload.payment_confirmations ?? payload.paymentConfirmations)
-      : payload[name];
-  const values = Array.isArray(source)
-    ? source.filter(
-        (item): item is Record<string, unknown> =>
-          Boolean(item) && typeof item === "object",
-      )
-    : [];
-  return values.map(
-    name === "classes"
-      ? normalizeClass
-      : name === "lessons"
-        ? normalizeLesson
-        : normalizePayment,
-  );
+const backupCollectionNames = [
+  "classes", "lessons", "payments", "kodland_groups", "kodland_students",
+  "kodland_reviews", "kodland_lessons", "kodland_extra_lessons",
+  "kodland_availability", "imported_courses", "imported_course_lessons",
+  "manual_students", "manual_classes", "manual_lesson_content",
+  "manual_activities", "kodland_class_settings",
+  "kodland_financial_overrides", "holidays", "lesson_notes", "tutorials",
+] as const;
+type BackupCollection = typeof backupCollectionNames[number];
+
+const backupPayload = (payload: unknown): ImportPayload => {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new ApiError(400, "O arquivo de backup é inválido.");
+  }
+  const value = payload as ImportPayload;
+  if (value.schema_version !== "1.0" && value.schema_version !== "2.0") {
+    throw new ApiError(400, "Versão de backup não suportada.");
+  }
+  if (typeof value.exported_at !== "string" || !value.exported_at) {
+    throw new ApiError(400, "O arquivo de backup não tem data de exportação.");
+  }
+  return value;
+};
+
+const backupRows = (payload: ImportPayload, name: BackupCollection): Row[] => {
+  const source = name === "payments"
+    ? payload.payment_confirmations ?? payload.paymentConfirmations ?? payload.payments
+    : payload[name];
+  if (source == null) return [];
+  if (!Array.isArray(source)) throw new ApiError(400, `A lista ${name} do backup é inválida.`);
+  const entries = source.map((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new ApiError(400, `O registro ${index + 1} de ${name} é inválido.`);
+    }
+    const value = item as Record<string, unknown>;
+    const id = name === "payments"
+      ? value.payment_date ?? value.paymentDate ?? value.id
+      : value.id ?? (name === "kodland_groups" ? value.external_id : undefined);
+    if (typeof id !== "string" || !id.trim() || id.includes("/")) {
+      throw new ApiError(400, `O registro ${index + 1} de ${name} não tem identificador válido.`);
+    }
+    const normalized = name === "classes" ? normalizeClass(value)
+      : name === "lessons" ? normalizeLesson(value)
+      : name === "payments" ? normalizePayment(value)
+      : name.startsWith("kodland_") && ["kodland_groups", "kodland_students", "kodland_reviews", "kodland_lessons", "kodland_extra_lessons", "kodland_availability"].includes(name)
+        ? normalizePedagogicalRow(value, name as PedagogicalCollection)
+        : {};
+    return firestorePayload({ ...value, ...normalized, id: String(id),
+      created_at: String(value.created_at ?? value.createdAt ?? now()) }) as Row;
+  });
+  return uniqueBy(entries, (item) => item.id);
+};
+
+const backupFinance = (payload: ImportPayload): Row | null => {
+  const source = payload.teaching_settings;
+  if (source == null) return null;
+  const finance = Array.isArray(source)
+    ? source.find((item) => item && typeof item === "object" && item.id === "finance")
+    : source;
+  if (!finance || typeof finance !== "object" || Array.isArray(finance)) {
+    throw new ApiError(400, "A configuração financeira do backup é inválida.");
+  }
+  return firestorePayload({ ...(finance as Record<string, unknown>), id: "finance",
+    created_at: String((finance as Record<string, unknown>).created_at ?? now()) }) as Row;
 };
 
 type PedagogicalCollection =
@@ -1347,24 +1463,26 @@ export const authApi = {
 };
 export const dashboardApi = {
   get: async () => {
-    const [legacyClasses, manualClasses, settings, kodlandSettings] = await Promise.all([
+    const [legacyClasses, manualClasses, settings, kodlandSettings,
+      lessons, payments, groups, kodlandLessons, extras, overrides, holidays] = await Promise.all([
       rows("classes"), rows("manual_classes"),
       getDoc(doc(ref("teaching_settings"), "finance")),
       rows("kodland_class_settings"),
+      rows("lessons"), rows("payments"), rows("kodland_groups"),
+      rows("kodland_lessons"), rows("kodland_extra_lessons"),
+      rows("kodland_financial_overrides"), rows("holidays"),
     ]);
-    return dashboardFrom(
-      [...legacyClasses, ...manualClasses],
-      await rows("lessons"),
-      await rows("payments"),
-      await rows("kodland_groups"),
-      await rows("kodland_lessons"),
-      isoToday(),
-      await rows("kodland_extra_lessons"),
-      await rows("kodland_financial_overrides"),
-      (await rows("holidays")) as unknown as CustomHoliday[],
+    const today = isoToday();
+    const calculate = (confirmations: Row[]) => dashboardFrom(
+      [...legacyClasses, ...manualClasses], lessons, confirmations,
+      groups, kodlandLessons, today, extras, overrides,
+      holidays as unknown as CustomHoliday[],
       rateHistory(settings.data()?.rate_history),
       kodlandSettings,
     );
+    const initial = calculate(payments);
+    const migrated = await backfillReceivedSnapshots(payments, initial);
+    return migrated === payments ? initial : calculate(migrated);
   },
 };
 export const holidaysApi = {
@@ -1509,6 +1627,7 @@ export const teachingSettingsApi = {
   },
   setDefaultRate: async (hourlyRateCents: number) => {
     validRate(hourlyRateCents);
+    await dashboardApi.get();
     const existing = await teachingSettingsApi.get();
     const rate_history = [...existing.rate_history, nextRatePeriod(hourlyRateCents)];
     await setDoc(doc(ref("teaching_settings"), "finance"), {
@@ -1546,6 +1665,7 @@ export const manualTeachingApi = {
   classes: async (): Promise<ManualClass[]> =>
     (await rows("manual_classes")) as unknown as ManualClass[],
   saveClass: async (payload: ManualClassInput & { id?: string }): Promise<ManualClass> => {
+    if (payload.id) await dashboardApi.get();
     const [settings, students] = await Promise.all([
       teachingSettingsApi.get(), manualTeachingApi.students(),
     ]);
@@ -1694,6 +1814,7 @@ export const kodlandClassSettingsApi = {
   list: async (): Promise<KodlandClassSettings[]> =>
     (await rows("kodland_class_settings")) as unknown as KodlandClassSettings[],
   save: async (externalId: string, input: { hourly_rate_cents: number | null; payment_day: number }) => {
+    await dashboardApi.get();
     const group = (await rows("kodland_groups")).find((item) => String(item.external_id) === externalId);
     if (!group) throw new ApiError(404, "Turma Kodland não encontrada.");
     if (!Number.isInteger(input.payment_day) || input.payment_day < 1 || input.payment_day > 31) {
@@ -2464,23 +2585,40 @@ export const courseImportApi = {
   },
 };
 export const dataApi = {
-  export: async (): Promise<DataExport> => ({
-    schema_version: "1.0",
-    exported_at: now(),
-    user: await authApi.me(),
-    classes: await rows("classes"),
-    lessons: await rows("lessons"),
-    payment_confirmations: await rows("payments"),
-    kodland_groups: await rows("kodland_groups"),
-    kodland_students: await rows("kodland_students"),
-    kodland_reviews: await rows("kodland_reviews"),
-    kodland_lessons: await rows("kodland_lessons"),
-    kodland_extra_lessons: await rows("kodland_extra_lessons"),
-    imported_courses: await rows("imported_courses"),
-    imported_course_lessons: await rows("imported_course_lessons"),
-  }),
+  export: async (): Promise<DataExport> => {
+    const dashboard = await dashboardApi.get();
+    const collections = await Promise.all(backupCollectionNames.map((name) => allRows(name)));
+    const contents = Object.fromEntries(backupCollectionNames.map((name, index) => [name, collections[index]]));
+    const finance = await getDoc(doc(ref("teaching_settings"), "finance"));
+    return {
+      schema_version: "2.0",
+      exported_at: now(),
+      user: await authApi.me(),
+      ...contents,
+      classes: contents.classes,
+      lessons: contents.lessons,
+      payment_confirmations: contents.payments.map((item) => {
+        const displayed = dashboard.payments.find((payment) => payment.payment_date === item.payment_date);
+        return paymentWasReceived(item) && !confirmedSnapshot(item) && displayed
+          ? { ...item, payment_snapshot: { ...displayed, status: "RECEIVED" } }
+          : item;
+      }),
+      manual_students: contents.manual_students,
+      manual_classes: contents.manual_classes,
+      manual_lesson_content: contents.manual_lesson_content,
+      manual_activities: contents.manual_activities,
+      teaching_settings: finance.exists() ? { ...finance.data(), id: "finance" } : null,
+      kodland_class_settings: contents.kodland_class_settings,
+      kodland_financial_overrides: contents.kodland_financial_overrides,
+      holidays: contents.holidays,
+      lesson_notes: contents.lesson_notes,
+      tutorials: contents.tutorials,
+    };
+  },
   previewImport: async (payload: unknown): Promise<ImportReport> => {
-    const value = payload as ImportPayload;
+    const value = backupPayload(payload);
+    const collections = Object.fromEntries(backupCollectionNames.map((name) => [name, backupRows(value, name)])) as Record<BackupCollection, Row[]>;
+    backupFinance(value);
     const exportId = String(
       value.export_id ??
         value.exportId ??
@@ -2489,86 +2627,53 @@ export const dataApi = {
         crypto.randomUUID(),
     );
     const imported = await getDoc(doc(ref("imports"), exportId));
-    const classes = importRows(value, "classes");
-    const lessons = importRows(value, "lessons");
-    const payments = importRows(value, "payments");
-    const groups = importPedagogicalRows(value, "kodland_groups");
-    const students = importPedagogicalRows(value, "kodland_students");
-    const reviews = importPedagogicalRows(value, "kodland_reviews");
-    const pedagogicalLessons = importPedagogicalRows(value, "kodland_lessons");
     return {
       export_id: exportId,
       already_imported: imported.exists(),
-      class_count: classes.length,
-      lesson_count: lessons.length,
-      payment_confirmation_count: payments.length,
-      total_cents: lessons.reduce((total, lesson) => total + cents(lesson), 0),
+      class_count: collections.classes.length,
+      lesson_count: collections.lessons.length,
+      payment_confirmation_count: collections.payments.length,
+      total_cents: collections.lessons.reduce((total, lesson) => total + cents(lesson), 0),
       imported_at: imported.data()?.imported_at
         ? String(imported.data()?.imported_at)
         : null,
-      pedagogical_group_count: groups.length,
-      pedagogical_student_count: students.length,
-      pedagogical_review_count: reviews.length,
-      pedagogical_lesson_count: pedagogicalLessons.length,
+      pedagogical_group_count: collections.kodland_groups.length,
+      pedagogical_student_count: collections.kodland_students.length,
+      pedagogical_review_count: collections.kodland_reviews.length,
+      pedagogical_lesson_count: collections.kodland_lessons.length,
+      manual_student_count: collections.manual_students.length,
+      manual_class_count: collections.manual_classes.length,
+      manual_lesson_count: collections.manual_lesson_content.length,
+      manual_activity_count: collections.manual_activities.length,
     };
   },
   import: async (payload: unknown): Promise<ImportReport> => {
-    const value = payload as ImportPayload;
+    const value = backupPayload(payload);
     const preview = await dataApi.previewImport(value);
     if (preview.already_imported) return preview;
-    const batch = writeBatch(getFirebaseDb());
-    importRows(value, "classes").forEach((item) =>
-      batch.set(doc(ref("classes"), String(item.id)), item),
-    );
-    importRows(value, "lessons").forEach((item) =>
-      batch.set(doc(ref("lessons"), String(item.id)), item),
-    );
-    importRows(value, "payments").forEach((item) =>
-      batch.set(doc(ref("payments"), String(item.id)), item),
-    );
-    importPedagogicalRows(value, "kodland_groups").forEach((item) =>
-      batch.set(doc(ref("kodland_groups"), String(item.id)), item),
-    );
-    importPedagogicalRows(value, "kodland_students").forEach((item) =>
-      batch.set(doc(ref("kodland_students"), String(item.id)), item),
-    );
-    importPedagogicalRows(value, "kodland_reviews").forEach((item) =>
-      batch.set(doc(ref("kodland_reviews"), String(item.id)), item),
-    );
-    importPedagogicalRows(value, "kodland_lessons").forEach((item) =>
-      batch.set(doc(ref("kodland_lessons"), String(item.id)), item),
-    );
-    importPedagogicalRows(value, "kodland_extra_lessons").forEach((item) =>
-      batch.set(doc(ref("kodland_extra_lessons"), String(item.id)), item),
-    );
-    batch.set(doc(ref("imports"), preview.export_id), {
-      imported_at: now(),
-      created_at: now(),
+    const writes = backupCollectionNames.flatMap((name) => backupRows(value, name).map((item) =>
+      (batch: FirebaseWriteBatch) => batch.set(doc(ref(name), item.id), item, { merge: true }),
+    ));
+    const finance = backupFinance(value);
+    if (finance) writes.push((batch) =>
+      batch.set(doc(ref("teaching_settings"), "finance"), finance, { merge: true }));
+    await commitWrites(writes);
+    const importedAt = now();
+    await setDoc(doc(ref("imports"), preview.export_id), {
+      imported_at: importedAt,
+      created_at: importedAt,
+      schema_version: value.schema_version,
     });
-    await batch.commit();
-    return { ...preview, imported_at: now() };
+    return { ...preview, imported_at: importedAt };
   },
   reset: async (password: string) => {
     if (!password) throw new ApiError(400, "Informe sua senha para confirmar.");
     await reauthenticateWithFirebase(password);
-    const batch = writeBatch(getFirebaseDb());
-    for (const name of [
-      "classes",
-      "lessons",
-      "payments",
-      "imports",
-      "kodland_groups",
-      "kodland_students",
-      "kodland_reviews",
-      "kodland_lessons",
-      "kodland_extra_lessons",
-      "imported_courses",
-      "imported_course_lessons",
-    ])
-      (await rows(name)).forEach((item) =>
-        batch.delete(doc(ref(name), String(item.id))),
-      );
-    await batch.commit();
+    const names: string[] = [...backupCollectionNames, "imports", "teaching_settings", "sync_status"];
+    const collections = await Promise.all(names.map((name) => allRows(name)));
+    await commitWrites(names.flatMap((name, index) => collections[index].map((item) =>
+      (batch: FirebaseWriteBatch) => batch.delete(doc(ref(name), String(item.id))),
+    )));
   },
 };
 export const __test = {

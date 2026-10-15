@@ -903,14 +903,22 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     turma mista preserva ações da Kodland; filtros/contagens e testes passam.
   - Depende de: R15.2.
 
-- [ ] R15.4 - Backup, demonstração, migração e verificação final
+- [x] R15.4a - Backup e migração de pagamentos legados
   - Escopo: exportar/importar/restaurar todos os novos registros e snapshots;
     aceitar backups v1, migrar no primeiro acesso sem duplicar aulas locais
-    antigas e congelar os recibos legados pelo valor então exibido. Integrar
-    o fluxo manual à demo local, atualizar tutoriais/docs/estado do projeto.
-  - Aceitação: backup antigo e novo restauram sem duplicação, demo nunca chama
-    Firebase/Kodland, Vitest/lint/typecheck/build e smoke visual passam.
+    antigas e congelar os recibos legados pelo valor então exibido. Usar lotes
+    de escrita para evitar o limite Firestore e preservar importação idempotente.
+  - Aceitação: testes cobrem restauração antiga/nova, reset e recibo legado
+    congelado; typecheck, lint e diff check passam.
   - Depende de: R15.1, R15.2 e R15.3.
+
+- [ ] R15.4b - Demonstração, documentação e verificação final
+  - Escopo: integrar cadastro e gestão manual à demo local com a mesma
+    interface e cálculo da área privada; atualizar tutoriais, docs e estado
+    do projeto; conferir navegação/estado visual nas duas dimensões.
+  - Aceitação: demo sem chamadas Firebase/Kodland, testes, lint, typecheck,
+    build e smoke navegável passam; todos os caminhos manuais são utilizáveis.
+  - Depende de: R15.4a.
 
 #### Handoff R15
 
@@ -950,3 +958,13 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   diff check passam.
 - Próximo: R15.4 inclui esses registros em backup e demonstração e faz
   migração/backfill de recibos legados. Smoke visual autenticado ainda pendente.
+
+##### R15.4a
+
+- Mudou: backup v2 inclui turmas, alunos, aulas, atividades, ajustes e recibos;
+  importação aceita v1/v2 em lotes idempotentes. Recibos legados recebidos
+  ganham snapshot no primeiro acesso sem alterar os que já estavam fechados.
+- Verificado pelo orquestrador: 42 testes focados, typecheck, lint, build e
+  diff check passam.
+- Próximo: R15.4b integra a mesma gestão manual à demonstração local e fecha
+  documentação e verificação geral.

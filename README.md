@@ -21,9 +21,12 @@ organização das pendências, usando registros fictícios.
 
 Os dados da demo ficam apenas no navegador, em armazenamento separado das
 contas reais. Não há login obrigatório, consulta à Kodland nem escrita no
-Firebase nesse modo. Atualizações, correções e mudanças financeiras são
-simuladas localmente; a integração real exige a conta privada. Não use dados
-reais na demonstração. Em **Dados e backup**, **Restaurar dados demonstrativos**
+Firebase nesse modo. Em **Turmas**, o visitante pode cadastrar alunos e turmas
+com vários horários, tarifa padrão ou específica e dia de recebimento. Em
+**Aulas**, pode cadastrar conteúdo, links e atividades; entregas em texto/link
+aparecem em **Correções**. A grade e os pagamentos usam o mesmo cálculo da área
+privada. As alterações persistem somente neste navegador; não use dados reais
+na demonstração. Em **Dados e backup**, **Restaurar dados demonstrativos**
 retorna ao cenário inicial.
 
 **Tecnologias:** Next.js, React, TypeScript, Firebase Authentication,
@@ -43,6 +46,14 @@ diretamente no navegador; a publicação recomendada é na Vercel. A API em
 `backend` (FastAPI) e o SQLite em `backend/data/aulapay.sqlite3` ficam como
 legado para exportar/migrar dados, não como dependência do frontend em produção.
 Consulte [docs/FIREBASE.md](docs/FIREBASE.md) para configurar o projeto.
+
+Na conta privada, acesso continua liberado pelo administrador. O professor
+pode usar turmas próprias sem credenciais Kodland; a sincronização é opcional e
+afeta somente os dados da plataforma. O valor padrão por hora também vale
+para turmas Kodland, mas cada turma pode ter tarifa e dia de recebimento
+próprios. Edições preservam encontros anteriores, e competências marcadas como
+recebidas guardam seu extrato. O backup JSON v2 inclui os cadastros próprios;
+backups v1 continuam aceitos.
 
 ## Requisitos
 

@@ -1,0 +1,55 @@
+import { expect, test } from "@playwright/test";
+
+test("visitante cadastra turma, aula e correção com persistência local e sem serviços privados", async ({ page }) => {
+  const externalRequests: string[] = [];
+  page.on("request", (request) => {
+    if (/firestore\.googleapis\.com|identitytoolkit\.googleapis\.com|bo\.kodland\.org|\/api\/kodland\//.test(request.url())) externalRequests.push(request.url());
+  });
+  await page.goto("/demo");
+  await page.getByRole("link", { name: "Turmas" }).click();
+  await page.getByRole("button", { name: "Adicionar aluno" }).click();
+  const studentDialog = page.getByRole("dialog", { name: "Adicionar aluno" });
+  await studentDialog.getByLabel("Nome").fill("Joana Exemplo");
+  await studentDialog.getByRole("button", { name: "Salvar aluno" }).click();
+  await expect(page.getByText("Joana Exemplo")).toBeVisible();
+
+  await page.getByRole("button", { name: "Adicionar turma" }).click();
+  const classDialog = page.getByRole("dialog", { name: "Adicionar turma" });
+  await classDialog.getByLabel("Nome da turma").fill("Turma de redação");
+  await classDialog.getByLabel("Tarifa da turma (R$/h)").fill("65,00");
+  const date = await classDialog.getByLabel("Início").inputValue();
+  const weekday = (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
+  await classDialog.getByLabel("Dia da semana").selectOption(String(weekday));
+  await classDialog.getByLabel("Joana Exemplo").check();
+  await classDialog.getByRole("button", { name: "Salvar turma" }).click();
+  await expect(page.getByText("Turma de redação")).toBeVisible();
+
+  await page.getByRole("link", { name: "Aulas" }).click();
+  const manual = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Aulas próprias" }) });
+  await expect(manual.getByRole("heading", { name: "Aulas próprias" })).toBeVisible();
+  await manual.locator('[data-tour="lessons-manual-class"]').selectOption({ label: "Turma de redação" });
+  await manual.locator('[data-tour="lessons-manual-date"]').fill(date);
+  const content = manual.locator("form").filter({ has: page.getByRole("heading", { name: "Adicionar conteúdo" }) });
+  await content.getByLabel("Título").fill("Argumentação");
+  await content.getByRole("button", { name: "Adicionar conteúdo" }).click();
+  await expect(manual.getByText("Argumentação")).toBeVisible();
+  const activity = manual.locator("form").filter({ has: page.getByRole("heading", { name: "Adicionar atividade para aluno" }) });
+  await activity.getByLabel("Atividade").fill("Redigir um parágrafo");
+  await activity.getByLabel("Entrega em texto").fill("Parágrafo de exemplo entregue.");
+  await activity.getByRole("button", { name: "Adicionar atividade" }).click();
+
+  await page.getByRole("link", { name: "Correções" }).click();
+  await page.getByText("Turma de redação").click();
+  await page.getByRole("button", { name: "Corrigir", exact: true }).click();
+  const correction = page.getByRole("dialog", { name: "Corrigir atividade própria" });
+  await correction.getByLabel("Feedback").fill("Bom trabalho!");
+  await correction.getByRole("button", { name: "Concluir correção" }).click();
+  await expect(page.getByText("Atividade corrigida.")).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("link", { name: "Turmas" }).click();
+  await expect(page.getByText("Turma de redação")).toBeVisible();
+  await page.getByRole("link", { name: "Aulas" }).click();
+  await expect(page.getByText("Argumentação")).toBeVisible();
+  expect(externalRequests).toEqual([]);
+});

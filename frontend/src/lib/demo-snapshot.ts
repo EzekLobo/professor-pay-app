@@ -1,5 +1,8 @@
-import { calculateDashboard, type DashboardLesson, type DashboardResponse, type KodlandAvailability, type KodlandExtraLesson, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "./api";
+import { calculateDashboard, type DashboardLesson, type DashboardPayment, type DashboardResponse, type KodlandAvailability, type KodlandExtraLesson, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "./api";
 import type { CustomHoliday } from "./holidays";
+import type { ManualActivity, ManualLessonContent } from "./manual-pedagogy";
+import type { KodlandClassSettings, ManualClass, ManualStudent } from "./manual-teaching";
+import type { RatePeriod } from "./teaching-finance";
 
 /** Public, synthetic snapshot. Never reads a teacher account or the Kodland API. */
 export type DemoSnapshot = {
@@ -13,6 +16,13 @@ export type DemoSnapshot = {
   paymentStatus: Record<string, "RECEIVED" | "OVERDUE">;
   financialStatus: Record<string, string>;
   additionalExtras: DashboardLesson[];
+  manualClasses: ManualClass[];
+  manualStudents: ManualStudent[];
+  manualLessons: ManualLessonContent[];
+  manualActivities: ManualActivity[];
+  defaultRateHistory: RatePeriod[];
+  kodlandSettings: KodlandClassSettings[];
+  paymentSnapshots: Record<string, DashboardPayment>;
 };
 const iso = (date: Date) => date.toISOString().slice(0, 10);
 export function demoToday() {
@@ -32,7 +42,7 @@ export function createDemoSnapshot(): DemoSnapshot {
   const lessons: KodlandLesson[] = groups.flatMap((group, groupIndex) => themes[groupIndex].map((theme, index) => ({ id: `demo-lesson-${groupIndex}-${index}`, source_lesson_id: `demo-catalog-${groupIndex}-${index}`, materials_status: "ready", external_class_id: group.external_id, external_class_name: group.title, module_number: index < 4 ? "1" : "2", lesson_number: index % 4 + 1, course_index: index + 1, title: `M${index < 4 ? 1 : 2}.L${index % 4 + 1} ${theme}`, theme, lesson_date: day([0, 1, 3][groupIndex] + (index - 4) * 7), start_time: groupIndex === 1 ? "20:00" : "19:00", end_time: groupIndex === 1 ? "21:30" : "20:30", status: "Scheduled", lesson_passed: day([0, 1, 3][groupIndex] + (index - 4) * 7) < today, external_url: "#demo-material-lesson", slides_url: "#demo-material-slides", guide_url: "#demo-material-guide", homework_url: "#demo-material-homework", homework_title: `Praticando: ${theme}`, classroom_tasks: [{ title: `Desafio: ${theme}`, url: "#demo-material-task" }], created_at: today })));
   const extras: KodlandExtraLesson[] = [-1, 0, 1].map((week, index) => ({ id: `demo-extra-${index}`, external_student_id: students[index].external_id, student_name: students[index].name, external_class_id: groups[0].external_id, external_class_name: groups[0].title, lesson_date: day(2 + week * 7), start_time: "20:00", end_time: "21:00", status: index === 0 ? "Completed" : "Pending", completed: index === 0, manual_status: index === 0 ? "DONE" : "PENDING", created_at: today }));
   const reviews: KodlandReview[] = [0, 0, 1, 4, 5, 8].map((studentIndex, index) => { const student = students[studentIndex]; const lesson = lessons.find((item) => item.external_class_id === student.external_class_id && item.course_index === (index % 2 ? 4 : 3))!; return { id: `demo-review-${index}`, external_class_id: student.external_class_id, external_class_name: student.external_class_name, external_student_id: student.external_id, student_name: student.name, lesson_id: lesson.id, lesson_number: lesson.course_index!, lesson_title: lesson.title, module_number: lesson.module_number!, task_id: `demo-task-${index}`, task_number: index % 3 + 1, task_title: ["Meu primeiro projeto", "Desafio criativo", "Praticando o conteúdo"][index % 3], status_key: "submitted", status_label: index % 2 ? "Entregue com atraso" : "Entregue sem atraso", correction_url: "", created_at: today }; });
-  return { today, groups, students, lessons, extras, reviews, availability: [0, 1, 2, 3, 4].map((weekday) => ({ id: `demo-availability-${weekday}`, weekday, start_time: "19:00", end_time: "22:00", created_at: today })), paymentStatus: {}, financialStatus: {}, additionalExtras: [] };
+  return { today, groups, students, lessons, extras, reviews, availability: [0, 1, 2, 3, 4].map((weekday) => ({ id: `demo-availability-${weekday}`, weekday, start_time: "19:00", end_time: "22:00", created_at: today })), paymentStatus: {}, financialStatus: {}, additionalExtras: [], manualClasses: [], manualStudents: [], manualLessons: [], manualActivities: [], defaultRateHistory: [], kodlandSettings: [], paymentSnapshots: {} };
 }
 
 export const demoFinancialLessonId = (lesson: Pick<KodlandLesson, "external_class_id" | "id">) => `kodland-${lesson.external_class_id}-${lesson.id}`;
@@ -44,9 +54,9 @@ export function demoFinancialInputs(snapshot: DemoSnapshot, customHolidays: Cust
     const lessonId = legacyLesson ? demoFinancialLessonId(legacyLesson) : id;
     return { id: `demo-override-${lessonId}`, financial_lesson_id: lessonId, financial_status: status };
   });
-  const confirmations = Object.entries(snapshot.paymentStatus).map(([date, status]) => ({ id: date, payment_date: date, status, received_at: status === "RECEIVED" ? `${snapshot.today}T12:00:00Z` : null }));
+  const confirmations = Object.entries(snapshot.paymentStatus).map(([date, status]) => ({ id: date, payment_date: date, status, received_at: status === "RECEIVED" ? `${snapshot.today}T12:00:00Z` : null, payment_snapshot: status === "RECEIVED" ? snapshot.paymentSnapshots[date] : undefined }));
   const lessonRows = snapshot.additionalExtras.map((lesson) => ({ ...lesson, active: true, canceled: false, financial_status: snapshot.financialStatus[lesson.id] ?? lesson.financial_status ?? "" }));
-  return [[], lessonRows, confirmations, snapshot.groups.map((group) => ({ ...group })), snapshot.lessons.map((lesson) => ({ ...lesson })), snapshot.today, snapshot.extras.map((extra) => ({ ...extra })), financialOverrides, customHolidays];
+  return [snapshot.manualClasses.map((item) => ({ ...item })), lessonRows, confirmations, snapshot.groups.map((group) => ({ ...group })), snapshot.lessons.map((lesson) => ({ ...lesson })), snapshot.today, snapshot.extras.map((extra) => ({ ...extra })), financialOverrides, customHolidays, snapshot.defaultRateHistory, snapshot.kodlandSettings.map((item) => ({ ...item }))];
 }
 
 export function demoDashboard(snapshot: DemoSnapshot, customHolidays: CustomHoliday[] = []): DashboardResponse {

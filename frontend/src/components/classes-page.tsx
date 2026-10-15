@@ -6,6 +6,7 @@ import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button } from "@/components/ui";
 import { ManualClassesPanel } from "@/components/manual-classes-panel";
+import type { ManualAdapters } from "@/lib/manual-adapters";
 import {
   ApiError,
   kodlandApi,
@@ -153,7 +154,7 @@ export function GroupAccordion({
   );
 }
 
-export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; students: KodlandStudent[]; onSync: () => void } } = {}) {
+export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; students: KodlandStudent[]; onSync: () => void; manualAdapter?: ManualAdapters } } = {}) {
   const [groups, setGroups] = useState<KodlandGroup[]>([]);
   const [students, setStudents] = useState<KodlandStudent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -271,7 +272,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
           </div>
         )}
       </section>
-      {!demo && <ManualClassesPanel groups={groups} />}
+      <ManualClassesPanel groups={groups} adapter={demo?.manualAdapter} />
     </div>
   );
 }

@@ -912,7 +912,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     congelado; typecheck, lint e diff check passam.
   - Depende de: R15.1, R15.2 e R15.3.
 
-- [ ] R15.4b - Demonstração, documentação e verificação final
+- [x] R15.4b - Demonstração, documentação e verificação final
   - Escopo: integrar cadastro e gestão manual à demo local com a mesma
     interface e cálculo da área privada; atualizar tutoriais, docs e estado
     do projeto; conferir navegação/estado visual nas duas dimensões.
@@ -968,3 +968,15 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   diff check passam.
 - Próximo: R15.4b integra a mesma gestão manual à demonstração local e fecha
   documentação e verificação geral.
+
+##### R15.4b
+
+- Mudou: a demonstração reutiliza as telas privadas de Turmas, Aulas e
+  Correções com adaptador local, guarda cadastros, atividades e extratos
+  fictícios no navegador e preserva esses registros após a virada do dia.
+  README, tutorial e estado do projeto foram atualizados.
+- Verificado pelo orquestrador: 125 testes unitários, typecheck, lint, build,
+  diff check e smoke Chromium do fluxo visitante passam; o smoke confirmou
+  ausência de chamadas a Firestore/Kodland. Smoke autenticado em Firestore
+  não foi executado sem conta de teste.
+- Próximo: validar a área privada com conta de teste antes de publicar.

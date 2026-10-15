@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { manualPedagogyApi, manualTeachingApi } from "@/lib/api";
+import type { ManualAdapters } from "@/lib/manual-adapters";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import type { ManualActivity, ManualLessonContent } from "@/lib/manual-pedagogy";
 import { generateRecurringOccurrences, type RecurringOccurrence } from "@/lib/teaching-finance";
@@ -11,7 +12,9 @@ const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Pa
 const emptyLesson = { title: "", content: "", guide: "", linksText: "" };
 const emptyActivity = { title: "", description: "", submission_text: "", submission_url: "", feedback: "", status: "pending" as "pending" | "completed" };
 
-export function ManualLessonsSection() {
+export function ManualLessonsSection({ adapter }: { adapter?: ManualAdapters } = {}) {
+  const teaching = adapter?.teaching ?? manualTeachingApi;
+  const pedagogy = adapter?.pedagogy ?? manualPedagogyApi;
   const [classes, setClasses] = useState<ManualClass[]>([]);
   const [students, setStudents] = useState<ManualStudent[]>([]);
   const [lessons, setLessons] = useState<ManualLessonContent[]>([]);
@@ -31,7 +34,7 @@ export function ManualLessonsSection() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([manualTeachingApi.classes(), manualTeachingApi.students(), manualPedagogyApi.lessons(), manualPedagogyApi.activities()])
+    Promise.all([teaching.classes(), teaching.students(), pedagogy.lessons(), pedagogy.activities()])
       .then(([classRows, studentRows, lessonRows, activityRows]) => {
         if (!active) return;
         setClasses(classRows); setStudents(studentRows); setLessons(lessonRows); setActivities(activityRows);
@@ -39,7 +42,7 @@ export function ManualLessonsSection() {
       })
       .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Não foi possível carregar as aulas próprias."); });
     return () => { active = false; };
-  }, []);
+  }, [teaching, pedagogy]);
 
   const selectedClass = classes.find((item) => item.id === classId);
   const classStudents = students.filter((item) => selectedClass?.student_ids.includes(item.id));
@@ -60,7 +63,7 @@ export function ManualLessonsSection() {
     if (!selectedClass || (lessonScope === "occurrence" && !selectedOccurrence)) return;
     setSaving(true); setError(""); setNotice("");
     try {
-      const record = await manualPedagogyApi.saveLesson({
+      const record = await pedagogy.saveLesson({
         id: editingLessonId || undefined, class_id: selectedClass.id,
         occurrence_id: lessonScope === "class" ? null : selectedOccurrence?.id,
         title: lessonDraft.title, content: lessonDraft.content, guide: lessonDraft.guide,
@@ -77,7 +80,7 @@ export function ManualLessonsSection() {
     if (!selectedClass || !selectedStudent || !selectedOccurrence) return;
     setSaving(true); setError(""); setNotice("");
     try {
-      const record = await manualPedagogyApi.saveActivity({
+      const record = await pedagogy.saveActivity({
         id: editingActivityId || undefined, class_id: selectedClass.id,
         student_id: selectedStudent.id, occurrence_id: selectedOccurrence.id,
         ...activityDraft,
@@ -94,8 +97,8 @@ export function ManualLessonsSection() {
     {notice && <p className="notice" role="status">{notice}</p>}
     {!classes.length ? <p className="muted">Cadastre uma turma em Turmas para planejar suas aulas.</p> : <>
       <div className="form management-form">
-        <label className="field">Turma<select className="input" value={classId} onChange={(event) => { setClassId(event.target.value); setOccurrenceId(""); setEditingLessonId(""); setEditingActivityId(""); }}>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        <label className="field">Data da aula<Input type="date" value={date} onChange={(event) => { setDate(event.target.value); setOccurrenceId(""); }} /></label>
+        <label className="field">Turma<select className="input" data-tour="lessons-manual-class" value={classId} onChange={(event) => { setClassId(event.target.value); setOccurrenceId(""); setEditingLessonId(""); setEditingActivityId(""); }}>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label className="field">Data da aula<Input type="date" data-tour="lessons-manual-date" value={date} onChange={(event) => { setDate(event.target.value); setOccurrenceId(""); }} /></label>
         {occurrences.length > 0 && <label className="field">Horário<select className="input" value={selectedOccurrence?.id || ""} onChange={(event) => setOccurrenceId(event.target.value)}>{occurrences.map((item: RecurringOccurrence) => <option key={item.id} value={item.id}>{item.start_time}</option>)}</select></label>}
       </div>
       {occurrences.length === 0 && <p className="muted">Nenhum encontro previsto nessa data. Escolha um dia com aula no horário da turma.</p>}
@@ -114,7 +117,7 @@ export function ManualLessonsSection() {
         <label className="field">Conteúdo<textarea className="input" value={lessonDraft.content} onChange={(event) => setLessonDraft({ ...lessonDraft, content: event.target.value })} /></label>
         <label className="field">Roteiro<textarea className="input" value={lessonDraft.guide} onChange={(event) => setLessonDraft({ ...lessonDraft, guide: event.target.value })} /></label>
         <label className="field">Links de materiais (um por linha: Nome | https://endereço)<textarea className="input" placeholder="Slides | https://..." value={lessonDraft.linksText} onChange={(event) => setLessonDraft({ ...lessonDraft, linksText: event.target.value })} /></label>
-        <div className="form-actions"><Button type="submit" disabled={saving || !selectedClass || (lessonScope === "occurrence" && !selectedOccurrence)}>{editingLessonId ? "Salvar conteúdo" : "Adicionar conteúdo"}</Button></div>
+        <div className="form-actions"><Button type="submit" data-tour="lessons-manual-content" disabled={saving || !selectedClass || (lessonScope === "occurrence" && !selectedOccurrence)}>{editingLessonId ? "Salvar conteúdo" : "Adicionar conteúdo"}</Button></div>
       </form>
       <div className="course-list">
         {classActivities.map((item) => <article className="entity-card" key={item.id}>
@@ -132,7 +135,7 @@ export function ManualLessonsSection() {
         <label className="field">Entrega em texto<textarea className="input" value={activityDraft.submission_text} onChange={(event) => setActivityDraft({ ...activityDraft, submission_text: event.target.value })} /></label>
         <label className="field">Link da entrega<Input type="url" placeholder="https://" value={activityDraft.submission_url} onChange={(event) => setActivityDraft({ ...activityDraft, submission_url: event.target.value })} /></label>
         <label className="field">Situação<select className="input" value={activityDraft.status} onChange={(event) => setActivityDraft({ ...activityDraft, status: event.target.value as "pending" | "completed" })}><option value="pending">Pendente</option><option value="completed">Concluída</option></select></label>
-        <div className="form-actions"><Button type="submit" disabled={saving || !selectedOccurrence || !selectedStudent}>{editingActivityId ? "Salvar atividade" : "Adicionar atividade"}</Button></div>
+        <div className="form-actions"><Button type="submit" data-tour="lessons-manual-activity" disabled={saving || !selectedOccurrence || !selectedStudent}>{editingActivityId ? "Salvar atividade" : "Adicionar atividade"}</Button></div>
       </form>
     </>}
   </section>;

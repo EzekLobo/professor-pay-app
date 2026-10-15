@@ -1,5 +1,21 @@
 # Estado atual
 
+## R15 — Turmas próprias e demo local
+
+- Turmas próprias/alunos ficam em coleções privadas Firestore; horários
+  recorrentes múltiplos, tarifas com vigência, dia de recebimento por turma,
+  conteúdo e atividades manuais compartilham o cálculo financeiro do Resumo.
+- `/demo` usa os mesmos componentes de Turmas, Aulas e Correções com adaptador
+  local em `demo-manual-adapter.ts`; o estado fictício persiste em
+  `nexusclass.demo.v2` e é filtrado em `demo-storage.ts`. Nenhuma ação manual
+  da demo deve chamar Firebase ou Kodland.
+- O backup privado v2 inclui registros manuais e aceita v1. Recebidos guardam
+  snapshot; o backfill de recibos legados ocorre no primeiro acesso. A demo
+  também congela pagamentos recebidos localmente.
+- Verificação: 125 testes unitários, typecheck, lint, build e smoke Chromium
+  da demo passaram; o smoke monitorou ausência de chamadas Firestore/Kodland.
+  Smoke autenticado de Firestore ainda depende de uma conta de teste.
+
 ## Demonstração fiel para visitantes
 
 Direção atual: entrada `/` abre login com botão “Entrar como visitante”.

@@ -4,6 +4,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Modal } from "@/components/modal";
 import { ManualLessonsSection } from "@/components/manual-lessons-section";
+import type { ManualAdapters } from "@/lib/manual-adapters";
 import {
   LessonMaterialModal,
   type LessonMaterialDetails,
@@ -38,7 +39,7 @@ const defaultCourseChoices: Array<CourseImportOption & {
   },
 ];
 
-export function LessonsContent({ demoData, onDemoAction }: { demoData?: { groups: KodlandGroup[]; lessons: KodlandLesson[] }; onDemoAction?: () => void } = {}) {
+export function LessonsContent({ demoData, onDemoAction, manualAdapter }: { demoData?: { groups: KodlandGroup[]; lessons: KodlandLesson[] }; onDemoAction?: () => void; manualAdapter?: ManualAdapters } = {}) {
   const [courseGroups, setCourseGroups] = useState<KodlandGroup[]>([]),
     [courseLessons, setCourseLessons] = useState<KodlandLesson[]>([]),
     [courseChoices, setCourseChoices] = useState(defaultCourseChoices),
@@ -156,7 +157,7 @@ export function LessonsContent({ demoData, onDemoAction }: { demoData?: { groups
   );
   return (
     <div className="management-grid">
-      {!demoData && <ManualLessonsSection />}
+      <ManualLessonsSection adapter={manualAdapter} />
       {error && !importOpen && (
         <p className="form-error" role="alert">
           {error}

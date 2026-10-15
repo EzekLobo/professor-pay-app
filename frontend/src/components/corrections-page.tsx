@@ -36,6 +36,10 @@ export interface CorrectionsDemoAdapter {
   onSync: () => void | Promise<void>;
   onCorrect: (review: KodlandReview) => void;
   onMaterial?: (lesson: KodlandLesson) => void;
+  manualActivities?: ManualActivity[];
+  manualClasses?: ManualClass[];
+  manualStudents?: ManualStudent[];
+  onSaveManualActivity?: (activity: ManualActivity) => Promise<ManualActivity>;
 }
 
 function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo?: CorrectionsDemoAdapter }) {
@@ -104,9 +108,12 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(!demo);
   const [syncing, setSyncing] = useState(false);
-  const [manualActivities, setManualActivities] = useState<ManualActivity[]>([]);
-  const [manualClasses, setManualClasses] = useState<ManualClass[]>([]);
-  const [manualStudents, setManualStudents] = useState<ManualStudent[]>([]);
+  const [storedManualActivities, setManualActivities] = useState<ManualActivity[]>([]);
+  const [storedManualClasses, setManualClasses] = useState<ManualClass[]>([]);
+  const [storedManualStudents, setManualStudents] = useState<ManualStudent[]>([]);
+  const manualActivities = demo?.manualActivities ?? storedManualActivities;
+  const manualClasses = demo?.manualClasses ?? storedManualClasses;
+  const manualStudents = demo?.manualStudents ?? storedManualStudents;
   const [hasKodlandGroups, setHasKodlandGroups] = useState(false);
   const [editingManual, setEditingManual] = useState<ManualActivity | null>(null);
   const [feedback, setFeedback] = useState("");
@@ -212,8 +219,10 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
         {editingManual && <form className="form management-form" onSubmit={async (event) => {
           event.preventDefault(); setSavingManual(true); setError("");
           try {
-            const updated = await manualPedagogyApi.saveActivity({ ...editingManual, feedback, status: "completed" });
-            setManualActivities((current) => current.map((item) => item.id === updated.id ? updated : item));
+            const updated = demo?.onSaveManualActivity
+              ? await demo.onSaveManualActivity({ ...editingManual, feedback, status: "completed" })
+              : await manualPedagogyApi.saveActivity({ ...editingManual, feedback, status: "completed" });
+            if (!demo) setManualActivities((current) => current.map((item) => item.id === updated.id ? updated : item));
             setEditingManual(null); setNotice("Atividade corrigida.");
           } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível salvar a correção."); }
           finally { setSavingManual(false); }

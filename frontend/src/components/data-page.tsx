@@ -22,7 +22,7 @@ import {
 } from "@/lib/kodland-sync-response";
 
 const summary = (report: ImportReport) =>
-  `${report.class_count} turmas, ${report.lesson_count} aulas, ${report.payment_confirmation_count} confirmações (${formatMoney(report.total_cents)}), ${report.pedagogical_group_count} turmas pedagógicas, ${report.pedagogical_student_count} alunos, ${report.pedagogical_lesson_count} aulas sincronizadas e ${report.pedagogical_review_count} correções`;
+  `${report.class_count} turmas legadas, ${report.lesson_count} aulas financeiras, ${report.payment_confirmation_count} confirmações (${formatMoney(report.total_cents)}), ${report.pedagogical_group_count} turmas e ${report.pedagogical_student_count} alunos Kodland, ${report.pedagogical_lesson_count} aulas sincronizadas, ${report.pedagogical_review_count} correções, ${report.manual_class_count ?? 0} turmas próprias, ${report.manual_student_count ?? 0} alunos próprios, ${report.manual_lesson_count ?? 0} conteúdos próprios e ${report.manual_activity_count ?? 0} atividades próprias`;
 
 export interface DataDemoAdapter {
   snapshot: object;

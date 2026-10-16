@@ -2377,9 +2377,13 @@ select:focus-visible {
 .classes-compact-heading { gap: 10px; }
 .classes-compact-heading h2 { margin: 0; }
 .manual-personal-heading .card-actions { align-items: center; }
-.personal-groups-list { gap: 10px; }
-.personal-group-accordion .group-accordion-body { display: grid; gap: 10px; }
-.manual-group-body { padding-top: 4px; }
+.manual-groups-list { display: grid; gap: 12px; }
+.manual-group-panel { display: grid; gap: 14px; }
+.manual-group-panel-heading { align-items: center; margin: 0; }
+.manual-group-panel-heading h3 { margin: 0; font-size: 1rem; }
+.manual-group-panel .group-header-actions { position: static; display: inline-flex; align-items: center; gap: 6px; }
+.manual-group-class-list { display: grid; gap: 10px; }
+.manual-group-class-list > .muted { margin: 0; }
 .legacy-group { border-style: dashed; }
 .manual-class-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 13px 14px; border: 1px solid var(--border, #27446b); border-radius: 12px; background: rgb(7 20 39 / 40%); }
 .manual-class-card .card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; margin: 0; }

@@ -7,7 +7,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   });
   await page.goto("/demo");
   await page.getByRole("link", { name: "Turmas" }).click();
-  const personalGroups = page.locator("details.personal-group-accordion");
+  const personalGroups = page.locator("section.manual-group-panel");
   await expect(personalGroups.getByText("Turmas autônomas", { exact: true })).toBeVisible();
   await expect(personalGroups.getByText("Matemática particular", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Configurar grupo Turmas autônomas" })).toBeVisible();
@@ -62,7 +62,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
 
   await page.reload();
   await page.getByRole("link", { name: "Turmas" }).click();
-  const restoredPersonalGroups = page.locator("details.personal-group-accordion");
+  const restoredPersonalGroups = page.locator("section.manual-group-panel");
   await expect(restoredPersonalGroups.getByText("Reforço particular", { exact: true })).toBeVisible();
   await expect(restoredPersonalGroups.getByText("Turma de redação")).toBeVisible();
   await page.getByRole("link", { name: "Aulas" }).click();

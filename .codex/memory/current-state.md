@@ -5,10 +5,16 @@
 - Turmas próprias/alunos ficam em coleções privadas Firestore; horários
   recorrentes múltiplos, tarifas com vigência, dia de recebimento por turma,
   conteúdo e atividades manuais compartilham o cálculo financeiro do Resumo.
+- A tela de Turmas separa o agrupamento virtual **Turmas Kodland** (somente
+  sincronização) de **Turmas pessoais**, organizadas por `manual_class_groups`.
+  Cada turma concentra horários, alunos, tarifa e dia de recebimento; turmas
+  pessoais legadas sem `group_id` ficam em “Sem grupo” até serem movidas.
 - `/demo` usa os mesmos componentes de Turmas, Aulas e Correções com adaptador
   local em `demo-manual-adapter.ts`; o estado fictício persiste em
-  `nexusclass.demo.v2` e é filtrado em `demo-storage.ts`. Nenhuma ação manual
-  da demo deve chamar Firebase ou Kodland.
+  `nexusclass.demo.v2` e é filtrado em `demo-storage.ts`. O seed inclui o
+  grupo pessoal fictício “Turmas autônomas” e sua turma; grupos, alunos e
+  turmas criados pelo visitante persistem e são restaurados juntos. Nenhuma
+  ação manual da demo deve chamar Firebase ou Kodland.
 - O backup privado v2 inclui registros manuais e aceita v1. Recebidos guardam
   snapshot; o backfill de recibos legados ocorre no primeiro acesso. A demo
   também congela pagamentos recebidos localmente.

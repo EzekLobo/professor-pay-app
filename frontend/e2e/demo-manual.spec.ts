@@ -7,6 +7,9 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   });
   await page.goto("/demo");
   await page.getByRole("link", { name: "Turmas" }).click();
+  const personalGroups = page.locator("details.personal-group-accordion");
+  await expect(personalGroups.getByText("Turmas autônomas", { exact: true })).toBeVisible();
+  await expect(personalGroups.getByText("Matemática particular", { exact: true })).toBeVisible();
   const kodlandPanel = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Turmas Kodland" }) });
   await kodlandPanel.locator("summary").first().click();
   await kodlandPanel.getByRole("button", { name: "Configurar turma" }).first().click();
@@ -19,7 +22,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await page.getByRole("button", { name: "Adicionar nova turma" }).click();
   const classDialog = page.getByRole("dialog", { name: "Adicionar nova turma" });
   await classDialog.getByRole("radio", { name: "Criar novo grupo" }).check();
-  await classDialog.getByLabel("Nome do grupo").fill("Turmas autônomas");
+  await classDialog.getByLabel("Nome do grupo").fill("Reforço particular");
   await classDialog.getByLabel("Nome da turma").fill("Turma de redação");
   await classDialog.getByLabel("Tarifa da turma (R$/h)").fill("65,00");
   const date = await classDialog.getByLabel("Início").inputValue();
@@ -57,8 +60,13 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
 
   await page.reload();
   await page.getByRole("link", { name: "Turmas" }).click();
-  await expect(page.getByText("Turma de redação")).toBeVisible();
+  const restoredPersonalGroups = page.locator("details.personal-group-accordion");
+  await expect(restoredPersonalGroups.getByText("Reforço particular", { exact: true })).toBeVisible();
+  await expect(restoredPersonalGroups.getByText("Turma de redação")).toBeVisible();
   await page.getByRole("link", { name: "Aulas" }).click();
+  const reloadedManual = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Aulas próprias" }) });
+  await reloadedManual.locator('[data-tour="lessons-manual-class"]').selectOption({ label: "Turma de redação" });
+  await reloadedManual.locator('[data-tour="lessons-manual-date"]').fill(date);
   await expect(page.getByText("Argumentação")).toBeVisible();
   expect(externalRequests).toEqual([]);
 });

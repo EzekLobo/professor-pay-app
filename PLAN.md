@@ -1013,7 +1013,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     altera grupos pessoais; testes de componentes e typecheck passam.
   - Depende de: R16.1.
 
-- [ ] R16.3 - Demonstração, tutorial, documentação e verificação final
+- [x] R16.3 - Demonstração, tutorial, documentação e verificação final
   - Escopo: espelhar grupos pessoais no estado local da demo, criar cenário
     fictício com grupo pessoal, persistir/restaurar grupos no navegador e
     atualizar tutorial, README e memória do projeto. Cobrir o fluxo navegável
@@ -1049,3 +1049,14 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   após empilhar o cabeçalho da Kodland em celular; o modal rola internamente.
 - Próximo: R16.3 deve atualizar o cenário/documentação da demo e executar a
   verificação completa de backup, build e fluxo visitante.
+
+##### R16.3
+
+- Mudou: a demo inicia com o grupo “Turmas autônomas”, uma turma e uma aluna
+  fictícias; grupos criados pelo visitante persistem juntos com turmas/alunos.
+  README e memória documentam a separação entre Kodland virtual e grupos
+  pessoais.
+- Verificado pelo orquestrador: 128 testes unitários, typecheck, lint, build,
+  diff check e o fluxo Chromium visitante passam. O e2e confirma que o fluxo
+  não chama Firebase nem Kodland.
+- Próximo: validar a área privada com uma conta de teste antes de publicar.

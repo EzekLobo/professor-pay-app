@@ -13,6 +13,11 @@ describe("public faithful demonstration", () => {
     expect(demoToday()).toBe("2026-10-14");
     expect(seed.groups).toHaveLength(3);
     expect(seed.students).toHaveLength(12);
+    expect(seed.manualClassGroups).toContainEqual(expect.objectContaining({ name: "Turmas autônomas" }));
+    expect(seed.manualClasses).toContainEqual(expect.objectContaining({
+      name: "Matemática particular", group_id: seed.manualClassGroups[0].id,
+    }));
+    expect(seed.manualStudents).toContainEqual(expect.objectContaining({ name: "Helena Nogueira" }));
     expect(seed.students.every((item) => item.email.endsWith("@example.test") && item.profile_url === "" && item.phone === "")).toBe(true);
     expect(seed.lessons.every((item) => item.materials_status === "ready" && item.external_url.startsWith("#demo-material"))).toBe(true);
     expect(seed.extras.some((item) => item.lesson_date === "2026-10-14" && !item.completed)).toBe(true);
@@ -55,6 +60,36 @@ describe("public faithful demonstration", () => {
     expect(restored.reviews).toEqual([]);
     expect(restoreDemoState(seed, "{bad-json").snapshot).toEqual(seed);
   });
+  it("restores the visitor's personal groups together with their classes", () => {
+    const seed = createDemoSnapshot();
+    const restored = restoreDemoState(seed, JSON.stringify({
+      version: 2,
+      snapshot: {
+        ...seed,
+        manualClassGroups: [{
+          id: "demo-manual-group-persisted", name: "Reforço", order: 2, active: true,
+          created_at: seed.today, updated_at: seed.today,
+        }],
+        manualStudents: [{
+          id: "demo-manual-student-persisted", name: "Ravi", email: "", phone: "", active: true,
+          created_at: seed.today, updated_at: seed.today,
+        }],
+        manualClasses: [{
+          id: "demo-manual-class-persisted", source: "manual", name: "Reforço de matemática",
+          group_id: "demo-manual-group-persisted", first_lesson_date: "2026-10-01", end_date: null,
+          schedule_slots: [{ id: "qua", week_day: 2, start_time: "18:00", duration_minutes: 60, effective_from: "2026-10-01" }],
+          hourly_rate_cents: null, rate_history: [{ effective_from: "2026-10-01", hourly_rate_cents: 6000 }],
+          initial_default_rate_cents: null, payment_day: 15,
+          payment_day_history: [{ effective_from: "2026-10-01", payment_day: 15 }],
+          student_ids: ["demo-manual-student-persisted"], active: true,
+          created_at: seed.today, updated_at: seed.today,
+        }],
+      },
+      holidays: [],
+    })).snapshot;
+    expect(restored.manualClassGroups).toEqual([expect.objectContaining({ name: "Reforço" })]);
+    expect(restored.manualClasses).toEqual([expect.objectContaining({ group_id: "demo-manual-group-persisted" })]);
+  });
   it("uses exactly the private financial engine with raw Kodland rows and no assumed payment confirmations", () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-14T12:00:00Z"));
     const seed = createDemoSnapshot();
@@ -64,7 +99,8 @@ describe("public faithful demonstration", () => {
     expect(result).toEqual(calculateDashboard(...inputs));
     expect(result.payments.some((payment) => payment.status === "RECEIVED")).toBe(false);
     expect(demoDashboard({ ...seed, today: "2026-10-16" }).payments.find((payment) => payment.payment_date === "2026-10-15")?.status).toBe("OVERDUE");
-    expect(result.payments.flatMap((payment) => payment.lessons).filter((lesson) => lesson.type === "NORMAL")).toHaveLength(24);
+    expect(result.payments.flatMap((payment) => payment.lessons)
+      .filter((lesson) => lesson.type === "NORMAL" && lesson.id.startsWith("kodland-"))).toHaveLength(24);
     const lesson = result.payments.flatMap((payment) => payment.lessons).find((item) => item.financial_source_id === seed.lessons[0].id)!;
     expect(lesson.id).toBe(demoFinancialLessonId(seed.lessons[0]));
     expect(lesson.duration_minutes).toBe(90);

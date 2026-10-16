@@ -21,8 +21,11 @@ organização das pendências, usando registros fictícios.
 
 Os dados da demo ficam apenas no navegador, em armazenamento separado das
 contas reais. Não há login obrigatório, consulta à Kodland nem escrita no
-Firebase nesse modo. Em **Turmas**, o visitante pode cadastrar alunos e turmas
-com vários horários, tarifa padrão ou específica e dia de recebimento. Em
+Firebase nesse modo. Em **Turmas**, a demo separa as **Turmas Kodland**
+fictícias das **Turmas pessoais** organizadas em grupos; ela já começa com o
+grupo fictício “Turmas autônomas”. O visitante pode criar outros grupos,
+alunos e turmas com vários horários, tarifa padrão ou específica e dia de
+recebimento. Em
 **Aulas**, pode cadastrar conteúdo, links e atividades; entregas em texto/link
 aparecem em **Correções**. A grade e os pagamentos usam o mesmo cálculo da área
 privada. As alterações persistem somente neste navegador; não use dados reais

@@ -29,8 +29,8 @@ describe("visitor's local manual-management adapter", () => {
     const first = result.payments.flatMap((payment) => payment.lessons).find((lesson) => lesson.id === `manual:${classroom.id}:quarta:2026-10-14`);
     expect(first).toMatchObject({ value_cents: 9000, payment_date: "2026-11-20", status: "COMPLETED" });
     const reloaded = restoreDemoState(createDemoSnapshot(), JSON.stringify({ version: 2, snapshot: read(), holidays: [] })).snapshot;
-    expect(reloaded.manualClasses).toHaveLength(1);
-    expect(reloaded.manualStudents).toHaveLength(1);
+    expect(reloaded.manualClasses).toContainEqual(expect.objectContaining({ id: classroom.id }));
+    expect(reloaded.manualStudents).toContainEqual(expect.objectContaining({ id: student.id }));
     expect(reloaded.manualClassGroups).toContainEqual(expect.objectContaining({ id: group.id, name: "Particulares" }));
     expect(demoDashboard(reloaded).payments.flatMap((payment) => payment.lessons).find((lesson) => lesson.id === first?.id)?.value_cents).toBe(9000);
   });
@@ -71,7 +71,9 @@ describe("visitor's local manual-management adapter", () => {
     const { adapter, read } = setup();
     const later = await adapter.teaching.saveGroup({ name: "Depois", order: 5 });
     const first = await adapter.teaching.saveGroup({ name: "Primeiro", order: 1 });
-    expect((await adapter.teaching.groups()).map((item) => item.id)).toEqual([first.id, later.id]);
+    expect((await adapter.teaching.groups()).map((item) => item.id)).toEqual([
+      "demo-manual-group-autonomous", first.id, later.id,
+    ]);
     const renamed = await adapter.teaching.saveGroup({ id: first.id, name: "Autônomas", order: 0, active: false });
     expect(renamed).toMatchObject({ name: "Autônomas", active: false, order: 0 });
     await expect(adapter.teaching.saveClass({ name: "Sem grupo", first_lesson_date: "2026-10-14", schedule_slots: [{ id: "qua", week_day: 2, start_time: "08:00", duration_minutes: 60 }], student_ids: [], hourly_rate_cents: 5000, payment_day: 15 })).rejects.toThrow(/grupo/);

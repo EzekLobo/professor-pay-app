@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Plus, Settings, Trash2 } from "lucide-react";
+import { MoreVertical, Plus, Settings, Trash2 } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { manualTeachingApi, teachingSettingsApi } from "@/lib/api";
 import type { ManualClass, ManualClassGroup, ManualClassGroupInput, ManualClassInput, ManualStudent } from "@/lib/manual-teaching";
@@ -171,5 +171,6 @@ export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
 
 function ClassRow({ item, students, busy, onEdit, onDelete }: { item: ManualClass; students: ManualStudent[]; busy: boolean; onEdit: () => void; onDelete: () => void }) {
   const futureSlots = item.schedule_slots.filter((slot) => !slot.effective_until || slot.effective_until >= todayLocal());
-  return <div className="manual-class-card"><span className="group-summary-copy"><strong>{item.name}</strong><span className="group-course-name">{item.active ? "Ativa" : "Inativa"} · {futureSlots.map((slot) => `${weekDays[slot.week_day]} ${slot.start_time}`).join(", ") || "Sem horários futuros"}</span></span><span className="group-student-count">{item.student_ids.filter((id) => students.some((student) => student.id === id && student.active)).length} alunos</span><div className="card-actions"><button className="group-settings-button" type="button" aria-label={`Configurar turma ${item.name}`} title="Configurar turma" onClick={onEdit}><Settings size={15} aria-hidden="true" /></button><button className="group-delete-button" type="button" disabled={busy} aria-label={`Excluir turma ${item.name}`} title="Excluir turma" onClick={onDelete}><Trash2 size={15} aria-hidden="true" /></button></div></div>;
+  const [menuOpen, setMenuOpen] = useState(false);
+  return <div className="manual-class-card"><span className="group-summary-copy"><strong>{item.name}</strong><span className="group-course-name">Curso: {item.active ? "Ativa" : "Inativa"} · {futureSlots.map((slot) => `${weekDays[slot.week_day]} ${slot.start_time}`).join(", ") || "Sem horários futuros"}</span></span><span className="group-student-count">{item.student_ids.filter((id) => students.some((student) => student.id === id && student.active)).length} alunos</span><div className="manual-class-actions"><button className="group-menu-button" type="button" aria-label={`Ações da turma ${item.name}`} title="Ações da turma" onClick={() => setMenuOpen((open) => !open)}><MoreVertical size={18} aria-hidden="true" /></button>{menuOpen && <div className="group-actions-menu manual-class-actions-menu" role="menu"><button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onEdit(); }}><Settings size={15} aria-hidden="true" /> Editar turma</button><button className="group-actions-menu-danger" type="button" role="menuitem" disabled={busy} onClick={() => { setMenuOpen(false); onDelete(); }}><Trash2 size={15} aria-hidden="true" /> Excluir turma</button></div>}</div></div>;
 }

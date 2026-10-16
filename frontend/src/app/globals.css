@@ -2403,13 +2403,14 @@ select:focus-visible {
 .management-grid > .manual-groups-list { grid-column: 1 / -1; }
 .manual-group-panel { display: grid; gap: 14px; }
 .manual-group-panel-heading { align-items: center; margin: 0; }
-.manual-group-panel-heading h3 { margin: 0; font-size: 1rem; }
+.manual-group-panel-heading h3 { margin: 0; font-size: 1.08rem; }
 .manual-group-panel .group-header-actions { position: static; display: inline-flex; align-items: center; gap: 6px; }
 .manual-group-class-list { display: grid; gap: 10px; }
 .manual-group-class-list > .muted { margin: 0; }
 .legacy-group { border-style: dashed; }
-.manual-class-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 13px 14px; border: 1px solid var(--border, #27446b); border-radius: 12px; background: rgb(7 20 39 / 40%); }
-.manual-class-card .card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; margin: 0; }
+.manual-class-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 17px 18px; border: 1px solid var(--border, #27446b); border-radius: 14px; background: #0b172a; }
+.manual-class-actions { position: relative; display: flex; justify-content: flex-end; margin: 0; }
+.manual-class-actions-menu { top: 38px; right: 0; }
 .manual-class-modal { width: min(1120px, calc(100vw - 24px)); max-height: calc(100dvh - 12px); overflow-x: hidden; overflow-y: auto; }
 .manual-class-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; column-gap: 22px; row-gap: 18px; padding-bottom: 4px; }
 .manual-form-section { display: grid; min-width: 0; gap: 12px; }

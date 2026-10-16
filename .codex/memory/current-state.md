@@ -32,6 +32,9 @@
 - As ações de cada turma Kodland ficam em um menu de três pontos com edição de
   nome e exclusão confirmada. O nome personalizado é persistido localmente por
   `external_id`, assim como a ocultação da turma.
+- Os grupos pessoais seguem o mesmo padrão visual das Turmas Kodland: painel
+  independente, linhas de turma com curso/status, horários, alunos e menu de
+  ações. Somente Kodland mantém o botão de sincronização no cabeçalho.
 - `/demo` usa os mesmos componentes de Turmas, Aulas e Correções com adaptador
   local em `demo-manual-adapter.ts`; o estado fictício persiste em
   `nexusclass.demo.v2` e é filtrado em `demo-storage.ts`. O seed inclui o

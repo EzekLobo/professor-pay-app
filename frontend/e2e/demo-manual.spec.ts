@@ -10,6 +10,8 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   const personalGroups = page.locator("details.personal-group-accordion");
   await expect(personalGroups.getByText("Turmas autônomas", { exact: true })).toBeVisible();
   await expect(personalGroups.getByText("Matemática particular", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Configurar grupo Turmas autônomas" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Excluir turma Matemática particular" })).toBeVisible();
   const kodlandPanel = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Turmas Kodland" }) });
   await kodlandPanel.locator("summary").first().click();
   await kodlandPanel.getByRole("button", { name: "Configurar turma" }).first().click();
@@ -19,7 +21,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await kodlandDialog.getByRole("button", { name: "Salvar configuração" }).click();
   await expect(page.getByText("Configuração da turma salva para as próximas aulas.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Adicionar nova turma" }).click();
+  await page.getByRole("button", { name: "Adicionar turma" }).click();
   const classDialog = page.getByRole("dialog", { name: "Adicionar nova turma" });
   await classDialog.getByRole("radio", { name: "Criar novo grupo" }).check();
   await classDialog.getByLabel("Nome do grupo").fill("Reforço particular");

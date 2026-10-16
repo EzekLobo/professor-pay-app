@@ -16,6 +16,7 @@ export type ManualAdapters = {
     classes(): Promise<ManualClass[]>;
     students(): Promise<ManualStudent[]>;
     saveClass(input: ManualClassInput & { id?: string }): Promise<ManualClass>;
+    deleteClass(id: string): Promise<void>;
     saveStudent(input: { id?: string; name: string; email?: string; phone?: string; active?: boolean }): Promise<ManualStudent>;
     deactivateClass(id: string): Promise<void>;
     deactivateStudent(id: string): Promise<void>;

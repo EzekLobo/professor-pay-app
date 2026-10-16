@@ -1819,6 +1819,17 @@ select:focus-visible {
 .group-summary-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-course-name { color: #9eb5d2; font-size: .78rem; font-weight: 650; }
 .group-student-count { flex: 0 0 auto; color: var(--muted); font-size: .78rem; font-weight: 700; }
+.group-summary-meta { display: inline-flex; align-items: center; gap: 12px; }
+.group-has-actions { position: relative; }
+.group-has-actions .group-accordion-summary { padding-right: 108px; }
+.group-header-actions { position: absolute; top: 10px; right: 42px; display: inline-flex; align-items: center; gap: 6px; }
+.group-settings-button, .group-delete-button { display: inline-grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: transparent; color: #8fcaf0; cursor: pointer; }
+.group-settings-button:hover, .group-settings-button:focus-visible { border-color: #57cdf9; color: #57cdf9; background: rgb(47 183 235 / 10%); }
+.group-delete-button { color: #e89aa4; }
+.group-delete-button:hover:not(:disabled), .group-delete-button:focus-visible:not(:disabled) { border-color: #ff7b89; color: #ff9fab; background: rgb(255 123 137 / 10%); }
+.group-delete-button:disabled { cursor: not-allowed; opacity: .38; }
+.group-disclosure { color: #74d7ff; font-size: 1.1rem; line-height: 1; transition: transform .16s ease; }
+.group-accordion[open] .group-disclosure { transform: rotate(180deg); }
 .group-accordion[open] .group-accordion-summary {
   border-bottom: 1px solid var(--border);
   background: #10213a;
@@ -2365,14 +2376,13 @@ select:focus-visible {
 .manual-teaching-panel { display: grid; gap: 12px; }
 .classes-compact-heading { gap: 10px; }
 .classes-compact-heading h2 { margin: 0; }
-.manual-utilities { display: flex; flex-wrap: wrap; gap: 8px; }
+.manual-personal-heading .card-actions { align-items: center; }
 .personal-groups-list { gap: 10px; }
 .personal-group-accordion .group-accordion-body { display: grid; gap: 10px; }
 .manual-group-body { padding-top: 4px; }
 .legacy-group { border-style: dashed; }
-.manual-class-card { padding: 14px; border: 1px solid var(--border, #27446b); border-radius: 12px; background: rgb(7 20 39 / 40%); }
-.manual-class-card .group-accordion-summary { cursor: default; padding: 0; }
-.manual-class-card .card-actions { margin-top: 10px; }
+.manual-class-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 13px 14px; border: 1px solid var(--border, #27446b); border-radius: 12px; background: rgb(7 20 39 / 40%); }
+.manual-class-card .card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; margin: 0; }
 .manual-class-modal { width: min(1120px, calc(100vw - 24px)); max-height: calc(100dvh - 12px); overflow-x: hidden; overflow-y: auto; }
 .manual-class-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; column-gap: 22px; row-gap: 18px; padding-bottom: 4px; }
 .manual-form-section { display: grid; min-width: 0; gap: 12px; }
@@ -2425,6 +2435,8 @@ select:focus-visible {
   .manual-slot-row .button { grid-column: span 2; }
   .manual-class-form-footer { align-items: stretch; flex-direction: column; }
   .manual-class-form-footer .button { width: 100%; }
+  .manual-class-card { grid-template-columns: 1fr; align-items: flex-start; }
+  .manual-class-card .card-actions { justify-content: flex-start; }
   .inline-manager-form { grid-template-columns: 1fr; }
   .class-finance-actions { align-items: flex-start; flex-direction: column; }
   .class-finance-actions .button { width: auto; }

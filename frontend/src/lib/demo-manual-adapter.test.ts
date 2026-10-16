@@ -84,6 +84,25 @@ describe("visitor's local manual-management adapter", () => {
     expect(restored.manualClasses[0].group_id).toBeNull();
   });
 
+  it("deletes a class with its own lessons and activities before allowing its group to be removed", async () => {
+    const { adapter, read } = setup();
+    const group = await adapter.teaching.saveGroup({ name: "Temporário" });
+    const student = await adapter.teaching.saveStudent({ name: "Aluno temporário" });
+    const classroom = await adapter.teaching.saveClass({
+      name: "Turma temporária", first_lesson_date: "2026-10-14",
+      schedule_slots: [{ id: "qua", week_day: 2, start_time: "08:00", duration_minutes: 60 }],
+      student_ids: [student.id], hourly_rate_cents: 5000, payment_day: 15, group_id: group.id,
+    });
+    await adapter.pedagogy.saveLesson({ class_id: classroom.id, title: "Conteúdo temporário" });
+    await adapter.pedagogy.saveActivity({ class_id: classroom.id, student_id: student.id, occurrence_id: `manual:${classroom.id}:qua:2026-10-14`, title: "Atividade temporária" });
+
+    await adapter.teaching.deleteClass(classroom.id);
+    expect(read().manualClasses).not.toContainEqual(expect.objectContaining({ id: classroom.id }));
+    expect(read().manualLessons).not.toContainEqual(expect.objectContaining({ class_id: classroom.id }));
+    expect(read().manualActivities).not.toContainEqual(expect.objectContaining({ class_id: classroom.id }));
+    await expect(adapter.teaching.deleteGroup(group.id)).resolves.toBeUndefined();
+  });
+
   it("does not restore foreign or unsafe local records", () => {
     const { read } = setup();
     const poisoned = { ...read(), manualStudents: [{ id: "real-account", name: "Privado" }], manualClasses: [{ id: "real-class", name: "Privado", schedule_slots: [] }], manualLessons: [{ id: "demo-manual-lesson", class_id: "real-class", title: "Privado" }] };

@@ -2,6 +2,11 @@
 
 ## R15 — Turmas próprias e demo local
 
+- A organização de turmas pessoais concentra ações no cabeçalho: tarifa padrão,
+  criar grupo e criar turma. Cada grupo mostra configuração e lixeira; grupos
+  com turmas mantêm a lixeira desabilitada para evitar exclusão em cascata. A
+  lixeira da turma pede confirmação e remove também conteúdos e atividades
+  próprias vinculadas, tanto no Firestore quanto na demonstração local.
 - Turmas próprias/alunos ficam em coleções privadas Firestore; horários
   recorrentes múltiplos, tarifas com vigência, dia de recebimento por turma,
   conteúdo e atividades manuais compartilham o cálculo financeiro do Resumo.

@@ -1782,6 +1782,24 @@ export const manualTeachingApi = {
           ? slot : { ...slot, effective_until: isoToday() }),
     });
   },
+  deleteClass: async (id: string) => {
+    const [snapshot, lessons, activities] = await Promise.all([
+      getDoc(doc(ref("manual_classes"), id)),
+      rows("manual_lesson_content") as Promise<ManualLessonContent[]>,
+      rows("manual_activities") as Promise<ManualActivity[]>,
+    ]);
+    if (!snapshot.exists()) throw new ApiError(404, "Turma não encontrada.");
+    const relatedLessons = lessons.filter((item) => item.class_id === id);
+    const relatedActivities = activities.filter((item) => item.class_id === id);
+    if (relatedLessons.length + relatedActivities.length + 1 > 500) {
+      throw new ApiError(409, "Esta turma possui conteúdos demais para serem excluídos de uma vez.");
+    }
+    const batch = writeBatch(getFirebaseDb());
+    batch.delete(doc(ref("manual_classes"), id));
+    relatedLessons.forEach((item) => batch.delete(doc(ref("manual_lesson_content"), item.id)));
+    relatedActivities.forEach((item) => batch.delete(doc(ref("manual_activities"), item.id)));
+    await batch.commit();
+  },
 };
 export const manualPedagogyApi = {
   lessons: async (): Promise<ManualLessonContent[]> =>

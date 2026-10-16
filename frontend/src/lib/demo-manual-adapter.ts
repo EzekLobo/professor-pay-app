@@ -129,6 +129,15 @@ export function createDemoManualAdapter(read: Read, change: Change): ManualAdapt
         schedule_slots: item.schedule_slots.map((slot) => slot.effective_until && slot.effective_until < current.today ? slot : { ...slot, effective_until: current.today }),
       } : item) }));
     },
+    deleteClass: async (classId) => {
+      if (!read().manualClasses.some((item) => item.id === classId)) throw new Error("Turma não encontrada.");
+      change((current) => ({
+        ...current,
+        manualClasses: current.manualClasses.filter((item) => item.id !== classId),
+        manualLessons: current.manualLessons.filter((item) => item.class_id !== classId),
+        manualActivities: current.manualActivities.filter((item) => item.class_id !== classId),
+      }));
+    },
   };
   const pedagogy: ManualAdapters["pedagogy"] = {
     lessons: async () => read().manualLessons,

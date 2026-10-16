@@ -29,6 +29,9 @@
 - O modal de configuração financeira dos grupos Kodland usa formulário em duas
   colunas no desktop, rótulos com espaçamento consistente e ação alinhada; em
   telas estreitas, os campos voltam para uma coluna.
+- As ações de cada turma Kodland ficam em um menu de três pontos com edição de
+  nome e exclusão confirmada. O nome personalizado é persistido localmente por
+  `external_id`, assim como a ocultação da turma.
 - `/demo` usa os mesmos componentes de Turmas, Aulas e Correções com adaptador
   local em `demo-manual-adapter.ts`; o estado fictício persiste em
   `nexusclass.demo.v2` e é filtrado em `demo-storage.ts`. O seed inclui o

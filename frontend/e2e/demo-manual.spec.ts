@@ -26,13 +26,11 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   const kodlandPanel = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Turmas Kodland" }) });
   await kodlandPanel.locator("summary").first().click();
   await kodlandPanel.getByRole("button", { name: "Configurar grupos Kodland" }).click();
-  const kodlandGroupsDialog = page.getByRole("dialog", { name: "Configurar grupos Kodland" });
-  await kodlandGroupsDialog.getByRole("button", { name: /Configurar DEMO_PY_SEG-19/ }).click();
-  const kodlandDialog = page.getByRole("dialog", { name: /Configurar/ });
+  const kodlandDialog = page.getByRole("dialog", { name: "Configurar Turmas Kodland" });
   await kodlandDialog.getByLabel("Tarifa específica (R$/h)").fill("55,00");
   await kodlandDialog.getByLabel("Dia do recebimento").fill("20");
-  await kodlandDialog.getByRole("button", { name: "Salvar configuração" }).click();
-  await expect(page.getByText("Configuração da turma salva para as próximas aulas.")).toBeVisible();
+  await kodlandDialog.getByRole("button", { name: "Salvar configuração para todas" }).click();
+  await expect(page.getByText("Configuração aplicada a todas as turmas Kodland.")).toBeVisible();
 
   await page.getByRole("button", { name: "Adicionar turma" }).click();
   const classDialog = page.getByRole("dialog", { name: "Adicionar nova turma" });

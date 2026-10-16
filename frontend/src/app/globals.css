@@ -1826,11 +1826,20 @@ select:focus-visible {
 .group-has-actions { position: relative; }
 .group-has-actions .group-accordion-summary { padding-right: 18px; }
 .group-header-actions { position: absolute; top: 10px; right: 42px; display: inline-flex; align-items: center; gap: 6px; }
-.group-settings-button, .group-delete-button { display: inline-grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: transparent; color: #8fcaf0; cursor: pointer; }
+.group-settings-button, .group-delete-button, .group-menu-button { display: inline-grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: transparent; color: #8fcaf0; cursor: pointer; }
+.group-menu-button:hover, .group-menu-button:focus-visible { border-color: #57cdf9; color: #57cdf9; background: rgb(47 183 235 / 10%); }
 .group-settings-button:hover, .group-settings-button:focus-visible { border-color: #57cdf9; color: #57cdf9; background: rgb(47 183 235 / 10%); }
 .group-delete-button { color: #e89aa4; }
 .group-delete-button:hover:not(:disabled), .group-delete-button:focus-visible:not(:disabled) { border-color: #ff7b89; color: #ff9fab; background: rgb(255 123 137 / 10%); }
 .group-delete-button:disabled { cursor: not-allowed; opacity: .38; }
+.group-actions-menu { position: absolute; z-index: 3; top: 54px; right: 12px; display: grid; min-width: 170px; gap: 4px; padding: 7px; border: 1px solid var(--border-bright); border-radius: 10px; background: #0d1b30; box-shadow: 0 14px 30px rgb(0 0 0 / 35%); }
+.group-actions-menu > button { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; border-radius: 7px; padding: 8px 9px; background: transparent; color: var(--text); font-size: .78rem; font-weight: 750; text-align: left; }
+.group-actions-menu > button:hover, .group-actions-menu > button:focus-visible { background: rgb(47 183 235 / 12%); }
+.group-actions-menu .group-actions-menu-danger { color: #ffabb4; }
+.group-rename-form { display: grid; gap: 8px; }
+.group-rename-form .input { min-height: 36px; padding: 7px 9px; font-size: .78rem; }
+.group-rename-form > div { display: flex; justify-content: flex-end; gap: 6px; }
+.group-rename-form .button { min-height: 32px; padding: 6px 9px; font-size: .72rem; }
 .group-disclosure { color: #74d7ff; font-size: 1.1rem; line-height: 1; transition: transform .16s ease; }
 .group-accordion[open] .group-disclosure { transform: rotate(180deg); }
 .group-accordion[open] .group-accordion-summary {
@@ -2438,12 +2447,7 @@ select:focus-visible {
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .inline-manager-form { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 10px; align-items: end; }
 .class-finance-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border, #27446b); }
-.kodland-settings-list { display: grid; gap: 12px; }
-.kodland-settings-list > .muted { margin: 0; }
-.kodland-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid var(--border, #27446b); border-radius: 12px; background: rgb(7 20 39 / 36%); }
-.kodland-settings-row > div { display: grid; gap: 4px; min-width: 0; }
-.kodland-settings-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kodland-settings-row .muted { font-size: .82rem; }
+.kodland-settings-form-help { grid-column: 1 / -1; margin: 0; }
 @media (max-width: 680px) {
   .pedagogical-panel > .section-heading,
   .manual-teaching-panel > .section-heading {

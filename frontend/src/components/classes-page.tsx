@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Settings, Trash2 } from "lucide-react";
+import { MoreVertical, RefreshCw, Settings, Trash2 } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
@@ -34,6 +34,7 @@ const parseMoney = (value: string) => {
   return Number.isFinite(amount) ? Math.round(amount * 100) : NaN;
 };
 const HIDDEN_KODLAND_GROUPS_KEY = "nexusclass.hidden-kodland-groups";
+const KODLAND_GROUP_NAMES_KEY = "nexusclass.kodland-group-names";
 const readHiddenKodlandGroups = () => {
   if (typeof window === "undefined") return [] as string[];
   try {
@@ -43,18 +44,31 @@ const readHiddenKodlandGroups = () => {
     return [];
   }
 };
+const readKodlandGroupNames = () => {
+  if (typeof window === "undefined") return {} as Record<string, string>;
+  try {
+    const value = JSON.parse(window.localStorage.getItem(KODLAND_GROUP_NAMES_KEY) ?? "{}");
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0))
+      : {};
+  } catch {
+    return {};
+  }
+};
 export function GroupAccordion({
   group,
   students,
   openByDefault,
   financeLabel,
   onDelete,
+  onRename,
 }: {
   group: KodlandGroup;
   students: KodlandStudent[];
   openByDefault: boolean;
   financeLabel?: string;
   onDelete?: () => void;
+  onRename?: (name: string) => void;
 }) {
   const [selectedStudent, setSelectedStudent] = useState<KodlandStudent | null>(
     null,
@@ -67,6 +81,15 @@ export function GroupAccordion({
     ? whatsappUrl(contact ?? "", `Olá! Sou o professor de ${selectedStudent.name}.`)
     : "";
   const activeStudents = activeStudentsRankedByPoints(students);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(group.title);
+
+  const startRename = () => {
+    setNameInput(group.title);
+    setEditingName(true);
+    setMenuOpen(true);
+  };
 
   return (
     <>
@@ -82,8 +105,17 @@ export function GroupAccordion({
             <span className="group-student-count">
               {activeStudents.length} aluno{activeStudents.length === 1 ? "" : "s"}
             </span>
-            {onDelete && <button className="group-delete-button" type="button" aria-label={`Excluir turma ${group.title}`} title="Excluir turma" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDelete(); }}><Trash2 size={16} aria-hidden="true" /></button>}
+            {(onDelete || onRename) && <button className="group-menu-button" type="button" aria-label={`Ações da turma ${group.title}`} title="Ações da turma" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setMenuOpen((open) => !open); }}><MoreVertical size={18} aria-hidden="true" /></button>}
           </span>
+          {menuOpen && <div className="group-actions-menu" role="menu" onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}>
+            {!editingName ? <>
+              {onRename && <button type="button" role="menuitem" onClick={startRename}><Settings size={15} aria-hidden="true" /> Editar nome</button>}
+              {onDelete && <button className="group-actions-menu-danger" type="button" role="menuitem" onClick={() => { setMenuOpen(false); onDelete(); }}><Trash2 size={15} aria-hidden="true" /> Excluir</button>}
+            </> : <div className="group-rename-form">
+              <label><span className="sr-only">Novo nome da turma</span><input className="input" autoFocus value={nameInput} onChange={(event) => setNameInput(event.target.value)} /></label>
+              <div><button className="button button-ghost button-small" type="button" onClick={() => setEditingName(false)}>Cancelar</button><button className="button button-small" type="button" disabled={!nameInput.trim()} onClick={() => { onRename?.(nameInput.trim()); setEditingName(false); setMenuOpen(false); }}>Salvar</button></div>
+            </div>}
+          </div>}
         </summary>
         <div className="group-accordion-body">
           {activeStudents.length === 0 ? (
@@ -193,8 +225,8 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
   const [notice, setNotice] = useState("");
   const [settingsByGroup, setSettingsByGroup] = useState<Record<string, KodlandClassSettings>>({});
   const [selectedGroup, setSelectedGroup] = useState<KodlandGroup | null>(null);
-  const [kodlandSettingsOpen, setKodlandSettingsOpen] = useState(false);
   const [hiddenKodlandGroups, setHiddenKodlandGroups] = useState<string[]>(readHiddenKodlandGroups);
+  const [kodlandGroupNames, setKodlandGroupNames] = useState<Record<string, string>>(readKodlandGroupNames);
   const [rateInput, setRateInput] = useState("");
   const [paymentDay, setPaymentDay] = useState(15);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -211,7 +243,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
     if (demo) {
       const currentSettings = await settingsApi.list();
-      setGroups(demo.groups.filter((group) => !hiddenKodlandGroups.includes(group.external_id))); setStudents(demo.students);
+      setGroups(demo.groups.filter((group) => !hiddenKodlandGroups.includes(group.external_id)).map((group) => ({ ...group, title: kodlandGroupNames[group.external_id] || group.title }))); setStudents(demo.students);
       setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
       setLoading(false); return;
     }
@@ -221,7 +253,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
         kodlandApi.students(),
         settingsApi.list(),
       ]);
-      setGroups(groupResult.items.filter((group) => !hiddenKodlandGroups.includes(group.external_id)));
+      setGroups(groupResult.items.filter((group) => !hiddenKodlandGroups.includes(group.external_id)).map((group) => ({ ...group, title: kodlandGroupNames[group.external_id] || group.title })));
       setStudents(studentResult.items);
       setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
     } catch (reason) {
@@ -233,7 +265,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     } finally {
       setLoading(false);
     }
-  }, [demo, hiddenKodlandGroups]);
+  }, [demo, hiddenKodlandGroups, kodlandGroupNames]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -284,9 +316,10 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     setSavingSettings(true); setError("");
     try {
       const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
-      await settingsApi.save(selectedGroup.external_id, { hourly_rate_cents: parseMoney(rateInput), payment_day: paymentDay });
+      const input = { hourly_rate_cents: parseMoney(rateInput), payment_day: paymentDay };
+      await Promise.all(groups.map((group) => settingsApi.save(group.external_id, input)));
       setSelectedGroup(null);
-      setNotice("Configuração da turma salva para as próximas aulas.");
+      setNotice("Configuração aplicada a todas as turmas Kodland.");
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível salvar a configuração da turma.");
@@ -300,6 +333,14 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     setHiddenKodlandGroups(next);
     setGroups((current) => current.filter((item) => item.external_id !== group.external_id));
     setNotice("Turma Kodland excluída da visualização.");
+  };
+
+  const renameKodlandGroup = (group: KodlandGroup, name: string) => {
+    const next = { ...kodlandGroupNames, [group.external_id]: name };
+    window.localStorage.setItem(KODLAND_GROUP_NAMES_KEY, JSON.stringify(next));
+    setKodlandGroupNames(next);
+    setGroups((current) => current.map((item) => item.external_id === group.external_id ? { ...item, title: name } : item));
+    setNotice("Nome da turma atualizado neste navegador.");
   };
 
   return (
@@ -323,7 +364,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
             <Button className="button-ghost sync-icon-button" type="button" data-tour="classes-sync" aria-label="Atualizar turmas" title={syncing ? "Atualizando turmas" : "Atualizar turmas"} aria-busy={syncing} onClick={() => void syncClasses()} disabled={syncing}>
               <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
             </Button>
-            <Button className="button-ghost sync-icon-button" type="button" aria-label="Configurar grupos Kodland" title="Configurar grupos Kodland" onClick={() => setKodlandSettingsOpen(true)}>
+            <Button className="button-ghost sync-icon-button" type="button" aria-label="Configurar grupos Kodland" title="Configurar grupos Kodland" onClick={() => groups[0] ? openGroupSettings(groups[0]) : setError("Nenhuma turma Kodland disponível para configurar.")}>
               <Settings size={18} aria-hidden="true" />
             </Button>
           </div>
@@ -347,35 +388,19 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
                 openByDefault={false}
                 financeLabel={`${moneyText(settingsByGroup[group.external_id]?.rate_history.at(-1)?.hourly_rate_cents)} · Recebimento dia ${settingsByGroup[group.external_id]?.payment_day ?? 15}`}
                 onDelete={() => deleteKodlandGroup(group)}
+                onRename={(name) => renameKodlandGroup(group, name)}
               />
             ))}
           </div>
         )}
       </section>
-      <Modal open={kodlandSettingsOpen} title="Configurar grupos Kodland" onClose={() => setKodlandSettingsOpen(false)}>
-        <div className="kodland-settings-list">
-          <p className="muted">Defina a tarifa e o dia de recebimento de cada grupo.</p>
-          {groups.length === 0 ? (
-            <p className="muted">Nenhum grupo sincronizado.</p>
-          ) : groups.map((group) => (
-            <div className="kodland-settings-row" key={group.id}>
-              <div>
-                <strong>{group.title}</strong>
-                <span className="muted">{moneyText(settingsByGroup[group.external_id]?.rate_history.at(-1)?.hourly_rate_cents)} · Recebimento dia {settingsByGroup[group.external_id]?.payment_day ?? 15}</span>
-              </div>
-              <button className="group-settings-button" type="button" aria-label={`Configurar ${group.title}`} title="Configurar grupo" onClick={() => { setKodlandSettingsOpen(false); openGroupSettings(group); }}>
-                <Settings size={16} aria-hidden="true" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </Modal>
-      <Modal open={Boolean(selectedGroup)} title={selectedGroup ? `Configurar · ${selectedGroup.title}` : "Configurar turma"} onClose={() => setSelectedGroup(null)}>
+      <Modal open={Boolean(selectedGroup)} title="Configurar Turmas Kodland" onClose={() => setSelectedGroup(null)}>
         {selectedGroup && <form className="management-form kodland-settings-form" onSubmit={(event) => { event.preventDefault(); void saveGroupSettings(); }}>
+          <p className="muted kodland-settings-form-help">Uma única configuração será aplicada a todas as turmas Kodland sincronizadas.</p>
           <label>Tarifa específica (R$/h)<input className="input" inputMode="decimal" value={rateInput} onChange={(event) => setRateInput(event.target.value)} placeholder="Deixe vazio para usar o padrão" /></label>
           <label>Dia do recebimento<input className="input" type="number" min="1" max="31" value={paymentDay} onChange={(event) => setPaymentDay(Number(event.target.value))} /></label>
           {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button" disabled={savingSettings} type="submit">Salvar configuração</button>
+          <button className="button" disabled={savingSettings} type="submit">Salvar configuração para todas</button>
         </form>}
       </Modal>
     </div>

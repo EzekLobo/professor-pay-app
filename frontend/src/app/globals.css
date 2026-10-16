@@ -2377,6 +2377,9 @@ select:focus-visible {
 .manual-class-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; column-gap: 22px; row-gap: 18px; padding-bottom: 4px; }
 .manual-form-section { display: grid; min-width: 0; gap: 12px; }
 .manual-form-section fieldset { min-width: 0; }
+.manual-secondary-panel { min-height: 132px; padding: 12px; border: 1px solid var(--border, #27446b); border-radius: 12px; background: rgb(7 20 39 / 36%); }
+.manual-secondary-panel .manual-student-options { min-height: 0; padding: 0; border: 0; background: transparent; }
+.manual-secondary-panel .manual-student-options .muted { margin: 0; }
 .manual-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .manual-section-heading h3 { margin: 0; font-size: .98rem; }
 .manual-field-wide { display: grid; gap: 6px; }

@@ -2371,15 +2371,40 @@ select:focus-visible {
 .manual-class-card { padding: 14px; border: 1px solid var(--border, #27446b); border-radius: 12px; background: rgb(7 20 39 / 40%); }
 .manual-class-card .group-accordion-summary { cursor: default; padding: 0; }
 .manual-class-card .card-actions { margin-top: 10px; }
+.manual-class-modal { width: min(720px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow-x: hidden; overflow-y: auto; }
+.manual-class-form { grid-template-columns: minmax(0, 1fr); gap: 18px; padding-bottom: 4px; }
+.manual-form-section { display: grid; gap: 12px; }
+.manual-class-basics { padding-bottom: 18px; border-bottom: 1px solid var(--border, #27446b); }
+.manual-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.manual-section-heading h3 { margin: 0; font-size: .98rem; }
+.manual-section-heading p, .manual-field-help { margin: 4px 0 0; color: var(--muted, #9bb2d0); font-size: .86rem; line-height: 1.45; }
+.manual-field-wide { display: grid; gap: 6px; }
 .manual-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.manual-form-grid label, .manual-class-modal .management-form > label { display: grid; gap: 6px; }
-.manual-class-modal { max-height: calc(100dvh - 32px); overflow-y: auto; }
-.manual-slots, .manual-student-options, .manual-group-choice, .inline-student-form { display: grid; gap: 10px; border: 1px solid var(--border, #27446b); border-radius: 12px; padding: 12px; }
-.manual-group-choice > label, .inline-student-form > label, .inline-manager-form label { display: grid; gap: 6px; }
-.manual-group-choice > label:has(input[type="radio"]) { display: flex; align-items: center; gap: 8px; }
-.inline-manager-form { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 10px; align-items: end; }
+.manual-form-grid label, .manual-class-modal .management-form > label, .manual-group-choice > label, .inline-student-form > label { display: grid; gap: 6px; }
+.manual-slots, .manual-student-options, .manual-group-choice, .inline-student-form { display: grid; gap: 12px; border: 1px solid var(--border, #27446b); border-radius: 12px; padding: 14px; background: rgb(7 20 39 / 36%); }
+.manual-group-choice legend, .manual-slots legend, .inline-student-form legend { padding: 0 4px; font-weight: 800; }
+.manual-group-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.manual-choice-card { display: flex !important; align-items: flex-start; gap: 10px; min-height: 72px; padding: 11px; border: 1px solid var(--border, #27446b); border-radius: 10px; cursor: pointer; transition: border-color .18s ease, background .18s ease; }
+.manual-choice-card:has(input:checked) { border-color: #57cdf9; background: rgb(47 183 235 / 10%); box-shadow: inset 3px 0 0 #57cdf9; }
+.manual-choice-card input { margin-top: 3px; accent-color: #57cdf9; }
+.manual-choice-card span { display: grid; gap: 4px; }
+.manual-choice-card strong { font-size: .9rem; }
+.manual-choice-card small { color: var(--muted, #9bb2d0); font-size: .78rem; line-height: 1.35; }
+.manual-slot-labels { display: grid; grid-template-columns: 1.3fr 1fr 1fr auto; gap: 8px; padding: 0 2px; color: var(--muted, #9bb2d0); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
 .manual-slot-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr auto; gap: 8px; align-items: center; }
-.manual-student-options label { display: flex; align-items: center; gap: 8px; }
+.manual-duration-input { position: relative; display: block; }
+.manual-duration-input .input { width: 100%; padding-right: 38px; }
+.manual-duration-input > span:last-child { position: absolute; top: 50%; right: 11px; color: var(--muted, #9bb2d0); font-size: .78rem; font-weight: 700; pointer-events: none; transform: translateY(-50%); }
+.manual-add-slot { width: fit-content; }
+.manual-student-options { padding: 10px; }
+.manual-student-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.manual-student-options label { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 9px 10px; border: 1px solid transparent; border-radius: 9px; cursor: pointer; }
+.manual-student-options label:has(input:checked) { border-color: #2fb7eb; background: rgb(47 183 235 / 10%); }
+.manual-student-options label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.manual-class-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0; padding-top: 16px; border-top: 1px solid var(--border, #27446b); }
+.manual-class-form-footer .muted { margin: 0; font-size: .82rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.inline-manager-form { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 10px; align-items: end; }
 .class-finance-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border, #27446b); }
 @media (max-width: 680px) {
   .pedagogical-panel > .section-heading,
@@ -2391,8 +2416,13 @@ select:focus-visible {
   .manual-teaching-panel > .section-heading .card-actions {
     justify-content: flex-start;
   }
-  .manual-form-grid { grid-template-columns: 1fr; }
+  .manual-class-modal { width: min(100% - 16px, 720px); max-height: calc(100dvh - 16px); }
+  .manual-form-grid, .manual-group-options, .manual-student-list { grid-template-columns: 1fr; }
+  .manual-slot-labels { display: none; }
   .manual-slot-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .manual-slot-row .button { grid-column: span 2; }
+  .manual-class-form-footer { align-items: flex-start; flex-direction: column; }
+  .manual-class-form-footer .button { width: 100%; }
   .inline-manager-form { grid-template-columns: 1fr; }
   .class-finance-actions { align-items: flex-start; flex-direction: column; }
   .class-finance-actions .button { width: auto; }

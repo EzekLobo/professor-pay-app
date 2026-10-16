@@ -26,6 +26,9 @@
   ocultação local persistente por `external_id`, evitando que a turma reapareça
   ao recarregar ou sincronizar no mesmo navegador sem apagar o histórico da
   plataforma.
+- O modal de configuração financeira dos grupos Kodland usa formulário em duas
+  colunas no desktop, rótulos com espaçamento consistente e ação alinhada; em
+  telas estreitas, os campos voltam para uma coluna.
 - `/demo` usa os mesmos componentes de Turmas, Aulas e Correções com adaptador
   local em `demo-manual-adapter.ts`; o estado fictício persiste em
   `nexusclass.demo.v2` e é filtrado em `demo-storage.ts`. O seed inclui o

@@ -1740,6 +1740,9 @@ select:focus-visible {
 .management-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.kodland-settings-form { display: grid; gap: 16px; margin-top: 0; }
+.kodland-settings-form > label { display: grid; gap: 7px; color: #c6d7ed; font-size: .86rem; font-weight: 750; }
+.kodland-settings-form > button { grid-column: 1 / -1; justify-self: end; margin-top: 2px; }
 .management-form .field-wide,
 .management-form .form-actions {
   grid-column: 1/-1;
@@ -2278,6 +2281,8 @@ select:focus-visible {
   .filters {
     grid-template-columns: 1fr;
   }
+  .kodland-settings-form { grid-template-columns: 1fr; }
+  .kodland-settings-form > button { grid-column: auto; justify-self: stretch; }
   .payment-carousel {
     grid-template-columns: 38px minmax(0, 1fr) 38px;
     gap: 8px;

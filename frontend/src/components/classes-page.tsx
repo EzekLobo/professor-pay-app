@@ -371,7 +371,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
         </div>
       </Modal>
       <Modal open={Boolean(selectedGroup)} title={selectedGroup ? `Configurar · ${selectedGroup.title}` : "Configurar turma"} onClose={() => setSelectedGroup(null)}>
-        {selectedGroup && <form className="management-form" onSubmit={(event) => { event.preventDefault(); void saveGroupSettings(); }}>
+        {selectedGroup && <form className="management-form kodland-settings-form" onSubmit={(event) => { event.preventDefault(); void saveGroupSettings(); }}>
           <label>Tarifa específica (R$/h)<input className="input" inputMode="decimal" value={rateInput} onChange={(event) => setRateInput(event.target.value)} placeholder="Deixe vazio para usar o padrão" /></label>
           <label>Dia do recebimento<input className="input" type="number" min="1" max="31" value={paymentDay} onChange={(event) => setPaymentDay(Number(event.target.value))} /></label>
           {error && <p className="form-error" role="alert">{error}</p>}

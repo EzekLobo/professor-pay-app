@@ -35,6 +35,7 @@ const parseMoney = (value: string) => {
 };
 const HIDDEN_KODLAND_GROUPS_KEY = "nexusclass.hidden-kodland-groups";
 const KODLAND_GROUP_NAMES_KEY = "nexusclass.kodland-group-names";
+const KODLAND_GROUP_LABEL_KEY = "nexusclass.kodland-group-label";
 const readHiddenKodlandGroups = () => {
   if (typeof window === "undefined") return [] as string[];
   try {
@@ -53,6 +54,14 @@ const readKodlandGroupNames = () => {
       : {};
   } catch {
     return {};
+  }
+};
+const readKodlandGroupLabel = () => {
+  if (typeof window === "undefined") return "Turmas Kodland";
+  try {
+    return window.localStorage.getItem(KODLAND_GROUP_LABEL_KEY)?.trim() || "Turmas Kodland";
+  } catch {
+    return "Turmas Kodland";
   }
 };
 export function GroupAccordion({
@@ -227,6 +236,8 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
   const [selectedGroup, setSelectedGroup] = useState<KodlandGroup | null>(null);
   const [hiddenKodlandGroups, setHiddenKodlandGroups] = useState<string[]>(readHiddenKodlandGroups);
   const [kodlandGroupNames, setKodlandGroupNames] = useState<Record<string, string>>(readKodlandGroupNames);
+  const [kodlandGroupLabel, setKodlandGroupLabel] = useState(readKodlandGroupLabel);
+  const [kodlandGroupLabelInput, setKodlandGroupLabelInput] = useState(readKodlandGroupLabel);
   const [rateInput, setRateInput] = useState("");
   const [paymentDay, setPaymentDay] = useState(15);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -308,6 +319,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     setSelectedGroup(group);
     setRateInput(current?.rate_history.at(-1)?.hourly_rate_cents == null ? "" : String((current.rate_history.at(-1)!.hourly_rate_cents ?? 0) / 100).replace(".", ","));
     setPaymentDay(current?.payment_day ?? 15);
+    setKodlandGroupLabelInput(kodlandGroupLabel);
     setError("");
   };
 
@@ -318,6 +330,9 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
       const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
       const input = { hourly_rate_cents: parseMoney(rateInput), payment_day: paymentDay };
       await Promise.all(groups.map((group) => settingsApi.save(group.external_id, input)));
+      const nextLabel = kodlandGroupLabelInput.trim() || "Turmas Kodland";
+      window.localStorage.setItem(KODLAND_GROUP_LABEL_KEY, nextLabel);
+      setKodlandGroupLabel(nextLabel);
       setSelectedGroup(null);
       setNotice("Configuração aplicada a todas as turmas Kodland.");
       await load();
@@ -359,7 +374,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
       <ManualClassesPanel adapter={demo?.manualAdapter} />
       <section className="panel pedagogical-panel">
         <div className="section-heading classes-compact-heading">
-          <h2>Turmas Kodland</h2>
+          <h2>{kodlandGroupLabel}</h2>
           <div className="card-actions">
             <Button className="button-ghost sync-icon-button" type="button" data-tour="classes-sync" aria-label="Atualizar turmas" title={syncing ? "Atualizando turmas" : "Atualizar turmas"} aria-busy={syncing} onClick={() => void syncClasses()} disabled={syncing}>
               <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
@@ -394,13 +409,14 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
           </div>
         )}
       </section>
-      <Modal open={Boolean(selectedGroup)} title="Configurar Turmas Kodland" onClose={() => setSelectedGroup(null)}>
+      <Modal open={Boolean(selectedGroup)} title={`Configurar ${kodlandGroupLabel}`} onClose={() => setSelectedGroup(null)}>
         {selectedGroup && <form className="management-form kodland-settings-form" onSubmit={(event) => { event.preventDefault(); void saveGroupSettings(); }}>
           <p className="muted kodland-settings-form-help">Uma única configuração será aplicada a todas as turmas Kodland sincronizadas.</p>
+          <label className="kodland-group-name-field">Nome do grupo<input className="input" value={kodlandGroupLabelInput} onChange={(event) => setKodlandGroupLabelInput(event.target.value)} placeholder="Turmas Kodland" /></label>
           <label>Tarifa específica (R$/h)<input className="input" inputMode="decimal" value={rateInput} onChange={(event) => setRateInput(event.target.value)} placeholder="Deixe vazio para usar o padrão" /></label>
           <label>Dia do recebimento<input className="input" type="number" min="1" max="31" value={paymentDay} onChange={(event) => setPaymentDay(Number(event.target.value))} /></label>
           {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button" disabled={savingSettings} type="submit">Salvar configuração para todas</button>
+          <button className="button" disabled={savingSettings} type="submit">Salvar</button>
         </form>}
       </Modal>
     </div>

@@ -29,7 +29,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   const kodlandDialog = page.getByRole("dialog", { name: "Configurar Turmas Kodland" });
   await kodlandDialog.getByLabel("Tarifa específica (R$/h)").fill("55,00");
   await kodlandDialog.getByLabel("Dia do recebimento").fill("20");
-  await kodlandDialog.getByRole("button", { name: "Salvar configuração para todas" }).click();
+  await kodlandDialog.getByRole("button", { name: "Salvar" }).click();
   await expect(page.getByText("Configuração aplicada a todas as turmas Kodland.")).toBeVisible();
 
   await page.getByRole("button", { name: "Adicionar turma" }).click();

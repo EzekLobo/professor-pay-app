@@ -35,6 +35,9 @@
 - Os grupos pessoais seguem o mesmo padrão visual das Turmas Kodland: painel
   independente, linhas de turma com curso/status, horários, alunos e menu de
   ações. Somente Kodland mantém o botão de sincronização no cabeçalho.
+- A configuração compartilhada das turmas Kodland também permite alterar o
+  nome exibido do grupo. O rótulo e os nomes personalizados são persistidos no
+  navegador; o botão de confirmação permanece apenas como “Salvar”.
 - `/demo` usa os mesmos componentes de Turmas, Aulas e Correções com adaptador
   local em `demo-manual-adapter.ts`; o estado fictício persiste em
   `nexusclass.demo.v2` e é filtrado em `demo-storage.ts`. O seed inclui o

@@ -2449,6 +2449,7 @@ select:focus-visible {
 .inline-manager-form { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 10px; align-items: end; }
 .class-finance-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border, #27446b); }
 .kodland-settings-form-help { grid-column: 1 / -1; margin: 0; }
+.kodland-group-name-field { grid-column: 1 / -1; }
 @media (max-width: 680px) {
   .pedagogical-panel > .section-heading,
   .manual-teaching-panel > .section-heading {

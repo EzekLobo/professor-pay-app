@@ -980,3 +980,59 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   ausência de chamadas a Firestore/Kodland. Smoke autenticado em Firestore
   não foi executado sem conta de teste.
 - Próximo: validar a área privada com conta de teste antes de publicar.
+
+### R16 - Grupos de turmas e tela unificada
+
+> Solicitação de 16/10/2026. A tela terá somente os blocos “Turmas Kodland”
+> (virtual, alimentado pela sincronização) e “Turmas pessoais” (organizadas
+> em grupos criados pelo professor). Novas turmas pessoais exigem grupo;
+> turmas pessoais antigas sem grupo ficam visíveis em “Sem grupo” até serem
+> movidas. Tarifa e dia de recebimento ficam na configuração de cada turma.
+
+- [x] R16.1 - Domínio, persistência e compatibilidade de grupos pessoais
+  - Escopo: criar `manual_class_groups`; adicionar `group_id` opcional aos
+    registros pessoais legados e obrigatório para os novos; CRUD com proteção
+    contra exclusão de grupo que ainda tenha turmas; expor os métodos nos
+    adaptadores privado e de demonstração. Incluir grupos em backup, importação
+    e reset, aceitando backups v1/v2 sem grupos. “Turmas Kodland” continua um
+    agrupamento virtual, sem novo registro persistido.
+  - Aceitação: testes cobrem criação/renomeação/ordem/desativação, bloqueio de
+    exclusão com turma, turma legada sem grupo, backup antigo/novo e cálculo
+    financeiro inalterado; typecheck passa.
+  - Depende de: R15.4b.
+
+- [ ] R16.2 - Fluxo de cadastro e interface de turmas agrupadas
+  - Escopo: substituir os painéis atuais por “Turmas Kodland” e “Turmas
+    pessoais”; incorporar a configuração de tarifa/dia de recebimento em cada
+    turma Kodland; renderizar grupos pessoais como acordeões e “Sem grupo” para
+    legado. Remover o painel “Suas turmas”, o painel separado de valores Kodland
+    e o botão principal de aluno. O modal de nova turma permite selecionar/criar
+    grupo e cadastrar aluno sem sair dele; edição permite mover turma.
+  - Aceitação: não há configurações duplicadas; novas turmas exigem grupo;
+    ações funcionam no desktop e no celular sem corte; Kodland sincronizada não
+    altera grupos pessoais; testes de componentes e typecheck passam.
+  - Depende de: R16.1.
+
+- [ ] R16.3 - Demonstração, tutorial, documentação e verificação final
+  - Escopo: espelhar grupos pessoais no estado local da demo, criar cenário
+    fictício com grupo pessoal, persistir/restaurar grupos no navegador e
+    atualizar tutorial, README e memória do projeto. Cobrir o fluxo navegável
+    de criar grupo + turma + aluno sem chamadas Firebase/Kodland.
+  - Aceitação: demo continua isolada, backup preserva grupos, suíte completa,
+    lint, typecheck, build, diff check e smoke Chromium passam.
+  - Depende de: R16.2.
+
+#### Handoff R16
+
+> Registrar uma entrada curta por tarefa após verificação e commit.
+
+##### R16.1
+
+- Mudou: `manual_class_groups` é privado por conta; novas turmas exigem
+  `group_id`, enquanto registros legados sem esse campo continuam válidos.
+  Adaptadores privado/demo, backup, importação e reset preservam grupos;
+  a exclusão é recusada quando o grupo ainda contém turma.
+- Verificado pelo orquestrador: 13 testes focados, typecheck e diff check
+  passam. O cálculo financeiro continua independente de grupo.
+- Próximo: R16.2 deve fornecer seleção/criação de grupo antes de salvar uma
+  nova turma e apresentar registros sem `group_id` no acordeão “Sem grupo”.

@@ -10,8 +10,27 @@ export type ManualStudent = {
   updated_at: string;
 };
 
+/** A personal grouping chosen by the teacher. Kodland classes deliberately do not use this model. */
+export type ManualClassGroup = {
+  id: string;
+  name: string;
+  order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ManualClassGroupInput = {
+  id?: string;
+  name: string;
+  order?: number;
+  active?: boolean;
+};
+
 export type ManualClass = RecurringClass & {
   source: "manual";
+  /** Missing only on records created before personal groups existed. */
+  group_id?: string | null;
   /** The default selected at creation also covers an intentionally backdated first lesson. */
   initial_default_rate_cents?: number | null;
   payment_day_history?: PaymentDayPeriod[];
@@ -39,6 +58,8 @@ export const effectivePaymentDay = (
   .sort((a, b) => a.effective_from.localeCompare(b.effective_from)).at(-1)?.payment_day ?? legacyDay;
 
 export type ManualClassInput = {
+  /** Required for new classes by the persistence adapters; legacy edits may omit it. */
+  group_id?: string | null;
   name: string;
   first_lesson_date: string;
   end_date?: string | null;

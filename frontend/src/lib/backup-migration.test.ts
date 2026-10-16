@@ -61,7 +61,7 @@ vi.mock("firebase/firestore", () => {
   };
 });
 
-import { dashboardApi, dataApi } from "./api";
+import { dashboardApi, dataApi, manualTeachingApi } from "./api";
 
 const key = (collection: string, id: string) => `users/test-user/${collection}/${id}`;
 const lesson = (id: string, date = "2026-10-13") => ({
@@ -103,8 +103,10 @@ describe("backup e migração", () => {
       normal_count: 1, extra_count: 0, normal_total_cents: 3000,
       extra_total_cents: 0, total_cents: 3000, status: "RECEIVED", lessons: [] };
     fake.docs.set(key("manual_students", "student-1"), { id: "student-1", name: "Ana", created_at: "2026-10-01" });
+    fake.docs.set(key("manual_class_groups", "personal-1"), { id: "personal-1", name: "Autônomas", order: 0, active: true, created_at: "2026-10-01" });
     fake.docs.set(key("manual_classes", "own-1"), { id: "own-1", name: "Própria", source: "manual",
       first_lesson_date: "2026-10-13", active: true, schedule_slots: [],
+      group_id: "personal-1",
       rate_history: [{ effective_from: "2026-10-13", hourly_rate_cents: 5000 }], created_at: "2026-10-01" });
     fake.docs.set(key("manual_lesson_content", "content-1"), { id: "content-1", title: "Aula", created_at: "2026-10-01" });
     fake.docs.set(key("manual_activities", "activity-1"), { id: "activity-1", status: "completed", created_at: "2026-10-01" });
@@ -115,11 +117,11 @@ describe("backup e migração", () => {
       payment_snapshot: closed, created_at: "2026-10-01" });
     const exported = await dataApi.export();
     expect(exported).toMatchObject({ schema_version: "2.0", manual_students: [{ name: "Ana" }],
-      manual_classes: [{ name: "Própria" }], teaching_settings: { id: "finance" },
+      manual_class_groups: [{ name: "Autônomas" }], manual_classes: [{ name: "Própria", group_id: "personal-1" }], teaching_settings: { id: "finance" },
       payment_confirmations: [{ payment_snapshot: closed }] });
     fake.docs.clear();
     const preview = await dataApi.previewImport(exported);
-    expect(preview).toMatchObject({ manual_student_count: 1, manual_class_count: 1,
+    expect(preview).toMatchObject({ manual_student_count: 1, manual_class_group_count: 1, manual_class_count: 1,
       manual_lesson_count: 1, manual_activity_count: 1 });
     await dataApi.import(exported);
     expect(fake.docs.get(key("manual_classes", "own-1"))?.rate_history).toEqual([
@@ -129,6 +131,24 @@ describe("backup e migração", () => {
     expect(fake.docs.get(key("teaching_settings", "finance"))?.rate_history).toEqual([
       { effective_from: "2026-10-13", hourly_rate_cents: 4000 },
     ]);
+  });
+
+  it("mantém turmas legadas sem grupo e protege a exclusão de grupos com turmas", async () => {
+    fake.docs.set(key("manual_classes", "legacy-own"), { id: "legacy-own", name: "Legada", source: "manual", created_at: "2026-10-01" });
+    expect((await manualTeachingApi.classes())[0].group_id).toBeUndefined();
+
+    const first = await manualTeachingApi.saveGroup({ name: "Depois", order: 4 });
+    const renamed = await manualTeachingApi.saveGroup({ id: first.id, name: "Autônomas", order: 0, active: false });
+    expect(renamed).toMatchObject({ name: "Autônomas", order: 0, active: false });
+    const second = await manualTeachingApi.saveGroup({ name: "Ativas", order: 1 });
+    expect((await manualTeachingApi.groups()).map((item) => item.id)).toEqual([renamed.id, second.id]);
+
+    await manualTeachingApi.saveClass({ name: "Vinculada", group_id: second.id, first_lesson_date: "2026-10-13", schedule_slots: [{ id: "seg", week_day: 0, start_time: "19:00", duration_minutes: 60 }], student_ids: [], hourly_rate_cents: 5000, payment_day: 15 });
+    await expect(manualTeachingApi.deleteGroup(second.id)).rejects.toMatchObject({ status: 409 });
+    await expect(manualTeachingApi.saveClass({ name: "Sem grupo", first_lesson_date: "2026-10-13", schedule_slots: [{ id: "seg", week_day: 0, start_time: "19:00", duration_minutes: 60 }], student_ids: [], hourly_rate_cents: 5000, payment_day: 15 })).rejects.toMatchObject({ status: 400 });
+    const empty = await manualTeachingApi.saveGroup({ name: "Vazio" });
+    await manualTeachingApi.deleteGroup(empty.id);
+    expect((await manualTeachingApi.groups()).some((item) => item.id === empty.id)).toBe(false);
   });
 
   it("congela recibo legado no primeiro acesso, mantém valor após tarifa e tolera falha parcial", async () => {

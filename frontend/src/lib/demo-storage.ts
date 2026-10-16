@@ -3,7 +3,7 @@ import type { CustomHoliday } from "./holidays";
 import { isIsoDate } from "./holidays";
 import { isHttpUrl } from "./manual-pedagogy";
 import type { ManualActivity, ManualLessonContent } from "./manual-pedagogy";
-import type { KodlandClassSettings, ManualClass, ManualStudent } from "./manual-teaching";
+import type { KodlandClassSettings, ManualClass, ManualClassGroup, ManualStudent } from "./manual-teaching";
 import type { RatePeriod, WeeklySlot } from "./teaching-finance";
 import { generateRecurringOccurrences } from "./teaching-finance";
 export const DEMO_STATE_KEY = "nexusclass.demo.v2";
@@ -14,11 +14,14 @@ const validRate = (value: unknown) => value === null || Number.isInteger(value) 
 const rateHistory = (value: unknown): RatePeriod[] => array(value).map(object).filter((item) => isIsoDate(item.effective_from) && validRate(item.hourly_rate_cents)).map((item) => ({ effective_from: String(item.effective_from), effective_from_local: typeof item.effective_from_local === "string" ? item.effective_from_local : undefined, hourly_rate_cents: item.hourly_rate_cents as number | null }));
 const slotRows = (value: unknown): WeeklySlot[] => array(value, 20).map(object).filter((item) => typeof item.id === "string" && Number.isInteger(item.week_day) && Number(item.week_day) >= 0 && Number(item.week_day) <= 6 && /^([01]\d|2[0-3]):[0-5]\d$/.test(String(item.start_time)) && Number.isInteger(item.duration_minutes) && Number(item.duration_minutes) > 0 && Number(item.duration_minutes) <= 1440 && isIsoDate(item.effective_from) && (!item.effective_until || isIsoDate(item.effective_until))).map((item) => ({ id: String(item.id), week_day: Number(item.week_day), start_time: String(item.start_time), duration_minutes: Number(item.duration_minutes), effective_from: String(item.effective_from), effective_until: item.effective_until ? String(item.effective_until) : null }));
 
-export function restoreManualDemoData(raw: Record<string, unknown>, seed: DemoSnapshot): Pick<DemoSnapshot, "manualClasses" | "manualStudents" | "manualLessons" | "manualActivities" | "defaultRateHistory" | "kodlandSettings" | "paymentSnapshots"> {
+export function restoreManualDemoData(raw: Record<string, unknown>, seed: DemoSnapshot): Pick<DemoSnapshot, "manualClassGroups" | "manualClasses" | "manualStudents" | "manualLessons" | "manualActivities" | "defaultRateHistory" | "kodlandSettings" | "paymentSnapshots"> {
   const manualStudents: ManualStudent[] = array(raw.manualStudents, 100).map(object).filter((item) => localId(item.id) && typeof item.name === "string" && item.name.trim()).map((item) => ({ id: String(item.id), name: String(item.name).slice(0, 200), email: String(item.email ?? "").slice(0, 200), phone: String(item.phone ?? "").slice(0, 100), active: item.active !== false, created_at: String(item.created_at ?? seed.today), updated_at: String(item.updated_at ?? seed.today) }));
   const studentIds = new Set(manualStudents.map((item) => item.id));
+  const manualClassGroups: ManualClassGroup[] = array(raw.manualClassGroups, 50).map(object).filter((item) => localId(item.id) && typeof item.name === "string" && item.name.trim() && Number.isInteger(item.order) && Number(item.order) >= 0).map((item) => ({ id: String(item.id), name: String(item.name).trim().slice(0, 200), order: Number(item.order), active: item.active !== false, created_at: String(item.created_at ?? seed.today), updated_at: String(item.updated_at ?? seed.today) }));
+  const groupIds = new Set(manualClassGroups.map((item) => item.id));
   const manualClasses: ManualClass[] = array(raw.manualClasses, 50).map(object).filter((item) => localId(item.id) && typeof item.name === "string" && item.name.trim() && isIsoDate(item.first_lesson_date) && slotRows(item.schedule_slots).length > 0 && Number.isInteger(item.payment_day) && Number(item.payment_day) >= 1 && Number(item.payment_day) <= 31).map((item) => ({
     id: String(item.id), source: "manual", name: String(item.name).slice(0, 200), first_lesson_date: String(item.first_lesson_date), end_date: isIsoDate(item.end_date) ? String(item.end_date) : null,
+    group_id: typeof item.group_id === "string" && groupIds.has(item.group_id) ? item.group_id : null,
     schedule_slots: slotRows(item.schedule_slots), hourly_rate_cents: null, rate_history: rateHistory(item.rate_history),
     initial_default_rate_cents: validRate(item.initial_default_rate_cents) ? item.initial_default_rate_cents as number | null : null,
     payment_day: Number(item.payment_day), payment_day_history: array(item.payment_day_history).map(object).filter((row) => isIsoDate(row.effective_from) && Number.isInteger(row.payment_day) && Number(row.payment_day) >= 1 && Number(row.payment_day) <= 31).map((row) => ({ effective_from: String(row.effective_from), payment_day: Number(row.payment_day) })),
@@ -37,7 +40,7 @@ export function restoreManualDemoData(raw: Record<string, unknown>, seed: DemoSn
   }));
   const kodlandSettings: KodlandClassSettings[] = array(raw.kodlandSettings, 50).map(object).filter((item) => seed.groups.some((group) => group.external_id === item.id) && Number.isInteger(item.payment_day) && Number(item.payment_day) >= 1 && Number(item.payment_day) <= 31).map((item) => ({ id: String(item.id), rate_history: rateHistory(item.rate_history), payment_day: Number(item.payment_day), payment_day_history: array(item.payment_day_history).map(object).filter((row) => isIsoDate(row.effective_from) && Number.isInteger(row.payment_day) && Number(row.payment_day) >= 1 && Number(row.payment_day) <= 31).map((row) => ({ effective_from: String(row.effective_from), payment_day: Number(row.payment_day) })), created_at: String(item.created_at ?? seed.today), updated_at: String(item.updated_at ?? seed.today) }));
   const paymentSnapshots = Object.fromEntries(Object.entries(object(raw.paymentSnapshots)).filter(([date, value]) => isIsoDate(date) && object(raw.paymentStatus)[date] === "RECEIVED" && object(value).payment_date === date && Number.isInteger(object(value).total_cents) && Array.isArray(object(value).lessons))) as DemoSnapshot["paymentSnapshots"];
-  return { manualStudents, manualClasses, manualLessons, manualActivities, defaultRateHistory: rateHistory(raw.defaultRateHistory), kodlandSettings, paymentSnapshots };
+  return { manualClassGroups, manualStudents, manualClasses, manualLessons, manualActivities, defaultRateHistory: rateHistory(raw.defaultRateHistory), kodlandSettings, paymentSnapshots };
 }
 
 /** Restore only local actions. The seed owns identities, courses and links. */

@@ -1,7 +1,14 @@
 import type { DemoSnapshot } from "./demo-snapshot";
 import type { ManualAdapters } from "./manual-adapters";
 import { isHttpUrl } from "./manual-pedagogy";
-import { reconcileWeeklySlots, tomorrowCivilDate, validateManualClassInput, type KodlandClassSettings, type ManualClass } from "./manual-teaching";
+import {
+  reconcileWeeklySlots,
+  tomorrowCivilDate,
+  validateManualClassInput,
+  type KodlandClassSettings,
+  type ManualClass,
+  type ManualClassGroup,
+} from "./manual-teaching";
 import { generateRecurringOccurrences, saoPauloLocalTimestamp, type RatePeriod } from "./teaching-finance";
 
 type Read = () => DemoSnapshot;
@@ -27,6 +34,8 @@ const validOccurrence = (classroom: ManualClass, occurrenceId: string) => {
 /** Browser-only implementation of the private manual-management contract. */
 export function createDemoManualAdapter(read: Read, change: Change): ManualAdapters {
   const teaching: ManualAdapters["teaching"] = {
+    groups: async () => [...read().manualClassGroups]
+      .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name)),
     classes: async () => read().manualClasses,
     students: async () => read().manualStudents,
     saveStudent: async (input) => {
@@ -41,11 +50,51 @@ export function createDemoManualAdapter(read: Read, change: Change): ManualAdapt
       if (!read().manualStudents.some((item) => item.id === studentId)) throw new Error("Aluno não encontrado.");
       change((current) => ({ ...current, manualStudents: current.manualStudents.map((item) => item.id === studentId ? { ...item, active: false, updated_at: now() } : item) }));
     },
+    saveGroup: async (input) => {
+      if (!input.name.trim()) throw new RangeError("Informe o nome do grupo.");
+      if (input.order != null && (!Number.isInteger(input.order) || input.order < 0)) {
+        throw new RangeError("Informe uma ordem de grupo válida.");
+      }
+      const previous = input.id ? read().manualClassGroups.find((item) => item.id === input.id) : undefined;
+      if (input.id && !previous) throw new Error("Grupo não encontrado.");
+      const record: ManualClassGroup = {
+        id: input.id ?? id(),
+        name: input.name.trim(),
+        order: input.order ?? previous?.order ?? read().manualClassGroups.length,
+        active: input.active ?? previous?.active ?? true,
+        created_at: previous?.created_at ?? now(),
+        updated_at: now(),
+      };
+      change((current) => ({
+        ...current,
+        manualClassGroups: [...current.manualClassGroups.filter((item) => item.id !== record.id), record],
+      }));
+      return record;
+    },
+    deleteGroup: async (groupId) => {
+      if (!read().manualClassGroups.some((item) => item.id === groupId)) throw new Error("Grupo não encontrado.");
+      if (read().manualClasses.some((item) => item.group_id === groupId)) {
+        throw new RangeError("Mova as turmas deste grupo antes de excluí-lo.");
+      }
+      change((current) => ({
+        ...current,
+        manualClassGroups: current.manualClassGroups.filter((item) => item.id !== groupId),
+      }));
+    },
     saveClass: async (input) => {
       const current = read();
       const previous = input.id ? current.manualClasses.find((item) => item.id === input.id) : undefined;
       if (input.id && !previous) throw new Error("Turma não encontrada.");
       validateManualClassInput(input, current.defaultRateHistory.at(-1)?.hourly_rate_cents != null);
+      const groupId = input.group_id ?? previous?.group_id ?? null;
+      if (!previous && !groupId) throw new RangeError("Selecione ou crie um grupo para a nova turma.");
+      if (groupId) {
+        const group = current.manualClassGroups.find((item) => item.id === groupId);
+        if (!group) throw new RangeError("O grupo selecionado não existe.");
+        if (!group.active && previous?.group_id !== groupId) {
+          throw new RangeError("Não é possível adicionar uma turma a um grupo desativado.");
+        }
+      }
       const activeStudents = new Set(current.manualStudents.filter((item) => item.active).map((item) => item.id));
       if (input.student_ids.some((studentId) => !activeStudents.has(studentId))) throw new RangeError("Selecione alunos próprios ativos.");
       const today = current.today;
@@ -58,6 +107,7 @@ export function createDemoManualAdapter(read: Read, change: Change): ManualAdapt
         : input.hourly_rate_cents == null ? [] : [{ effective_from: input.first_lesson_date, hourly_rate_cents: input.hourly_rate_cents }];
       const record: ManualClass = {
         id: input.id ?? id(), source: "manual", name: input.name.trim(),
+        group_id: groupId,
         first_lesson_date: previous?.first_lesson_date ?? input.first_lesson_date,
         end_date: previous?.end_date && previous.end_date < today ? previous.end_date : input.end_date || null,
         schedule_slots: slots, hourly_rate_cents: null, rate_history: history,

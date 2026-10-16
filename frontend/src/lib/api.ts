@@ -43,6 +43,8 @@ import {
   validateManualClassInput,
   type KodlandClassSettings,
   type ManualClass,
+  type ManualClassGroup,
+  type ManualClassGroupInput,
   type ManualClassInput,
   type ManualStudent,
   type PaymentDayPeriod,
@@ -163,6 +165,7 @@ export type ImportReport = {
   pedagogical_review_count: number;
   pedagogical_lesson_count: number;
   manual_student_count: number;
+  manual_class_group_count: number;
   manual_class_count: number;
   manual_lesson_count: number;
   manual_activity_count: number;
@@ -184,6 +187,7 @@ export type DataExport = {
   imported_courses?: unknown[];
   imported_course_lessons?: unknown[];
   manual_students: unknown[];
+  manual_class_groups: unknown[];
   manual_classes: unknown[];
   manual_lesson_content: unknown[];
   manual_activities: unknown[];
@@ -1260,7 +1264,7 @@ const backupCollectionNames = [
   "classes", "lessons", "payments", "kodland_groups", "kodland_students",
   "kodland_reviews", "kodland_lessons", "kodland_extra_lessons",
   "kodland_availability", "imported_courses", "imported_course_lessons",
-  "manual_students", "manual_classes", "manual_lesson_content",
+  "manual_students", "manual_class_groups", "manual_classes", "manual_lesson_content",
   "manual_activities", "kodland_class_settings",
   "kodland_financial_overrides", "holidays", "lesson_notes", "tutorials",
 ] as const;
@@ -1639,6 +1643,9 @@ export const teachingSettingsApi = {
   },
 };
 export const manualTeachingApi = {
+  groups: async (): Promise<ManualClassGroup[]> =>
+    ((await rows("manual_class_groups")) as unknown as ManualClassGroup[])
+      .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name)),
   students: async (): Promise<ManualStudent[]> =>
     (await rows("manual_students")) as unknown as ManualStudent[],
   saveStudent: async (payload: { id?: string; name: string; email?: string; phone?: string; active?: boolean }): Promise<ManualStudent> => {
@@ -1662,6 +1669,39 @@ export const manualTeachingApi = {
     if (!snapshot.exists()) throw new ApiError(404, "Aluno não encontrado.");
     await updateDoc(doc(ref("manual_students"), id), { active: false, updated_at: now() });
   },
+  saveGroup: async (payload: ManualClassGroupInput): Promise<ManualClassGroup> => {
+    if (!payload.name.trim()) throw new ApiError(400, "Informe o nome do grupo.");
+    if (payload.order != null && (!Number.isInteger(payload.order) || payload.order < 0)) {
+      throw new ApiError(400, "Informe uma ordem de grupo válida.");
+    }
+    const id = payload.id || crypto.randomUUID();
+    const reference = doc(ref("manual_class_groups"), id);
+    const snapshot = await getDoc(reference);
+    if (payload.id && !snapshot.exists()) throw new ApiError(404, "Grupo não encontrado.");
+    const previous = snapshot.data() as ManualClassGroup | undefined;
+    const order = payload.order ?? previous?.order ?? (await manualTeachingApi.groups()).length;
+    const record: ManualClassGroup = {
+      id,
+      name: payload.name.trim(),
+      order,
+      active: payload.active ?? previous?.active ?? true,
+      created_at: previous?.created_at ?? now(),
+      updated_at: now(),
+    };
+    await setDoc(reference, record);
+    return record;
+  },
+  deleteGroup: async (id: string) => {
+    const reference = doc(ref("manual_class_groups"), id);
+    const [snapshot, classrooms] = await Promise.all([
+      getDoc(reference), manualTeachingApi.classes(),
+    ]);
+    if (!snapshot.exists()) throw new ApiError(404, "Grupo não encontrado.");
+    if (classrooms.some((item) => item.group_id === id)) {
+      throw new ApiError(409, "Mova as turmas deste grupo antes de excluí-lo.");
+    }
+    await deleteDoc(reference);
+  },
   classes: async (): Promise<ManualClass[]> =>
     (await rows("manual_classes")) as unknown as ManualClass[],
   saveClass: async (payload: ManualClassInput & { id?: string }): Promise<ManualClass> => {
@@ -1678,6 +1718,18 @@ export const manualTeachingApi = {
     const snapshot = payload.id ? await getDoc(doc(ref("manual_classes"), id)) : null;
     if (payload.id && !snapshot?.exists()) throw new ApiError(404, "Turma não encontrada.");
     const previous = snapshot?.data() as ManualClass | undefined;
+    const groupId = payload.group_id ?? previous?.group_id ?? null;
+    if (!previous && !groupId) {
+      throw new ApiError(400, "Selecione ou crie um grupo para a nova turma.");
+    }
+    if (groupId) {
+      const groupSnapshot = await getDoc(doc(ref("manual_class_groups"), groupId));
+      const group = groupSnapshot.data() as ManualClassGroup | undefined;
+      if (!groupSnapshot.exists() || !group) throw new ApiError(400, "O grupo selecionado não existe.");
+      if (group.active === false && previous?.group_id !== groupId) {
+        throw new ApiError(400, "Não é possível adicionar uma turma a um grupo desativado.");
+      }
+    }
     const today = isoToday();
     const schedule_slots = previous
       ? reconcileWeeklySlots(previous.schedule_slots ?? [], payload.schedule_slots, today)
@@ -1695,6 +1747,7 @@ export const manualTeachingApi = {
     const record: ManualClass = {
       id,
       source: "manual",
+      group_id: groupId,
       name: payload.name.trim(),
       first_lesson_date: previous?.first_lesson_date ?? payload.first_lesson_date,
       end_date: previous?.end_date && previous.end_date < today
@@ -2604,6 +2657,7 @@ export const dataApi = {
           : item;
       }),
       manual_students: contents.manual_students,
+      manual_class_groups: contents.manual_class_groups,
       manual_classes: contents.manual_classes,
       manual_lesson_content: contents.manual_lesson_content,
       manual_activities: contents.manual_activities,
@@ -2642,6 +2696,7 @@ export const dataApi = {
       pedagogical_review_count: collections.kodland_reviews.length,
       pedagogical_lesson_count: collections.kodland_lessons.length,
       manual_student_count: collections.manual_students.length,
+      manual_class_group_count: collections.manual_class_groups.length,
       manual_class_count: collections.manual_classes.length,
       manual_lesson_count: collections.manual_lesson_content.length,
       manual_activity_count: collections.manual_activities.length,

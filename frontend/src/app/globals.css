@@ -2377,7 +2377,8 @@ select:focus-visible {
 .classes-compact-heading { gap: 10px; }
 .classes-compact-heading h2 { margin: 0; }
 .manual-personal-heading .card-actions { align-items: center; }
-.manual-groups-list { display: grid; gap: 12px; }
+.manual-groups-list { display: grid; min-width: 0; gap: 12px; }
+.management-grid > .manual-groups-list { grid-column: 1 / -1; }
 .manual-group-panel { display: grid; gap: 14px; }
 .manual-group-panel-heading { align-items: center; margin: 0; }
 .manual-group-panel-heading h3 { margin: 0; font-size: 1rem; }

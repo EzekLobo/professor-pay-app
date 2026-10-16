@@ -19,6 +19,9 @@
   sincronização) de **Turmas pessoais**, organizadas por `manual_class_groups`.
   Cada turma concentra horários, alunos, tarifa e dia de recebimento; turmas
   pessoais legadas sem `group_id` ficam em “Sem grupo” até serem movidas.
+- Turmas Kodland exibem o resumo financeiro diretamente nas linhas; a tarifa e
+  o dia de recebimento de cada grupo são configurados pelo ícone de ajustes no
+  cabeçalho, que abre a seleção dos grupos sem repetir o botão em cada linha.
 - `/demo` usa os mesmos componentes de Turmas, Aulas e Correções com adaptador
   local em `demo-manual-adapter.ts`; o estado fictício persiste em
   `nexusclass.demo.v2` e é filtrado em `demo-storage.ts`. O seed inclui o

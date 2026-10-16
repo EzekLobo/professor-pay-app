@@ -25,7 +25,9 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await existingClassDialog.getByRole("button", { name: "Fechar" }).click();
   const kodlandPanel = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Turmas Kodland" }) });
   await kodlandPanel.locator("summary").first().click();
-  await kodlandPanel.getByRole("button", { name: "Configurar turma" }).first().click();
+  await kodlandPanel.getByRole("button", { name: "Configurar grupos Kodland" }).click();
+  const kodlandGroupsDialog = page.getByRole("dialog", { name: "Configurar grupos Kodland" });
+  await kodlandGroupsDialog.getByRole("button", { name: /Configurar DEMO_PY_SEG-19/ }).click();
   const kodlandDialog = page.getByRole("dialog", { name: /Configurar/ });
   await kodlandDialog.getByLabel("Tarifa específica (R$/h)").fill("55,00");
   await kodlandDialog.getByLabel("Dia do recebimento").fill("20");

@@ -2433,6 +2433,12 @@ select:focus-visible {
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .inline-manager-form { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 10px; align-items: end; }
 .class-finance-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border, #27446b); }
+.kodland-settings-list { display: grid; gap: 12px; }
+.kodland-settings-list > .muted { margin: 0; }
+.kodland-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid var(--border, #27446b); border-radius: 12px; background: rgb(7 20 39 / 36%); }
+.kodland-settings-row > div { display: grid; gap: 4px; min-width: 0; }
+.kodland-settings-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kodland-settings-row .muted { font-size: .82rem; }
 @media (max-width: 680px) {
   .pedagogical-panel > .section-heading,
   .manual-teaching-panel > .section-heading {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Settings } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
@@ -38,13 +38,11 @@ export function GroupAccordion({
   students,
   openByDefault,
   financeLabel,
-  onConfigure,
 }: {
   group: KodlandGroup;
   students: KodlandStudent[];
   openByDefault: boolean;
   financeLabel?: string;
-  onConfigure?: () => void;
 }) {
   const [selectedStudent, setSelectedStudent] = useState<KodlandStudent | null>(
     null,
@@ -95,9 +93,8 @@ export function GroupAccordion({
               ))}
             </div>
           )}
-          {onConfigure && <div className="class-finance-actions">
+          {financeLabel && <div className="class-finance-actions">
             <span className="muted">{financeLabel}</span>
-            <button className="button button-ghost button-small" type="button" onClick={onConfigure}>Configurar turma</button>
           </div>}
         </div>
       </details>
@@ -181,6 +178,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
   const [notice, setNotice] = useState("");
   const [settingsByGroup, setSettingsByGroup] = useState<Record<string, KodlandClassSettings>>({});
   const [selectedGroup, setSelectedGroup] = useState<KodlandGroup | null>(null);
+  const [kodlandSettingsOpen, setKodlandSettingsOpen] = useState(false);
   const [rateInput, setRateInput] = useState("");
   const [paymentDay, setPaymentDay] = useState(15);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -300,6 +298,9 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
             <Button className="button-ghost sync-icon-button" type="button" data-tour="classes-sync" aria-label="Atualizar turmas" title={syncing ? "Atualizando turmas" : "Atualizar turmas"} aria-busy={syncing} onClick={() => void syncClasses()} disabled={syncing}>
               <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
             </Button>
+            <Button className="button-ghost sync-icon-button" type="button" aria-label="Configurar grupos Kodland" title="Configurar grupos Kodland" onClick={() => setKodlandSettingsOpen(true)}>
+              <Settings size={18} aria-hidden="true" />
+            </Button>
           </div>
         </div>
         {loading ? (
@@ -320,12 +321,29 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
                 )}
                 openByDefault={false}
                 financeLabel={`${moneyText(settingsByGroup[group.external_id]?.rate_history.at(-1)?.hourly_rate_cents)} · Recebimento dia ${settingsByGroup[group.external_id]?.payment_day ?? 15}`}
-                onConfigure={() => openGroupSettings(group)}
               />
             ))}
           </div>
         )}
       </section>
+      <Modal open={kodlandSettingsOpen} title="Configurar grupos Kodland" onClose={() => setKodlandSettingsOpen(false)}>
+        <div className="kodland-settings-list">
+          <p className="muted">Defina a tarifa e o dia de recebimento de cada grupo.</p>
+          {groups.length === 0 ? (
+            <p className="muted">Nenhum grupo sincronizado.</p>
+          ) : groups.map((group) => (
+            <div className="kodland-settings-row" key={group.id}>
+              <div>
+                <strong>{group.title}</strong>
+                <span className="muted">{moneyText(settingsByGroup[group.external_id]?.rate_history.at(-1)?.hourly_rate_cents)} · Recebimento dia {settingsByGroup[group.external_id]?.payment_day ?? 15}</span>
+              </div>
+              <button className="group-settings-button" type="button" aria-label={`Configurar ${group.title}`} title="Configurar grupo" onClick={() => { setKodlandSettingsOpen(false); openGroupSettings(group); }}>
+                <Settings size={16} aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </Modal>
       <Modal open={Boolean(selectedGroup)} title={selectedGroup ? `Configurar · ${selectedGroup.title}` : "Configurar turma"} onClose={() => setSelectedGroup(null)}>
         {selectedGroup && <form className="management-form" onSubmit={(event) => { event.preventDefault(); void saveGroupSettings(); }}>
           <label>Tarifa específica (R$/h)<input className="input" inputMode="decimal" value={rateInput} onChange={(event) => setRateInput(event.target.value)} placeholder="Deixe vazio para usar o padrão" /></label>

@@ -2379,7 +2379,12 @@ select:focus-visible {
 .manual-personal-heading .card-actions { align-items: center; }
 .manual-class-search { display: block; width: min(420px, 100%); }
 .manual-class-search .input { min-height: 42px; }
-.manual-add-icon { width: 38px; min-height: 38px; padding: 0; }
+.manual-add-actions { gap: 6px; }
+.manual-add-action { min-height: 38px; gap: 6px; padding: 8px 10px; }
+.manual-add-action span { font-size: .76rem; }
+.sync-icon-button { width: 42px; min-height: 42px; padding: 0; }
+.sync-icon-spinning { animation: spin-icon .8s linear infinite; }
+@keyframes spin-icon { to { transform: rotate(360deg); } }
 .manual-groups-list { display: grid; min-width: 0; gap: 12px; }
 .management-grid > .manual-groups-list { grid-column: 1 / -1; }
 .manual-group-panel { display: grid; gap: 14px; }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
@@ -296,8 +297,8 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
         <div className="section-heading classes-compact-heading">
           <h2>Turmas Kodland</h2>
           <div className="card-actions">
-            <Button type="button" data-tour="classes-sync" onClick={() => void syncClasses()} disabled={syncing}>
-              {syncing ? "Atualizando…" : "Atualizar turmas"}
+            <Button className="button-ghost sync-icon-button" type="button" data-tour="classes-sync" aria-label="Atualizar turmas" title={syncing ? "Atualizando turmas" : "Atualizar turmas"} aria-busy={syncing} onClick={() => void syncClasses()} disabled={syncing}>
+              <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
             </Button>
           </div>
         </div>
@@ -305,7 +306,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
           <p className="muted">Carregando turmas…</p>
         ) : groups.length === 0 ? (
           <p className="muted">
-            Nenhuma turma sincronizada. Use “Atualizar turmas” para importar
+            Nenhuma turma sincronizada. Use o ícone de sincronização para importar
             suas turmas.
           </p>
         ) : (

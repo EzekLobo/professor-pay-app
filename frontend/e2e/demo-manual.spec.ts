@@ -11,7 +11,18 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await expect(personalGroups.getByText("Turmas autônomas", { exact: true })).toBeVisible();
   await expect(personalGroups.getByText("Matemática particular", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Configurar grupo Turmas autônomas" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Configurar turma Matemática particular" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Excluir turma Matemática particular" })).toBeVisible();
+  const search = page.getByRole("searchbox", { name: "Buscar grupo, turma ou aluno" });
+  await search.fill("Helena");
+  await expect(personalGroups.getByText("Matemática particular", { exact: true })).toBeVisible();
+  await search.fill("inexistente");
+  await expect(page.getByText("Nenhum grupo, turma ou aluno encontrado.")).toBeVisible();
+  await search.fill("");
+  await page.getByRole("button", { name: "Configurar turma Matemática particular" }).click();
+  const existingClassDialog = page.getByRole("dialog", { name: "Editar turma" });
+  await expect(existingClassDialog.getByRole("checkbox", { name: "Turma ativa" })).toBeChecked();
+  await existingClassDialog.getByRole("button", { name: "Fechar" }).click();
   const kodlandPanel = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Turmas Kodland" }) });
   await kodlandPanel.locator("summary").first().click();
   await kodlandPanel.getByRole("button", { name: "Configurar turma" }).first().click();

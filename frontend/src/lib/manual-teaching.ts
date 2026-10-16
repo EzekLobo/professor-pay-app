@@ -67,6 +67,7 @@ export type ManualClassInput = {
   student_ids: string[];
   hourly_rate_cents: number | null;
   payment_day: number;
+  active?: boolean;
 };
 
 export const tomorrowCivilDate = (today: string) => {

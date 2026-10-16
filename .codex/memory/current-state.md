@@ -2,12 +2,16 @@
 
 ## R15 — Turmas próprias e demo local
 
-- A organização de turmas pessoais concentra ações no cabeçalho: tarifa padrão,
+- A organização de turmas pessoais concentra busca e ações no cabeçalho para
   criar grupo e criar turma. Cada grupo é um quadro independente, como o de
   Turmas Kodland, e mostra configuração e lixeira; grupos com turmas mantêm a
   lixeira desabilitada para evitar exclusão em cascata. A lixeira da turma pede
   confirmação e remove também conteúdos e atividades próprias vinculadas,
   tanto no Firestore quanto na demonstração local.
+- O cabeçalho de turmas pessoais fica antes das turmas Kodland e oferece busca
+  por grupo, turma ou aluno, além de atalhos compactos para criação. A tarifa é
+  configurada por turma; o modal da turma também controla se ela está ativa,
+  sem apagar seu histórico ao desativar ou reativar.
 - Turmas próprias/alunos ficam em coleções privadas Firestore; horários
   recorrentes múltiplos, tarifas com vigência, dia de recebimento por turma,
   conteúdo e atividades manuais compartilham o cálculo financeiro do Resumo.

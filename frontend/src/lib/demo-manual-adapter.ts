@@ -105,18 +105,22 @@ export function createDemoManualAdapter(read: Read, change: Change): ManualAdapt
       const history = previous
         ? [...(previous.rate_history ?? []), ...(previousRate === input.hourly_rate_cents ? [] : [ratePeriod(input.hourly_rate_cents)])]
         : input.hourly_rate_cents == null ? [] : [{ effective_from: input.first_lesson_date, hourly_rate_cents: input.hourly_rate_cents }];
+      const active = input.active ?? previous?.active ?? true;
+      const submittedEndDate = input.end_date || null;
       const record: ManualClass = {
         id: input.id ?? id(), source: "manual", name: input.name.trim(),
         group_id: groupId,
         first_lesson_date: previous?.first_lesson_date ?? input.first_lesson_date,
-        end_date: previous?.end_date && previous.end_date < today ? previous.end_date : input.end_date || null,
+        end_date: active
+          ? (previous?.active === false && submittedEndDate === previous.end_date ? null : submittedEndDate)
+          : submittedEndDate ?? today,
         schedule_slots: slots, hourly_rate_cents: null, rate_history: history,
         initial_default_rate_cents: previous?.initial_default_rate_cents ?? current.defaultRateHistory.at(-1)?.hourly_rate_cents ?? null,
         payment_day: input.payment_day,
         payment_day_history: previous
           ? [...(previous.payment_day_history ?? [{ effective_from: previous.first_lesson_date, payment_day: previous.payment_day ?? 15 }]), ...(previous.payment_day === input.payment_day ? [] : [{ effective_from: tomorrowCivilDate(today), payment_day: input.payment_day }])]
           : [{ effective_from: input.first_lesson_date, payment_day: input.payment_day }],
-        student_ids: [...new Set(input.student_ids)], active: previous?.active ?? true,
+        student_ids: [...new Set(input.student_ids)], active,
         created_at: previous?.created_at ?? now(), updated_at: now(),
       };
       change((state) => ({ ...state, manualClasses: [...state.manualClasses.filter((item) => item.id !== record.id), record] }));

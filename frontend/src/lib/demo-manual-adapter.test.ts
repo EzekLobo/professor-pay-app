@@ -67,6 +67,16 @@ describe("visitor's local manual-management adapter", () => {
     expect(restored.manualClasses.map((item) => item.name)).toContain("Turma persistente");
   });
 
+  it("changes the active setting without removing a class history", async () => {
+    const { adapter } = setup();
+    const group = await adapter.teaching.saveGroup({ name: "Pausáveis" });
+    const classroom = await adapter.teaching.saveClass({ name: "Turma pausável", first_lesson_date: "2026-10-14", schedule_slots: [{ id: "qua", week_day: 2, start_time: "08:00", duration_minutes: 60 }], student_ids: [], hourly_rate_cents: 5000, payment_day: 15, group_id: group.id });
+    const inactive = await adapter.teaching.saveClass({ id: classroom.id, name: classroom.name, first_lesson_date: classroom.first_lesson_date, end_date: classroom.end_date, schedule_slots: [...classroom.schedule_slots], student_ids: classroom.student_ids, hourly_rate_cents: 5000, payment_day: 15, group_id: group.id, active: false });
+    expect(inactive).toMatchObject({ active: false, end_date: "2026-10-14" });
+    const active = await adapter.teaching.saveClass({ id: inactive.id, name: inactive.name, first_lesson_date: inactive.first_lesson_date, end_date: inactive.end_date, schedule_slots: [...inactive.schedule_slots], student_ids: inactive.student_ids, hourly_rate_cents: 5000, payment_day: 15, group_id: group.id, active: true });
+    expect(active).toMatchObject({ active: true, end_date: null });
+  });
+
   it("organizes groups locally, blocks deletion while a class is assigned and keeps old classes ungrouped", async () => {
     const { adapter, read } = setup();
     const later = await adapter.teaching.saveGroup({ name: "Depois", order: 5 });

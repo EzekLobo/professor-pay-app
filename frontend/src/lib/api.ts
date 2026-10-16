@@ -1744,14 +1744,17 @@ export const manualTeachingApi = {
           effective_from: payload.first_lesson_date,
           hourly_rate_cents: payload.hourly_rate_cents,
         }];
+    const active = payload.active ?? previous?.active ?? true;
+    const submittedEndDate = payload.end_date || null;
     const record: ManualClass = {
       id,
       source: "manual",
       group_id: groupId,
       name: payload.name.trim(),
       first_lesson_date: previous?.first_lesson_date ?? payload.first_lesson_date,
-      end_date: previous?.end_date && previous.end_date < today
-        ? previous.end_date : payload.end_date || null,
+      end_date: active
+        ? (previous?.active === false && submittedEndDate === previous.end_date ? null : submittedEndDate)
+        : submittedEndDate ?? today,
       schedule_slots,
       hourly_rate_cents: null,
       rate_history,
@@ -1762,7 +1765,7 @@ export const manualTeachingApi = {
             ...(previous.payment_day === payload.payment_day ? [] : [{ effective_from: tomorrowCivilDate(today), payment_day: payload.payment_day }])]
         : [{ effective_from: payload.first_lesson_date, payment_day: payload.payment_day }],
       student_ids: [...new Set(payload.student_ids)],
-      active: previous?.active ?? true,
+      active,
       created_at: previous?.created_at ?? now(),
       updated_at: now(),
     };

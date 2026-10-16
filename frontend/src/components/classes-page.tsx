@@ -291,6 +291,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
         </p>
       )}
 
+      <ManualClassesPanel adapter={demo?.manualAdapter} />
       <section className="panel pedagogical-panel">
         <div className="section-heading classes-compact-heading">
           <h2>Turmas Kodland</h2>
@@ -324,7 +325,6 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
           </div>
         )}
       </section>
-      <ManualClassesPanel adapter={demo?.manualAdapter} />
       <Modal open={Boolean(selectedGroup)} title={selectedGroup ? `Configurar · ${selectedGroup.title}` : "Configurar turma"} onClose={() => setSelectedGroup(null)}>
         {selectedGroup && <form className="management-form" onSubmit={(event) => { event.preventDefault(); void saveGroupSettings(); }}>
           <label>Tarifa específica (R$/h)<input className="input" inputMode="decimal" value={rateInput} onChange={(event) => setRateInput(event.target.value)} placeholder="Deixe vazio para usar o padrão" /></label>

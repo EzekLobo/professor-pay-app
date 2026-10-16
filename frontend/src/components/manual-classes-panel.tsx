@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Settings, Trash2 } from "lucide-react";
+import { Plus, Settings, Trash2 } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { manualTeachingApi, teachingSettingsApi } from "@/lib/api";
 import type { ManualClass, ManualClassGroup, ManualClassGroupInput, ManualClassInput, ManualStudent } from "@/lib/manual-teaching";
@@ -16,7 +16,7 @@ const parseMoney = (value: string) => {
   return Number.isFinite(amount) ? Math.round(amount * 100) : NaN;
 };
 const todayLocal = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-const emptyInput = (): ManualClassInput => ({ group_id: null, name: "", first_lesson_date: todayLocal(), end_date: null, schedule_slots: [{ id: crypto.randomUUID(), week_day: 0, start_time: "18:00", duration_minutes: 60 }], student_ids: [], hourly_rate_cents: null, payment_day: 15 });
+const emptyInput = (): ManualClassInput => ({ group_id: null, name: "", first_lesson_date: todayLocal(), end_date: null, schedule_slots: [{ id: crypto.randomUUID(), week_day: 0, start_time: "18:00", duration_minutes: 60 }], student_ids: [], hourly_rate_cents: null, payment_day: 15, active: true });
 const emptyStudent = () => ({ name: "", email: "", phone: "" });
 const emptyGroup = (): ManualClassGroupInput => ({ name: "" });
 
@@ -30,7 +30,7 @@ export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
   const [students, setStudents] = useState<ManualStudent[]>([]);
   const [personalGroups, setPersonalGroups] = useState<ManualClassGroup[]>([]);
   const [defaultRate, setDefaultRate] = useState<number | null>(null);
-  const [defaultRateInput, setDefaultRateInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [editing, setEditing] = useState<ManualClass | "new" | null>(null);
   const [classInput, setClassInput] = useState<ManualClassInput>(emptyInput);
   const [classRateInput, setClassRateInput] = useState("");
@@ -40,7 +40,6 @@ export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
   const [studentInput, setStudentInput] = useState<StudentInput | null>(null);
   const [groupManagerOpen, setGroupManagerOpen] = useState(false);
   const [groupInput, setGroupInput] = useState<ManualClassGroupInput | null>(null);
-  const [financeOpen, setFinanceOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -50,7 +49,7 @@ export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
       teaching.classes(), teaching.students(), teaching.groups(), settings.get(),
     ]);
     setClasses(ownClasses); setStudents(ownStudents); setPersonalGroups(ownGroups);
-    setDefaultRate(account.default_hourly_rate_cents); setDefaultRateInput(moneyText(account.default_hourly_rate_cents));
+    setDefaultRate(account.default_hourly_rate_cents);
   }, [teaching, settings]);
 
   useEffect(() => {
@@ -76,12 +75,21 @@ export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
     setClassInput(item ? {
       group_id: item.group_id ?? null, name: item.name, first_lesson_date: item.first_lesson_date, end_date: item.end_date,
       schedule_slots: item.schedule_slots.filter((slot) => !slot.effective_until || slot.effective_until >= todayLocal()).map((slot) => ({ id: slot.id, week_day: slot.week_day, start_time: slot.start_time, duration_minutes: slot.duration_minutes })),
-      student_ids: item.student_ids ?? [], hourly_rate_cents: item.rate_history?.at(-1)?.hourly_rate_cents ?? null, payment_day: item.payment_day ?? 15,
+      student_ids: item.student_ids ?? [], hourly_rate_cents: item.rate_history?.at(-1)?.hourly_rate_cents ?? null, payment_day: item.payment_day ?? 15, active: item.active,
     } : emptyInput());
   };
   const changeSlot = (id: string, patch: Partial<ManualClassInput["schedule_slots"][number]>) => setClassInput((item) => ({ ...item, schedule_slots: item.schedule_slots.map((slot) => slot.id === id ? { ...slot, ...patch } : slot) }));
   const groupedClasses = (groupId: string) => classes.filter((item) => item.group_id === groupId);
   const legacyClasses = classes.filter((item) => !item.group_id);
+  const search = searchQuery.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  const matchesSearch = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").includes(search);
+  const classMatchesSearch = (item: ManualClass) => !search || matchesSearch(item.name) || item.student_ids.some((id) => matchesSearch(students.find((student) => student.id === id)?.name ?? ""));
+  const visibleGroups = personalGroups.map((group) => {
+    const classrooms = groupedClasses(group.id);
+    const groupMatchesSearch = matchesSearch(group.name);
+    return { group, classrooms: groupMatchesSearch ? classrooms : classrooms.filter(classMatchesSearch) };
+  }).filter(({ group, classrooms }) => !search || matchesSearch(group.name) || classrooms.length > 0);
+  const visibleLegacyClasses = legacyClasses.filter(classMatchesSearch);
 
   const saveInlineStudent = async () => {
     if (!inlineStudent) return;
@@ -114,26 +122,25 @@ export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
 
   return <>
     <section className="panel manual-teaching-panel" data-tour="classes-personal-groups">
-      <div className="section-heading classes-compact-heading manual-personal-heading"><h2>Turmas pessoais</h2><div className="card-actions"><button className="button button-ghost button-small" type="button" onClick={() => { setDefaultRateInput(moneyText(defaultRate)); setFinanceOpen(true); }}>Tarifa padrão</button><button className="button button-ghost" type="button" onClick={() => { setGroupInput(emptyGroup()); setGroupManagerOpen(true); }}>Adicionar grupo</button><button className="button" data-tour="classes-add-class" type="button" onClick={() => editClass()}>Adicionar turma</button></div></div>
+      <div className="section-heading classes-compact-heading manual-personal-heading"><label className="manual-class-search"><span className="sr-only">Buscar grupo, turma ou aluno</span><input className="input" type="search" placeholder="Buscar grupo, turma ou aluno" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label><div className="card-actions"><button className="button button-ghost button-small manual-add-icon" type="button" aria-label="Adicionar grupo" title="Adicionar grupo" onClick={() => { setGroupInput(emptyGroup()); setGroupManagerOpen(true); }}><Plus size={17} aria-hidden="true" /></button><button className="button button-ghost button-small manual-add-icon" data-tour="classes-add-class" type="button" aria-label="Adicionar turma" title="Adicionar turma" onClick={() => editClass()}><Plus size={17} aria-hidden="true" /></button></div></div>
       {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     </section>
-    {personalGroups.length === 0 && legacyClasses.length === 0 ? <section className="panel manual-group-panel"><p className="muted">Crie um grupo e cadastre sua primeira turma.</p></section> : <div className="manual-groups-list">
-        {personalGroups.map((group) => {
-          const classrooms = groupedClasses(group.id);
+    {personalGroups.length === 0 && legacyClasses.length === 0 ? <section className="panel manual-group-panel"><p className="muted">Crie um grupo e cadastre sua primeira turma.</p></section> : visibleGroups.length === 0 && visibleLegacyClasses.length === 0 ? <section className="panel manual-group-panel"><p className="muted">Nenhum grupo, turma ou aluno encontrado.</p></section> : <div className="manual-groups-list">
+        {visibleGroups.map(({ group, classrooms }) => {
           const studentCount = new Set(classrooms.flatMap((item) => item.student_ids).filter((id) => students.some((student) => student.id === id && student.active))).size;
           return <section className="panel manual-group-panel" key={group.id}>
             <div className="section-heading manual-group-panel-heading"><div className="group-summary-copy"><h3>{group.name}</h3><span className="group-course-name">{group.active ? `${classrooms.length} turma${classrooms.length === 1 ? "" : "s"} · ${studentCount} aluno${studentCount === 1 ? "" : "s"}` : "Grupo desativado"}</span></div><div className="group-header-actions"><button className="group-settings-button" type="button" aria-label={`Configurar grupo ${group.name}`} title="Configurar grupo" onClick={() => { setGroupInput({ id: group.id, name: group.name, order: group.order, active: group.active }); setGroupManagerOpen(true); }}><Settings size={16} aria-hidden="true" /></button><button className="group-delete-button" type="button" disabled={busy || classrooms.length > 0} aria-label={`Excluir grupo ${group.name}`} title={classrooms.length > 0 ? "Exclua ou mova as turmas antes de excluir o grupo" : "Excluir grupo"} onClick={() => { if (window.confirm(`Excluir o grupo ${group.name}? Esta ação não pode ser desfeita.`)) void save(() => teaching.deleteGroup(group.id), "Grupo excluído."); }}><Trash2 size={16} aria-hidden="true" /></button></div></div>
-            <div className="manual-group-class-list">{classrooms.length === 0 ? <p className="muted">Nenhuma turma neste grupo.</p> : classrooms.map((item) => <ClassRow key={item.id} item={item} students={students} busy={busy} onEdit={() => editClass(item)} onDeactivate={() => { if (window.confirm(`Desativar ${item.name}? As aulas anteriores serão preservadas.`)) void save(() => teaching.deactivateClass(item.id), "Turma desativada."); }} onDelete={() => { if (window.confirm(`Excluir a turma ${item.name}? Aulas e atividades vinculadas também serão apagadas.`)) void save(() => teaching.deleteClass(item.id), "Turma excluída."); }} />)}</div>
+            <div className="manual-group-class-list">{classrooms.length === 0 ? <p className="muted">Nenhuma turma neste grupo.</p> : classrooms.map((item) => <ClassRow key={item.id} item={item} students={students} busy={busy} onEdit={() => editClass(item)} onDelete={() => { if (window.confirm(`Excluir a turma ${item.name}? Aulas e atividades vinculadas também serão apagadas.`)) void save(() => teaching.deleteClass(item.id), "Turma excluída."); }} />)}</div>
           </section>;
         })}
-        {legacyClasses.length > 0 && <section className="panel manual-group-panel legacy-group"><div className="section-heading manual-group-panel-heading"><div className="group-summary-copy"><h3>Sem grupo</h3><span className="group-course-name">Turmas cadastradas antes da organização por grupos</span></div></div><div className="manual-group-class-list"><p className="muted">Edite uma turma para vinculá-la a um grupo.</p>{legacyClasses.map((item) => <ClassRow key={item.id} item={item} students={students} busy={busy} onEdit={() => editClass(item)} onDeactivate={() => { if (window.confirm(`Desativar ${item.name}? As aulas anteriores serão preservadas.`)) void save(() => teaching.deactivateClass(item.id), "Turma desativada."); }} onDelete={() => { if (window.confirm(`Excluir a turma ${item.name}? Aulas e atividades vinculadas também serão apagadas.`)) void save(() => teaching.deleteClass(item.id), "Turma excluída."); }} />)}</div></section>}
+        {visibleLegacyClasses.length > 0 && <section className="panel manual-group-panel legacy-group"><div className="section-heading manual-group-panel-heading"><div className="group-summary-copy"><h3>Sem grupo</h3><span className="group-course-name">Turmas cadastradas antes da organização por grupos</span></div></div><div className="manual-group-class-list"><p className="muted">Edite uma turma para vinculá-la a um grupo.</p>{visibleLegacyClasses.map((item) => <ClassRow key={item.id} item={item} students={students} busy={busy} onEdit={() => editClass(item)} onDelete={() => { if (window.confirm(`Excluir a turma ${item.name}? Aulas e atividades vinculadas também serão apagadas.`)) void save(() => teaching.deleteClass(item.id), "Turma excluída."); }} />)}</div></section>}
       </div>}
 
     <Modal open={Boolean(editing)} title={editing === "new" ? "Adicionar nova turma" : "Editar turma"} onClose={() => setEditing(null)} className="manual-class-modal">
       {editing && <form className="management-form manual-class-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void saveClass(); }}>
         <section className="manual-form-section manual-class-basics" aria-labelledby="manual-class-basics-title">
           <div className="manual-section-heading"><h3 id="manual-class-basics-title">Turma e grupo</h3></div>
-          <label className="manual-field-wide">Nome da turma<input required className="input" value={classInput.name} onChange={(event) => setClassInput({ ...classInput, name: event.target.value })} /></label>
+          <label className="manual-field-wide">Nome da turma<input required className="input" value={classInput.name} onChange={(event) => setClassInput({ ...classInput, name: event.target.value })} /></label><label className="manual-active-toggle"><input type="checkbox" checked={classInput.active !== false} onChange={(event) => setClassInput({ ...classInput, active: event.target.checked })} /><span>Turma ativa</span></label>
           <fieldset className="manual-group-choice"><legend>Grupo</legend><div className="manual-group-options"><label className="manual-choice-card"><input type="radio" checked={!creatingGroup} onChange={() => setCreatingGroup(false)} /><span>Usar grupo existente</span></label><label className="manual-choice-card"><input type="radio" checked={creatingGroup} onChange={() => setCreatingGroup(true)} /><span>Criar novo grupo</span></label></div>{!creatingGroup ? <label>Grupo<select required className="input" value={classInput.group_id ?? ""} onChange={(event) => setClassInput({ ...classInput, group_id: event.target.value || null })}><option value="">{editing === "new" ? "Selecione um grupo" : "Sem grupo (legado)"}</option>{personalGroups.filter((group) => group.active || group.id === classInput.group_id).map((group) => <option key={group.id} value={group.id}>{group.name}{group.active ? "" : " (desativado)"}</option>)}</select></label> : <label>Nome do grupo<input required className="input" value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} placeholder="Ex.: Turmas autônomas" /></label>}</fieldset>
         </section>
 
@@ -159,11 +166,10 @@ export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
 
     <Modal open={groupManagerOpen} title="Organizar grupos" onClose={() => setGroupManagerOpen(false)} className="manual-class-modal"><div className="management-form"><div className="section-heading"><h3>Grupos</h3><button className="button button-ghost button-small" type="button" onClick={() => setGroupInput(groupInput ? null : emptyGroup())}>{groupInput ? "Cancelar" : "Novo grupo"}</button></div>{groupInput && <form className="inline-manager-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void save(() => teaching.saveGroup(groupInput), groupInput.id ? "Grupo atualizado." : "Grupo criado.").then((ok) => { if (ok) setGroupInput(null); }); }}><label>Nome<input required className="input" value={groupInput.name} onChange={(event) => setGroupInput({ ...groupInput, name: event.target.value })} /></label><label>Ordem<input className="input" type="number" min="0" value={groupInput.order ?? personalGroups.length} onChange={(event) => setGroupInput({ ...groupInput, order: Number(event.target.value) })} /></label><button className="button button-small" disabled={busy} type="submit">Salvar grupo</button></form>}<div className="student-list">{personalGroups.map((group) => <div className="student-row" key={group.id}><strong>{group.name}</strong><span className="muted">{group.active ? `${groupedClasses(group.id).length} turma(s)` : "Desativado"}</span><div className="card-actions"><button className="button button-ghost button-small" type="button" onClick={() => setGroupInput({ id: group.id, name: group.name, order: group.order, active: group.active })}>Editar</button><button className="button button-ghost button-small" type="button" disabled={busy} onClick={() => void save(() => teaching.saveGroup({ id: group.id, name: group.name, order: group.order, active: !group.active }), group.active ? "Grupo desativado." : "Grupo reativado.")}>{group.active ? "Desativar" : "Reativar"}</button>{groupedClasses(group.id).length === 0 && <button className="button button-ghost button-small" type="button" disabled={busy} onClick={() => { if (window.confirm(`Excluir o grupo ${group.name}?`)) void save(() => teaching.deleteGroup(group.id), "Grupo excluído."); }}>Excluir</button>}</div></div>)}</div><h3>Alunos cadastrados</h3><div className="student-list">{students.length === 0 ? <p className="muted">Cadastre alunos ao criar ou editar uma turma.</p> : students.map((student) => <div className="student-row" key={student.id}><strong>{student.name}</strong><span className="muted">{student.active ? student.email || student.phone || "Ativo" : "Inativo"}</span><div className="card-actions"><button className="button button-ghost button-small" type="button" onClick={() => setStudentInput(student)}>Editar</button>{student.active && <button className="button button-ghost button-small" type="button" disabled={busy} onClick={() => { if (window.confirm(`Desativar ${student.name}?`)) void save(() => teaching.deactivateStudent(student.id), "Aluno desativado."); }}>Desativar</button>}</div></div>)}</div></div></Modal>
     <Modal open={Boolean(studentInput)} title={studentInput?.id ? "Editar aluno" : "Adicionar aluno"} onClose={() => setStudentInput(null)}>{studentInput && <form className="management-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void save(() => teaching.saveStudent(studentInput), "Aluno salvo.").then((ok) => { if (ok) setStudentInput(null); }); }}><label>Nome<input required className="input" value={studentInput.name} onChange={(event) => setStudentInput({ ...studentInput, name: event.target.value })} /></label><label>E-mail<input type="email" className="input" value={studentInput.email} onChange={(event) => setStudentInput({ ...studentInput, email: event.target.value })} /></label><label>Telefone<input className="input" value={studentInput.phone} onChange={(event) => setStudentInput({ ...studentInput, phone: event.target.value })} /></label>{error && <p className="form-error" role="alert">{error}</p>}<button className="button" disabled={busy} type="submit">Salvar aluno</button></form>}</Modal>
-    <Modal open={financeOpen} title="Configurações financeiras" onClose={() => setFinanceOpen(false)}><form className="management-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void save(() => settings.setDefaultRate(parseMoney(defaultRateInput) ?? NaN), "Valor padrão atualizado para as próximas aulas.").then((ok) => { if (ok) setFinanceOpen(false); }); }}><label>Valor padrão por hora (R$)<input className="input" inputMode="decimal" value={defaultRateInput} onChange={(event) => setDefaultRateInput(event.target.value)} placeholder="Ex.: 50,00" /></label><p className="muted">Turmas sem tarifa própria usam este valor somente nas próximas aulas.</p>{error && <p className="form-error" role="alert">{error}</p>}<button className="button" disabled={busy} type="submit">Salvar valor</button></form></Modal>
   </>;
 }
 
-function ClassRow({ item, students, busy, onEdit, onDeactivate, onDelete }: { item: ManualClass; students: ManualStudent[]; busy: boolean; onEdit: () => void; onDeactivate: () => void; onDelete: () => void }) {
+function ClassRow({ item, students, busy, onEdit, onDelete }: { item: ManualClass; students: ManualStudent[]; busy: boolean; onEdit: () => void; onDelete: () => void }) {
   const futureSlots = item.schedule_slots.filter((slot) => !slot.effective_until || slot.effective_until >= todayLocal());
-  return <div className="manual-class-card"><span className="group-summary-copy"><strong>{item.name}</strong><span className="group-course-name">{item.active ? "Ativa" : "Inativa"} · {futureSlots.map((slot) => `${weekDays[slot.week_day]} ${slot.start_time}`).join(", ") || "Sem horários futuros"}</span></span><span className="group-student-count">{item.student_ids.filter((id) => students.some((student) => student.id === id && student.active)).length} alunos</span><div className="card-actions"><button className="button button-ghost button-small" type="button" onClick={onEdit}>Editar</button>{item.active && <button className="button button-ghost button-small" type="button" disabled={busy} onClick={onDeactivate}>Desativar</button>}<button className="group-delete-button" type="button" disabled={busy} aria-label={`Excluir turma ${item.name}`} title="Excluir turma" onClick={onDelete}><Trash2 size={15} aria-hidden="true" /></button></div></div>;
+  return <div className="manual-class-card"><span className="group-summary-copy"><strong>{item.name}</strong><span className="group-course-name">{item.active ? "Ativa" : "Inativa"} · {futureSlots.map((slot) => `${weekDays[slot.week_day]} ${slot.start_time}`).join(", ") || "Sem horários futuros"}</span></span><span className="group-student-count">{item.student_ids.filter((id) => students.some((student) => student.id === id && student.active)).length} alunos</span><div className="card-actions"><button className="group-settings-button" type="button" aria-label={`Configurar turma ${item.name}`} title="Configurar turma" onClick={onEdit}><Settings size={15} aria-hidden="true" /></button><button className="group-delete-button" type="button" disabled={busy} aria-label={`Excluir turma ${item.name}`} title="Excluir turma" onClick={onDelete}><Trash2 size={15} aria-hidden="true" /></button></div></div>;
 }

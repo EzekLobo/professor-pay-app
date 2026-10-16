@@ -2377,6 +2377,9 @@ select:focus-visible {
 .classes-compact-heading { gap: 10px; }
 .classes-compact-heading h2 { margin: 0; }
 .manual-personal-heading .card-actions { align-items: center; }
+.manual-class-search { display: block; width: min(420px, 100%); }
+.manual-class-search .input { min-height: 42px; }
+.manual-add-icon { width: 38px; min-height: 38px; padding: 0; }
 .manual-groups-list { display: grid; min-width: 0; gap: 12px; }
 .management-grid > .manual-groups-list { grid-column: 1 / -1; }
 .manual-group-panel { display: grid; gap: 14px; }
@@ -2398,6 +2401,8 @@ select:focus-visible {
 .manual-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .manual-section-heading h3 { margin: 0; font-size: .98rem; }
 .manual-field-wide { display: grid; gap: 6px; }
+.manual-active-toggle { display: inline-flex; align-items: center; gap: 9px; width: fit-content; color: #c6d7ed; font-size: .86rem; font-weight: 800; cursor: pointer; }
+.manual-active-toggle input { width: 17px; height: 17px; margin: 0; accent-color: #57cdf9; }
 .manual-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .manual-form-grid label, .manual-class-modal .management-form > label, .manual-group-choice > label, .inline-student-form > label { display: grid; gap: 6px; }
 .manual-slots, .manual-student-options, .manual-group-choice, .inline-student-form { display: grid; gap: 10px; border: 1px solid var(--border, #27446b); border-radius: 12px; padding: 12px; background: rgb(7 20 39 / 36%); }

@@ -45,14 +45,13 @@ const tutorials: readonly TutorialDefinition[] = [
   {
     id: "classes",
     pathname: "/classes",
-    version: 4,
+    version: 5,
     steps: [
       { id: "welcome", title: "Turmas", description: "Você pode gerir turmas próprias sem uma conta Kodland e manter as importadas na mesma tela.", placement: "center" },
-      { id: "add-student", title: "Adicionar aluno", description: "Cadastre um aluno próprio antes de vinculá-lo a uma turma.", target: '[data-tour="classes-add-student"]', placement: "bottom" },
-      { id: "default-rate", title: "Valor padrão", description: "Informe o valor por hora para turmas que não tenham uma tarifa específica.", target: '[data-tour="classes-default-rate"]', placement: "bottom" },
-      { id: "add-class", title: "Adicionar turma", description: "Defina o nome, o início, um ou mais horários semanais, o dia de recebimento e os alunos.", target: '[data-tour="classes-add-class"]', placement: "bottom" },
+      { id: "personal-groups", title: "Turmas pessoais", description: "Organize suas turmas em grupos, como particulares ou reforço escolar.", target: '[data-tour="classes-personal-groups"]', placement: "top" },
+      { id: "add-class", title: "Adicionar turma", description: "Escolha um grupo existente ou crie outro, defina horários, recebimento e alunos no mesmo cadastro.", target: '[data-tour="classes-add-class"]', placement: "bottom" },
       { id: "sync", title: "Sincronização opcional", description: "Atualize apenas as turmas importadas da Kodland quando tiver acesso à plataforma.", target: '[data-tour="classes-sync"]', placement: "bottom" },
-      { id: "list", title: "Lista de turmas", description: "A primeira turma foi expandida para mostrar os alunos e o andamento. Abra as demais turmas quando precisar.", target: '[data-tour="classes-list"]', placement: "top", reveal: "details" },
+      { id: "list", title: "Turmas Kodland", description: "A primeira turma foi expandida para mostrar alunos, andamento e a configuração financeira daquela turma.", target: '[data-tour="classes-list"]', placement: "top", reveal: "details" },
     ],
   },
   {

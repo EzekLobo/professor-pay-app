@@ -9,10 +9,12 @@ import { ManualClassesPanel } from "@/components/manual-classes-panel";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 import {
   ApiError,
+  kodlandClassSettingsApi,
   kodlandApi,
   type KodlandGroup,
   type KodlandStudent,
 } from "@/lib/api";
+import type { KodlandClassSettings } from "@/lib/manual-teaching";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { whatsappUrl } from "@/lib/whatsapp";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
@@ -23,14 +25,25 @@ import {
 
 const absoluteUrl = (value: string) =>
   value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
+const moneyText = (cents: number | null | undefined) => cents == null ? "Valor padrão" : `R$ ${(cents / 100).toFixed(2)}/h`;
+const parseMoney = (value: string) => {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : NaN;
+};
 export function GroupAccordion({
   group,
   students,
   openByDefault,
+  financeLabel,
+  onConfigure,
 }: {
   group: KodlandGroup;
   students: KodlandStudent[];
   openByDefault: boolean;
+  financeLabel?: string;
+  onConfigure?: () => void;
 }) {
   const [selectedStudent, setSelectedStudent] = useState<KodlandStudent | null>(
     null,
@@ -81,6 +94,10 @@ export function GroupAccordion({
               ))}
             </div>
           )}
+          {onConfigure && <div className="class-finance-actions">
+            <span className="muted">{financeLabel}</span>
+            <button className="button button-ghost button-small" type="button" onClick={onConfigure}>Configurar turma</button>
+          </div>}
         </div>
       </details>
       <Modal
@@ -161,6 +178,11 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [settingsByGroup, setSettingsByGroup] = useState<Record<string, KodlandClassSettings>>({});
+  const [selectedGroup, setSelectedGroup] = useState<KodlandGroup | null>(null);
+  const [rateInput, setRateInput] = useState("");
+  const [paymentDay, setPaymentDay] = useState(15);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
     if (!notice) return;
@@ -171,14 +193,22 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    if (demo) { setGroups(demo.groups); setStudents(demo.students); setLoading(false); return; }
+    const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
+    if (demo) {
+      const currentSettings = await settingsApi.list();
+      setGroups(demo.groups); setStudents(demo.students);
+      setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
+      setLoading(false); return;
+    }
     try {
-      const [groupResult, studentResult] = await Promise.all([
+      const [groupResult, studentResult, currentSettings] = await Promise.all([
         kodlandApi.groups(),
         kodlandApi.students(),
+        settingsApi.list(),
       ]);
       setGroups(groupResult.items);
       setStudents(studentResult.items);
+      setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -226,6 +256,28 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     }
   }
 
+  const openGroupSettings = (group: KodlandGroup) => {
+    const current = settingsByGroup[group.external_id];
+    setSelectedGroup(group);
+    setRateInput(current?.rate_history.at(-1)?.hourly_rate_cents == null ? "" : String((current.rate_history.at(-1)!.hourly_rate_cents ?? 0) / 100).replace(".", ","));
+    setPaymentDay(current?.payment_day ?? 15);
+    setError("");
+  };
+
+  async function saveGroupSettings() {
+    if (!selectedGroup) return;
+    setSavingSettings(true); setError("");
+    try {
+      const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
+      await settingsApi.save(selectedGroup.external_id, { hourly_rate_cents: parseMoney(rateInput), payment_day: paymentDay });
+      setSelectedGroup(null);
+      setNotice("Configuração da turma salva para as próximas aulas.");
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível salvar a configuração da turma.");
+    } finally { setSavingSettings(false); }
+  }
+
   return (
     <div className="management-grid">
       {error && (
@@ -242,7 +294,8 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
       <section className="panel pedagogical-panel">
         <div className="section-heading">
           <div>
-            <h2>Turmas</h2>
+            <h2>Turmas Kodland</h2>
+            <p className="muted">Estas turmas são atualizadas pela sincronização da Kodland.</p>
           </div>
           <div className="card-actions">
             <Button type="button" data-tour="classes-sync" onClick={() => void syncClasses()} disabled={syncing}>
@@ -267,12 +320,22 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
                   (student) => student.external_class_id === group.external_id,
                 )}
                 openByDefault={false}
+                financeLabel={`${moneyText(settingsByGroup[group.external_id]?.rate_history.at(-1)?.hourly_rate_cents)} · Recebimento dia ${settingsByGroup[group.external_id]?.payment_day ?? 15}`}
+                onConfigure={() => openGroupSettings(group)}
               />
             ))}
           </div>
         )}
       </section>
-      <ManualClassesPanel groups={groups} adapter={demo?.manualAdapter} />
+      <ManualClassesPanel adapter={demo?.manualAdapter} />
+      <Modal open={Boolean(selectedGroup)} title={selectedGroup ? `Configurar · ${selectedGroup.title}` : "Configurar turma"} onClose={() => setSelectedGroup(null)}>
+        {selectedGroup && <form className="management-form" onSubmit={(event) => { event.preventDefault(); void saveGroupSettings(); }}>
+          <label>Tarifa específica (R$/h)<input className="input" inputMode="decimal" value={rateInput} onChange={(event) => setRateInput(event.target.value)} placeholder="Deixe vazio para usar o padrão" /></label>
+          <label>Dia do recebimento<input className="input" type="number" min="1" max="31" value={paymentDay} onChange={(event) => setPaymentDay(Number(event.target.value))} /></label>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <button className="button" disabled={savingSettings} type="submit">Salvar configuração</button>
+        </form>}
+      </Modal>
     </div>
   );
 }

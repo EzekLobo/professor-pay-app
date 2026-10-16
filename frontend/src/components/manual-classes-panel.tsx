@@ -2,13 +2,8 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
-import {
-  kodlandClassSettingsApi,
-  manualTeachingApi,
-  teachingSettingsApi,
-  type KodlandGroup,
-} from "@/lib/api";
-import type { ManualClass, ManualClassInput, ManualStudent } from "@/lib/manual-teaching";
+import { manualTeachingApi, teachingSettingsApi } from "@/lib/api";
+import type { ManualClass, ManualClassGroup, ManualClassGroupInput, ManualClassInput, ManualStudent } from "@/lib/manual-teaching";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 
 const weekDays = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
@@ -20,58 +15,52 @@ const parseMoney = (value: string) => {
   return Number.isFinite(amount) ? Math.round(amount * 100) : NaN;
 };
 const todayLocal = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-const emptyInput = (): ManualClassInput => ({
-  name: "", first_lesson_date: todayLocal(), end_date: null,
-  schedule_slots: [{ id: crypto.randomUUID(), week_day: 0, start_time: "18:00", duration_minutes: 60 }],
-  student_ids: [], hourly_rate_cents: null, payment_day: 15,
-});
+const emptyInput = (): ManualClassInput => ({ group_id: null, name: "", first_lesson_date: todayLocal(), end_date: null, schedule_slots: [{ id: crypto.randomUUID(), week_day: 0, start_time: "18:00", duration_minutes: 60 }], student_ids: [], hourly_rate_cents: null, payment_day: 15 });
+const emptyStudent = () => ({ name: "", email: "", phone: "" });
+const emptyGroup = (): ManualClassGroupInput => ({ name: "" });
 
-export function ManualClassesPanel({ groups, adapter }: { groups: KodlandGroup[]; adapter?: ManualAdapters }) {
+type StudentInput = { id?: string; name: string; email: string; phone: string };
+
+/** Personal teaching stays separate from the virtual Kodland grouping. */
+export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
   const teaching = adapter?.teaching ?? manualTeachingApi;
   const settings = adapter?.settings ?? teachingSettingsApi;
-  const kodland = adapter?.kodland ?? kodlandClassSettingsApi;
   const [classes, setClasses] = useState<ManualClass[]>([]);
   const [students, setStudents] = useState<ManualStudent[]>([]);
+  const [personalGroups, setPersonalGroups] = useState<ManualClassGroup[]>([]);
   const [defaultRate, setDefaultRate] = useState<number | null>(null);
   const [defaultRateInput, setDefaultRateInput] = useState("");
-  const [settingsByGroup, setSettingsByGroup] = useState<Record<string, { hourly_rate_cents: number | null; payment_day: number }>>({});
-  const [selectedGroup, setSelectedGroup] = useState<KodlandGroup | null>(null);
-  const [rateInput, setRateInput] = useState("");
-  const [paymentDay, setPaymentDay] = useState(15);
   const [editing, setEditing] = useState<ManualClass | "new" | null>(null);
   const [classInput, setClassInput] = useState<ManualClassInput>(emptyInput);
   const [classRateInput, setClassRateInput] = useState("");
-  const [studentInput, setStudentInput] = useState<{ id?: string; name: string; email: string; phone: string } | null>(null);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [inlineStudent, setInlineStudent] = useState<StudentInput | null>(null);
+  const [studentInput, setStudentInput] = useState<StudentInput | null>(null);
+  const [groupManagerOpen, setGroupManagerOpen] = useState(false);
+  const [groupInput, setGroupInput] = useState<ManualClassGroupInput | null>(null);
+  const [financeOpen, setFinanceOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   const load = useCallback(async () => {
-    const [ownClasses, ownStudents, account, kodlandSettings] = await Promise.all([
-      teaching.classes(), teaching.students(),
-      settings.get(), kodland.list(),
+    const [ownClasses, ownStudents, ownGroups, account] = await Promise.all([
+      teaching.classes(), teaching.students(), teaching.groups(), settings.get(),
     ]);
-    setClasses(ownClasses);
-    setStudents(ownStudents);
-    setDefaultRate(account.default_hourly_rate_cents);
-    setDefaultRateInput(moneyText(account.default_hourly_rate_cents));
-    setSettingsByGroup(Object.fromEntries(kodlandSettings.map((item) => [item.id, {
-      hourly_rate_cents: item.rate_history.at(-1)?.hourly_rate_cents ?? null,
-      payment_day: item.payment_day,
-    }])));
-  }, [teaching, settings, kodland]);
+    setClasses(ownClasses); setStudents(ownStudents); setPersonalGroups(ownGroups);
+    setDefaultRate(account.default_hourly_rate_cents); setDefaultRateInput(moneyText(account.default_hourly_rate_cents));
+  }, [teaching, settings]);
+
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void load().catch((reason) => setError(reason instanceof Error ? reason.message : "Não foi possível carregar seus cadastros."));
-    }, 0);
+    const timer = window.setTimeout(() => { void load().catch((reason) => setError(reason instanceof Error ? reason.message : "Não foi possível carregar seus cadastros.")); }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
   const save = async (action: () => Promise<unknown>, message: string) => {
     setBusy(true); setError(""); setNotice("");
     try {
-      await action();
-      await load();
-      setNotice(message);
+      await action(); await load(); setNotice(message);
       if (!adapter) window.dispatchEvent(new Event("nexusclass:manual-teaching-changed"));
       return true;
     } catch (reason) {
@@ -79,75 +68,87 @@ export function ManualClassesPanel({ groups, adapter }: { groups: KodlandGroup[]
       return false;
     } finally { setBusy(false); }
   };
+
   const editClass = (item?: ManualClass) => {
-    setError("");
-    setEditing(item ?? "new");
+    setError(""); setNewGroupName(""); setCreatingGroup(false); setInlineStudent(null); setEditing(item ?? "new");
     setClassRateInput(moneyText(item?.rate_history?.at(-1)?.hourly_rate_cents));
     setClassInput(item ? {
-      name: item.name, first_lesson_date: item.first_lesson_date,
-      end_date: item.end_date,
-      schedule_slots: item.schedule_slots.filter((slot) => !slot.effective_until || slot.effective_until >= todayLocal()).map((slot) => ({
-        id: slot.id, week_day: slot.week_day, start_time: slot.start_time, duration_minutes: slot.duration_minutes,
-      })),
-      student_ids: item.student_ids ?? [],
-      hourly_rate_cents: item.rate_history?.at(-1)?.hourly_rate_cents ?? null,
-      payment_day: item.payment_day ?? 15,
+      group_id: item.group_id ?? null, name: item.name, first_lesson_date: item.first_lesson_date, end_date: item.end_date,
+      schedule_slots: item.schedule_slots.filter((slot) => !slot.effective_until || slot.effective_until >= todayLocal()).map((slot) => ({ id: slot.id, week_day: slot.week_day, start_time: slot.start_time, duration_minutes: slot.duration_minutes })),
+      student_ids: item.student_ids ?? [], hourly_rate_cents: item.rate_history?.at(-1)?.hourly_rate_cents ?? null, payment_day: item.payment_day ?? 15,
     } : emptyInput());
   };
-  const openGroupSettings = (group: KodlandGroup) => {
-    const current = settingsByGroup[group.external_id];
-    setSelectedGroup(group);
-    setRateInput(moneyText(current?.hourly_rate_cents));
-    setPaymentDay(current?.payment_day ?? 15);
-    setError("");
+  const changeSlot = (id: string, patch: Partial<ManualClassInput["schedule_slots"][number]>) => setClassInput((item) => ({ ...item, schedule_slots: item.schedule_slots.map((slot) => slot.id === id ? { ...slot, ...patch } : slot) }));
+  const groupedClasses = (groupId: string) => classes.filter((item) => item.group_id === groupId);
+  const legacyClasses = classes.filter((item) => !item.group_id);
+
+  const saveInlineStudent = async () => {
+    if (!inlineStudent) return;
+    const student = await teaching.saveStudent(inlineStudent);
+    await load();
+    setClassInput((current) => ({ ...current, student_ids: current.student_ids.includes(student.id) ? current.student_ids : [...current.student_ids, student.id] }));
+    setInlineStudent(null); setNotice("Aluno cadastrado e selecionado para esta turma.");
+    if (!adapter) window.dispatchEvent(new Event("nexusclass:manual-teaching-changed"));
   };
-  const changeSlot = (id: string, patch: Partial<ManualClassInput["schedule_slots"][number]>) =>
-    setClassInput((item) => ({ ...item, schedule_slots: item.schedule_slots.map((slot) => slot.id === id ? { ...slot, ...patch } : slot) }));
+
+  const saveClass = async () => {
+    if (editing === null) return false;
+    const groupName = newGroupName.trim();
+    if (creatingGroup && !groupName) { setError("Informe o nome do novo grupo."); return false; }
+    if (editing === "new" && !creatingGroup && !classInput.group_id) { setError("Selecione ou crie um grupo para a nova turma."); return false; }
+    let createdGroup: ManualClassGroup | null = null;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      if (creatingGroup) createdGroup = await teaching.saveGroup({ name: groupName });
+      await teaching.saveClass({ ...classInput, group_id: createdGroup?.id ?? classInput.group_id, hourly_rate_cents: parseMoney(classRateInput), id: editing === "new" ? undefined : editing.id });
+      await load(); setEditing(null); setNotice(createdGroup ? "Grupo e turma salvos." : "Turma salva.");
+      if (!adapter) window.dispatchEvent(new Event("nexusclass:manual-teaching-changed"));
+      return true;
+    } catch (reason) {
+      if (createdGroup) { try { await teaching.deleteGroup(createdGroup.id); } catch { /* preserve the group if cleanup cannot run */ } }
+      setError(reason instanceof Error ? reason.message : "Não foi possível salvar a turma.");
+      return false;
+    } finally { setBusy(false); }
+  };
 
   return <>
-    <section className="panel manual-teaching-panel">
-      <div className="section-heading"><div><h2>Suas turmas</h2><p className="muted">Cadastre turmas e alunos mesmo sem usar a Kodland.</p></div>
-        <div className="card-actions"><button className="button button-ghost" data-tour="classes-add-student" type="button" onClick={() => setStudentInput({ name: "", email: "", phone: "" })}>Adicionar aluno</button>
-          <button className="button" data-tour="classes-add-class" type="button" onClick={() => editClass()}>Adicionar turma</button></div>
-      </div>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      {notice && <p className="notice" role="status">{notice}</p>}
-      <form className="manual-rate-form" onSubmit={(event) => { event.preventDefault(); void save(() => settings.setDefaultRate(parseMoney(defaultRateInput) ?? NaN), "Valor padrão atualizado para as próximas aulas."); }}>
-        <label>Valor padrão por hora (R$)<input className="input" data-tour="classes-default-rate" inputMode="decimal" value={defaultRateInput} onChange={(event) => setDefaultRateInput(event.target.value)} placeholder="Ex.: 50,00" /></label>
-        <button className="button button-ghost" disabled={busy} type="submit">Salvar valor</button>
-        <span className="muted">{defaultRate == null ? "Informe o valor padrão ou um valor próprio ao criar cada turma." : "Turmas sem valor específico usam esta tarifa."}</span>
-      </form>
-      {classes.length === 0 ? <p className="muted">Nenhuma turma própria cadastrada.</p> :
-        <div className="accordion-list">{classes.map((item) => <div className="group-accordion manual-class-card" key={item.id}>
-          <div className="group-accordion-summary"><span className="group-summary-copy"><strong>{item.name}</strong><span className="group-course-name">{item.active ? "Ativa" : "Inativa"} · {item.schedule_slots.filter((slot) => !slot.effective_until || slot.effective_until >= todayLocal()).map((slot) => `${weekDays[slot.week_day]} ${slot.start_time}`).join(", ") || "Sem horários futuros"}</span></span>
-          <span className="group-student-count">{item.student_ids.filter((id) => students.some((student) => student.id === id && student.active)).length} alunos</span></div>
-          <div className="card-actions"><button className="button button-ghost button-small" type="button" onClick={() => editClass(item)}>Editar</button>{item.active && <button className="button button-ghost button-small" type="button" disabled={busy} onClick={() => { if (window.confirm(`Desativar ${item.name}? As aulas anteriores serão preservadas.`)) void save(() => teaching.deactivateClass(item.id), "Turma desativada."); }}>Desativar</button>}</div>
-        </div>)}</div>}
-      {students.length > 0 && <div className="manual-students"><h3>Alunos próprios</h3><div className="student-list">{students.map((student) => <div className="student-row" key={student.id}><strong>{student.name}</strong><span className="muted">{student.active ? student.email || student.phone || "Ativo" : "Inativo"}</span><button className="button button-ghost button-small" type="button" onClick={() => setStudentInput(student)}>Editar</button>{student.active && <button className="button button-ghost button-small" type="button" disabled={busy} onClick={() => { if (window.confirm(`Desativar ${student.name}?`)) void save(() => teaching.deactivateStudent(student.id), "Aluno desativado."); }}>Desativar</button>}</div>)}</div></div>}
+    <section className="panel manual-teaching-panel" data-tour="classes-personal-groups">
+      <div className="section-heading"><div><h2>Turmas pessoais</h2><p className="muted">Organize suas turmas por grupos e configure cada uma no próprio cadastro.</p></div><div className="card-actions"><button className="button" data-tour="classes-add-class" type="button" onClick={() => editClass()}>Adicionar nova turma</button></div></div>
+      <div className="manual-utilities"><button className="button button-ghost button-small" type="button" onClick={() => { setGroupInput(null); setGroupManagerOpen(true); }}>Gerenciar grupos e alunos</button><button className="button button-ghost button-small" type="button" onClick={() => { setDefaultRateInput(moneyText(defaultRate)); setFinanceOpen(true); }}>Configurações financeiras</button></div>
+      {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
+      {personalGroups.length === 0 && legacyClasses.length === 0 ? <p className="muted">Crie um grupo e cadastre sua primeira turma.</p> : <div className="accordion-list personal-groups-list">
+        {personalGroups.map((group) => {
+          const classrooms = groupedClasses(group.id);
+          const studentCount = new Set(classrooms.flatMap((item) => item.student_ids).filter((id) => students.some((student) => student.id === id && student.active))).size;
+          return <details className="group-accordion personal-group-accordion" key={group.id} open={group.active}>
+            <summary className="group-accordion-summary"><span className="group-summary-copy"><strong>{group.name}</strong><span className="group-course-name">{group.active ? "Grupo pessoal" : "Grupo desativado"}</span></span><span className="group-student-count">{classrooms.length} turma{classrooms.length === 1 ? "" : "s"} · {studentCount} aluno{studentCount === 1 ? "" : "s"}</span></summary>
+            <div className="group-accordion-body manual-group-body">{classrooms.length === 0 ? <p className="muted">Nenhuma turma neste grupo.</p> : classrooms.map((item) => <ClassRow key={item.id} item={item} students={students} busy={busy} onEdit={() => editClass(item)} onDeactivate={() => { if (window.confirm(`Desativar ${item.name}? As aulas anteriores serão preservadas.`)) void save(() => teaching.deactivateClass(item.id), "Turma desativada."); }} />)}</div>
+          </details>;
+        })}
+        {legacyClasses.length > 0 && <details className="group-accordion personal-group-accordion legacy-group" open><summary className="group-accordion-summary"><span className="group-summary-copy"><strong>Sem grupo</strong><span className="group-course-name">Turmas cadastradas antes da organização por grupos</span></span><span className="group-student-count">{legacyClasses.length} turma{legacyClasses.length === 1 ? "" : "s"}</span></summary><div className="group-accordion-body manual-group-body"><p className="muted">Edite uma turma para vinculá-la a um grupo.</p>{legacyClasses.map((item) => <ClassRow key={item.id} item={item} students={students} busy={busy} onEdit={() => editClass(item)} onDeactivate={() => { if (window.confirm(`Desativar ${item.name}? As aulas anteriores serão preservadas.`)) void save(() => teaching.deactivateClass(item.id), "Turma desativada."); }} />)}</div></details>}
+      </div>}
     </section>
-    {groups.length > 0 && <section className="panel manual-teaching-panel"><h2>Valores das turmas Kodland</h2><p className="muted">As escolhas ficam no NexusClass e não são substituídas pela sincronização.</p><div className="student-list">{groups.filter((group) => !group.archived).map((group) => <div className="student-row" key={group.external_id}><strong>{group.title}</strong><span className="muted">{settingsByGroup[group.external_id]?.hourly_rate_cents == null ? "Valor padrão" : `R$ ${moneyText(settingsByGroup[group.external_id].hourly_rate_cents)}/h`}</span><button className="button button-ghost button-small" type="button" onClick={() => openGroupSettings(group)}>Configurar</button></div>)}</div></section>}
-    <Modal open={Boolean(studentInput)} title={studentInput?.id ? "Editar aluno" : "Adicionar aluno"} onClose={() => setStudentInput(null)}>
-      {studentInput && <form className="management-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void save(() => teaching.saveStudent(studentInput), "Aluno salvo.").then((ok) => { if (ok) setStudentInput(null); }); }}>
-        <label>Nome<input required className="input" value={studentInput.name} onChange={(event) => setStudentInput({ ...studentInput, name: event.target.value })} /></label>
-        <label>E-mail<input type="email" className="input" value={studentInput.email} onChange={(event) => setStudentInput({ ...studentInput, email: event.target.value })} /></label>
-        <label>Telefone<input className="input" value={studentInput.phone} onChange={(event) => setStudentInput({ ...studentInput, phone: event.target.value })} /></label>
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="button" disabled={busy} type="submit">Salvar aluno</button>
-      </form>}
-    </Modal>
-    <Modal open={Boolean(editing)} title={editing === "new" ? "Adicionar turma" : "Editar turma"} onClose={() => setEditing(null)} className="manual-class-modal">
-      {editing && <form className="management-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void save(() => teaching.saveClass({ ...classInput, hourly_rate_cents: parseMoney(classRateInput), id: editing === "new" ? undefined : editing.id }), "Turma salva.").then((ok) => { if (ok) setEditing(null); }); }}>
+
+    <Modal open={Boolean(editing)} title={editing === "new" ? "Adicionar nova turma" : "Editar turma"} onClose={() => setEditing(null)} className="manual-class-modal">
+      {editing && <form className="management-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void saveClass(); }}>
         <label>Nome da turma<input required className="input" value={classInput.name} onChange={(event) => setClassInput({ ...classInput, name: event.target.value })} /></label>
+        <fieldset className="manual-group-choice"><legend>Grupo da turma</legend><label><input type="radio" checked={!creatingGroup} onChange={() => setCreatingGroup(false)} /> Usar grupo existente</label>{!creatingGroup && <label>Grupo<select required className="input" value={classInput.group_id ?? ""} onChange={(event) => setClassInput({ ...classInput, group_id: event.target.value || null })}><option value="">{editing === "new" ? "Selecione um grupo" : "Sem grupo (legado)"}</option>{personalGroups.filter((group) => group.active || group.id === classInput.group_id).map((group) => <option key={group.id} value={group.id}>{group.name}{group.active ? "" : " (desativado)"}</option>)}</select></label>}<label><input type="radio" checked={creatingGroup} onChange={() => setCreatingGroup(true)} /> Criar novo grupo</label>{creatingGroup && <label>Nome do grupo<input required className="input" value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} placeholder="Ex.: Turmas autônomas" /></label>}</fieldset>
         <div className="manual-form-grid"><label>Início<input required type="date" className="input" disabled={editing !== "new"} value={classInput.first_lesson_date} onChange={(event) => setClassInput({ ...classInput, first_lesson_date: event.target.value })} /></label><label>Fim opcional<input type="date" className="input" value={classInput.end_date ?? ""} onChange={(event) => setClassInput({ ...classInput, end_date: event.target.value || null })} /></label></div>
         <div className="manual-form-grid"><label>Tarifa da turma (R$/h)<input className="input" inputMode="decimal" value={classRateInput} onChange={(event) => setClassRateInput(event.target.value)} placeholder={defaultRate == null ? "Obrigatório sem padrão" : `Padrão R$ ${moneyText(defaultRate)}`} /></label><label>Dia do recebimento<input className="input" type="number" min="1" max="31" value={classInput.payment_day} onChange={(event) => setClassInput({ ...classInput, payment_day: Number(event.target.value) })} /></label></div>
         <fieldset className="manual-slots"><legend>Horários semanais</legend>{classInput.schedule_slots.map((slot) => <div className="manual-slot-row" key={slot.id}><select className="input" aria-label="Dia da semana" value={slot.week_day} onChange={(event) => changeSlot(slot.id, { week_day: Number(event.target.value) })}>{weekDays.map((day, index) => <option key={day} value={index}>{day}</option>)}</select><input className="input" type="time" aria-label="Hora" value={slot.start_time} onChange={(event) => changeSlot(slot.id, { start_time: event.target.value })} /><input className="input" type="number" min="1" aria-label="Duração em minutos" value={slot.duration_minutes} onChange={(event) => changeSlot(slot.id, { duration_minutes: Number(event.target.value) })} /><button className="button button-ghost button-small" type="button" aria-label="Remover horário" onClick={() => setClassInput((item) => ({ ...item, schedule_slots: item.schedule_slots.filter((current) => current.id !== slot.id) }))}>Remover</button></div>)}<button className="button button-ghost button-small" type="button" onClick={() => setClassInput((item) => ({ ...item, schedule_slots: [...item.schedule_slots, { id: crypto.randomUUID(), week_day: 0, start_time: "18:00", duration_minutes: 60 }] }))}>Adicionar horário</button></fieldset>
-        <fieldset className="manual-student-options"><legend>Alunos</legend>{students.filter((student) => student.active).length ? students.filter((student) => student.active).map((student) => <label key={student.id}><input type="checkbox" checked={classInput.student_ids.includes(student.id)} onChange={(event) => setClassInput((item) => ({ ...item, student_ids: event.target.checked ? [...item.student_ids, student.id] : item.student_ids.filter((id) => id !== student.id) }))} /> {student.name}</label>) : <p className="muted">Você pode adicionar alunos depois.</p>}</fieldset>
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="button" disabled={busy} type="submit">Salvar turma</button>
+        <fieldset className="manual-student-options"><legend>Alunos</legend><button className="button button-ghost button-small" type="button" onClick={() => { setInlineStudent(emptyStudent()); setError(""); }}>Cadastrar aluno</button>{students.filter((student) => student.active).length ? students.filter((student) => student.active).map((student) => <label key={student.id}><input type="checkbox" checked={classInput.student_ids.includes(student.id)} onChange={(event) => setClassInput((item) => ({ ...item, student_ids: event.target.checked ? [...item.student_ids, student.id] : item.student_ids.filter((id) => id !== student.id) }))} /> {student.name}</label>) : <p className="muted">Cadastre um aluno para vinculá-lo a esta turma.</p>}</fieldset>
+        {inlineStudent && <fieldset className="inline-student-form"><legend>Novo aluno</legend><label>Nome<input required className="input" value={inlineStudent.name} onChange={(event) => setInlineStudent({ ...inlineStudent, name: event.target.value })} /></label><label>E-mail<input type="email" className="input" value={inlineStudent.email} onChange={(event) => setInlineStudent({ ...inlineStudent, email: event.target.value })} /></label><label>Telefone<input className="input" value={inlineStudent.phone} onChange={(event) => setInlineStudent({ ...inlineStudent, phone: event.target.value })} /></label><div className="card-actions"><button className="button button-ghost button-small" type="button" disabled={busy} onClick={() => { void saveInlineStudent().catch((reason) => setError(reason instanceof Error ? reason.message : "Não foi possível cadastrar o aluno.")); }}>Salvar aluno</button><button className="button button-ghost button-small" type="button" onClick={() => setInlineStudent(null)}>Cancelar</button></div></fieldset>}
+        {error && <p className="form-error" role="alert">{error}</p>}<button className="button" disabled={busy} type="submit">Salvar turma</button>
       </form>}
     </Modal>
-    <Modal open={Boolean(selectedGroup)} title={selectedGroup ? `Valor · ${selectedGroup.title}` : "Valor"} onClose={() => setSelectedGroup(null)}>
-      {selectedGroup && <form className="management-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void save(() => kodland.save(selectedGroup.external_id, { hourly_rate_cents: parseMoney(rateInput), payment_day: paymentDay }), "Configuração salva para as próximas aulas.").then((ok) => { if (ok) setSelectedGroup(null); }); }}><label>Tarifa específica (R$/h)<input className="input" inputMode="decimal" value={rateInput} onChange={(event) => setRateInput(event.target.value)} placeholder="Deixe vazio para usar o padrão" /></label><label>Dia do recebimento<input className="input" type="number" min="1" max="31" value={paymentDay} onChange={(event) => setPaymentDay(Number(event.target.value))} /></label>{error && <p className="form-error" role="alert">{error}</p>}<button className="button" disabled={busy} type="submit">Salvar</button></form>}
-    </Modal>
+
+    <Modal open={groupManagerOpen} title="Gerenciar grupos e alunos" onClose={() => setGroupManagerOpen(false)} className="manual-class-modal"><div className="management-form"><div className="section-heading"><h3>Grupos pessoais</h3><button className="button button-ghost button-small" type="button" onClick={() => setGroupInput(groupInput ? null : emptyGroup())}>{groupInput ? "Cancelar" : "Novo grupo"}</button></div>{groupInput && <form className="inline-manager-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void save(() => teaching.saveGroup(groupInput), groupInput.id ? "Grupo atualizado." : "Grupo criado.").then((ok) => { if (ok) setGroupInput(null); }); }}><label>Nome<input required className="input" value={groupInput.name} onChange={(event) => setGroupInput({ ...groupInput, name: event.target.value })} /></label><label>Ordem<input className="input" type="number" min="0" value={groupInput.order ?? personalGroups.length} onChange={(event) => setGroupInput({ ...groupInput, order: Number(event.target.value) })} /></label><button className="button button-small" disabled={busy} type="submit">Salvar grupo</button></form>}<div className="student-list">{personalGroups.map((group) => <div className="student-row" key={group.id}><strong>{group.name}</strong><span className="muted">{group.active ? `${groupedClasses(group.id).length} turma(s)` : "Desativado"}</span><div className="card-actions"><button className="button button-ghost button-small" type="button" onClick={() => setGroupInput({ id: group.id, name: group.name, order: group.order, active: group.active })}>Editar</button><button className="button button-ghost button-small" type="button" disabled={busy} onClick={() => void save(() => teaching.saveGroup({ id: group.id, name: group.name, order: group.order, active: !group.active }), group.active ? "Grupo desativado." : "Grupo reativado.")}>{group.active ? "Desativar" : "Reativar"}</button>{groupedClasses(group.id).length === 0 && <button className="button button-ghost button-small" type="button" disabled={busy} onClick={() => { if (window.confirm(`Excluir o grupo ${group.name}?`)) void save(() => teaching.deleteGroup(group.id), "Grupo excluído."); }}>Excluir</button>}</div></div>)}</div><h3>Alunos próprios</h3><div className="student-list">{students.length === 0 ? <p className="muted">Os alunos podem ser cadastrados ao criar ou editar uma turma.</p> : students.map((student) => <div className="student-row" key={student.id}><strong>{student.name}</strong><span className="muted">{student.active ? student.email || student.phone || "Ativo" : "Inativo"}</span><div className="card-actions"><button className="button button-ghost button-small" type="button" onClick={() => setStudentInput(student)}>Editar</button>{student.active && <button className="button button-ghost button-small" type="button" disabled={busy} onClick={() => { if (window.confirm(`Desativar ${student.name}?`)) void save(() => teaching.deactivateStudent(student.id), "Aluno desativado."); }}>Desativar</button>}</div></div>)}</div></div></Modal>
+    <Modal open={Boolean(studentInput)} title={studentInput?.id ? "Editar aluno" : "Adicionar aluno"} onClose={() => setStudentInput(null)}>{studentInput && <form className="management-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void save(() => teaching.saveStudent(studentInput), "Aluno salvo.").then((ok) => { if (ok) setStudentInput(null); }); }}><label>Nome<input required className="input" value={studentInput.name} onChange={(event) => setStudentInput({ ...studentInput, name: event.target.value })} /></label><label>E-mail<input type="email" className="input" value={studentInput.email} onChange={(event) => setStudentInput({ ...studentInput, email: event.target.value })} /></label><label>Telefone<input className="input" value={studentInput.phone} onChange={(event) => setStudentInput({ ...studentInput, phone: event.target.value })} /></label>{error && <p className="form-error" role="alert">{error}</p>}<button className="button" disabled={busy} type="submit">Salvar aluno</button></form>}</Modal>
+    <Modal open={financeOpen} title="Configurações financeiras" onClose={() => setFinanceOpen(false)}><form className="management-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void save(() => settings.setDefaultRate(parseMoney(defaultRateInput) ?? NaN), "Valor padrão atualizado para as próximas aulas.").then((ok) => { if (ok) setFinanceOpen(false); }); }}><label>Valor padrão por hora (R$)<input className="input" inputMode="decimal" value={defaultRateInput} onChange={(event) => setDefaultRateInput(event.target.value)} placeholder="Ex.: 50,00" /></label><p className="muted">Turmas sem tarifa própria usam este valor somente nas próximas aulas.</p>{error && <p className="form-error" role="alert">{error}</p>}<button className="button" disabled={busy} type="submit">Salvar valor</button></form></Modal>
   </>;
+}
+
+function ClassRow({ item, students, busy, onEdit, onDeactivate }: { item: ManualClass; students: ManualStudent[]; busy: boolean; onEdit: () => void; onDeactivate: () => void }) {
+  const futureSlots = item.schedule_slots.filter((slot) => !slot.effective_until || slot.effective_until >= todayLocal());
+  return <div className="manual-class-card"><div className="group-accordion-summary"><span className="group-summary-copy"><strong>{item.name}</strong><span className="group-course-name">{item.active ? "Ativa" : "Inativa"} · {futureSlots.map((slot) => `${weekDays[slot.week_day]} ${slot.start_time}`).join(", ") || "Sem horários futuros"}</span></span><span className="group-student-count">{item.student_ids.filter((id) => students.some((student) => student.id === id && student.active)).length} alunos</span></div><div className="card-actions"><button className="button button-ghost button-small" type="button" onClick={onEdit}>Editar</button>{item.active && <button className="button button-ghost button-small" type="button" disabled={busy} onClick={onDeactivate}>Desativar</button>}</div></div>;
 }

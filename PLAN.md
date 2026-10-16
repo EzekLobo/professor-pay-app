@@ -1001,7 +1001,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     financeiro inalterado; typecheck passa.
   - Depende de: R15.4b.
 
-- [ ] R16.2 - Fluxo de cadastro e interface de turmas agrupadas
+- [x] R16.2 - Fluxo de cadastro e interface de turmas agrupadas
   - Escopo: substituir os painéis atuais por “Turmas Kodland” e “Turmas
     pessoais”; incorporar a configuração de tarifa/dia de recebimento em cada
     turma Kodland; renderizar grupos pessoais como acordeões e “Sem grupo” para
@@ -1036,3 +1036,16 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   passam. O cálculo financeiro continua independente de grupo.
 - Próximo: R16.2 deve fornecer seleção/criação de grupo antes de salvar uma
   nova turma e apresentar registros sem `group_id` no acordeão “Sem grupo”.
+
+##### R16.2
+
+- Mudou: a página separa “Turmas Kodland” e “Turmas pessoais”; a configuração
+  de tarifa/dia está na turma Kodland, e grupos pessoais/“Sem grupo” organizam
+  as demais. O modal cria ou seleciona grupo, cadastra aluno no contexto da
+  turma e permite mover turmas. Valor padrão e gestão de alunos/grupos ficaram
+  em ações secundárias.
+- Verificado pelo orquestrador: 14 testes focados, typecheck, lint, diff check
+  e fluxo Chromium visitante passam. Inspeção visual em 1440px e 390px passou
+  após empilhar o cabeçalho da Kodland em celular; o modal rola internamente.
+- Próximo: R16.3 deve atualizar o cenário/documentação da demo e executar a
+  verificação completa de backup, build e fluxo visitante.

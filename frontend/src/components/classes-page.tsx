@@ -292,11 +292,8 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
       )}
 
       <section className="panel pedagogical-panel">
-        <div className="section-heading">
-          <div>
-            <h2>Turmas Kodland</h2>
-            <p className="muted">Estas turmas são atualizadas pela sincronização da Kodland.</p>
-          </div>
+        <div className="section-heading classes-compact-heading">
+          <h2>Turmas Kodland</h2>
           <div className="card-actions">
             <Button type="button" data-tour="classes-sync" onClick={() => void syncClasses()} disabled={syncing}>
               {syncing ? "Atualizando…" : "Atualizar turmas"}

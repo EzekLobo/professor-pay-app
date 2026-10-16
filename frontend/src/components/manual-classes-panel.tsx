@@ -113,7 +113,7 @@ export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
 
   return <>
     <section className="panel manual-teaching-panel" data-tour="classes-personal-groups">
-      <div className="section-heading"><div><h2>Turmas pessoais</h2><p className="muted">Organize suas turmas por grupos e configure cada uma no próprio cadastro.</p></div><div className="card-actions"><button className="button" data-tour="classes-add-class" type="button" onClick={() => editClass()}>Adicionar nova turma</button></div></div>
+      <div className="section-heading classes-compact-heading"><h2>Turmas pessoais</h2><div className="card-actions"><button className="button" data-tour="classes-add-class" type="button" onClick={() => editClass()}>Adicionar nova turma</button></div></div>
       <div className="manual-utilities"><button className="button button-ghost button-small" type="button" onClick={() => { setGroupInput(null); setGroupManagerOpen(true); }}>Gerenciar grupos e alunos</button><button className="button button-ghost button-small" type="button" onClick={() => { setDefaultRateInput(moneyText(defaultRate)); setFinanceOpen(true); }}>Configurações financeiras</button></div>
       {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
       {personalGroups.length === 0 && legacyClasses.length === 0 ? <p className="muted">Crie um grupo e cadastre sua primeira turma.</p> : <div className="accordion-list personal-groups-list">

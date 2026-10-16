@@ -2362,7 +2362,9 @@ select:focus-visible {
     padding: 28px 24px;
   }
 }
-.manual-teaching-panel { display: grid; gap: 16px; }
+.manual-teaching-panel { display: grid; gap: 12px; }
+.classes-compact-heading { gap: 10px; }
+.classes-compact-heading h2 { margin: 0; }
 .manual-utilities { display: flex; flex-wrap: wrap; gap: 8px; }
 .personal-groups-list { gap: 10px; }
 .personal-group-accordion .group-accordion-body { display: grid; gap: 10px; }
@@ -2371,7 +2373,7 @@ select:focus-visible {
 .manual-class-card { padding: 14px; border: 1px solid var(--border, #27446b); border-radius: 12px; background: rgb(7 20 39 / 40%); }
 .manual-class-card .group-accordion-summary { cursor: default; padding: 0; }
 .manual-class-card .card-actions { margin-top: 10px; }
-.manual-class-modal { width: min(960px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow-x: hidden; overflow-y: auto; }
+.manual-class-modal { width: min(1120px, calc(100vw - 24px)); max-height: calc(100dvh - 12px); overflow-x: hidden; overflow-y: auto; }
 .manual-class-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; column-gap: 22px; row-gap: 18px; padding-bottom: 4px; }
 .manual-form-section { display: grid; min-width: 0; gap: 12px; }
 .manual-form-section fieldset { min-width: 0; }
@@ -2413,7 +2415,7 @@ select:focus-visible {
   .manual-teaching-panel > .section-heading .card-actions {
     justify-content: flex-start;
   }
-  .manual-class-modal { width: min(100% - 16px, 960px); max-height: calc(100dvh - 16px); }
+  .manual-class-modal { width: min(100% - 16px, 1120px); max-height: calc(100dvh - 16px); }
   .manual-class-form, .manual-form-grid, .manual-group-options, .manual-student-list { grid-template-columns: 1fr; }
   .manual-slot-labels { display: none; }
   .manual-slot-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }

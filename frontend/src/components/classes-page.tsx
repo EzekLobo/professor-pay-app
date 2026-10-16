@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Settings } from "lucide-react";
+import { RefreshCw, Settings, Trash2 } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
@@ -33,16 +33,28 @@ const parseMoney = (value: string) => {
   const amount = Number(normalized);
   return Number.isFinite(amount) ? Math.round(amount * 100) : NaN;
 };
+const HIDDEN_KODLAND_GROUPS_KEY = "nexusclass.hidden-kodland-groups";
+const readHiddenKodlandGroups = () => {
+  if (typeof window === "undefined") return [] as string[];
+  try {
+    const value = JSON.parse(window.localStorage.getItem(HIDDEN_KODLAND_GROUPS_KEY) ?? "[]");
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+};
 export function GroupAccordion({
   group,
   students,
   openByDefault,
   financeLabel,
+  onDelete,
 }: {
   group: KodlandGroup;
   students: KodlandStudent[];
   openByDefault: boolean;
   financeLabel?: string;
+  onDelete?: () => void;
 }) {
   const [selectedStudent, setSelectedStudent] = useState<KodlandStudent | null>(
     null,
@@ -58,7 +70,7 @@ export function GroupAccordion({
 
   return (
     <>
-      <details className="group-accordion" open={openByDefault}>
+      <details className={`group-accordion${onDelete ? " group-has-actions" : ""}`} open={openByDefault}>
         <summary className="group-accordion-summary">
           <span className="group-summary-copy">
             <strong>{group.title}</strong>
@@ -66,8 +78,11 @@ export function GroupAccordion({
               Curso: {group.course_name || "Não informado"}
             </span>
           </span>
-          <span className="group-student-count">
-            {activeStudents.length} aluno{activeStudents.length === 1 ? "" : "s"}
+          <span className="group-summary-meta">
+            <span className="group-student-count">
+              {activeStudents.length} aluno{activeStudents.length === 1 ? "" : "s"}
+            </span>
+            {onDelete && <button className="group-delete-button" type="button" aria-label={`Excluir turma ${group.title}`} title="Excluir turma" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDelete(); }}><Trash2 size={16} aria-hidden="true" /></button>}
           </span>
         </summary>
         <div className="group-accordion-body">
@@ -179,6 +194,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
   const [settingsByGroup, setSettingsByGroup] = useState<Record<string, KodlandClassSettings>>({});
   const [selectedGroup, setSelectedGroup] = useState<KodlandGroup | null>(null);
   const [kodlandSettingsOpen, setKodlandSettingsOpen] = useState(false);
+  const [hiddenKodlandGroups, setHiddenKodlandGroups] = useState<string[]>(readHiddenKodlandGroups);
   const [rateInput, setRateInput] = useState("");
   const [paymentDay, setPaymentDay] = useState(15);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -195,7 +211,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
     if (demo) {
       const currentSettings = await settingsApi.list();
-      setGroups(demo.groups); setStudents(demo.students);
+      setGroups(demo.groups.filter((group) => !hiddenKodlandGroups.includes(group.external_id))); setStudents(demo.students);
       setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
       setLoading(false); return;
     }
@@ -205,7 +221,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
         kodlandApi.students(),
         settingsApi.list(),
       ]);
-      setGroups(groupResult.items);
+      setGroups(groupResult.items.filter((group) => !hiddenKodlandGroups.includes(group.external_id)));
       setStudents(studentResult.items);
       setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
     } catch (reason) {
@@ -217,7 +233,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     } finally {
       setLoading(false);
     }
-  }, [demo]);
+  }, [demo, hiddenKodlandGroups]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -277,6 +293,15 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     } finally { setSavingSettings(false); }
   }
 
+  const deleteKodlandGroup = (group: KodlandGroup) => {
+    if (!window.confirm(`Excluir a turma ${group.title}? Ela ficará oculta até ser restaurada no navegador.`)) return;
+    const next = [...new Set([...hiddenKodlandGroups, group.external_id])];
+    window.localStorage.setItem(HIDDEN_KODLAND_GROUPS_KEY, JSON.stringify(next));
+    setHiddenKodlandGroups(next);
+    setGroups((current) => current.filter((item) => item.external_id !== group.external_id));
+    setNotice("Turma Kodland excluída da visualização.");
+  };
+
   return (
     <div className="management-grid">
       {error && (
@@ -321,6 +346,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
                 )}
                 openByDefault={false}
                 financeLabel={`${moneyText(settingsByGroup[group.external_id]?.rate_history.at(-1)?.hourly_rate_cents)} · Recebimento dia ${settingsByGroup[group.external_id]?.payment_day ?? 15}`}
+                onDelete={() => deleteKodlandGroup(group)}
               />
             ))}
           </div>

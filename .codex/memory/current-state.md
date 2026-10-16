@@ -22,6 +22,10 @@
 - Turmas Kodland exibem o resumo financeiro diretamente nas linhas; a tarifa e
   o dia de recebimento de cada grupo são configurados pelo ícone de ajustes no
   cabeçalho, que abre a seleção dos grupos sem repetir o botão em cada linha.
+- Cada turma Kodland também tem lixeira com confirmação. A exclusão é uma
+  ocultação local persistente por `external_id`, evitando que a turma reapareça
+  ao recarregar ou sincronizar no mesmo navegador sem apagar o histórico da
+  plataforma.
 - `/demo` usa os mesmos componentes de Turmas, Aulas e Correções com adaptador
   local em `demo-manual-adapter.ts`; o estado fictício persiste em
   `nexusclass.demo.v2` e é filtrado em `demo-storage.ts`. O seed inclui o

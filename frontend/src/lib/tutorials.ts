@@ -59,12 +59,7 @@ const tutorials: readonly TutorialDefinition[] = [
     pathname: "/lessons",
     version: 4,
     steps: [
-      { id: "welcome", title: "Aulas", description: "Planeje encontros das suas turmas próprias ou consulte materiais dos cursos importados.", placement: "center" },
-      { id: "manual-class", title: "Escolher turma", description: "Selecione uma turma própria para organizar seu conteúdo e as atividades dos alunos.", target: '[data-tour="lessons-manual-class"]', placement: "bottom" },
-      { id: "manual-date", title: "Escolher encontro", description: "Escolha a data de um horário semanal da turma para vincular conteúdo a este encontro.", target: '[data-tour="lessons-manual-date"]', placement: "bottom" },
-      { id: "manual-content", title: "Adicionar conteúdo", description: "Salve título, orientações e links para um encontro ou para toda a turma.", target: '[data-tour="lessons-manual-content"]', placement: "top" },
-      { id: "manual-activity", title: "Adicionar atividade", description: "Registre tarefa e entrega em texto ou link para um aluno; depois corrija em Correções.", target: '[data-tour="lessons-manual-activity"]', placement: "top" },
-      { id: "import", title: "Importar curso", description: "Importe um curso para disponibilizar seus materiais.", target: '[data-tour="lessons-import"]', placement: "bottom" },
+      { id: "welcome", title: "Aulas", description: "Consulte cursos sincronizados e crie cursos próprios com módulos, aulas e materiais.", placement: "center" },
       { id: "courses", title: "Cursos disponíveis", description: "O primeiro curso foi expandido para você localizar os módulos e abrir os materiais de cada aula.", target: '[data-tour="lessons-courses"]', placement: "top", reveal: "details" },
     ],
   },
@@ -73,7 +68,7 @@ const tutorials: readonly TutorialDefinition[] = [
     pathname: "/corrections",
     version: 3,
     steps: [
-      { id: "welcome", title: "Correções", description: "Organize as atividades que precisam de atenção.", placement: "center" },
+      { id: "welcome", title: "Acompanhamento", description: "Acompanhe presença e atividades que precisam de atenção.", placement: "center" },
       { id: "sync", title: "Sincronização", description: "Atualize as atividades importadas quando precisar.", target: '[data-tour="corrections-sync"]', placement: "bottom" },
       { id: "filters", title: "Filtros", description: "Filtre e agrupe as atividades para encontrar o que procura.", target: '[data-tour="corrections-filters"]', placement: "bottom" },
       { id: "cards", title: "Atividades", description: "A primeira turma foi expandida para mostrar as atividades pendentes. Abra uma atividade para conferir os detalhes e corrigir.", target: '[data-tour="corrections-cards"]', placement: "top", reveal: "details" },

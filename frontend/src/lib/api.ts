@@ -182,6 +182,7 @@ export type DataExport = {
   kodland_groups?: unknown[];
   kodland_students?: unknown[];
   kodland_reviews?: unknown[];
+  kodland_attendance?: unknown[];
   kodland_lessons?: unknown[];
   kodland_extra_lessons?: unknown[];
   kodland_availability?: unknown[];
@@ -253,6 +254,21 @@ export type KodlandReview = {
   status_label: string;
   correction_url: string;
   created_at: string;
+};
+export type KodlandAttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | "UNKNOWN";
+export type KodlandAttendance = {
+  id: string;
+  external_class_id: string;
+  external_class_name: string;
+  external_student_id: string;
+  student_name: string;
+  lesson_id: string;
+  lesson_title: string;
+  lesson_date: string;
+  start_time: string;
+  status: KodlandAttendanceStatus;
+  recording_url?: string;
+  created_at?: string;
 };
 export type KodlandExtraLesson = {
   id: string;
@@ -343,10 +359,12 @@ type KodlandSnapshot = {
   groups: Omit<KodlandGroup, "id" | "local_class_id" | "created_at">[];
   students: Omit<KodlandStudent, "local_note" | "hidden" | "created_at">[];
   reviews: Omit<KodlandReview, "created_at">[];
+  attendance?: Omit<KodlandAttendance, "created_at">[];
   lessons: Omit<KodlandLesson, "created_at">[];
   extra_lessons: Omit<KodlandExtraLesson, "created_at">[];
   availability: Omit<KodlandAvailability, "created_at">[];
   review_group_ids?: string[];
+  attendance_group_ids?: string[];
   extra_lessons_synced?: boolean;
   extra_lessons_complete?: boolean;
   availability_synced?: boolean;
@@ -1263,7 +1281,7 @@ const normalizePayment = (value: Record<string, unknown>): Row => ({
 });
 const backupCollectionNames = [
   "classes", "lessons", "payments", "kodland_groups", "kodland_students",
-  "kodland_reviews", "kodland_lessons", "kodland_extra_lessons",
+  "kodland_reviews", "kodland_attendance", "kodland_lessons", "kodland_extra_lessons",
   "kodland_availability", "imported_courses", "imported_course_lessons",
   "manual_students", "manual_class_groups", "manual_classes", "manual_lesson_content",
   "manual_activities", "kodland_class_settings",
@@ -1306,7 +1324,7 @@ const backupRows = (payload: ImportPayload, name: BackupCollection): Row[] => {
     const normalized = name === "classes" ? normalizeClass(value)
       : name === "lessons" ? normalizeLesson(value)
       : name === "payments" ? normalizePayment(value)
-      : name.startsWith("kodland_") && ["kodland_groups", "kodland_students", "kodland_reviews", "kodland_lessons", "kodland_extra_lessons", "kodland_availability"].includes(name)
+      : name.startsWith("kodland_") && ["kodland_groups", "kodland_students", "kodland_reviews", "kodland_attendance", "kodland_lessons", "kodland_extra_lessons", "kodland_availability"].includes(name)
         ? normalizePedagogicalRow(value, name as PedagogicalCollection)
         : {};
     return firestorePayload({ ...value, ...normalized, id: String(id),
@@ -1332,6 +1350,7 @@ type PedagogicalCollection =
   | "kodland_groups"
   | "kodland_students"
   | "kodland_reviews"
+  | "kodland_attendance"
   | "kodland_lessons"
   | "kodland_extra_lessons"
   | "kodland_availability";
@@ -2106,6 +2125,9 @@ export const kodlandApi = {
   reviews: async () => ({
     items: (await rows("kodland_reviews")) as unknown as KodlandReview[],
   }),
+  attendance: async () => ({
+    items: (await rows("kodland_attendance")) as unknown as KodlandAttendance[],
+  }),
   lessons: async () => ({
     items: (await rows("kodland_lessons")) as unknown as KodlandLesson[],
   }),
@@ -2216,7 +2238,9 @@ export const kodlandApi = {
     };
     if (mode === "corrections") {
       const previousReviews = await rows("kodland_reviews");
+      const previousAttendance = await rows("kodland_attendance");
       const reviews = uniqueBy(snapshot.reviews, (item) => item.id);
+      const attendance = uniqueBy(snapshot.attendance ?? [], (item) => item.id);
       const upserts: Array<(batch: FirebaseWriteBatch) => void> = reviews.map(
         (item) => (batch) =>
           batch.set(doc(syncCollection("kodland_reviews"), item.id), firestorePayload({
@@ -2237,10 +2261,27 @@ export const kodlandApi = {
         )
         .map((item) => (batch) =>
           batch.delete(doc(syncCollection("kodland_reviews"), String(item.id))));
+      const attendanceUpserts: Array<(batch: FirebaseWriteBatch) => void> = attendance.map(
+        (item) => (batch) =>
+          batch.set(doc(syncCollection("kodland_attendance"), item.id), firestorePayload({
+            ...item,
+            created_at: createdAt,
+          })),
+      );
+      const incomingAttendance = new Set(attendance.map((item) => item.id));
+      const attendanceGroupIds = new Set(
+        snapshot.attendance_group_ids?.map(String) ??
+          attendance.map((item) => String(item.external_class_id)),
+      );
+      const attendanceDeletes: Array<(batch: FirebaseWriteBatch) => void> = previousAttendance
+        .filter((item) => attendanceGroupIds.has(String(item.external_class_id)) && !incomingAttendance.has(String(item.id)))
+        .map((item) => (batch) => batch.delete(doc(syncCollection("kodland_attendance"), String(item.id))));
       persistencePhase = "gravação";
       await commitWrites(upserts);
       await commitWrites(deletes);
-      return finish({ group_count: 0, student_count: 0, review_count: reviews.length, lesson_count: 0, extra_lesson_count: 0 });
+      await commitWrites(attendanceUpserts);
+      await commitWrites(attendanceDeletes);
+      return finish({ group_count: 0, student_count: 0, review_count: reviews.length, attendance_count: attendance.length, lesson_count: 0, extra_lesson_count: 0 });
     }
     if (mode === "profiles") {
       const previousStudents = await rows("kodland_students");

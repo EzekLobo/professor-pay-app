@@ -21,7 +21,7 @@ export const navigation: AppRoute[] = [
   { href: "/lessons", label: "Aulas", icon: BookOpen },
 ];
 
-export const correctionsNavigation: AppRoute = { href: "/corrections", label: "Correções", icon: ClipboardCheck };
+export const correctionsNavigation: AppRoute = { href: "/corrections", label: "Acompanhamento", icon: ClipboardCheck };
 export const utilityNavigation: AppRoute = { href: "/data", label: "Dados e backup", icon: DatabaseBackup };
 
 export const appRoutes = [...navigation, correctionsNavigation, utilityNavigation];

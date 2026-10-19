@@ -82,6 +82,20 @@ type Review = {
   status_label: string;
   correction_url: string;
 };
+type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | "UNKNOWN";
+type Attendance = {
+  id: string;
+  external_class_id: string;
+  external_class_name: string;
+  external_student_id: string;
+  student_name: string;
+  lesson_id: string;
+  lesson_title: string;
+  lesson_date: string;
+  start_time: string;
+  status: AttendanceStatus;
+  recording_url: string;
+};
 type ExtraLesson = {
   id: string;
   external_student_id: string;
@@ -259,6 +273,10 @@ const list = (value: unknown) => {
     "results",
     "items",
     "data",
+    "attendance",
+    "attendances",
+    "records",
+    "attendance_records",
     "lessons",
     "events",
     "schedule",
@@ -1365,6 +1383,59 @@ async function reviewsForGroup(
     return results.flat();
 }
 
+const attendanceStatus = (value: Record<string, unknown>): AttendanceStatus => {
+  const raw = text(
+    value.attendance_status ?? value.attendanceStatus ?? value.presence_status ??
+      value.presenceStatus ?? value.status ?? value.state,
+  ).toLowerCase();
+  const present = value.present ?? value.is_present ?? value.isPresent ?? value.attended ?? value.was_present;
+  if (present === true || present === 1 || present === "true") return "PRESENT";
+  if (/absent|absence|falt|no.?show|missed|did.?not.?attend/.test(raw)) return "ABSENT";
+  if (/late|atras/.test(raw)) return "LATE";
+  if (/excused|justif/.test(raw)) return "EXCUSED";
+  if (/present|attend|particip/.test(raw)) return "PRESENT";
+  return "UNKNOWN";
+};
+
+async function attendanceForGroup(group: Group, token: string): Promise<Attendance[]> {
+  const endpoints = [
+    `student_groups/${group.external_id}/attendance/`,
+    `student_groups/${group.external_id}/attendance`,
+    `student_groups/${group.external_id}/attendance_history/`,
+    `student_groups/${group.external_id}/students_attendance/`,
+  ];
+  let payload: unknown = null;
+  for (const endpoint of endpoints) {
+    payload = await getOptional(endpoint, token);
+    if (payload !== null) break;
+  }
+  if (payload === null) return [];
+  return list(payload).flatMap((value) => {
+    const item = record(value);
+    const student = record(item.student ?? item.student_info ?? item.user);
+    const lesson = record(item.lesson ?? item.lesson_info ?? item.class_lesson);
+    const studentId = text(item.student_id ?? item.studentId ?? item.user_id ?? student.id ?? student.student_id);
+    const studentName = text(item.student_name ?? item.studentName ?? item.full_name ?? student.name ?? student.full_name);
+    const lessonId = text(item.lesson_id ?? item.lessonId ?? item.event_id ?? lesson.id ?? lesson.lesson_id);
+    const lessonDate = dateOnly(item.lesson_date ?? item.lessonDate ?? item.date ?? item.start_at ?? item.startAt ?? lesson.date ?? lesson.lesson_date);
+    if (!studentId || !studentName || (!lessonId && !lessonDate)) return [];
+    const recording = text(item.recording_url ?? item.recordingUrl ?? item.video_url ?? item.videoUrl ?? item.recording ?? lesson.recording_url ?? lesson.recordingUrl);
+    return [{
+      id: `kodland-attendance-${group.external_id}-${studentId}-${lessonId || lessonDate}`,
+      external_class_id: group.external_id,
+      external_class_name: group.title,
+      external_student_id: studentId,
+      student_name: studentName,
+      lesson_id: lessonId || `${group.external_id}-${lessonDate}`,
+      lesson_title: text(item.lesson_title ?? item.lessonTitle ?? item.title ?? lesson.title ?? lesson.lesson_title) || "Aula",
+      lesson_date: lessonDate,
+      start_time: timeOnly(item.start_time ?? item.startTime ?? item.start_at ?? item.startAt ?? lesson.start_time),
+      status: attendanceStatus(item),
+      recording_url: /^https?:\/\//i.test(recording) ? recording : "",
+    }];
+  });
+}
+
 type CourseLessonCache = {
   catalog: Map<string, Promise<KodlandCourseLesson[]>>;
 };
@@ -1579,6 +1650,7 @@ export async function POST(request: NextRequest) {
       groups: [] as Group[],
       students: [] as Student[],
       reviews: [] as Review[],
+      attendance: [] as Attendance[],
       lessons: [] as KodlandLesson[],
       extra_lessons: [] as ExtraLesson[],
       availability: [] as Availability[],
@@ -1729,14 +1801,22 @@ export async function POST(request: NextRequest) {
       const correctionGroups = requestedGroupIds.size
         ? active.filter((group) => requestedGroupIds.has(group.external_id))
         : active;
-      const reviews = await runStage("reviews", () => mapWithConcurrency(correctionGroups, 1, (group) => reviewsForGroup(group, token)),
-        (result) => ({ reviewCount: result.reduce((total, items) => total + items.length, 0) }));
+      const [reviews, attendance] = await runStage("reviews", () => Promise.all([
+        mapWithConcurrency(correctionGroups, 1, (group) => reviewsForGroup(group, token)),
+        mapWithConcurrency(correctionGroups, 1, (group) => attendanceForGroup(group, token)),
+      ]), ([reviewItems, attendanceItems]) => ({
+        reviewCount: reviewItems.reduce((total, items) => total + items.length, 0),
+        attendanceCount: attendanceItems.reduce((total, items) => total + items.length, 0),
+      }));
       const items = reviews.flat();
-      trace("completed", { groupCount: correctionGroups.length, reviewCount: items.length });
+      const attendanceItems = attendance.flat();
+      trace("completed", { groupCount: correctionGroups.length, reviewCount: items.length, attendanceCount: attendanceItems.length });
       return syncResponse(syncId, {
         ...emptyCollections(),
         reviews: items,
+        attendance: attendanceItems,
         review_group_ids: correctionGroups.map((group) => group.external_id),
+        attendance_group_ids: correctionGroups.map((group) => group.external_id),
       });
     }
     const profileCache = new Map<

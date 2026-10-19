@@ -1,4 +1,4 @@
-import { calculateDashboard, type DashboardLesson, type DashboardPayment, type DashboardResponse, type KodlandAvailability, type KodlandExtraLesson, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "./api";
+import { calculateDashboard, type DashboardLesson, type DashboardPayment, type DashboardResponse, type KodlandAttendance, type KodlandAvailability, type KodlandExtraLesson, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "./api";
 import type { CustomHoliday } from "./holidays";
 import type { ManualActivity, ManualLessonContent } from "./manual-pedagogy";
 import type { KodlandClassSettings, ManualClass, ManualClassGroup, ManualStudent } from "./manual-teaching";
@@ -12,6 +12,7 @@ export type DemoSnapshot = {
   lessons: KodlandLesson[];
   extras: KodlandExtraLesson[];
   reviews: KodlandReview[];
+  attendance: KodlandAttendance[];
   availability: KodlandAvailability[];
   paymentStatus: Record<string, "RECEIVED" | "OVERDUE">;
   financialStatus: Record<string, string>;
@@ -43,6 +44,7 @@ export function createDemoSnapshot(): DemoSnapshot {
   const lessons: KodlandLesson[] = groups.flatMap((group, groupIndex) => themes[groupIndex].map((theme, index) => ({ id: `demo-lesson-${groupIndex}-${index}`, source_lesson_id: `demo-catalog-${groupIndex}-${index}`, materials_status: "ready", external_class_id: group.external_id, external_class_name: group.title, module_number: index < 4 ? "1" : "2", lesson_number: index % 4 + 1, course_index: index + 1, title: `M${index < 4 ? 1 : 2}.L${index % 4 + 1} ${theme}`, theme, lesson_date: day([0, 1, 3][groupIndex] + (index - 4) * 7), start_time: groupIndex === 1 ? "20:00" : "19:00", end_time: groupIndex === 1 ? "21:30" : "20:30", status: "Scheduled", lesson_passed: day([0, 1, 3][groupIndex] + (index - 4) * 7) < today, external_url: "#demo-material-lesson", slides_url: "#demo-material-slides", guide_url: "#demo-material-guide", homework_url: "#demo-material-homework", homework_title: `Praticando: ${theme}`, classroom_tasks: [{ title: `Desafio: ${theme}`, url: "#demo-material-task" }], created_at: today })));
   const extras: KodlandExtraLesson[] = [-1, 0, 1].map((week, index) => ({ id: `demo-extra-${index}`, external_student_id: students[index].external_id, student_name: students[index].name, external_class_id: groups[0].external_id, external_class_name: groups[0].title, lesson_date: day(2 + week * 7), start_time: "20:00", end_time: "21:00", status: index === 0 ? "Completed" : "Pending", completed: index === 0, manual_status: index === 0 ? "DONE" : "PENDING", created_at: today }));
   const reviews: KodlandReview[] = [0, 0, 1, 4, 5, 8].map((studentIndex, index) => { const student = students[studentIndex]; const lesson = lessons.find((item) => item.external_class_id === student.external_class_id && item.course_index === (index % 2 ? 4 : 3))!; return { id: `demo-review-${index}`, external_class_id: student.external_class_id, external_class_name: student.external_class_name, external_student_id: student.external_id, student_name: student.name, lesson_id: lesson.id, lesson_number: lesson.course_index!, lesson_title: lesson.title, module_number: lesson.module_number!, task_id: `demo-task-${index}`, task_number: index % 3 + 1, task_title: ["Meu primeiro projeto", "Desafio criativo", "Praticando o conteúdo"][index % 3], status_key: "submitted", status_label: index % 2 ? "Entregue com atraso" : "Entregue sem atraso", correction_url: "", created_at: today }; });
+  const attendance: KodlandAttendance[] = students.slice(0, 8).map((student, index) => { const lesson = lessons.find((item) => item.external_class_id === student.external_class_id && item.course_index === 3)!; return { id: `demo-attendance-${index}`, external_class_id: student.external_class_id, external_class_name: student.external_class_name, external_student_id: student.external_id, student_name: student.name, lesson_id: lesson.id, lesson_title: lesson.title, lesson_date: lesson.lesson_date, start_time: lesson.start_time, status: index % 3 === 0 ? "PRESENT" : "ABSENT", recording_url: index % 2 === 1 ? "https://video.example.test/aula-gravada" : "", created_at: today }; });
   const createdAt = `${today}T12:00:00Z`;
   const manualClassGroups: ManualClassGroup[] = [{
     id: "demo-manual-group-autonomous", name: "Turmas autônomas", order: 0,
@@ -67,7 +69,7 @@ export function createDemoSnapshot(): DemoSnapshot {
     student_ids: [manualStudents[0].id], active: true,
     created_at: createdAt, updated_at: createdAt,
   }];
-  return { today, groups, students, lessons, extras, reviews, availability: [0, 1, 2, 3, 4].map((weekday) => ({ id: `demo-availability-${weekday}`, weekday, start_time: "19:00", end_time: "22:00", created_at: today })), paymentStatus: {}, financialStatus: {}, additionalExtras: [], manualClassGroups, manualClasses, manualStudents, manualLessons: [], manualActivities: [], defaultRateHistory: [], kodlandSettings: [], paymentSnapshots: {} };
+  return { today, groups, students, lessons, extras, reviews, attendance, availability: [0, 1, 2, 3, 4].map((weekday) => ({ id: `demo-availability-${weekday}`, weekday, start_time: "19:00", end_time: "22:00", created_at: today })), paymentStatus: {}, financialStatus: {}, additionalExtras: [], manualClassGroups, manualClasses, manualStudents, manualLessons: [], manualActivities: [], defaultRateHistory: [], kodlandSettings: [], paymentSnapshots: {} };
 }
 
 export const demoFinancialLessonId = (lesson: Pick<KodlandLesson, "external_class_id" | "id">) => `kodland-${lesson.external_class_id}-${lesson.id}`;

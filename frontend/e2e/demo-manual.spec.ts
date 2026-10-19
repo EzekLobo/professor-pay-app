@@ -49,6 +49,14 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await classDialog.getByRole("button", { name: "Salvar turma" }).click();
   await expect(page.getByText("Turma de redação")).toBeVisible();
 
+  await page.getByRole("link", { name: "Acompanhamento" }).click();
+  await expect(page.getByRole("heading", { name: "Acompanhamento" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Lista de presença" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Alunos que faltaram" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Faltou").first()).toBeVisible();
+  await page.getByRole("tab", { name: "Atividades" }).click();
+  await expect(page.getByRole("heading", { name: "Atividades entregues" })).toBeVisible();
+
   await page.getByRole("link", { name: "Aulas" }).click();
   const courses = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Cursos" }) });
   await expect(courses.getByRole("heading", { name: "Cursos" })).toBeVisible();

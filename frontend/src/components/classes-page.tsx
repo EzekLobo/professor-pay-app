@@ -384,7 +384,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
         </p>
       )}
 
-      <ManualClassesPanel adapter={demo?.manualAdapter} />
+      <ManualClassesPanel adapter={demo?.manualAdapter} hasKodlandGroups={groups.length > 0} kodlandLoading={loading} />
       <section className="panel pedagogical-panel">
         <div className="section-heading classes-compact-heading">
           <h2>{kodlandGroupLabel}</h2>

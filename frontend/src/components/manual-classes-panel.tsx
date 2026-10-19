@@ -23,7 +23,7 @@ const emptyGroup = (): ManualClassGroupInput => ({ name: "" });
 type StudentInput = { id?: string; name: string; email: string; phone: string };
 
 /** Personal teaching stays separate from the virtual Kodland grouping. */
-export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
+export function ManualClassesPanel({ adapter, hasKodlandGroups = false, kodlandLoading = false }: { adapter?: ManualAdapters; hasKodlandGroups?: boolean; kodlandLoading?: boolean }) {
   const teaching = adapter?.teaching ?? manualTeachingApi;
   const settings = adapter?.settings ?? teachingSettingsApi;
   const [classes, setClasses] = useState<ManualClass[]>([]);
@@ -125,7 +125,7 @@ export function ManualClassesPanel({ adapter }: { adapter?: ManualAdapters }) {
       <div className="section-heading classes-compact-heading manual-personal-heading"><label className="manual-class-search"><span className="sr-only">Buscar grupo, turma ou aluno</span><input className="input" type="search" placeholder="Buscar grupo, turma ou aluno" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label><div className="card-actions manual-add-actions"><button className="button button-ghost button-small manual-add-action" type="button" aria-label="Adicionar grupo" title="Adicionar grupo" onClick={() => { setGroupInput(emptyGroup()); setGroupManagerOpen(true); }}><Plus size={17} aria-hidden="true" /><span>Grupo</span></button><button className="button button-ghost button-small manual-add-action" data-tour="classes-add-class" type="button" aria-label="Adicionar turma" title="Adicionar turma" onClick={() => editClass()}><Plus size={17} aria-hidden="true" /><span>Turma</span></button></div></div>
       {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     </section>
-    {personalGroups.length === 0 && legacyClasses.length === 0 ? <section className="panel manual-group-panel"><p className="muted">Crie um grupo e cadastre sua primeira turma.</p></section> : visibleGroups.length === 0 && visibleLegacyClasses.length === 0 ? <section className="panel manual-group-panel"><p className="muted">Nenhum grupo, turma ou aluno encontrado.</p></section> : <div className="manual-groups-list">
+    {!hasKodlandGroups && !kodlandLoading && personalGroups.length === 0 && legacyClasses.length === 0 ? <section className="panel manual-group-panel"><p className="muted">Crie um grupo e cadastre sua primeira turma.</p></section> : visibleGroups.length === 0 && visibleLegacyClasses.length === 0 && (personalGroups.length > 0 || legacyClasses.length > 0) ? <section className="panel manual-group-panel"><p className="muted">Nenhum grupo, turma ou aluno encontrado.</p></section> : <div className="manual-groups-list">
         {visibleGroups.map(({ group, classrooms }) => {
           const studentCount = new Set(classrooms.flatMap((item) => item.student_ids).filter((id) => students.some((student) => student.id === id && student.active))).size;
           return <section className="panel manual-group-panel" key={group.id}>

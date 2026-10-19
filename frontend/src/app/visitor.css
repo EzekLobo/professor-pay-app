@@ -1,5 +1,5 @@
 .visitor-demo-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 12px 16px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 12px; font-size: 12px; color: var(--muted); background: #62bff20b; }
 .visitor-demo-banner strong { color: var(--primary); }
-.visitor-demo-notice { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 12px; font-size: 13px; }
+.visitor-demo-notice { position: fixed; right: 20px; bottom: 20px; z-index: 1200; display: flex; justify-content: space-between; align-items: center; gap: 12px; width: min(420px, calc(100vw - 40px)); padding: 12px 16px; border: 1px solid rgb(77 246 165 / 34%); border-radius: 12px; color: #a1ffd0; background: rgb(20 94 66 / 92%); box-shadow: 0 16px 36px rgb(0 0 0 / 28%); font-size: 13px; animation: feedback-toast-in 180ms ease-out, feedback-toast-out 260ms ease-in 6s forwards; }
 .visitor-demo-notice button { background: transparent; border: 0; color: var(--text); font-size: 22px; cursor: pointer; }
 .modal-dialog.visitor-demo-modal { max-height: calc(100dvh - 32px); overflow-y: auto; }

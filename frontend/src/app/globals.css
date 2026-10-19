@@ -2396,7 +2396,7 @@ select:focus-visible {
 .manual-add-actions { gap: 6px; }
 .manual-add-action { min-height: 38px; gap: 6px; padding: 8px 10px; }
 .manual-add-action span { font-size: .76rem; }
-.sync-icon-button { width: 42px; min-height: 42px; padding: 0; }
+.sync-icon-button { display: inline-grid; flex: 0 0 42px; width: 42px; min-width: 42px; max-width: 42px; height: 42px; min-height: 42px; padding: 0; place-items: center; }
 .group-header-trash-button { color: #f0a6bd; border-color: rgba(240, 166, 189, .35); }
 .group-header-trash-button:hover { color: #ffd7e3; border-color: rgba(240, 166, 189, .75); background: rgba(132, 31, 69, .22); }
 .sync-icon-spinning { animation: spin-icon .8s linear infinite; }

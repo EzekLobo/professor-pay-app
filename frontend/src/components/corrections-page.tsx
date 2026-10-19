@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -251,8 +252,8 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
           </div>
           <div className="correction-heading-actions">
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
-            {(demo || hasKodlandGroups) && <Button type="button" data-tour="corrections-sync" onClick={() => void syncCorrections()} disabled={syncing}>
-              {syncing ? "Atualizando correções…" : "Atualizar correções"}
+            {(demo || hasKodlandGroups) && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}>
+              <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
             </Button>}
           </div>
         </div>

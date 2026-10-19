@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import {
   availabilityFromTeacherTimetable,
+  attendanceStatus,
   correctionUrlFor,
   extrasFromStudentAgenda,
   extrasFromTeacherAgenda,
@@ -13,6 +14,22 @@ import {
 } from "./route";
 
 describe("sync diagnostics", () => {
+  it.each([
+    "UNEXCUSED_ABSENCE",
+    "UNJUSTIFIED",
+    "NOT_PRESENT",
+    "not_attended",
+    "unexcused",
+  ])("classifies %s as an absence", (status) => {
+    expect(attendanceStatus({ status })).toBe("ABSENT");
+  });
+
+  it("classifies explicit absence flags from grouped attendance records", () => {
+    expect(attendanceStatus({ is_absent: true })).toBe("ABSENT");
+    expect(attendanceStatus({ did_attend: false })).toBe("ABSENT");
+    expect(attendanceStatus({ attendance: "unexcused" })).toBe("ABSENT");
+  });
+
   it("returns a traceable 401 without logging submitted credentials", async () => {
     const syncId = "dcc96280-3a27-4353-83ab-9c89822a53b9";
     const log = vi.spyOn(console, "info").mockImplementation(() => undefined);

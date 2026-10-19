@@ -277,6 +277,12 @@ const list = (value: unknown) => {
     "attendances",
     "records",
     "attendance_records",
+    "student_attendance",
+    "attendance_data",
+    "attendance_history",
+    "history",
+    "absences",
+    "students",
     "lessons",
     "events",
     "schedule",
@@ -1383,16 +1389,22 @@ async function reviewsForGroup(
     return results.flat();
 }
 
-const attendanceStatus = (value: Record<string, unknown>): AttendanceStatus => {
+export const attendanceStatus = (value: Record<string, unknown>): AttendanceStatus => {
   const raw = text(
     value.attendance_status ?? value.attendanceStatus ?? value.presence_status ??
-      value.presenceStatus ?? value.status ?? value.state,
+      value.presenceStatus ?? value.absence_status ?? value.absenceStatus ??
+      value.attendance_state ?? value.attendanceState ?? value.attendance_mark ??
+      value.attendanceMark ?? value.presence_mark ?? value.presenceMark ??
+      value.mark ?? value.status ?? value.state ?? value.attendance,
   ).toLowerCase();
-  const present = value.present ?? value.is_present ?? value.isPresent ?? value.attended ?? value.was_present;
-  if (present === true || present === 1 || present === "true") return "PRESENT";
-  if (/absent|absence|falt|no.?show|missed|did.?not.?attend/.test(raw)) return "ABSENT";
-  if (/late|atras/.test(raw)) return "LATE";
+  const present = value.present ?? value.is_present ?? value.isPresent ?? value.attended ?? value.was_present ?? value.did_attend ?? value.didAttend;
+  const absent = value.absent ?? value.is_absent ?? value.isAbsent ?? value.was_absent ?? value.did_not_attend ?? value.didNotAttend ?? value.unexcused_absence ?? value.unexcusedAbsence;
+  if (absent === true || absent === 1 || absent === "true") return "ABSENT";
+  if (/absent|absence|falt|no.?show|missed|did.?not.?attend|not.?present|not.?attend|unexcused|unjustified|not.?justif|sem.?justif/.test(raw)) return "ABSENT";
   if (/excused|justif/.test(raw)) return "EXCUSED";
+  if (present === true || present === 1 || present === "true") return "PRESENT";
+  if (present === false || present === 0 || present === "false") return "ABSENT";
+  if (/late|atras/.test(raw)) return "LATE";
   if (/present|attend|particip/.test(raw)) return "PRESENT";
   return "UNKNOWN";
 };
@@ -1411,28 +1423,37 @@ async function attendanceForGroup(group: Group, token: string): Promise<Attendan
   }
   if (payload === null) return [];
   return list(payload).flatMap((value) => {
-    const item = record(value);
-    const student = record(item.student ?? item.student_info ?? item.user);
-    const lesson = record(item.lesson ?? item.lesson_info ?? item.class_lesson);
-    const studentId = text(item.student_id ?? item.studentId ?? item.user_id ?? student.id ?? student.student_id);
-    const studentName = text(item.student_name ?? item.studentName ?? item.full_name ?? student.name ?? student.full_name);
-    const lessonId = text(item.lesson_id ?? item.lessonId ?? item.event_id ?? lesson.id ?? lesson.lesson_id);
-    const lessonDate = dateOnly(item.lesson_date ?? item.lessonDate ?? item.date ?? item.start_at ?? item.startAt ?? lesson.date ?? lesson.lesson_date);
+    const container = record(value);
+    const containerStudent = record(container.student ?? container.student_info ?? container.user ?? container.main_info);
+    const nestedRecords = [
+      "attendance", "attendances", "attendance_records", "student_attendance",
+      "attendance_data", "records", "history", "absences", "lessons",
+    ].flatMap((key) => Array.isArray(container[key]) ? container[key] : []);
+    const records = nestedRecords.length ? nestedRecords : [container];
+    return records.flatMap((nestedValue) => {
+      const item = record(nestedValue);
+      const student = record(item.student ?? item.student_info ?? item.user ?? containerStudent);
+      const lesson = record(item.lesson ?? item.lesson_info ?? item.class_lesson ?? item.lesson_data);
+      const studentId = text(item.student_id ?? item.studentId ?? item.user_id ?? student.id ?? student.student_id ?? container.student_id ?? container.studentId);
+      const studentName = text(item.student_name ?? item.studentName ?? item.full_name ?? student.name ?? student.full_name ?? container.student_name ?? container.studentName);
+      const lessonId = text(item.lesson_id ?? item.lessonId ?? item.event_id ?? lesson.id ?? lesson.lesson_id);
+      const lessonDate = dateOnly(item.lesson_date ?? item.lessonDate ?? item.date ?? item.start_at ?? item.startAt ?? lesson.date ?? lesson.lesson_date ?? container.lesson_date ?? container.lessonDate);
     if (!studentId || !studentName || (!lessonId && !lessonDate)) return [];
-    const recording = text(item.recording_url ?? item.recordingUrl ?? item.video_url ?? item.videoUrl ?? item.recording ?? lesson.recording_url ?? lesson.recordingUrl);
-    return [{
-      id: `kodland-attendance-${group.external_id}-${studentId}-${lessonId || lessonDate}`,
-      external_class_id: group.external_id,
-      external_class_name: group.title,
-      external_student_id: studentId,
-      student_name: studentName,
-      lesson_id: lessonId || `${group.external_id}-${lessonDate}`,
-      lesson_title: text(item.lesson_title ?? item.lessonTitle ?? item.title ?? lesson.title ?? lesson.lesson_title) || "Aula",
-      lesson_date: lessonDate,
-      start_time: timeOnly(item.start_time ?? item.startTime ?? item.start_at ?? item.startAt ?? lesson.start_time),
-      status: attendanceStatus(item),
-      recording_url: /^https?:\/\//i.test(recording) ? recording : "",
-    }];
+      const recording = text(item.recording_url ?? item.recordingUrl ?? item.video_url ?? item.videoUrl ?? item.recording ?? lesson.recording_url ?? lesson.recordingUrl);
+      return [{
+        id: `kodland-attendance-${group.external_id}-${studentId}-${lessonId || lessonDate}`,
+        external_class_id: group.external_id,
+        external_class_name: group.title,
+        external_student_id: studentId,
+        student_name: studentName,
+        lesson_id: lessonId || `${group.external_id}-${lessonDate}`,
+        lesson_title: text(item.lesson_title ?? item.lessonTitle ?? item.title ?? lesson.title ?? lesson.lesson_title) || "Aula",
+        lesson_date: lessonDate,
+        start_time: timeOnly(item.start_time ?? item.startTime ?? item.start_at ?? item.startAt ?? lesson.start_time),
+        status: attendanceStatus(item),
+        recording_url: /^https?:\/\//i.test(recording) ? recording : "",
+      }];
+    });
   });
 }
 

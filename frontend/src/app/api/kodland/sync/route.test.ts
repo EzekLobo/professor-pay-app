@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import {
   availabilityFromTeacherTimetable,
+  attendanceFromStudentsPayload,
   attendanceStatus,
   correctionUrlFor,
   extrasFromStudentAgenda,
@@ -14,6 +15,24 @@ import {
 } from "./route";
 
 describe("sync diagnostics", () => {
+  it("imports the same attendance grid used by the Kodland backoffice", () => {
+    const records = attendanceFromStudentsPayload([
+      {
+        main_info: { student_id: 3146568, full_name: "Rafael Coppola" },
+        progress_info: [{ module_number: 5, lessons_data: [
+          { lesson_id: 17, lesson_number: 1, attendance_status: 0 },
+          { lesson_id: 18, lesson_number: 2, attendance_status: 1 },
+          { lesson_id: 19, lesson_number: 3, attendance_status: 2 },
+          { lesson_id: 20, lesson_number: 4, attendance_status: 9 },
+        ] }],
+      },
+    ], { external_id: "66919", title: "PRM_BRA2429_TER-20" } as never);
+
+    expect(records.map((item) => item.status)).toEqual(["ABSENT", "EXCUSED", "PRESENT", "UNKNOWN"]);
+    expect(records[0].student_name).toBe("Rafael Coppola");
+    expect(records[0].lesson_title).toBe("Aula M5.L1");
+  });
+
   it.each([
     "UNEXCUSED_ABSENCE",
     "UNJUSTIFIED",

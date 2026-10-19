@@ -1390,6 +1390,11 @@ async function reviewsForGroup(
 }
 
 export const attendanceStatus = (value: Record<string, unknown>): AttendanceStatus => {
+  const statusValue = value.attendance_status ?? value.attendanceStatus ?? value.presence_status ?? value.presenceStatus;
+  if (statusValue === 0 || statusValue === "0") return "ABSENT";
+  if (statusValue === 1 || statusValue === "1") return "EXCUSED";
+  if (statusValue === 2 || statusValue === "2") return "PRESENT";
+  if (statusValue === 9 || statusValue === "9") return "UNKNOWN";
   const raw = text(
     value.attendance_status ?? value.attendanceStatus ?? value.presence_status ??
       value.presenceStatus ?? value.absence_status ?? value.absenceStatus ??
@@ -1409,6 +1414,49 @@ export const attendanceStatus = (value: Record<string, unknown>): AttendanceStat
   return "UNKNOWN";
 };
 
+/**
+ * The Kodland backoffice renders the teacher's presence grid from the main
+ * student payload. Each module contains lessons_data with attendance_status
+ * codes (0 absent, 1 excused, 2 present, 9 not marked).
+ */
+export function attendanceFromStudentsPayload(payload: unknown, group: Group): Attendance[] {
+  return list(payload).flatMap((value) => {
+    const studentRecord = record(value);
+    const mainInfo = record(studentRecord.main_info ?? studentRecord.student ?? studentRecord.student_info);
+    const studentId = text(mainInfo.student_id ?? mainInfo.id ?? studentRecord.student_id ?? studentRecord.studentId);
+    const studentName = text(mainInfo.full_name ?? mainInfo.name ?? studentRecord.student_name ?? studentRecord.studentName);
+    if (!studentId || !studentName) return [];
+    return list(studentRecord.progress_info).flatMap((moduleValue) => {
+      const module = record(moduleValue);
+      const moduleNumber = text(module.module_number ?? module.moduleNumber ?? module.number);
+      const lessons = Array.isArray(module.lessons_data) ? module.lessons_data : [];
+      return lessons.flatMap((lessonValue) => {
+        const lesson = record(lessonValue);
+        if (lesson.attendance_status === null || lesson.attendance_status === undefined) return [];
+        const lessonId = text(lesson.lesson_id ?? lesson.lessonId ?? lesson.id);
+        if (!lessonId) return [];
+        const lessonNumber = text(lesson.lesson_number ?? lesson.lessonNumber ?? lesson.number);
+        const lessonDate = dateOnly(lesson.lesson_date ?? lesson.lessonDate ?? lesson.date ?? lesson.start_at ?? lesson.startAt);
+        const title = text(lesson.lesson_title ?? lesson.lessonTitle ?? lesson.title ?? lesson.name) ||
+          (lessonNumber ? `Aula ${moduleNumber ? `M${moduleNumber}.` : ""}L${lessonNumber}` : "Aula");
+        return [{
+          id: `kodland-attendance-${group.external_id}-${studentId}-${lessonId}`,
+          external_class_id: group.external_id,
+          external_class_name: group.title,
+          external_student_id: studentId,
+          student_name: studentName,
+          lesson_id: lessonId,
+          lesson_title: title,
+          lesson_date: lessonDate,
+          start_time: timeOnly(lesson.start_time ?? lesson.startTime ?? lesson.start_at ?? lesson.startAt),
+          status: attendanceStatus(lesson),
+          recording_url: "",
+        }];
+      });
+    });
+  });
+}
+
 async function attendanceForGroup(group: Group, token: string): Promise<Attendance[]> {
   const endpoints = [
     `student_groups/${group.external_id}/attendance/`,
@@ -1421,8 +1469,9 @@ async function attendanceForGroup(group: Group, token: string): Promise<Attendan
     payload = await getOptional(endpoint, token);
     if (payload !== null) break;
   }
-  if (payload === null) return [];
-  return list(payload).flatMap((value) => {
+  const studentsPayload = await getOptional(`student_groups/${group.external_id}/get_students_main_data`, token);
+  const fromStudentGrid = studentsPayload ? attendanceFromStudentsPayload(studentsPayload, group) : [];
+  const fromAttendanceEndpoint = payload === null ? [] : list(payload).flatMap((value) => {
     const container = record(value);
     const containerStudent = record(container.student ?? container.student_info ?? container.user ?? container.main_info);
     const nestedRecords = [
@@ -1455,6 +1504,7 @@ async function attendanceForGroup(group: Group, token: string): Promise<Attendan
       }];
     });
   });
+  return [...new Map([...fromStudentGrid, ...fromAttendanceEndpoint].map((item) => [item.id, item])).values()];
 }
 
 type CourseLessonCache = {

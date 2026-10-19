@@ -2397,6 +2397,8 @@ select:focus-visible {
 .manual-add-action { min-height: 38px; gap: 6px; padding: 8px 10px; }
 .manual-add-action span { font-size: .76rem; }
 .sync-icon-button { width: 42px; min-height: 42px; padding: 0; }
+.group-header-trash-button { color: #f0a6bd; border-color: rgba(240, 166, 189, .35); }
+.group-header-trash-button:hover { color: #ffd7e3; border-color: rgba(240, 166, 189, .75); background: rgba(132, 31, 69, .22); }
 .sync-icon-spinning { animation: spin-icon .8s linear infinite; }
 @keyframes spin-icon { to { transform: rotate(360deg); } }
 .manual-groups-list { display: grid; min-width: 0; gap: 12px; }
@@ -2405,13 +2407,32 @@ select:focus-visible {
 .manual-group-panel-heading { align-items: center; margin: 0; }
 .manual-group-panel-heading h3 { margin: 0; font-size: 1.08rem; }
 .manual-group-panel .group-header-actions { position: static; display: inline-flex; align-items: center; gap: 6px; }
-.manual-group-class-list { display: grid; gap: 10px; }
+.manual-group-panel-heading .group-settings-button, .manual-group-panel-heading .group-delete-button { width: 42px; height: 42px; border-radius: 12px; }
+.manual-group-class-list { display: grid; gap: 12px; margin-top: 4px; }
 .manual-group-class-list > .muted { margin: 0; }
 .legacy-group { border-style: dashed; }
 .manual-class-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 17px 18px; border: 1px solid var(--border, #27446b); border-radius: 14px; background: #0b172a; }
 .manual-class-actions { position: relative; display: flex; justify-content: flex-end; margin: 0; }
 .manual-class-actions-menu { top: 38px; right: 0; }
 .manual-class-modal { width: min(1120px, calc(100vw - 24px)); max-height: calc(100dvh - 12px); overflow-x: hidden; overflow-y: auto; }
+.lessons-catalog-panel { grid-column: 1 / -1; }
+.manual-course-builder-modal { width: min(1040px, calc(100vw - 24px)); max-height: calc(100dvh - 16px); overflow-x: hidden; overflow-y: auto; }
+.manual-course-builder { display: grid; gap: 16px; }
+.manual-course-builder-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(150px, 1fr)); gap: 12px; }
+.manual-course-builder-grid .field { display: grid; gap: 6px; }
+.manual-course-draft { display: grid; gap: 14px; max-height: 48vh; overflow-y: auto; padding-right: 4px; }
+.manual-course-module { display: grid; gap: 10px; margin: 0; border: 1px solid var(--border, #27446b); border-radius: 12px; padding: 14px; background: rgb(7 20 39 / 36%); }
+.manual-course-module > .field { display: grid; gap: 6px; }
+.manual-course-lesson { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; border: 1px solid #1d3556; border-radius: 10px; padding: 12px; background: rgb(7 20 39 / 34%); }
+.manual-course-lesson legend { grid-column: 1 / -1; padding: 0 4px; font-weight: 800; }
+.manual-course-lesson .field { display: grid; gap: 6px; }
+.manual-course-lesson .field:first-of-type { grid-column: 1 / -1; }
+.manual-course-lesson-details { display: grid; gap: 14px; }
+.manual-course-lesson-details > .muted { margin: 0; }
+.manual-course-lesson-details section { border-top: 1px solid var(--border, #27446b); padding-top: 12px; }
+.manual-course-lesson-details h3 { margin: 0 0 6px; font-size: .92rem; }
+.manual-course-lesson-details p { margin: 0; white-space: pre-wrap; }
+.manual-course-lesson-details a { color: var(--primary); font-weight: 750; }
 .manual-class-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; column-gap: 22px; row-gap: 18px; padding-bottom: 4px; }
 .manual-form-section { display: grid; min-width: 0; gap: 12px; }
 .manual-form-section fieldset { min-width: 0; }
@@ -2462,6 +2483,8 @@ select:focus-visible {
   }
   .manual-class-modal { width: min(100% - 16px, 1120px); max-height: calc(100dvh - 16px); }
   .manual-class-form, .manual-form-grid, .manual-group-options, .manual-student-list { grid-template-columns: 1fr; }
+  .manual-course-builder-grid, .manual-course-lesson { grid-template-columns: 1fr; }
+  .manual-course-lesson legend, .manual-course-lesson .field:first-of-type { grid-column: auto; }
   .manual-slot-labels { display: none; }
   .manual-slot-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .manual-slot-row .button { grid-column: span 2; }

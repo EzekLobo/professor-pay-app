@@ -358,6 +358,19 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     setNotice("Nome da turma atualizado neste navegador.");
   };
 
+  const deleteKodlandCollection = () => {
+    if (!groups.length) {
+      setError("Nenhuma turma Kodland disponível para excluir.");
+      return;
+    }
+    if (!window.confirm(`Excluir o grupo ${kodlandGroupLabel}? Todas as turmas Kodland ficarão ocultas neste navegador.`)) return;
+    const next = [...new Set([...hiddenKodlandGroups, ...groups.map((group) => group.external_id)])];
+    window.localStorage.setItem(HIDDEN_KODLAND_GROUPS_KEY, JSON.stringify(next));
+    setHiddenKodlandGroups(next);
+    setGroups([]);
+    setNotice("Grupo Kodland excluído da visualização.");
+  };
+
   return (
     <div className="management-grid">
       {error && (
@@ -381,6 +394,9 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
             </Button>
             <Button className="button-ghost sync-icon-button" type="button" aria-label="Configurar grupos Kodland" title="Configurar grupos Kodland" onClick={() => groups[0] ? openGroupSettings(groups[0]) : setError("Nenhuma turma Kodland disponível para configurar.")}>
               <Settings size={18} aria-hidden="true" />
+            </Button>
+            <Button className="button-ghost sync-icon-button group-header-trash-button" type="button" aria-label={`Excluir grupo ${kodlandGroupLabel}`} title="Excluir grupo" onClick={deleteKodlandCollection}>
+              <Trash2 size={18} aria-hidden="true" />
             </Button>
           </div>
         </div>

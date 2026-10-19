@@ -21,6 +21,7 @@ import {
 } from "@/lib/holidays";
 import type { KodlandLesson } from "@/lib/kodland-lessons";
 import { isHttpUrl, type ManualActivity, type ManualLessonContent } from "@/lib/manual-pedagogy";
+import type { ManualCourse } from "@/lib/manual-courses";
 import {
   KodlandSyncPersistenceError,
   kodlandSyncNetworkError,
@@ -1266,6 +1267,7 @@ const backupCollectionNames = [
   "kodland_availability", "imported_courses", "imported_course_lessons",
   "manual_students", "manual_class_groups", "manual_classes", "manual_lesson_content",
   "manual_activities", "kodland_class_settings",
+  "manual_courses",
   "kodland_financial_overrides", "holidays", "lesson_notes", "tutorials",
 ] as const;
 type BackupCollection = typeof backupCollectionNames[number];
@@ -1882,6 +1884,20 @@ export const manualPedagogyApi = {
     };
     await setDoc(reference, record);
     return record;
+  },
+};
+export const manualCoursesApi = {
+  list: async (): Promise<ManualCourse[]> =>
+    (await rows("manual_courses")) as unknown as ManualCourse[],
+  save: async (course: ManualCourse): Promise<ManualCourse> => {
+    if (!course.name.trim()) throw new ApiError(400, "Informe o nome do curso.");
+    if (!course.modules.length) throw new ApiError(400, "Adicione pelo menos um módulo ao curso.");
+    await setDoc(doc(ref("manual_courses"), course.id), {
+      ...course,
+      name: course.name.trim(),
+      updated_at: now(),
+    });
+    return { ...course, name: course.name.trim(), updated_at: now() };
   },
 };
 export const kodlandClassSettingsApi = {

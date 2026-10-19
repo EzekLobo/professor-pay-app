@@ -1832,7 +1832,7 @@ select:focus-visible {
 .group-delete-button { color: #e89aa4; }
 .group-delete-button:hover:not(:disabled), .group-delete-button:focus-visible:not(:disabled) { border-color: #ff7b89; color: #ff9fab; background: rgb(255 123 137 / 10%); }
 .group-delete-button:disabled { cursor: not-allowed; opacity: .38; }
-.group-actions-menu { position: absolute; z-index: 3; top: 54px; right: 12px; display: grid; min-width: 170px; gap: 4px; padding: 7px; border: 1px solid var(--border-bright); border-radius: 10px; background: #0d1b30; box-shadow: 0 14px 30px rgb(0 0 0 / 35%); }
+.group-actions-menu { position: absolute; z-index: 100; top: 54px; right: 12px; display: grid; min-width: 170px; gap: 4px; padding: 7px; border: 1px solid var(--border-bright); border-radius: 10px; background: #0d1b30; box-shadow: 0 14px 30px rgb(0 0 0 / 35%); }
 .group-actions-menu > button { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; border-radius: 7px; padding: 8px 9px; background: transparent; color: var(--text); font-size: .78rem; font-weight: 750; text-align: left; }
 .group-actions-menu > button:hover, .group-actions-menu > button:focus-visible { background: rgb(47 183 235 / 12%); }
 .group-actions-menu .group-actions-menu-danger { color: #ffabb4; }
@@ -2417,17 +2417,20 @@ select:focus-visible {
 @keyframes spin-icon { to { transform: rotate(360deg); } }
 .manual-groups-list { display: grid; min-width: 0; gap: 12px; }
 .management-grid > .manual-groups-list { grid-column: 1 / -1; }
-.manual-group-panel { display: grid; gap: 14px; }
+.manual-group-panel { position: relative; display: grid; gap: 14px; overflow: visible; }
 .manual-group-panel-heading { align-items: center; margin: 0; }
-.manual-group-panel-heading h3 { margin: 0; font-size: 1.08rem; }
+.manual-group-panel-heading h3 { margin: 0; font-size: 1.1rem; }
+.manual-group-panel-heading .group-summary-copy { flex: 1; }
+.manual-group-meta { flex: 0 0 auto; color: var(--muted); font-size: .78rem; font-weight: 700; text-align: right; }
 .manual-group-panel .group-header-actions { position: static; display: inline-flex; align-items: center; gap: 6px; }
 .manual-group-panel-heading .group-settings-button, .manual-group-panel-heading .group-delete-button { width: 42px; height: 42px; border-radius: 12px; }
 .manual-group-class-list { display: grid; gap: 12px; margin-top: 4px; }
 .manual-group-class-list > .muted { margin: 0; }
 .legacy-group { border-style: dashed; }
-.manual-class-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 17px 18px; border: 1px solid var(--border, #27446b); border-radius: 14px; background: #0b172a; }
+.manual-class-card { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 17px 18px; border: 1px solid var(--border, #27446b); border-radius: 14px; background: #0b172a; }
+.manual-class-card:has(.manual-class-actions-menu) { z-index: 20; }
 .manual-class-actions { position: relative; display: flex; justify-content: flex-end; margin: 0; }
-.manual-class-actions-menu { top: 38px; right: 0; }
+.manual-class-actions-menu { top: 38px; right: 0; z-index: 100; }
 .manual-class-modal { width: min(1120px, calc(100vw - 24px)); max-height: calc(100dvh - 12px); overflow-x: hidden; overflow-y: auto; }
 .lessons-catalog-panel { grid-column: 1 / -1; }
 .manual-course-builder-modal { width: min(1040px, calc(100vw - 24px)); max-height: calc(100dvh - 16px); overflow-x: hidden; overflow-y: auto; }

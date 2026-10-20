@@ -224,6 +224,27 @@ const readDate = (record: ObjectValue) =>
     "startDatetime",
   ]);
 
+const saoPauloDateTime = (value: string) => {
+  if (!value || !/T\d{2}:\d{2}/.test(value)) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(parsed).map((part) => [part.type, part.value]),
+  );
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`,
+  };
+};
+
 const readTime = (record: ObjectValue, keys: string[]) => {
   const value = readText(record, keys);
   if (!value) return "";
@@ -425,7 +446,11 @@ export function parseKodlandLessonsPayload(
       "module_name",
       "moduleName",
     ]);
-    const date = readDate(lessonItem);
+    const timetableDateTime = saoPauloDateTime(readText(lessonItem, [
+      "timetable_time",
+      "timetableTime",
+    ]));
+    const date = timetableDateTime?.date ?? readDate(lessonItem);
     const title = readText(lessonItem, [
       "lesson_title",
       "lessonTitle",
@@ -512,7 +537,7 @@ export function parseKodlandLessonsPayload(
         title: title || (source === "schedule" ? "Aula agendada" : "Aula"),
         theme,
         lesson_date: date,
-        start_time: readTime(lessonItem, [
+        start_time: timetableDateTime?.time ?? readTime(lessonItem, [
           "start_time",
           "startTime",
           "start_at",
@@ -528,7 +553,13 @@ export function parseKodlandLessonsPayload(
           "finish_at",
           "finishAt",
         ]),
-        status: readText(lessonItem, ["status", "lesson_status", "state"]),
+        status: readText(lessonItem, [
+          "status",
+          "lesson_status",
+          "timetable_status",
+          "timetableStatus",
+          "state",
+        ]),
         lesson_passed: booleanValue(
           lessonItem.lesson_passed ??
             lessonItem.lessonPassed ??

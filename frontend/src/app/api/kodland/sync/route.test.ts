@@ -9,6 +9,7 @@ import {
   extrasFromStudentAgenda,
   extrasFromTeacherAgenda,
   extraLessonReportWasCompleted,
+  groupRecordingUrls,
   mergeExtraLessons,
   mapWithConcurrency,
   teacherCalendarWeekDates,
@@ -16,6 +17,21 @@ import {
 } from "./route";
 
 describe("sync diagnostics", () => {
+  it("maps the official group recordings by the matching lesson id", () => {
+    expect([...groupRecordingUrls([
+      {
+        lesson_id: 20850,
+        s3_url: "https://recordings.example/m8l2",
+        download_url: "https://zoom.example/m8l2",
+      },
+      { lesson_id: 20851, download_url: "https://zoom.example/m8l3" },
+      { lesson_id: 20852, download_url: "invalid" },
+    ])]).toEqual([
+      ["20850", "https://recordings.example/m8l2"],
+      ["20851", "https://zoom.example/m8l3"],
+    ]);
+  });
+
   it("imports the same attendance grid used by the Kodland backoffice", () => {
     const records = attendanceFromStudentsPayload([
       {

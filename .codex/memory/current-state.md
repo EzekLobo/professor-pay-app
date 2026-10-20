@@ -2,6 +2,13 @@
 
 ## Cronograma Kodland como fonte de verdade
 
+- Confirmado diretamente na Kodland em 20/10/2026: `schedule_view` usa
+  `timetable_time` para a ocorrência real. Na turma `PRM_BRA1919_SEG-19`, a
+  aula global 30 (`M8.L2`) está em `2026-10-19T22:00:00Z` (19h em São Paulo).
+  As gravações ficam em uma fonte separada do Backoffice,
+  `zoom_recording/get_videos_by_student_group_id/{groupId}`, e devem ser
+  anexadas pelo `lesson_id`, priorizando `s3_url` e depois `download_url`.
+
 - Confirmado: nas turmas sincronizadas, datas, quantidade de aulas, horários
   e link de gravação devem ser determinados exclusivamente pelo cronograma da
   Kodland. A lista de presença apenas vincula o status de cada aluno à

@@ -239,4 +239,25 @@ describe("enrichKodlandLessons", () => {
       recording_url: "https://recordings.example/m8l2",
     });
   });
+
+  it("reads the real timetable occurrence fields in the Kodland group calendar", () => {
+    const [scheduled] = parseKodlandLessonsPayload([{
+      timetable_id: 2573757,
+      timetable_time: "2026-10-19T22:00:00Z",
+      timetable_status: "Открыт",
+      lesson_id: 20850,
+      lesson_number: 30,
+      lesson_title: "M8.L2 O Chão é Lava. Funções",
+      lesson_passed: true,
+    }], { external_id: "61918", title: "PRM_BRA1919_SEG-19" }, "schedule");
+
+    expect(scheduled).toMatchObject({
+      id: "20850",
+      course_index: 30,
+      lesson_date: "2026-10-19",
+      start_time: "19:00",
+      status: "Открыт",
+      lesson_passed: true,
+    });
+  });
 });

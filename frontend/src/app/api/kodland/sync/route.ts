@@ -611,6 +611,40 @@ async function recordingAvailableForBooking(bookingId: string): Promise<boolean 
   }
 }
 
+export function groupRecordingUrls(payload: unknown): Map<string, string> {
+  return new Map(
+    list(payload).flatMap((value) => {
+      const item = record(value);
+      const lessonId = text(item.lesson_id ?? item.lessonId);
+      const recordingUrl = text(
+        item.s3_url ?? item.s3Url ?? item.download_url ?? item.downloadUrl ??
+          item.s3_link ?? item.s3Link ?? item.youtube_link ?? item.youtubeLink ??
+          item.zoom_play_cloud_link ?? item.zoomPlayCloudLink,
+      );
+      return lessonId && /^https?:\/\//i.test(recordingUrl)
+        ? [[lessonId, recordingUrl] as const]
+        : [];
+    }),
+  );
+}
+
+async function recordingsForGroup(groupId: string): Promise<Map<string, string>> {
+  try {
+    const response = await fetchKodland(
+      `${zoomServiceApi}api/zoom_recording/get_videos_by_student_group_id/${encodeURIComponent(groupId)}`,
+      {
+        headers: { "api-key": zoomServicePublicKey },
+        cache: "no-store",
+      },
+    );
+    if (!response.ok) return new Map();
+    return groupRecordingUrls(await response.json());
+  } catch {
+    // A recording lookup must not discard the canonical lesson calendar.
+    return new Map();
+  }
+}
+
 /**
  * The Kodland report modal reads this separate resource, keyed by the extra
  * lesson ID (not the UUID of its request). Its `outcome` confirms completion.
@@ -1596,9 +1630,10 @@ async function lessonsForGroup(
   // Kodland's lesson endpoints paginate at 30 entries by default. A group can
   // have a longer timeline (the current group has 40), so collect every page
   // before reconciling attendance.
-  const [schedule, lessons] = await Promise.all([
+  const [schedule, lessons, recordings] = await Promise.all([
     completeGroupTimeline(`student_groups/${group.external_id}/schedule_view/`, token),
     completeGroupTimeline(`student_groups/${group.external_id}/lessons/`, token),
+    recordingsForGroup(group.external_id),
   ]);
   const merged = mergeKodlandLessons(schedule, lessons, group);
   const catalog = await courseLessons(group.course_id, token, cache);
@@ -1656,6 +1691,10 @@ async function lessonsForGroup(
     return {
       ...lesson,
       source_lesson_id: sourceLesson?.id ?? "",
+      recording_url:
+        lesson.recording_url ||
+        recordings.get(sourceLesson?.id ?? lesson.id) ||
+        "",
       materials_status: sourceLesson ? "pending" as const : "unavailable" as const,
     };
   });

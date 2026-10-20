@@ -1,4 +1,4 @@
-type KodlandCredentials = {
+export type KodlandCredentials = {
   username: string;
   password: string;
 };
@@ -167,13 +167,15 @@ async function passwordManagerCredential(): Promise<KodlandCredentials | null> {
  * encryption key is non-extractable and also remains only in this browser.
  * The native password manager is offered as an additional convenience.
  */
-export async function rememberKodlandCredentials(form: HTMLFormElement) {
-  const values = new FormData(form);
-  const username = String(values.get("username") ?? "").trim();
-  const password = String(values.get("password") ?? "");
+export async function rememberKodlandCredentials(
+  credentials: KodlandCredentials,
+  form?: HTMLFormElement,
+) {
+  const username = credentials.username.trim();
+  const password = credentials.password;
   if (!username || !password) return false;
   const saved = await saveInBrowserVault({ username, password });
-  await offerPasswordCredential(form);
+  if (form) await offerPasswordCredential(form);
   return saved;
 }
 

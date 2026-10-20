@@ -104,7 +104,10 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       if (saveCredentials) {
         try {
           window.localStorage.setItem("aulapay.kodland.username", username);
-          savedInBrowser = await rememberKodlandCredentials(form);
+          savedInBrowser = await rememberKodlandCredentials(
+            { username, password: syncPassword },
+            form,
+          );
         } catch {
           // Browser password storage is optional and controlled by the browser.
         }
@@ -262,7 +265,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
               type="text"
               required
               autoComplete="username"
-              disabled={busy}
+              readOnly={busy}
               value={syncUsername}
               onChange={(event) => setSyncUsername(event.target.value)}
             />
@@ -274,7 +277,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
               type="password"
               required
               autoComplete="current-password"
-              disabled={busy}
+              readOnly={busy}
               value={syncPassword}
               onChange={(event) => setSyncPassword(event.target.value)}
             />

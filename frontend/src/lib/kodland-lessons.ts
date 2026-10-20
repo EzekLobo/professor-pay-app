@@ -29,6 +29,14 @@ export type KodlandLesson = {
 
 export type LessonTask = { title: string; url: string };
 
+/** Converts Kodland's global course index to the 1-4 position inside a module. */
+export function kodlandLocalLessonNumber(value: string | number) {
+  const lessonNumber = Number(value);
+  return Number.isFinite(lessonNumber) && lessonNumber > 0
+    ? ((lessonNumber - 1) % 4) + 1
+    : 0;
+}
+
 export function kodlandLessonLocation(lesson: {
   title: string;
   module_number?: string;

@@ -2436,9 +2436,9 @@ select:focus-visible {
 .attendance-student-copy h4 { overflow: hidden; margin: 0; color: #edf5ff; font-size: .84rem; text-overflow: ellipsis; white-space: nowrap; }
 .attendance-student-copy span { overflow: hidden; color: var(--muted, #9db4d5); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
 .attendance-column-heading { display: grid; min-width: 0; align-content: center; justify-items: center; gap: 0; padding: 4px 5px 5px; color: #b7c9df; text-align: center; }
-.attendance-column-heading strong { color: #edf6ff; font-size: .78rem; line-height: 1.1; }
+.attendance-column-heading strong { color: #edf6ff; font-size: .72rem; line-height: 1.1; }
 .attendance-column-heading small { color: #7893b7; font-size: .62rem; font-weight: 750; }
-.attendance-grid-status { display: block; min-width: 0; align-self: center; min-height: 28px; border: 1px solid transparent; border-radius: 8px; padding: 0; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14); cursor: help; }
+.attendance-grid-status { display: grid; min-width: 0; align-self: center; min-height: 28px; border: 1px solid transparent; border-radius: 8px; padding: 0; place-items: center; color: #fff; font: inherit; font-size: .7rem; font-weight: 900; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14); cursor: help; }
 .attendance-module-start { margin-left: 10px; }
 .attendance-column-heading.attendance-module-start, .attendance-grid-status.attendance-module-start { position: relative; }
 .attendance-column-heading.attendance-module-start::before, .attendance-grid-status.attendance-module-start::before { position: absolute; top: 5px; bottom: 5px; left: -9px; width: 1px; background: rgba(112, 145, 187, .5); content: ""; }

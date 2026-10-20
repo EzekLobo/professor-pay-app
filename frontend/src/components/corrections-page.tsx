@@ -12,6 +12,7 @@ import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
+import { kodlandLocalLessonNumber } from "@/lib/kodland-lessons";
 import { isActiveKodlandStudent } from "@/lib/student-ranking";
 import { whatsappUrl } from "@/lib/whatsapp";
 
@@ -76,26 +77,38 @@ const attendanceDateLabel = (value: string) => {
 };
 const attendanceSortKey = (item: KodlandAttendance) => `${item.lesson_date || "0000-00-00"} ${item.start_time || "00:00"} ${item.lesson_title}`;
 const attendanceColumnKey = (item: KodlandAttendance) => item.lesson_id || `${item.lesson_date}:${item.lesson_title}`;
-const lessonForAttendance = (item: KodlandAttendance, lessons: KodlandLesson[]) => lessons.find((lesson) =>
-  lesson.external_class_id === item.external_class_id && (
+const moduleLessonCode = (value: string) => value.match(/M(\d+)(?:\s*[.·-]\s*)?L(\d+)/i);
+const lessonForAttendance = (item: KodlandAttendance, lessons: KodlandLesson[]) => {
+  const code = moduleLessonCode(item.lesson_title);
+  const sameClass = lessons.filter((lesson) => lesson.external_class_id === item.external_class_id);
+  return sameClass.find((lesson) =>
     lesson.id === item.lesson_id
     || lesson.source_lesson_id === item.lesson_id
-    || Boolean(item.lesson_date && lesson.lesson_date === item.lesson_date && (!item.start_time || lesson.start_time === item.start_time))
-  ));
+  ) ?? (code ? sameClass.find((lesson) =>
+    lesson.module_number?.match(/\d+/)?.[0] === code[1]
+    && (lesson.course_index === Number(code[2]) || lesson.lesson_number === Number(code[2]))
+  ) : undefined) ?? sameClass.find((lesson) =>
+    Boolean(item.lesson_date && lesson.lesson_date === item.lesson_date && (!item.start_time || lesson.start_time === item.start_time))
+  );
+};
 const attendanceLessonParts = (item: KodlandAttendance, lessons: KodlandLesson[]) => {
   const lessonRecord = lessonForAttendance(item, lessons);
+  const localizedCode = moduleLessonCode(lessonRecord?.title ?? "");
+  if (localizedCode) return { module: `M${localizedCode[1]}`, lesson: `L${kodlandLocalLessonNumber(localizedCode[2])}` };
   const moduleNumber = lessonRecord?.module_number?.match(/\d+/)?.[0];
-  if (moduleNumber && lessonRecord?.lesson_number) return { module: `M${moduleNumber}`, lesson: `L${lessonRecord.lesson_number}` };
-  const moduleLesson = item.lesson_title.match(/M(\d+)(?:\s*[.·-]\s*)?L(\d+)/i);
-  if (moduleLesson) return { module: `M${moduleLesson[1]}`, lesson: `L${moduleLesson[2]}` };
+  if (moduleNumber && lessonRecord?.lesson_number) return { module: `M${moduleNumber}`, lesson: `L${kodlandLocalLessonNumber(lessonRecord.lesson_number)}` };
+  const moduleLesson = moduleLessonCode(item.lesson_title);
+  if (moduleLesson) return { module: `M${moduleLesson[1]}`, lesson: `L${kodlandLocalLessonNumber(moduleLesson[2])}` };
   const lesson = item.lesson_title.match(/(?:Aula|Lesson)\s*(\d+)/i)?.[1];
-  return { module: "", lesson: lesson ? `L${lesson}` : "Aula" };
+  return { module: "", lesson: lesson ? `L${kodlandLocalLessonNumber(lesson)}` : "Aula" };
 };
+const attendanceLessonDate = (item: KodlandAttendance, lessons: KodlandLesson[]) =>
+  item.lesson_date || lessonForAttendance(item, lessons)?.lesson_date || "";
 const attendanceMessage = (history: AttendanceStudentHistory, item: KodlandAttendance, lessons: KodlandLesson[]) => {
   const parts = attendanceLessonParts(item, lessons);
   const lessonLabel = parts.module ? `${parts.module}${parts.lesson}` : item.lesson_title || parts.lesson;
   const recordingUrl = item.recording_url?.trim() || "https://learn.kodland.org/";
-  return `Olá, ${history.name}! Sentimos sua falta na aula ${lessonLabel}, em ${attendanceDateLabel(item.lesson_date)}. Aconteceu alguma coisa? Para ficar por dentro do assunto, você pode acessar a aula gravada aqui: ${recordingUrl}. Se precisar de ajuda, me avise.`;
+  return `Olá, ${history.name}! Sentimos sua falta na aula ${lessonLabel}, em ${attendanceDateLabel(attendanceLessonDate(item, lessons))}. Aconteceu alguma coisa? Para ficar por dentro do assunto, você pode acessar a aula gravada aqui: ${recordingUrl}. Se precisar de ajuda, me avise.`;
 };
 
 function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo?: CorrectionsDemoAdapter }) {
@@ -131,11 +144,11 @@ function AttendanceClassGrid({
       for (const item of history.records) samples.set(attendanceColumnKey(item), item);
     }
     const orderedColumns = [...samples.values()]
-      .sort((first, second) => attendanceSortKey(first).localeCompare(attendanceSortKey(second), "pt-BR"))
       .map((item) => {
         const parts = attendanceLessonParts(item, lessons);
-        return { key: attendanceColumnKey(item), module: parts.module, lesson: parts.lesson, date: item.lesson_date };
-      });
+        return { key: attendanceColumnKey(item), module: parts.module, lesson: parts.lesson, date: attendanceLessonDate(item, lessons), startTime: item.start_time };
+      })
+      .sort((first, second) => `${first.date} ${first.startTime} ${first.module}${first.lesson}`.localeCompare(`${second.date} ${second.startTime} ${second.module}${second.lesson}`, "pt-BR"));
     return orderedColumns.map((column, index): AttendanceColumn => ({
       ...column,
       moduleStart: Boolean(column.module && column.module !== orderedColumns[index - 1]?.module),
@@ -157,8 +170,7 @@ function AttendanceClassGrid({
       <div className="attendance-grid-header" style={gridStyle} role="row">
         <div className="attendance-grid-corner" role="columnheader">Aluno</div>
         {columns.map((column) => <div className={`attendance-column-heading${column.moduleStart ? " attendance-module-start" : ""}`} role="columnheader" key={column.key}>
-          <strong>{column.module ? `${column.module}${column.lesson}` : column.lesson}</strong>
-          <small>{attendanceDateLabel(column.date).slice(0, 5)}</small>
+          <strong>{column.date ? attendanceDateLabel(column.date).slice(0, 5) : "Sem data"}</strong>
         </div>)}
       </div>
       {histories.map((history) => {
@@ -171,17 +183,18 @@ function AttendanceClassGrid({
           {columns.map((column) => {
             const item = recordsByColumn.get(column.key);
             const className = `attendance-grid-status${item ? ` attendance-status-${item.status.toLowerCase()}` : " attendance-status-empty"}${column.moduleStart ? " attendance-module-start" : ""}`;
-            const title = item ? `${item.lesson_title || "Aula"} · ${attendanceDateLabel(item.lesson_date)} · ${attendanceStatusLabel(item.status)}` : "Sem registro";
+            const lessonCode = column.module ? `${column.module}${column.lesson}` : column.lesson;
+            const title = item ? `${lessonCode} · ${attendanceDateLabel(column.date)} · ${attendanceStatusLabel(item.status)}` : `${lessonCode} · Sem registro`;
             if (item?.status === "ABSENT") return <button
               className={`${className} attendance-absence-action`}
               type="button"
-              aria-label={`Preparar mensagem sobre ${column.module ? `${column.module}${column.lesson}` : column.lesson} de ${history.name} no WhatsApp`}
+              aria-label={`Preparar mensagem sobre ${lessonCode} de ${history.name} no WhatsApp`}
               key={column.key}
               title={phone ? `${title} · Preparar mensagem` : `${title} · Telefone não cadastrado`}
               disabled={!phone}
               onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history, item, lessons) })}
-            />;
-            return <div className={className} role="cell" aria-label={item ? attendanceStatusLabel(item.status) : "Sem registro"} key={column.key} title={title} />;
+            >{lessonCode}</button>;
+            return <div className={className} role="cell" aria-label={item ? `${lessonCode}: ${attendanceStatusLabel(item.status)}` : `${lessonCode}: sem registro`} key={column.key} title={title}>{lessonCode}</div>;
           })}
         </div>;
       })}

@@ -1,5 +1,15 @@
 # Estado atual
 
+## Cronograma Kodland como fonte de verdade
+
+- Confirmado: nas turmas sincronizadas, datas, quantidade de aulas, horários
+  e link de gravação devem ser determinados exclusivamente pelo cronograma da
+  Kodland. A lista de presença apenas vincula o status de cada aluno à
+  ocorrência já definida no cronograma.
+- O parser da agenda preserva todas as listas de ocorrências devolvidas pela
+  Kodland; não pode escolher uma lista curta (`items`) e ignorar `schedule`,
+  que contém o cronograma completo.
+
 ## R15 — Turmas próprias e demo local
 
 - A organização de turmas pessoais concentra busca e ações no cabeçalho para

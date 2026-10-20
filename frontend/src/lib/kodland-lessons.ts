@@ -118,16 +118,18 @@ const listKeys = [
   "timetable",
   "slots",
 ];
-const list = (value: unknown): unknown[] => {
+const lists = (value: unknown): unknown[] => {
   if (Array.isArray(value)) return value;
   const record = objectValue(value);
-  for (const key of listKeys) {
-    if (Array.isArray(record[key])) return record[key] as unknown[];
-  }
-  return [];
+  // A schedule response can contain both a short `items` list and the full
+  // `schedule` array. The latter is the calendar of record, so never stop at
+  // the first array found and accidentally discard later occurrences.
+  return listKeys.flatMap((key) =>
+    Array.isArray(record[key]) ? record[key] as unknown[] : [],
+  );
 };
 const lessonItems = (value: unknown, depth = 0): unknown[] => {
-  const direct = list(value);
+  const direct = lists(value);
   if (direct.length) return direct.flatMap((item) => Array.isArray(item) ? lessonItems(item, depth + 1) : [item]);
   if (depth >= 3 || !value || typeof value !== "object") return [];
   return Object.values(objectValue(value)).flatMap((item) =>

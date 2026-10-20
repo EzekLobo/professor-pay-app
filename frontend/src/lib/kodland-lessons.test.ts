@@ -141,6 +141,30 @@ describe("enrichKodlandLessons", () => {
     expect(matched.external_url).toContain("lessonId=20850");
   });
 
+  it("keeps the complete calendar when the payload also has a short item list", () => {
+    const scheduled = parseKodlandLessonsPayload({
+      items: [{
+        id: "calendar-event-29",
+        lesson: "M8.L1",
+        lesson_number: 29,
+        date: "2026-10-05",
+        start_time: "19:00",
+      }],
+      schedule: [{
+        id: "calendar-event-30",
+        lesson: "M8.L2",
+        lesson_number: 30,
+        date: "2026-10-19",
+        start_time: "19:00",
+      }],
+    }, { external_id: "61918", title: "PRM_BRA1919_SEG-19" }, "schedule");
+
+    expect(scheduled.map((item) => [item.schedule_code, item.lesson_date])).toEqual([
+      ["M8L1", "2026-10-05"],
+      ["M8L2", "2026-10-19"],
+    ]);
+  });
+
   it("uses the schedule code before a conflicting timetable-event ID", () => {
     const scheduled = {
       ...lesson,

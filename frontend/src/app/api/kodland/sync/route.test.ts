@@ -5,6 +5,7 @@ import {
   attendanceFromStudentsPayload,
   attendanceStatus,
   correctionUrlFor,
+  completeGroupTimeline,
   extrasFromStudentAgenda,
   extrasFromTeacherAgenda,
   extraLessonReportWasCompleted,
@@ -85,6 +86,30 @@ describe("sync request limits", () => {
 
     expect(result).toEqual([10, 20, 30, 40, 50]);
     expect(peak).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("completeGroupTimeline", () => {
+  it("preserves the complete nested official calendar instead of only its short item page", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        items: [{ id: "29", lesson: "M8.L1", lesson_number: 29, date: "2026-10-05" }],
+        data: {
+          schedule: [
+            { id: "29", lesson: "M8.L1", lesson_number: 29, date: "2026-10-05" },
+            { id: "30", lesson: "M8.L2", lesson_number: 30, date: "2026-10-19" },
+          ],
+        },
+      }),
+    );
+    try {
+      const result = await completeGroupTimeline("student_groups/61918/schedule_view/", "test-token");
+      expect(result).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "30", date: "2026-10-19" }),
+      ]));
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 });
 

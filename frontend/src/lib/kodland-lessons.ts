@@ -154,6 +154,14 @@ const lessonItems = (value: unknown, depth = 0): unknown[] => {
   ];
 };
 
+/**
+ * Retains every candidate occurrence in a Kodland calendar payload.  This is
+ * deliberately exported for the synchronizer: reducing the response to its
+ * first `items`/`results` array drops the official calendar when it is nested
+ * under `data.schedule`.
+ */
+export const kodlandLessonEntries = (payload: unknown) => lessonItems(payload);
+
 const aliases = (values: string[]) =>
   new Set(values.map((value) => value.toLowerCase().replace(/[- ]/g, "_")));
 const normalizeKey = (value: string) =>
@@ -341,7 +349,7 @@ export function parseKodlandLessonsPayload(
   group: { external_id: string; title: string },
   source: LessonSource = "lessons",
 ): KodlandLesson[] {
-  return lessonItems(payload).flatMap((value, index) => {
+  return kodlandLessonEntries(payload).flatMap((value, index) => {
     const item = objectValue(value);
     const nestedLesson = objectValue(
       item.lesson ??

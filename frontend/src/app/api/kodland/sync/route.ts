@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import {
   enrichKodlandLessons,
+  kodlandLessonEntries,
   matchKodlandCourseLesson,
   mergeKodlandLessons,
   type KodlandCourseLesson,
@@ -556,17 +557,20 @@ async function getOptional(path: string, token: string) {
  * the same payload. This keeps the calendar complete without an unbounded
  * request fan-out.
  */
-async function completeGroupTimeline(path: string, token: string) {
+export async function completeGroupTimeline(path: string, token: string) {
   const first = await getOptional(`${path}?page=1&page_size=100`, token)
     ?? await getOptional(path, token);
   if (first === null) return null;
 
-  const entries = [...list(first)];
+  // A group response may expose a short `items` page and keep the complete
+  // calendar in a nested `data.schedule`. Do not run it through the generic
+  // `list` helper, which intentionally returns only the first matching array.
+  const entries = [...kodlandLessonEntries(first)];
   const seen = new Set(entries.map((item) => JSON.stringify(item)));
   for (let page = 2; page <= 10; page += 1) {
     const payload = await getOptional(`${path}?page=${page}&page_size=100`, token);
     if (payload === null) break;
-    const next = list(payload);
+    const next = kodlandLessonEntries(payload);
     const newEntries = next.filter((item) => {
       const identity = JSON.stringify(item);
       if (seen.has(identity)) return false;

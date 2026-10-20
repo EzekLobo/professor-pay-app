@@ -22,6 +22,11 @@
 - Como a forma do payload da Kodland varia, toda lista aninhada é candidata a
   cronograma; somente registros com data, número de aula ou código `Mx.Ly`
   são aceitos. Isso evita importar materiais e metadados como se fossem aulas.
+- Confirmado: a rota de sincronização não pode reduzir a resposta da agenda ao
+  primeiro `items`/`results`; em grupos como `PRM_BRA1919_SEG-19`, essa lista
+  tem só 30 ocorrências, enquanto `data.schedule` contém o calendário oficial
+  completo (incluindo M8.L2 em 19/10). Ela usa `kodlandLessonEntries` antes de
+  paginar para preservar todas as ocorrências aninhadas.
 
 ## R15 — Turmas próprias e demo local
 

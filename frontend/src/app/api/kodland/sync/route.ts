@@ -1936,16 +1936,26 @@ export async function POST(request: NextRequest) {
       getOptional(`teacher_timetables/${teacherId}`, token),
     ]), ([extras]) => ({ extraLessonCount: extras.items.length }));
     if (mode === "schedule") {
+      const snapshots = await runStage("lessons", () => mapWithConcurrency(
+        groupsWithStudents,
+        KODLAND_CONCURRENCY,
+        async ({ group }) => ({
+          lessons: await lessonsForGroup(group, token, courseLessonCache),
+        }),
+      ), (result) => ({
+        lessonCount: result.reduce((total, item) => total + item.lessons.length, 0),
+      }));
       trace("completed", {
         groupCount: groups.length,
         studentCount: students.length,
         extraLessonCount: extraSnapshot.items.length,
+        lessonCount: snapshots.reduce((total, item) => total + item.lessons.length, 0),
       });
       return syncResponse(syncId, {
         groups,
         students,
         reviews: [],
-        lessons: [],
+        lessons: snapshots.flatMap((item) => item.lessons),
         extra_lessons: extraSnapshot.items,
         extra_lessons_synced: extraSnapshot.source_available,
         extra_lessons_complete: extraSnapshot.source_complete,

@@ -56,7 +56,8 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   const attendanceClass = page.locator("details.attendance-class-group").first();
   await expect(attendanceClass).not.toHaveAttribute("open", "");
   await attendanceClass.locator("summary").click();
-  await expect(attendanceClass.getByText("Falta sem justificativa").first()).toBeVisible();
+  await expect(page.getByLabel("Legenda das cores de presença").getByText("Falta sem justificativa")).toBeVisible();
+  await expect(attendanceClass.getByRole("cell", { name: "Falta sem justificativa", exact: true }).first()).toBeVisible();
   await attendanceClass.getByRole("button", { name: /Preparar mensagem para/ }).first().click();
   const whatsAppDialog = page.getByRole("dialog", { name: "Mensagem pelo WhatsApp" });
   await expect(whatsAppDialog.getByLabel("Mensagem")).toHaveValue(/faltou|faltas/i);

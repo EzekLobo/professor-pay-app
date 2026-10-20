@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { MessageCircle, RefreshCw } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
@@ -12,6 +12,7 @@ import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
+import { isActiveKodlandStudent } from "@/lib/student-ranking";
 import { whatsappUrl } from "@/lib/whatsapp";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
@@ -27,6 +28,13 @@ type AttendanceStudentHistory = {
   name: string;
   student?: KodlandStudent;
   records: KodlandAttendance[];
+};
+type AttendanceColumn = {
+  key: string;
+  module: string;
+  lesson: string;
+  date: string;
+  moduleStart: boolean;
 };
 type WhatsAppDraft = { studentName: string; phone: string; message: string };
 const lessonLabel = (review: KodlandReview) =>
@@ -67,8 +75,13 @@ const attendanceDateLabel = (value: string) => {
   return year && month && day ? `${day}/${month}/${year}` : value;
 };
 const attendanceSortKey = (item: KodlandAttendance) => `${item.lesson_date || "0000-00-00"} ${item.start_time || "00:00"} ${item.lesson_title}`;
-const attendanceLessonLabel = (item: KodlandAttendance) =>
-  item.lesson_title.match(/M\d+(?:\s*[.·-]\s*)?L\d+/i)?.[0].replace(/\s+/g, "") || item.lesson_title || "Aula";
+const attendanceColumnKey = (item: KodlandAttendance) => item.lesson_id || `${item.lesson_date}:${item.lesson_title}`;
+const attendanceLessonParts = (item: KodlandAttendance) => {
+  const moduleLesson = item.lesson_title.match(/M(\d+)(?:\s*[.·-]\s*)?L(\d+)/i);
+  if (moduleLesson) return { module: `M${moduleLesson[1]}`, lesson: `L${moduleLesson[2]}` };
+  const lesson = item.lesson_title.match(/(?:Aula|Lesson)\s*(\d+)/i)?.[1];
+  return { module: "", lesson: lesson ? `L${lesson}` : "Aula" };
+};
 const attendanceMessage = (history: AttendanceStudentHistory) => {
   const absences = history.records.filter((item) => item.status === "ABSENT");
   const latestAbsence = absences.at(-1);
@@ -95,59 +108,76 @@ function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo
   );
 }
 
-function AttendanceStudentRow({
-  history,
+function AttendanceClassGrid({
+  histories,
   classOpen,
   onWhatsApp,
 }: {
-  history: AttendanceStudentHistory;
+  histories: AttendanceStudentHistory[];
   classOpen: boolean;
   onWhatsApp: (draft: WhatsAppDraft) => void;
 }) {
-  const historyRef = useRef<HTMLDivElement>(null);
-  const phone = history.student?.guardian_phone || history.student?.phone || "";
-  const absenceCount = history.records.filter((item) => item.status === "ABSENT").length;
+  const gridRef = useRef<HTMLDivElement>(null);
+  const columns = useMemo(() => {
+    const samples = new Map<string, KodlandAttendance>();
+    for (const history of histories) {
+      for (const item of history.records) samples.set(attendanceColumnKey(item), item);
+    }
+    const orderedColumns = [...samples.values()]
+      .sort((first, second) => attendanceSortKey(first).localeCompare(attendanceSortKey(second), "pt-BR"))
+      .map((item) => {
+        const parts = attendanceLessonParts(item);
+        return { key: attendanceColumnKey(item), module: parts.module, lesson: parts.lesson, date: item.lesson_date };
+      });
+    return orderedColumns.map((column, index): AttendanceColumn => ({
+      ...column,
+      moduleStart: Boolean(column.module && column.module !== orderedColumns[index - 1]?.module),
+    }));
+  }, [histories]);
+  const gridStyle = { "--attendance-columns": columns.length } as CSSProperties;
 
   useEffect(() => {
     if (!classOpen) return;
     const frame = window.requestAnimationFrame(() => {
-      const element = historyRef.current;
+      const element = gridRef.current;
       if (element) element.scrollLeft = element.scrollWidth;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [classOpen, history.records.length]);
+  }, [classOpen, columns.length]);
 
   return (
-    <article className="attendance-student-row">
-      <div className="attendance-student-summary">
-        <div className="attendance-student-copy">
-          <h4>{history.name}</h4>
-          {history.student?.email && <span>{history.student.email}</span>}
-          <small>{history.records.length} aula{history.records.length === 1 ? "" : "s"} · {absenceCount} falta{absenceCount === 1 ? "" : "s"}</small>
-        </div>
-        <button
-          className="attendance-whatsapp-button"
-          type="button"
-          aria-label={`Preparar mensagem para ${history.name} no WhatsApp`}
-          title={phone ? "Preparar mensagem no WhatsApp" : "Telefone não cadastrado"}
-          disabled={!phone}
-          onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history) })}
-        >
-          <MessageCircle size={20} aria-hidden="true" />
-        </button>
-      </div>
-      <div className="attendance-history" ref={historyRef} tabIndex={0} aria-label={`Histórico de presença de ${history.name}`}>
-        {history.records.map((item, index) => <div
-          className={`attendance-history-item attendance-status-${item.status.toLowerCase()}${index === history.records.length - 1 ? " is-latest" : ""}`}
-          key={item.id}
-          title={`${item.lesson_title || "Aula"} · ${attendanceDateLabel(item.lesson_date)} · ${attendanceStatusLabel(item.status)}`}
-        >
-          <span>{attendanceLessonLabel(item)}</span>
-          <strong>{attendanceStatusLabel(item.status)}</strong>
-          <small>{attendanceDateLabel(item.lesson_date)}</small>
+    <div className="attendance-grid-scroll" ref={gridRef} tabIndex={0} aria-label="Grade de histórico de presença">
+      <div className="attendance-grid-header" style={gridStyle} role="row">
+        <div className="attendance-grid-corner" role="columnheader">Aluno</div>
+        {columns.map((column) => <div className={`attendance-column-heading${column.moduleStart ? " attendance-module-start" : ""}`} role="columnheader" key={column.key}>
+          <strong>{column.moduleStart ? column.module : "\u00a0"}</strong>
+          <span>{column.lesson}</span>
+          <small>{attendanceDateLabel(column.date).slice(0, 5)}</small>
         </div>)}
       </div>
-    </article>
+      {histories.map((history) => {
+        const phone = history.student?.guardian_phone || history.student?.phone || "";
+        const recordsByColumn = new Map(history.records.map((item) => [attendanceColumnKey(item), item]));
+        return <div className="attendance-grid-row" style={gridStyle} role="row" key={history.id}>
+          <div className="attendance-student-summary" role="rowheader">
+            <div className="attendance-student-copy"><h4>{history.name}</h4>{history.student?.email && <span>{history.student.email}</span>}</div>
+            <button className="attendance-whatsapp-button" type="button" aria-label={`Preparar mensagem para ${history.name} no WhatsApp`} title={phone ? "Preparar mensagem no WhatsApp" : "Telefone não cadastrado"} disabled={!phone} onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history) })}>
+              <MessageCircle size={18} aria-hidden="true" />
+            </button>
+          </div>
+          {columns.map((column) => {
+            const item = recordsByColumn.get(column.key);
+            return <div
+              className={`attendance-grid-status${item ? ` attendance-status-${item.status.toLowerCase()}` : " attendance-status-empty"}${column.moduleStart ? " attendance-module-start" : ""}`}
+              role="cell"
+              aria-label={item ? attendanceStatusLabel(item.status) : "Sem registro"}
+              key={column.key}
+              title={item ? `${item.lesson_title || "Aula"} · ${attendanceDateLabel(item.lesson_date)} · ${attendanceStatusLabel(item.status)}` : "Sem registro"}
+            />;
+          })}
+        </div>;
+      })}
+    </div>
   );
 }
 
@@ -334,7 +364,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
         || (attendanceFilter === "ABSENT" && history.records.some((item) => item.status === "ABSENT"))
         || (attendanceFilter === "PRESENT" && history.records.some((item) => item.status === "PRESENT"));
       const matchesQuery = !normalized || `${history.name} ${history.student?.email ?? ""} ${history.records.map((item) => `${item.external_class_name} ${item.lesson_title}`).join(" ")}`.toLowerCase().includes(normalized);
-      return matchesFilter && matchesQuery;
+      return isActiveKodlandStudent(history.student?.status) && matchesFilter && matchesQuery;
     });
   }, [attendance, attendanceFilter, attendanceStudents, query]);
   const attendanceByClass = useMemo(() => groupBy(attendanceHistories, (history) => history.records[0]?.external_class_name || "Turma não informada"), [attendanceHistories]);
@@ -407,6 +437,15 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
             <button className={attendanceFilter === value ? "correction-filter active" : "correction-filter"} type="button" key={value} aria-pressed={attendanceFilter === value} onClick={() => setAttendanceFilter(value)}>{label}</button>
           ))}
         </div>
+        <div className="attendance-legend" aria-label="Legenda das cores de presença">
+          {([
+            ["present", "Presente"],
+            ["absent", "Falta sem justificativa"],
+            ["excused", "Falta justificada"],
+            ["late", "Atraso"],
+            ["unknown", "Sem confirmação"],
+          ] as const).map(([status, label]) => <span key={status}><i className={`attendance-legend-swatch attendance-status-${status}`} aria-hidden="true" />{label}</span>)}
+        </div>
         {loading ? <p className="muted">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro. Atualize a sincronização da Kodland.</p> : <div className="correction-class-list attendance-list">
           {attendanceByClass.map(([className, histories]) => <details
             className="correction-class-group attendance-class-group"
@@ -422,7 +461,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
             }}
           >
             <summary className="correction-class-heading"><div><h3>{className}</h3><span>{histories.length} aluno{histories.length === 1 ? "" : "s"}</span></div><span className="correction-disclosure" aria-hidden="true">⌄</span></summary>
-            <div className="correction-class-body attendance-class-body">{histories.map((history) => <AttendanceStudentRow key={history.id} history={history} classOpen={openAttendanceClasses.has(className)} onWhatsApp={setWhatsAppDraft} />)}</div>
+            <div className="correction-class-body attendance-class-body"><AttendanceClassGrid histories={histories} classOpen={openAttendanceClasses.has(className)} onWhatsApp={setWhatsAppDraft} /></div>
           </details>)}
         </div>}
         </> : <>

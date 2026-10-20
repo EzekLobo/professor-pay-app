@@ -16,6 +16,9 @@
   padrão da Kodland limita a lista a 30 aulas, embora o cronograma oficial da
   turma possa conter todas as 40 aulas do curso. Se a Kodland ignorar a página
   seguinte e repetir o mesmo conteúdo, a coleta para imediatamente.
+- Algumas respostas colocam a primeira lista em `results` e o cronograma
+  completo em `data.schedule`. O parser deve coletar listas conhecidas em
+  todos os níveis relevantes, sem retornar ao encontrar a primeira delas.
 
 ## R15 — Turmas próprias e demo local
 

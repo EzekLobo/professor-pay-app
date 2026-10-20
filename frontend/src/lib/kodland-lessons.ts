@@ -129,14 +129,27 @@ const lists = (value: unknown): unknown[] => {
   );
 };
 const lessonItems = (value: unknown, depth = 0): unknown[] => {
-  const direct = lists(value);
-  if (direct.length) return direct.flatMap((item) => Array.isArray(item) ? lessonItems(item, depth + 1) : [item]);
+  if (Array.isArray(value)) {
+    return value.flatMap((item) =>
+      Array.isArray(item) ? lessonItems(item, depth + 1) : [item],
+    );
+  }
   if (depth >= 3 || !value || typeof value !== "object") return [];
-  return Object.values(objectValue(value)).flatMap((item) =>
-    Array.isArray(item) || (item && typeof item === "object")
+  const direct = lists(value);
+  // A group response may expose the first page in `results` and the full
+  // official calendar inside a nested `data.schedule`. Keep both instead of
+  // returning as soon as the first list is found.
+  const nested = Object.values(objectValue(value)).flatMap((item) =>
+    item && typeof item === "object" && !Array.isArray(item)
       ? lessonItems(item, depth + 1)
       : [],
   );
+  return [
+    ...direct.flatMap((item) =>
+      Array.isArray(item) ? lessonItems(item, depth + 1) : [item],
+    ),
+    ...nested,
+  ];
 };
 
 const aliases = (values: string[]) =>

@@ -150,13 +150,15 @@ describe("enrichKodlandLessons", () => {
         date: "2026-10-05",
         start_time: "19:00",
       }],
-      schedule: [{
-        id: "calendar-event-30",
-        lesson: "M8.L2",
-        lesson_number: 30,
-        date: "2026-10-19",
-        start_time: "19:00",
-      }],
+      data: {
+        schedule: [{
+          id: "calendar-event-30",
+          lesson: "M8.L2",
+          lesson_number: 30,
+          date: "2026-10-19",
+          start_time: "19:00",
+        }],
+      },
     }, { external_id: "61918", title: "PRM_BRA1919_SEG-19" }, "schedule");
 
     expect(scheduled.map((item) => [item.schedule_code, item.lesson_date])).toEqual([

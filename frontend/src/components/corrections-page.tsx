@@ -421,12 +421,12 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
       <section className="panel corrections-panel">
         <div className="section-heading corrections-heading">
           <div className="correction-heading-summary">
-            <h2>{viewMode === "attendance" ? "Lista de presença" : "Atividades entregues"}</h2>
-            <span className="correction-result-count">{viewMode === "attendance" ? `${attendanceHistories.length} aluno${attendanceHistories.length === 1 ? "" : "s"}` : `${visibleReviews.length + visibleOwn.length} de ${reviews.length + pendingOwn.length} pendentes`}</span>
+            <h2>{viewMode === "attendance" ? "Lista de presença" : "Atividades"}</h2>
+            {viewMode === "attendance" && <span className="correction-result-count">{attendanceHistories.length} aluno{attendanceHistories.length === 1 ? "" : "s"}</span>}
           </div>
           <div className="correction-view-switch" role="tablist" aria-label="Tipo de acompanhamento">
-            <button type="button" role="tab" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>Presença</button>
             <button type="button" role="tab" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>Atividades</button>
+            <button type="button" role="tab" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>Presença</button>
           </div>
           <div className="correction-heading-actions">
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />

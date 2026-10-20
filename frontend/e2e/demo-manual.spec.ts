@@ -51,7 +51,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
 
   await page.getByRole("link", { name: "Acompanhamento" }).click();
   await expect(page.getByRole("heading", { name: "Acompanhamento" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Atividades entregues" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Atividades" })).toBeVisible();
   await page.getByRole("tab", { name: "Presença" }).click();
   await expect(page.getByRole("heading", { name: "Lista de presença" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Alunos que faltaram" })).toHaveAttribute("aria-pressed", "true");
@@ -70,7 +70,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await expect(whatsAppDialog.getByRole("link", { name: "Enviar no WhatsApp" })).toHaveAttribute("href", /Mensagem%20revisada%20pelo%20professor/);
   await whatsAppDialog.getByRole("button", { name: "Cancelar" }).click();
   await page.getByRole("tab", { name: "Atividades" }).click();
-  await expect(page.getByRole("heading", { name: "Atividades entregues" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Atividades" })).toBeVisible();
 
   await page.getByRole("link", { name: "Aulas" }).click();
   const courses = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Cursos" }) });

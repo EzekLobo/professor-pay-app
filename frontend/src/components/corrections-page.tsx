@@ -421,14 +421,26 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
       <section className="panel corrections-panel">
         <div className="section-heading corrections-heading">
           <div className="correction-heading-summary">
-            <h2>{viewMode === "attendance" ? "Lista de presença" : "Atividades"}</h2>
-            {viewMode === "attendance" && <span className="correction-result-count">{attendanceHistories.length} aluno{attendanceHistories.length === 1 ? "" : "s"}</span>}
+            <h2>{viewMode === "attendance" ? "Presença" : "Atividades"}</h2>
           </div>
           <div className="correction-view-switch" role="tablist" aria-label="Tipo de acompanhamento">
             <button type="button" role="tab" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>Atividades</button>
             <button type="button" role="tab" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>Presença</button>
           </div>
           <div className="correction-heading-actions">
+            {viewMode === "attendance" ? (
+              <select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>
+                <option value="ABSENT">Faltaram</option>
+                <option value="ALL">Todos</option>
+                <option value="PRESENT">Presentes</option>
+              </select>
+            ) : (
+              <select className="input correction-header-select" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}>
+                <option value="class">Por turma</option>
+                <option value="student">Por aluno</option>
+                <option value="lesson">Por aula</option>
+              </select>
+            )}
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
             {(demo || hasKodlandGroups) && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}>
               <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
@@ -436,12 +448,6 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
           </div>
         </div>
         {viewMode === "attendance" ? <>
-        <div className="correction-filters attendance-filters" role="group" aria-label="Filtrar presença">
-          <span>Mostrar</span>
-          {([ ["ABSENT", "Alunos que faltaram"], ["ALL", "Todos"], ["PRESENT", "Presentes"] ] as const).map(([value, label]) => (
-            <button className={attendanceFilter === value ? "correction-filter active" : "correction-filter"} type="button" key={value} aria-pressed={attendanceFilter === value} onClick={() => setAttendanceFilter(value)}>{label}</button>
-          ))}
-        </div>
         <div className="attendance-legend" aria-label="Legenda das cores de presença">
           {([
             ["present", "Presente"],
@@ -470,24 +476,6 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
           </details>)}
         </div>}
         </> : <>
-        <div className="correction-filters" data-tour="corrections-filters" role="group" aria-label="Organizar correções">
-          <span>Organizar por</span>
-          {([
-            ["class", "Turmas"],
-            ["student", "Alunos"],
-            ["lesson", "Aulas"],
-          ] as const).map(([value, label]) => (
-            <button
-              className={grouping === value ? "correction-filter active" : "correction-filter"}
-              type="button"
-              key={value}
-              aria-pressed={grouping === value}
-              onClick={() => setGrouping(value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
         {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted">Sem pendências para os filtros atuais.</p> : <div className="correction-class-list" data-tour="corrections-cards">
           {ownByClass.map(([className, classActivities]) => {
             const ownGroups = grouping === "class" ? [] : groupBy(classActivities, (item) => grouping === "student"

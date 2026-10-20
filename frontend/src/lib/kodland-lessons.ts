@@ -533,9 +533,12 @@ export function mergeKodlandLessons(
   lessonsPayload: unknown,
   group: { external_id: string; title: string },
 ): KodlandLesson[] {
+  // The group lesson list may carry an out-of-date recurring date after a
+  // skipped or rescheduled class. Merge it first, then let the official
+  // calendar overwrite occurrence data (date, time and recording).
   const values = [
-    ...parseKodlandLessonsPayload(schedulePayload, group, "schedule"),
     ...parseKodlandLessonsPayload(lessonsPayload, group, "lessons"),
+    ...parseKodlandLessonsPayload(schedulePayload, group, "schedule"),
   ];
   const merged = new Map<string, KodlandLesson>();
   for (const lesson of values) {

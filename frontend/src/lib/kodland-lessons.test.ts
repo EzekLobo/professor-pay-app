@@ -194,4 +194,31 @@ describe("enrichKodlandLessons", () => {
       { id: "20851", lesson_number: 3, course_index: 31, title: "M8.L3 O Chão é Lava. Lobby", materials: [], homework: [] },
     ])?.id).toBe("20850");
   });
+
+  it("uses the calendar date when the group lesson list still has a stale recurrence", () => {
+    const [merged] = mergeKodlandLessons(
+      [{
+        id: "calendar-event-30",
+        lesson: "M8.L2",
+        lesson_number: 30,
+        date: "2026-10-19",
+        start_time: "19:00",
+        recording_url: "https://recordings.example/m8l2",
+      }],
+      [{
+        id: "calendar-event-30",
+        lesson_number: 30,
+        date: "2026-10-12",
+        start_time: "19:00",
+      }],
+      { external_id: "61918", title: "PRM_BRA1919_SEG-19" },
+    );
+
+    expect(merged).toMatchObject({
+      lesson_date: "2026-10-19",
+      start_time: "19:00",
+      schedule_code: "M8L2",
+      recording_url: "https://recordings.example/m8l2",
+    });
+  });
 });

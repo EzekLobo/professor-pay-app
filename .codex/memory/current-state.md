@@ -9,6 +9,9 @@
 - O parser da agenda preserva todas as listas de ocorrências devolvidas pela
   Kodland; não pode escolher uma lista curta (`items`) e ignorar `schedule`,
   que contém o cronograma completo.
+- Quando a lista geral da turma divergir do calendário (por exemplo, após uma
+  aula pulada), o calendário deve prevalecer no merge para data, horário e
+  gravação da ocorrência.
 
 ## R15 — Turmas próprias e demo local
 

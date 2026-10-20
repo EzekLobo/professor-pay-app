@@ -57,10 +57,11 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await expect(attendanceClass).not.toHaveAttribute("open", "");
   await attendanceClass.locator("summary").click();
   await expect(page.getByLabel("Legenda das cores de presença").getByText("Falta sem justificativa")).toBeVisible();
-  await expect(attendanceClass.getByRole("cell", { name: "Falta sem justificativa", exact: true }).first()).toBeVisible();
-  await attendanceClass.getByRole("button", { name: /Preparar mensagem para/ }).first().click();
+  const absence = attendanceClass.getByRole("button", { name: /Preparar mensagem sobre/ }).first();
+  await expect(absence).toBeVisible();
+  await absence.click();
   const whatsAppDialog = page.getByRole("dialog", { name: "Mensagem pelo WhatsApp" });
-  await expect(whatsAppDialog.getByLabel("Mensagem")).toHaveValue(/faltou|faltas/i);
+  await expect(whatsAppDialog.getByLabel("Mensagem")).toHaveValue(/Sentimos sua falta.*aula M\d+L\d+.*aula gravada.*video\.example\.test/is);
   await whatsAppDialog.getByLabel("Mensagem").fill("Mensagem revisada pelo professor.");
   await expect(whatsAppDialog.getByRole("link", { name: "Enviar no WhatsApp" })).toHaveAttribute("href", /Mensagem%20revisada%20pelo%20professor/);
   await whatsAppDialog.getByRole("button", { name: "Cancelar" }).click();

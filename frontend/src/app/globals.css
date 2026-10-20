@@ -2425,43 +2425,44 @@ select:focus-visible {
 .attendance-class-body { display: grid; min-width: 0; gap: 0; padding: 0; }
 .attendance-grid-scroll { min-width: 0; overflow-x: auto; scroll-behavior: smooth; scrollbar-color: #37628f #0a182c; scrollbar-width: thin; }
 .attendance-grid-scroll:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.attendance-grid-header, .attendance-grid-row { display: grid; grid-template-columns: 200px repeat(var(--attendance-columns), 106px); width: max-content; min-width: 100%; column-gap: 6px; padding-right: 10px; background: rgba(10, 24, 44, .42); }
-.attendance-grid-header { position: sticky; top: 0; z-index: 4; min-height: 52px; border-bottom: 1px solid rgba(65, 91, 128, .72); background: #0d1d34; }
-.attendance-grid-row { min-height: 50px; border-bottom: 1px solid rgba(65, 91, 128, .48); }
+.attendance-grid-header, .attendance-grid-row { display: grid; grid-template-columns: 180px repeat(var(--attendance-columns), 98px); width: max-content; min-width: 100%; column-gap: 6px; padding-right: 10px; background: rgba(10, 24, 44, .42); }
+.attendance-grid-header { position: sticky; top: 0; z-index: 4; min-height: 44px; border-bottom: 1px solid rgba(65, 91, 128, .72); background: #0d1d34; }
+.attendance-grid-row { min-height: 44px; border-bottom: 1px solid rgba(65, 91, 128, .48); }
 .attendance-grid-row:last-child { border-bottom: 0; }
 .attendance-grid-corner, .attendance-student-summary { position: sticky; left: 0; z-index: 3; border-right: 1px solid rgba(65, 91, 128, .65); background: #0d1d34; }
 .attendance-grid-corner { display: flex; align-items: flex-end; padding: 9px 12px; color: #7f9abd; font-size: .7rem; font-weight: 850; text-transform: uppercase; }
-.attendance-student-summary { display: flex; align-items: center; justify-content: space-between; min-width: 0; gap: 8px; padding: 7px 10px 7px 12px; }
+.attendance-student-summary { display: flex; min-width: 0; align-items: center; padding: 6px 10px 6px 12px; }
 .attendance-student-copy { display: grid; min-width: 0; gap: 3px; }
 .attendance-student-copy h4 { overflow: hidden; margin: 0; color: #edf5ff; font-size: .84rem; text-overflow: ellipsis; white-space: nowrap; }
 .attendance-student-copy span { overflow: hidden; color: var(--muted, #9db4d5); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
-.attendance-whatsapp-button { display: inline-grid; flex: 0 0 32px; width: 32px; height: 32px; border: 1px solid rgba(43, 201, 109, .55); border-radius: 9px; padding: 0; place-items: center; background: rgba(20, 145, 70, .16); color: #45d27c; cursor: pointer; }
-.attendance-whatsapp-button:hover, .attendance-whatsapp-button:focus-visible { border-color: #45d27c; background: rgba(20, 145, 70, .28); color: #76eea4; }
-.attendance-whatsapp-button:disabled { border-color: rgba(120, 147, 183, .24); background: rgba(120, 147, 183, .08); color: #627895; cursor: not-allowed; opacity: .72; }
 .attendance-column-heading { display: grid; min-width: 0; align-content: center; justify-items: center; gap: 0; padding: 4px 5px 5px; color: #b7c9df; text-align: center; }
-.attendance-column-heading strong { min-height: 15px; color: #e4effc; font-size: .76rem; line-height: 1; }
-.attendance-column-heading span { font-size: .7rem; font-weight: 850; line-height: 1.2; }
+.attendance-column-heading strong { color: #edf6ff; font-size: .78rem; line-height: 1.1; }
 .attendance-column-heading small { color: #7893b7; font-size: .62rem; font-weight: 750; }
-.attendance-grid-status { display: block; min-width: 0; align-self: center; min-height: 30px; border: 1px solid transparent; border-radius: 8px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); cursor: help; }
+.attendance-grid-status { display: block; min-width: 0; align-self: center; min-height: 28px; border: 1px solid transparent; border-radius: 8px; padding: 0; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14); cursor: help; }
 .attendance-module-start { margin-left: 10px; }
 .attendance-column-heading.attendance-module-start, .attendance-grid-status.attendance-module-start { position: relative; }
 .attendance-column-heading.attendance-module-start::before, .attendance-grid-status.attendance-module-start::before { position: absolute; top: 5px; bottom: 5px; left: -9px; width: 1px; background: rgba(112, 145, 187, .5); content: ""; }
-.attendance-status-present { background: #218b52; }
-.attendance-status-absent { background: #b4233f; }
-.attendance-status-excused { background: #a66d08; }
-.attendance-status-late { background: #b35316; }
-.attendance-status-unknown { background: #415778; }
+.attendance-status-present { background: #22c55e; }
+.attendance-status-absent { background: #ef3340; }
+.attendance-status-excused { background: #f6b800; }
+.attendance-status-late { background: #ff7a1a; }
+.attendance-status-unknown { background: #5274ad; }
 .attendance-status-empty { border-color: rgba(65, 91, 128, .38); background: rgba(65, 91, 128, .12); color: #6d84a3; box-shadow: none; }
+.attendance-absence-action { cursor: pointer; transition: filter .15s ease, transform .15s ease; }
+.attendance-absence-action:hover, .attendance-absence-action:focus-visible { filter: brightness(1.18); outline: 2px solid #ffd7db; outline-offset: 1px; transform: translateY(-1px); }
+.attendance-absence-action:disabled { cursor: not-allowed; filter: saturate(.65); opacity: .72; transform: none; }
 .attendance-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; color: var(--muted, #9db4d5); font-size: .7rem; font-weight: 750; }
 .attendance-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .attendance-legend-swatch { display: inline-block; width: 13px; height: 13px; flex: 0 0 13px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 4px; }
 .attendance-whatsapp-modal { width: min(620px, calc(100vw - 24px)); }
-.attendance-whatsapp-form { display: grid; gap: 14px; }
+.attendance-whatsapp-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.attendance-whatsapp-form > * { grid-column: 1 / -1; }
 .attendance-whatsapp-form > .muted { margin: 0; }
 .attendance-whatsapp-form .field { display: grid; gap: 7px; }
 .attendance-whatsapp-form textarea { min-height: 150px; resize: vertical; line-height: 1.5; }
+.attendance-whatsapp-form .form-actions { justify-content: flex-end; }
 @media (max-width: 760px) {
-  .attendance-grid-header, .attendance-grid-row { grid-template-columns: 168px repeat(var(--attendance-columns), 98px); }
+  .attendance-grid-header, .attendance-grid-row { grid-template-columns: 150px repeat(var(--attendance-columns), 90px); }
   .attendance-student-summary { padding-left: 9px; }
 }
 @keyframes spin-icon { to { transform: rotate(360deg); } }

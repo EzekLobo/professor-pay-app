@@ -76,21 +76,26 @@ const attendanceDateLabel = (value: string) => {
 };
 const attendanceSortKey = (item: KodlandAttendance) => `${item.lesson_date || "0000-00-00"} ${item.start_time || "00:00"} ${item.lesson_title}`;
 const attendanceColumnKey = (item: KodlandAttendance) => item.lesson_id || `${item.lesson_date}:${item.lesson_title}`;
-const attendanceLessonParts = (item: KodlandAttendance) => {
+const lessonForAttendance = (item: KodlandAttendance, lessons: KodlandLesson[]) => lessons.find((lesson) =>
+  lesson.external_class_id === item.external_class_id && (
+    lesson.id === item.lesson_id
+    || lesson.source_lesson_id === item.lesson_id
+    || Boolean(item.lesson_date && lesson.lesson_date === item.lesson_date && (!item.start_time || lesson.start_time === item.start_time))
+  ));
+const attendanceLessonParts = (item: KodlandAttendance, lessons: KodlandLesson[]) => {
+  const lessonRecord = lessonForAttendance(item, lessons);
+  const moduleNumber = lessonRecord?.module_number?.match(/\d+/)?.[0];
+  if (moduleNumber && lessonRecord?.lesson_number) return { module: `M${moduleNumber}`, lesson: `L${lessonRecord.lesson_number}` };
   const moduleLesson = item.lesson_title.match(/M(\d+)(?:\s*[.·-]\s*)?L(\d+)/i);
   if (moduleLesson) return { module: `M${moduleLesson[1]}`, lesson: `L${moduleLesson[2]}` };
   const lesson = item.lesson_title.match(/(?:Aula|Lesson)\s*(\d+)/i)?.[1];
   return { module: "", lesson: lesson ? `L${lesson}` : "Aula" };
 };
-const attendanceMessage = (history: AttendanceStudentHistory) => {
-  const absences = history.records.filter((item) => item.status === "ABSENT");
-  const latestAbsence = absences.at(-1);
-  if (!latestAbsence) return `Olá, ${history.name}! Estou entrando em contato para conversarmos sobre sua presença nas aulas.`;
-  const recordingUrl = latestAbsence.recording_url?.trim();
-  const absenceSummary = absences.length === 1
-    ? `Notamos que você faltou sem justificativa à aula ${latestAbsence.lesson_title || "da turma"}, em ${attendanceDateLabel(latestAbsence.lesson_date)}.`
-    : `Identificamos ${absences.length} faltas sem justificativa. A mais recente foi na aula ${latestAbsence.lesson_title || "da turma"}, em ${attendanceDateLabel(latestAbsence.lesson_date)}.`;
-  return `Olá, ${history.name}! ${absenceSummary}${recordingUrl ? ` Você pode assistir à gravação aqui: ${recordingUrl}` : " Se precisar do conteúdo da aula, me avise."}`;
+const attendanceMessage = (history: AttendanceStudentHistory, item: KodlandAttendance, lessons: KodlandLesson[]) => {
+  const parts = attendanceLessonParts(item, lessons);
+  const lessonLabel = parts.module ? `${parts.module}${parts.lesson}` : item.lesson_title || parts.lesson;
+  const recordingUrl = item.recording_url?.trim() || "https://learn.kodland.org/";
+  return `Olá, ${history.name}! Sentimos sua falta na aula ${lessonLabel}, em ${attendanceDateLabel(item.lesson_date)}. Aconteceu alguma coisa? Para ficar por dentro do assunto, você pode acessar a aula gravada aqui: ${recordingUrl}. Se precisar de ajuda, me avise.`;
 };
 
 function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo?: CorrectionsDemoAdapter }) {
@@ -110,10 +115,12 @@ function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo
 
 function AttendanceClassGrid({
   histories,
+  lessons,
   classOpen,
   onWhatsApp,
 }: {
   histories: AttendanceStudentHistory[];
+  lessons: KodlandLesson[];
   classOpen: boolean;
   onWhatsApp: (draft: WhatsAppDraft) => void;
 }) {
@@ -126,14 +133,14 @@ function AttendanceClassGrid({
     const orderedColumns = [...samples.values()]
       .sort((first, second) => attendanceSortKey(first).localeCompare(attendanceSortKey(second), "pt-BR"))
       .map((item) => {
-        const parts = attendanceLessonParts(item);
+        const parts = attendanceLessonParts(item, lessons);
         return { key: attendanceColumnKey(item), module: parts.module, lesson: parts.lesson, date: item.lesson_date };
       });
     return orderedColumns.map((column, index): AttendanceColumn => ({
       ...column,
       moduleStart: Boolean(column.module && column.module !== orderedColumns[index - 1]?.module),
     }));
-  }, [histories]);
+  }, [histories, lessons]);
   const gridStyle = { "--attendance-columns": columns.length } as CSSProperties;
 
   useEffect(() => {
@@ -150,8 +157,7 @@ function AttendanceClassGrid({
       <div className="attendance-grid-header" style={gridStyle} role="row">
         <div className="attendance-grid-corner" role="columnheader">Aluno</div>
         {columns.map((column) => <div className={`attendance-column-heading${column.moduleStart ? " attendance-module-start" : ""}`} role="columnheader" key={column.key}>
-          <strong>{column.moduleStart ? column.module : "\u00a0"}</strong>
-          <span>{column.lesson}</span>
+          <strong>{column.module ? `${column.module}${column.lesson}` : column.lesson}</strong>
           <small>{attendanceDateLabel(column.date).slice(0, 5)}</small>
         </div>)}
       </div>
@@ -161,19 +167,21 @@ function AttendanceClassGrid({
         return <div className="attendance-grid-row" style={gridStyle} role="row" key={history.id}>
           <div className="attendance-student-summary" role="rowheader">
             <div className="attendance-student-copy"><h4>{history.name}</h4>{history.student?.email && <span>{history.student.email}</span>}</div>
-            <button className="attendance-whatsapp-button" type="button" aria-label={`Preparar mensagem para ${history.name} no WhatsApp`} title={phone ? "Preparar mensagem no WhatsApp" : "Telefone não cadastrado"} disabled={!phone} onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history) })}>
-              <MessageCircle size={18} aria-hidden="true" />
-            </button>
           </div>
           {columns.map((column) => {
             const item = recordsByColumn.get(column.key);
-            return <div
-              className={`attendance-grid-status${item ? ` attendance-status-${item.status.toLowerCase()}` : " attendance-status-empty"}${column.moduleStart ? " attendance-module-start" : ""}`}
-              role="cell"
-              aria-label={item ? attendanceStatusLabel(item.status) : "Sem registro"}
+            const className = `attendance-grid-status${item ? ` attendance-status-${item.status.toLowerCase()}` : " attendance-status-empty"}${column.moduleStart ? " attendance-module-start" : ""}`;
+            const title = item ? `${item.lesson_title || "Aula"} · ${attendanceDateLabel(item.lesson_date)} · ${attendanceStatusLabel(item.status)}` : "Sem registro";
+            if (item?.status === "ABSENT") return <button
+              className={`${className} attendance-absence-action`}
+              type="button"
+              aria-label={`Preparar mensagem sobre ${column.module ? `${column.module}${column.lesson}` : column.lesson} de ${history.name} no WhatsApp`}
               key={column.key}
-              title={item ? `${item.lesson_title || "Aula"} · ${attendanceDateLabel(item.lesson_date)} · ${attendanceStatusLabel(item.status)}` : "Sem registro"}
+              title={phone ? `${title} · Preparar mensagem` : `${title} · Telefone não cadastrado`}
+              disabled={!phone}
+              onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history, item, lessons) })}
             />;
+            return <div className={className} role="cell" aria-label={item ? attendanceStatusLabel(item.status) : "Sem registro"} key={column.key} title={title} />;
           })}
         </div>;
       })}
@@ -461,7 +469,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
             }}
           >
             <summary className="correction-class-heading"><div><h3>{className}</h3><span>{histories.length} aluno{histories.length === 1 ? "" : "s"}</span></div><span className="correction-disclosure" aria-hidden="true">⌄</span></summary>
-            <div className="correction-class-body attendance-class-body"><AttendanceClassGrid histories={histories} classOpen={openAttendanceClasses.has(className)} onWhatsApp={setWhatsAppDraft} /></div>
+            <div className="correction-class-body attendance-class-body"><AttendanceClassGrid histories={histories} lessons={lessons} classOpen={openAttendanceClasses.has(className)} onWhatsApp={setWhatsAppDraft} /></div>
           </details>)}
         </div>}
         </> : <>

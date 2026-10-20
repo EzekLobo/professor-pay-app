@@ -249,7 +249,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   const attendanceStudents = demo?.students ?? storedStudents;
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
-  const [viewMode, setViewMode] = useState<"attendance" | "activities">("attendance");
+  const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
   const [openAttendanceClasses, setOpenAttendanceClasses] = useState<Set<string>>(() => new Set());
   const [whatsAppDraft, setWhatsAppDraft] = useState<WhatsAppDraft | null>(null);
@@ -431,10 +431,14 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
       <section className="panel corrections-panel">
-        <div className="section-heading">
-          <div>
+        <div className="section-heading corrections-heading">
+          <div className="correction-heading-summary">
             <h2>{viewMode === "attendance" ? "Lista de presença" : "Atividades entregues"}</h2>
             <span className="correction-result-count">{viewMode === "attendance" ? `${attendanceHistories.length} aluno${attendanceHistories.length === 1 ? "" : "s"}` : `${visibleReviews.length + visibleOwn.length} de ${reviews.length + pendingOwn.length} pendentes`}</span>
+          </div>
+          <div className="correction-view-switch" role="tablist" aria-label="Tipo de acompanhamento">
+            <button type="button" role="tab" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>Presença</button>
+            <button type="button" role="tab" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>Atividades</button>
           </div>
           <div className="correction-heading-actions">
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
@@ -442,10 +446,6 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
               <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
             </Button>}
           </div>
-        </div>
-        <div className="correction-view-switch" role="tablist" aria-label="Tipo de acompanhamento">
-          <button type="button" role="tab" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>Presença</button>
-          <button type="button" role="tab" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>Atividades</button>
         </div>
         {viewMode === "attendance" ? <>
         <div className="correction-filters attendance-filters" role="group" aria-label="Filtrar presença">

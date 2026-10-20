@@ -26,7 +26,6 @@ import {
 
 const absoluteUrl = (value: string) =>
   value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
-const moneyText = (cents: number | null | undefined) => cents == null ? "Valor padrão" : `R$ ${(cents / 100).toFixed(2)}/h`;
 const parseMoney = (value: string) => {
   const normalized = value.trim().replace(",", ".");
   if (!normalized) return null;
@@ -68,14 +67,12 @@ export function GroupAccordion({
   group,
   students,
   openByDefault,
-  financeLabel,
   onDelete,
   onRename,
 }: {
   group: KodlandGroup;
   students: KodlandStudent[];
   openByDefault: boolean;
-  financeLabel?: string;
   onDelete?: () => void;
   onRename?: (name: string) => void;
 }) {
@@ -146,9 +143,6 @@ export function GroupAccordion({
               ))}
             </div>
           )}
-          {financeLabel && <div className="class-finance-actions">
-            <span className="muted">{financeLabel}</span>
-          </div>}
         </div>
       </details>
       <Modal
@@ -414,7 +408,6 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
                   (student) => student.external_class_id === group.external_id,
                 )}
                 openByDefault={false}
-                financeLabel={`${moneyText(settingsByGroup[group.external_id]?.rate_history.at(-1)?.hourly_rate_cents)} · Recebimento dia ${settingsByGroup[group.external_id]?.payment_day ?? 15}`}
                 onDelete={() => deleteKodlandGroup(group)}
                 onRename={(name) => renameKodlandGroup(group, name)}
               />

@@ -51,12 +51,16 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
 
   await page.getByRole("link", { name: "Acompanhamento" }).click();
   await expect(page.getByRole("heading", { name: "Acompanhamento" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Atividades entregues" })).toBeVisible();
+  await page.getByRole("tab", { name: "Presença" }).click();
   await expect(page.getByRole("heading", { name: "Lista de presença" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Alunos que faltaram" })).toHaveAttribute("aria-pressed", "true");
   const attendanceClass = page.locator("details.attendance-class-group").first();
   await expect(attendanceClass).not.toHaveAttribute("open", "");
   await attendanceClass.locator("summary").click();
   await expect(page.getByLabel("Legenda das cores de presença").getByText("Falta sem justificativa")).toBeVisible();
+  await expect(attendanceClass.locator(".attendance-column-heading strong").first()).toHaveText(/^\d{2}\/\d{2}$/);
+  await expect(attendanceClass.getByText("Sem data", { exact: true })).toHaveCount(0);
   const absence = attendanceClass.getByRole("button", { name: /Preparar mensagem sobre/ }).first();
   await expect(absence).toBeVisible();
   await absence.click();

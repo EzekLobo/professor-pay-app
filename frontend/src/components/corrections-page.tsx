@@ -6,7 +6,8 @@ import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { Modal } from "@/components/modal";
-import { ApiError, kodlandApi, manualPedagogyApi, manualTeachingApi, type KodlandAttendance, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
+import { ApiError, kodlandApi, manualPedagogyApi, manualTeachingApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
+import { attendanceDateFromSchedule } from "@/lib/attendance-schedule";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
@@ -60,6 +61,7 @@ export interface CorrectionsDemoAdapter {
   onSaveManualActivity?: (activity: ManualActivity) => Promise<ManualActivity>;
   attendance?: KodlandAttendance[];
   students?: KodlandStudent[];
+  groups?: KodlandGroup[];
 }
 
 const attendanceStatusLabel = (status: KodlandAttendance["status"]) => ({
@@ -98,13 +100,16 @@ const attendanceLessonParts = (item: KodlandAttendance, lessons: KodlandLesson[]
   if (moduleNumber && lessonRecord?.lesson_number) return { module: `M${moduleNumber}`, lesson: `L${lessonRecord.lesson_number}` };
   return { module: "", lesson: "Aula" };
 };
-const attendanceLessonDate = (item: KodlandAttendance, lessons: KodlandLesson[]) =>
-  item.lesson_date || lessonForAttendance(item, lessons)?.lesson_date || "";
-const attendanceMessage = (history: AttendanceStudentHistory, item: KodlandAttendance, lessons: KodlandLesson[]) => {
+const attendanceLessonDate = (item: KodlandAttendance, lessons: KodlandLesson[], groups: KodlandGroup[]) => {
+  const lesson = lessonForAttendance(item, lessons);
+  const group = groups.find((candidate) => candidate.external_id === item.external_class_id);
+  return attendanceDateFromSchedule(item, lesson, lessons, group);
+};
+const attendanceMessage = (history: AttendanceStudentHistory, item: KodlandAttendance, lessons: KodlandLesson[], groups: KodlandGroup[]) => {
   const parts = attendanceLessonParts(item, lessons);
   const lessonLabel = parts.module ? `${parts.module}${parts.lesson}` : item.lesson_title || parts.lesson;
   const recordingUrl = item.recording_url?.trim() || "https://learn.kodland.org/";
-  return `Olá, ${history.name}! Sentimos sua falta na aula ${lessonLabel}, em ${attendanceDateLabel(attendanceLessonDate(item, lessons))}. Aconteceu alguma coisa? Para ficar por dentro do assunto, você pode acessar a aula gravada aqui: ${recordingUrl}. Se precisar de ajuda, me avise.`;
+  return `Olá, ${history.name}! Sentimos sua falta na aula ${lessonLabel}, em ${attendanceDateLabel(attendanceLessonDate(item, lessons, groups))}. Aconteceu alguma coisa? Para ficar por dentro do assunto, você pode acessar a aula gravada aqui: ${recordingUrl}. Se precisar de ajuda, me avise.`;
 };
 
 function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo?: CorrectionsDemoAdapter }) {
@@ -125,11 +130,13 @@ function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo
 function AttendanceClassGrid({
   histories,
   lessons,
+  groups,
   classOpen,
   onWhatsApp,
 }: {
   histories: AttendanceStudentHistory[];
   lessons: KodlandLesson[];
+  groups: KodlandGroup[];
   classOpen: boolean;
   onWhatsApp: (draft: WhatsAppDraft) => void;
 }) {
@@ -142,14 +149,14 @@ function AttendanceClassGrid({
     const orderedColumns = [...samples.values()]
       .map((item) => {
         const parts = attendanceLessonParts(item, lessons);
-        return { key: attendanceColumnKey(item), module: parts.module, lesson: parts.lesson, date: attendanceLessonDate(item, lessons), startTime: item.start_time };
+        return { key: attendanceColumnKey(item), module: parts.module, lesson: parts.lesson, date: attendanceLessonDate(item, lessons, groups), startTime: item.start_time };
       })
       .sort((first, second) => `${first.date} ${first.startTime} ${first.module}${first.lesson}`.localeCompare(`${second.date} ${second.startTime} ${second.module}${second.lesson}`, "pt-BR"));
     return orderedColumns.map((column, index): AttendanceColumn => ({
       ...column,
       moduleStart: Boolean(column.module && column.module !== orderedColumns[index - 1]?.module),
     }));
-  }, [histories, lessons]);
+  }, [groups, histories, lessons]);
   const gridStyle = { "--attendance-columns": columns.length } as CSSProperties;
 
   useEffect(() => {
@@ -188,7 +195,7 @@ function AttendanceClassGrid({
               key={column.key}
               title={phone ? `${title} · Preparar mensagem` : `${title} · Telefone não cadastrado`}
               disabled={!phone}
-              onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history, item, lessons) })}
+              onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history, item, lessons, groups) })}
             >{lessonCode}</button>;
             return <div className={className} role="cell" aria-label={item ? `${lessonCode}: ${attendanceStatusLabel(item.status)}` : `${lessonCode}: sem registro`} key={column.key} title={title}>{lessonCode}</div>;
           })}
@@ -243,10 +250,12 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   const [storedLessons, setLessons] = useState<KodlandLesson[]>([]);
   const [storedAttendance, setAttendance] = useState<KodlandAttendance[]>([]);
   const [storedStudents, setStudents] = useState<KodlandStudent[]>([]);
+  const [storedGroups, setGroups] = useState<KodlandGroup[]>([]);
   const reviews = demo?.reviews ?? storedReviews;
   const lessons = demo?.lessons ?? storedLessons;
   const attendance = demo?.attendance ?? storedAttendance;
   const attendanceStudents = demo?.students ?? storedStudents;
+  const groups = demo?.groups ?? storedGroups;
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
   const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
@@ -286,6 +295,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
       setReviews(reviewResult.items);
       setLessons(lessonResult.items);
       setAttendance(attendanceResult.items);
+      setGroups(groupResult.items);
       setHasKodlandGroups(groupResult.items.length > 0);
       setManualActivities(ownActivities);
       setManualClasses(ownClasses);
@@ -478,7 +488,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
             }}
           >
             <summary className="correction-class-heading"><div><h3>{className}</h3><span>{histories.length} aluno{histories.length === 1 ? "" : "s"}</span></div><span className="correction-disclosure" aria-hidden="true">⌄</span></summary>
-            <div className="correction-class-body attendance-class-body"><AttendanceClassGrid histories={histories} lessons={lessons} classOpen={openAttendanceClasses.has(className)} onWhatsApp={setWhatsAppDraft} /></div>
+            <div className="correction-class-body attendance-class-body"><AttendanceClassGrid histories={histories} lessons={lessons} groups={groups} classOpen={openAttendanceClasses.has(className)} onWhatsApp={setWhatsAppDraft} /></div>
           </details>)}
         </div>}
         </> : <>

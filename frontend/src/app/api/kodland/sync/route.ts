@@ -3,6 +3,7 @@ import {
   enrichKodlandLessons,
   matchKodlandCourseLesson,
   mergeKodlandLessons,
+  reconcileKodlandScheduleIndexes,
   type KodlandCourseLesson,
   type KodlandLesson,
 } from "@/lib/kodland-lessons";
@@ -1563,7 +1564,9 @@ async function lessonsForGroup(
     getOptional(`student_groups/${group.external_id}/schedule_view/`, token),
     getOptional(`student_groups/${group.external_id}/lessons/`, token),
   ]);
-  const merged = mergeKodlandLessons(schedule, lessons, group);
+  const merged = reconcileKodlandScheduleIndexes(
+    mergeKodlandLessons(schedule, lessons, group),
+  );
   const catalog = await courseLessons(group.course_id, token, cache);
   const catalogLessons = new Map<string, KodlandLesson>(
     catalog.map((lesson) => [

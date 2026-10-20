@@ -4,6 +4,7 @@ import {
   matchKodlandCourseLesson,
   kodlandLessonLocation,
   parseKodlandLessonsPayload,
+  reconcileKodlandScheduleIndexes,
   type KodlandLesson,
 } from "@/lib/kodland-lessons";
 
@@ -154,5 +155,16 @@ describe("enrichKodlandLessons", () => {
       { id: "20851", lesson_number: 3, course_index: 31, title: "M8.L3 O Chão é Lava. Criando a Contagem", materials: [], homework: [] },
     ]);
     expect(match?.id).toBe("20850");
+  });
+
+  it("does not advance the course index for a national holiday omitted by the official timetable", () => {
+    const corrected = reconcileKodlandScheduleIndexes([
+      { ...lesson, course_index: 29, lesson_number: 29, lesson_date: "2026-10-05" },
+      { ...lesson, id: "20851", course_index: 31, lesson_number: 31, lesson_date: "2026-10-19" },
+      { ...lesson, id: "20852", course_index: 32, lesson_number: 32, lesson_date: "2026-10-26" },
+    ]);
+
+    expect(corrected.map((item) => item.course_index)).toEqual([29, 30, 31]);
+    expect(corrected.map((item) => item.lesson_number)).toEqual([29, 30, 31]);
   });
 });

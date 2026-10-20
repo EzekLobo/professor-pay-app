@@ -551,6 +551,36 @@ async function getOptional(path: string, token: string) {
 }
 
 /**
+ * The group endpoints commonly return their first 30 entries. Fetch following
+ * pages as well, while stopping if the provider ignores pagination and repeats
+ * the same payload. This keeps the calendar complete without an unbounded
+ * request fan-out.
+ */
+async function completeGroupTimeline(path: string, token: string) {
+  const first = await getOptional(`${path}?page=1&page_size=100`, token)
+    ?? await getOptional(path, token);
+  if (first === null) return null;
+
+  const entries = [...list(first)];
+  const seen = new Set(entries.map((item) => JSON.stringify(item)));
+  for (let page = 2; page <= 10; page += 1) {
+    const payload = await getOptional(`${path}?page=${page}&page_size=100`, token);
+    if (payload === null) break;
+    const next = list(payload);
+    const newEntries = next.filter((item) => {
+      const identity = JSON.stringify(item);
+      if (seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    });
+    if (!newEntries.length) break;
+    entries.push(...newEntries);
+    if (next.length < 100) break;
+  }
+  return entries;
+}
+
+/**
  * The teacher and student schedules describe when an extra was booked, but
  * the actual Zoom recording is exposed by a separate read-only Kodland
  * service, keyed by the booking. `null` means the lookup failed; `false`
@@ -1560,12 +1590,11 @@ async function lessonsForGroup(
   cache: CourseLessonCache,
 ): Promise<KodlandLesson[]> {
   // Kodland's lesson endpoints paginate at 30 entries by default. A group can
-  // have a longer timeline (the current group has 40), so request a page that
-  // contains the complete calendar before reconciling attendance.
-  const page = "?page=1&page_size=100";
+  // have a longer timeline (the current group has 40), so collect every page
+  // before reconciling attendance.
   const [schedule, lessons] = await Promise.all([
-    getOptional(`student_groups/${group.external_id}/schedule_view/${page}`, token),
-    getOptional(`student_groups/${group.external_id}/lessons/${page}`, token),
+    completeGroupTimeline(`student_groups/${group.external_id}/schedule_view/`, token),
+    completeGroupTimeline(`student_groups/${group.external_id}/lessons/`, token),
   ]);
   const merged = mergeKodlandLessons(schedule, lessons, group);
   const catalog = await courseLessons(group.course_id, token, cache);

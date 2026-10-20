@@ -1559,9 +1559,13 @@ async function lessonsForGroup(
   token: string,
   cache: CourseLessonCache,
 ): Promise<KodlandLesson[]> {
+  // Kodland's lesson endpoints paginate at 30 entries by default. A group can
+  // have a longer timeline (the current group has 40), so request a page that
+  // contains the complete calendar before reconciling attendance.
+  const page = "?page=1&page_size=100";
   const [schedule, lessons] = await Promise.all([
-    getOptional(`student_groups/${group.external_id}/schedule_view/`, token),
-    getOptional(`student_groups/${group.external_id}/lessons/`, token),
+    getOptional(`student_groups/${group.external_id}/schedule_view/${page}`, token),
+    getOptional(`student_groups/${group.external_id}/lessons/${page}`, token),
   ]);
   const merged = mergeKodlandLessons(schedule, lessons, group);
   const catalog = await courseLessons(group.course_id, token, cache);

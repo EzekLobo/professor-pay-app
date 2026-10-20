@@ -12,6 +12,9 @@
 - Quando a lista geral da turma divergir do calendário (por exemplo, após uma
   aula pulada), o calendário deve prevalecer no merge para data, horário e
   gravação da ocorrência.
+- A agenda por turma deve solicitar até 100 ocorrências: a resposta padrão da
+  Kodland limita a lista a 30 aulas, embora o cronograma oficial da turma
+  possa conter todas as 40 aulas do curso.
 
 ## R15 — Turmas próprias e demo local
 

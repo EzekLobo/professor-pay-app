@@ -127,9 +127,10 @@ function AttendanceClassGrid({
   const gridRef = useRef<HTMLDivElement>(null);
   const columns = (() => {
     const classId = histories[0]?.records[0]?.external_class_id;
-    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
     const scheduled = lessons
-      .filter((lesson) => lesson.external_class_id === classId && Boolean(lesson.lesson_date) && (lesson.lesson_passed || lesson.lesson_date.slice(0, 10) <= today))
+      // The schedule is the full class timeline. Attendance fills a status
+      // where Kodland has one; it must not hide planned calendar lessons.
+      .filter((lesson) => lesson.external_class_id === classId && Boolean(lesson.lesson_date))
       .sort((first, second) => `${first.lesson_date} ${first.start_time}`.localeCompare(`${second.lesson_date} ${second.start_time}`, "pt-BR"));
     if (scheduled.length) {
       return scheduled.map((lesson, index): AttendanceColumn => {

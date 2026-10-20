@@ -353,16 +353,19 @@ export function parseKodlandLessonsPayload(
           ? item.lesson
           : undefined),
     );
-    // The schedule displays a global course index such as M7L28. Prefer that
-    // explicit code for schedule events; course-catalog rows may instead use
-    // module-local labels (for example M7.L4) alongside a global lesson number.
+    // The schedule can expose its global index in two forms: directly as
+    // `lesson_number` (for example 30) or in a compact code such as M7L28.
+    // A dotted code such as M8.L2 is module-local, so its L2 must never
+    // override the explicit global index 30.
     const lessonNumber =
-      source === "schedule" && lessonCode
+      source === "schedule" && explicitLessonNumber > 0
+        ? explicitLessonNumber
+        : source === "schedule" && lessonCode
         ? number(lessonCode[2])
         : explicitLessonNumber;
     const courseIndex =
       source === "schedule"
-        ? number(lessonCode?.[2]) || explicitLessonNumber
+        ? explicitLessonNumber || number(lessonCode?.[2])
         : 0;
     const moduleNumber = readText(lessonItem, [
       "module_number",

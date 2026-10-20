@@ -104,4 +104,37 @@ describe("enrichKodlandLessons", () => {
     );
     expect(localizedTitle.course_index).toBe(28);
   });
+
+  it("keeps an explicit global index when the schedule code is module-local", () => {
+    const [scheduled] = parseKodlandLessonsPayload(
+      [{
+        id: "calendar-event-30",
+        lesson: "M8.L2",
+        lesson_number: 30,
+        module_number: 8,
+        title: "M8.L2 O Chão é Lava. Funções",
+        date: "2026-10-19",
+        start_time: "19:00",
+      }],
+      { external_id: "61918", title: "PRM_BRA1919_SEG-19" },
+      "schedule",
+    );
+
+    expect(scheduled.course_index).toBe(30);
+    expect(scheduled.lesson_number).toBe(30);
+
+    const [matched] = enrichKodlandLessons(
+      [scheduled],
+      [{
+        id: "20850",
+        lesson_number: 2,
+        course_index: 30,
+        title: "M8.L2 O Chão é Lava. Funções",
+        materials: [], homework: [], classroom: [],
+      }],
+      "1192",
+    );
+    expect(kodlandLessonLocation(matched)).toBe("M8L2");
+    expect(matched.external_url).toContain("lessonId=20850");
+  });
 });

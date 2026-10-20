@@ -53,7 +53,16 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await expect(page.getByRole("heading", { name: "Acompanhamento" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Lista de presença" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Alunos que faltaram" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByText("Faltou").first()).toBeVisible();
+  const attendanceClass = page.locator("details.attendance-class-group").first();
+  await expect(attendanceClass).not.toHaveAttribute("open", "");
+  await attendanceClass.locator("summary").click();
+  await expect(attendanceClass.getByText("Falta sem justificativa").first()).toBeVisible();
+  await attendanceClass.getByRole("button", { name: /Preparar mensagem para/ }).first().click();
+  const whatsAppDialog = page.getByRole("dialog", { name: "Mensagem pelo WhatsApp" });
+  await expect(whatsAppDialog.getByLabel("Mensagem")).toHaveValue(/faltou|faltas/i);
+  await whatsAppDialog.getByLabel("Mensagem").fill("Mensagem revisada pelo professor.");
+  await expect(whatsAppDialog.getByRole("link", { name: "Enviar no WhatsApp" })).toHaveAttribute("href", /Mensagem%20revisada%20pelo%20professor/);
+  await whatsAppDialog.getByRole("button", { name: "Cancelar" }).click();
   await page.getByRole("tab", { name: "Atividades" }).click();
   await expect(page.getByRole("heading", { name: "Atividades entregues" })).toBeVisible();
 

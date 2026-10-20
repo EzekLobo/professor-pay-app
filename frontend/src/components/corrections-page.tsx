@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link2, MessageCircle, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MessageCircle, RefreshCw } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -22,16 +22,13 @@ const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => les
 });
 type ReviewGrouping = "class" | "student" | "lesson";
 type AttendanceFilter = "ABSENT" | "ALL" | "PRESENT";
-const ATTENDANCE_RECORDINGS_KEY = "nexusclass.attendance-recordings";
-const readRecordingDrafts = (): Record<string, string> => {
-  if (typeof window === "undefined") return {};
-  try {
-    const value = JSON.parse(window.localStorage.getItem(ATTENDANCE_RECORDINGS_KEY) ?? "{}");
-    return value && typeof value === "object" && !Array.isArray(value)
-      ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"))
-      : {};
-  } catch { return {}; }
+type AttendanceStudentHistory = {
+  id: string;
+  name: string;
+  student?: KodlandStudent;
+  records: KodlandAttendance[];
 };
+type WhatsAppDraft = { studentName: string; phone: string; message: string };
 const lessonLabel = (review: KodlandReview) =>
   `Aula ${review.lesson_number || "–"}: ${review.lesson_title || "Sem título"}`;
 const groupBy = <T,>(items: T[], keyFor: (item: T) => string) =>
@@ -58,16 +55,29 @@ export interface CorrectionsDemoAdapter {
 }
 
 const attendanceStatusLabel = (status: KodlandAttendance["status"]) => ({
-  ABSENT: "Faltou",
+  ABSENT: "Falta sem justificativa",
   PRESENT: "Presente",
   LATE: "Atrasado",
-  EXCUSED: "Justificado",
+  EXCUSED: "Falta justificada",
   UNKNOWN: "Sem confirmação",
 }[status]);
 const attendanceDateLabel = (value: string) => {
   if (!value) return "Data não informada";
   const [year, month, day] = value.slice(0, 10).split("-");
   return year && month && day ? `${day}/${month}/${year}` : value;
+};
+const attendanceSortKey = (item: KodlandAttendance) => `${item.lesson_date || "0000-00-00"} ${item.start_time || "00:00"} ${item.lesson_title}`;
+const attendanceLessonLabel = (item: KodlandAttendance) =>
+  item.lesson_title.match(/M\d+(?:\s*[.·-]\s*)?L\d+/i)?.[0].replace(/\s+/g, "") || item.lesson_title || "Aula";
+const attendanceMessage = (history: AttendanceStudentHistory) => {
+  const absences = history.records.filter((item) => item.status === "ABSENT");
+  const latestAbsence = absences.at(-1);
+  if (!latestAbsence) return `Olá, ${history.name}! Estou entrando em contato para conversarmos sobre sua presença nas aulas.`;
+  const recordingUrl = latestAbsence.recording_url?.trim();
+  const absenceSummary = absences.length === 1
+    ? `Notamos que você faltou sem justificativa à aula ${latestAbsence.lesson_title || "da turma"}, em ${attendanceDateLabel(latestAbsence.lesson_date)}.`
+    : `Identificamos ${absences.length} faltas sem justificativa. A mais recente foi na aula ${latestAbsence.lesson_title || "da turma"}, em ${attendanceDateLabel(latestAbsence.lesson_date)}.`;
+  return `Olá, ${history.name}! ${absenceSummary}${recordingUrl ? ` Você pode assistir à gravação aqui: ${recordingUrl}` : " Se precisar do conteúdo da aula, me avise."}`;
 };
 
 function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo?: CorrectionsDemoAdapter }) {
@@ -85,38 +95,57 @@ function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo
   );
 }
 
-function AttendanceCard({
-  item,
-  student,
-  recordingUrl,
-  onRecordingUrlChange,
+function AttendanceStudentRow({
+  history,
+  classOpen,
+  onWhatsApp,
 }: {
-  item: KodlandAttendance;
-  student?: KodlandStudent;
-  recordingUrl: string;
-  onRecordingUrlChange: (value: string) => void;
+  history: AttendanceStudentHistory;
+  classOpen: boolean;
+  onWhatsApp: (draft: WhatsAppDraft) => void;
 }) {
-  const phone = student?.guardian_phone || student?.phone || "";
-  const finalRecordingUrl = recordingUrl.trim() || item.recording_url || "";
-  const message = `Olá, ${item.student_name}! Notamos que você faltou à aula ${item.lesson_title || "da turma"} em ${attendanceDateLabel(item.lesson_date)}.${finalRecordingUrl ? ` Você pode assistir à gravação aqui: ${finalRecordingUrl}` : " Se precisar do conteúdo da aula, me avise."}`;
-  const href = phone ? whatsappUrl(phone, message) : "";
+  const historyRef = useRef<HTMLDivElement>(null);
+  const phone = history.student?.guardian_phone || history.student?.phone || "";
+  const absenceCount = history.records.filter((item) => item.status === "ABSENT").length;
+
+  useEffect(() => {
+    if (!classOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      const element = historyRef.current;
+      if (element) element.scrollLeft = element.scrollWidth;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [classOpen, history.records.length]);
+
   return (
-    <article className="entity-card attendance-card">
-      <div className="correction-card-copy">
-        <div className="correction-card-top">
-          <h4>{item.student_name}</h4>
-          <StatusBadge tone={item.status === "ABSENT" ? "warning" : item.status === "PRESENT" ? "success" : "neutral"}>{attendanceStatusLabel(item.status)}</StatusBadge>
+    <article className="attendance-student-row">
+      <div className="attendance-student-summary">
+        <div className="attendance-student-copy">
+          <h4>{history.name}</h4>
+          {history.student?.email && <span>{history.student.email}</span>}
+          <small>{history.records.length} aula{history.records.length === 1 ? "" : "s"} · {absenceCount} falta{absenceCount === 1 ? "" : "s"}</small>
         </div>
-        <p className="correction-card-lesson">{item.lesson_title || "Aula"} · {attendanceDateLabel(item.lesson_date)}{item.start_time ? ` · ${item.start_time}` : ""}</p>
-        <p className="correction-card-task"><span>Turma</span>{item.external_class_name || "Turma não informada"}</p>
+        <button
+          className="attendance-whatsapp-button"
+          type="button"
+          aria-label={`Preparar mensagem para ${history.name} no WhatsApp`}
+          title={phone ? "Preparar mensagem no WhatsApp" : "Telefone não cadastrado"}
+          disabled={!phone}
+          onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history) })}
+        >
+          <MessageCircle size={20} aria-hidden="true" />
+        </button>
       </div>
-      <div className="attendance-card-actions">
-        <label className="attendance-recording-field">
-          <span><Link2 size={14} aria-hidden="true" /> Gravação da aula</span>
-          <input className="input" type="url" placeholder="Cole o link (opcional)" value={recordingUrl || item.recording_url} onChange={(event) => onRecordingUrlChange(event.target.value)} />
-        </label>
-        {finalRecordingUrl && <a className="button button-ghost button-small" href={finalRecordingUrl} target="_blank" rel="noreferrer">Abrir gravação</a>}
-        {href ? <a className="button button-primary button-small" href={href} target="_blank" rel="noreferrer"><MessageCircle size={15} aria-hidden="true" /> Avisar no WhatsApp</a> : <span className="muted attendance-no-phone">Sem telefone cadastrado</span>}
+      <div className="attendance-history" ref={historyRef} tabIndex={0} aria-label={`Histórico de presença de ${history.name}`}>
+        {history.records.map((item, index) => <div
+          className={`attendance-history-item attendance-status-${item.status.toLowerCase()}${index === history.records.length - 1 ? " is-latest" : ""}`}
+          key={item.id}
+          title={`${item.lesson_title || "Aula"} · ${attendanceDateLabel(item.lesson_date)} · ${attendanceStatusLabel(item.status)}`}
+        >
+          <span>{attendanceLessonLabel(item)}</span>
+          <strong>{attendanceStatusLabel(item.status)}</strong>
+          <small>{attendanceDateLabel(item.lesson_date)}</small>
+        </div>)}
       </div>
     </article>
   );
@@ -175,7 +204,8 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
   const [viewMode, setViewMode] = useState<"attendance" | "activities">("attendance");
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
-  const [recordingDrafts, setRecordingDrafts] = useState<Record<string, string>>(readRecordingDrafts);
+  const [openAttendanceClasses, setOpenAttendanceClasses] = useState<Set<string>>(() => new Set());
+  const [whatsAppDraft, setWhatsAppDraft] = useState<WhatsAppDraft | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(!demo);
@@ -196,10 +226,6 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
     const timeout = window.setTimeout(() => setNotice(""), 6000);
     return () => window.clearTimeout(timeout);
   }, [notice]);
-
-  useEffect(() => {
-    try { window.localStorage.setItem(ATTENDANCE_RECORDINGS_KEY, JSON.stringify(recordingDrafts)); } catch { /* Storage is optional. */ }
-  }, [recordingDrafts]);
 
   const load = useCallback(async () => {
     if (demo) return;
@@ -290,23 +316,45 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
     () => groupBy(visibleReviews, (review) => review.external_class_name || "Turma não informada"),
     [visibleReviews],
   );
-  const visibleAttendance = useMemo(() => {
+  const attendanceHistories = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return attendance.filter((item) => {
+    const studentsByExternalId = new Map(attendanceStudents.map((student) => [student.external_id, student]));
+    const histories = new Map<string, AttendanceStudentHistory>();
+    for (const item of attendance) {
+      const id = `${item.external_class_id}:${item.external_student_id || item.student_name}`;
+      const current = histories.get(id) ?? { id, name: item.student_name || "Aluno", student: studentsByExternalId.get(item.external_student_id), records: [] };
+      current.records.push(item);
+      histories.set(id, current);
+    }
+    return [...histories.values()].map((history) => ({
+      ...history,
+      records: [...history.records].sort((first, second) => attendanceSortKey(first).localeCompare(attendanceSortKey(second), "pt-BR")),
+    })).filter((history) => {
       const matchesFilter = attendanceFilter === "ALL"
-        ? true
-        : attendanceFilter === "PRESENT"
-          ? ["PRESENT", "LATE", "EXCUSED"].includes(item.status)
-          : item.status === "ABSENT";
-      const matchesQuery = !normalized || `${item.student_name} ${item.external_class_name} ${item.lesson_title}`.toLowerCase().includes(normalized);
+        || (attendanceFilter === "ABSENT" && history.records.some((item) => item.status === "ABSENT"))
+        || (attendanceFilter === "PRESENT" && history.records.some((item) => item.status === "PRESENT"));
+      const matchesQuery = !normalized || `${history.name} ${history.student?.email ?? ""} ${history.records.map((item) => `${item.external_class_name} ${item.lesson_title}`).join(" ")}`.toLowerCase().includes(normalized);
       return matchesFilter && matchesQuery;
     });
-  }, [attendance, attendanceFilter, query]);
-  const studentsByExternalId = useMemo(() => new Map(attendanceStudents.map((student) => [student.external_id, student])), [attendanceStudents]);
-  const attendanceByClass = useMemo(() => groupBy(visibleAttendance, (item) => item.external_class_name || "Turma não informada"), [visibleAttendance]);
+  }, [attendance, attendanceFilter, attendanceStudents, query]);
+  const attendanceByClass = useMemo(() => groupBy(attendanceHistories, (history) => history.records[0]?.external_class_name || "Turma não informada"), [attendanceHistories]);
 
   return (
     <div className="management-grid">
+      <Modal open={Boolean(whatsAppDraft)} title="Mensagem pelo WhatsApp" onClose={() => setWhatsAppDraft(null)} className="attendance-whatsapp-modal">
+        {whatsAppDraft && <div className="form management-form attendance-whatsapp-form">
+          <p className="muted">Revise a mensagem para {whatsAppDraft.studentName} antes de enviar.</p>
+          <label className="field">Mensagem
+            <textarea className="input" rows={7} value={whatsAppDraft.message} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, message: event.target.value } : current)} />
+          </label>
+          <div className="form-actions">
+            <Button type="button" className="button-ghost" onClick={() => setWhatsAppDraft(null)}>Cancelar</Button>
+            <a className="button button-primary" href={whatsappUrl(whatsAppDraft.phone, whatsAppDraft.message)} target="_blank" rel="noreferrer" onClick={() => setWhatsAppDraft(null)}>
+              <MessageCircle size={17} aria-hidden="true" /> Enviar no WhatsApp
+            </a>
+          </div>
+        </div>}
+      </Modal>
       <Modal open={Boolean(editingManual)} title="Corrigir atividade própria" onClose={() => { if (!savingManual) setEditingManual(null); }}>
         {editingManual && <form className="form management-form" onSubmit={async (event) => {
           event.preventDefault(); setSavingManual(true); setError("");
@@ -339,7 +387,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
         <div className="section-heading">
           <div>
             <h2>{viewMode === "attendance" ? "Lista de presença" : "Atividades entregues"}</h2>
-            <span className="correction-result-count">{viewMode === "attendance" ? `${visibleAttendance.length} registro${visibleAttendance.length === 1 ? "" : "s"}` : `${visibleReviews.length + visibleOwn.length} de ${reviews.length + pendingOwn.length} pendentes`}</span>
+            <span className="correction-result-count">{viewMode === "attendance" ? `${attendanceHistories.length} aluno${attendanceHistories.length === 1 ? "" : "s"}` : `${visibleReviews.length + visibleOwn.length} de ${reviews.length + pendingOwn.length} pendentes`}</span>
           </div>
           <div className="correction-heading-actions">
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
@@ -359,10 +407,22 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
             <button className={attendanceFilter === value ? "correction-filter active" : "correction-filter"} type="button" key={value} aria-pressed={attendanceFilter === value} onClick={() => setAttendanceFilter(value)}>{label}</button>
           ))}
         </div>
-        {loading ? <p className="muted">Carregando presença…</p> : visibleAttendance.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro. Atualize a sincronização da Kodland.</p> : <div className="correction-class-list attendance-list">
-          {attendanceByClass.map(([className, items]) => <details className="correction-class-group" key={className} open>
-            <summary className="correction-class-heading"><div><h3>{className}</h3><span>{items.length} registro{items.length === 1 ? "" : "s"}</span></div><span className="correction-disclosure" aria-hidden="true">⌄</span></summary>
-            <div className="correction-class-body"><div className="entity-list">{items.map((item) => <AttendanceCard key={item.id} item={item} student={studentsByExternalId.get(item.external_student_id)} recordingUrl={recordingDrafts[item.id] ?? ""} onRecordingUrlChange={(value) => setRecordingDrafts((current) => ({ ...current, [item.id]: value }))} />)}</div></div>
+        {loading ? <p className="muted">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro. Atualize a sincronização da Kodland.</p> : <div className="correction-class-list attendance-list">
+          {attendanceByClass.map(([className, histories]) => <details
+            className="correction-class-group attendance-class-group"
+            key={className}
+            open={openAttendanceClasses.has(className)}
+            onToggle={(event) => {
+              const isOpen = event.currentTarget.open;
+              setOpenAttendanceClasses((current) => {
+                const next = new Set(current);
+                if (isOpen) next.add(className); else next.delete(className);
+                return next;
+              });
+            }}
+          >
+            <summary className="correction-class-heading"><div><h3>{className}</h3><span>{histories.length} aluno{histories.length === 1 ? "" : "s"}</span></div><span className="correction-disclosure" aria-hidden="true">⌄</span></summary>
+            <div className="correction-class-body attendance-class-body">{histories.map((history) => <AttendanceStudentRow key={history.id} history={history} classOpen={openAttendanceClasses.has(className)} onWhatsApp={setWhatsAppDraft} />)}</div>
           </details>)}
         </div>}
         </> : <>

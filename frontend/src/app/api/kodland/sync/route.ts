@@ -1427,9 +1427,9 @@ export function attendanceFromStudentsPayload(payload: unknown, group: Group): A
     const studentName = text(mainInfo.full_name ?? mainInfo.name ?? studentRecord.student_name ?? studentRecord.studentName);
     if (!studentId || !studentName) return [];
     return list(studentRecord.progress_info).flatMap((moduleValue) => {
-      const module = record(moduleValue);
-      const moduleNumber = text(module.module_number ?? module.moduleNumber ?? module.number);
-      const lessons = Array.isArray(module.lessons_data) ? module.lessons_data : [];
+      const moduleInfo = record(moduleValue);
+      const moduleNumber = text(moduleInfo.module_number ?? moduleInfo.moduleNumber ?? moduleInfo.number);
+      const lessons = Array.isArray(moduleInfo.lessons_data) ? moduleInfo.lessons_data : [];
       return lessons.flatMap((lessonValue) => {
         const lesson = record(lessonValue);
         if (lesson.attendance_status === null || lesson.attendance_status === undefined) return [];

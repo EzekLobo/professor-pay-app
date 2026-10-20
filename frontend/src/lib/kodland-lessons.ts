@@ -549,6 +549,7 @@ export function mergeKodlandLessons(
               lesson.classroom_tasks.length
                 ? lesson.classroom_tasks
                 : previous.classroom_tasks,
+            schedule_code: lesson.schedule_code || previous.schedule_code,
           }
         : lesson,
     );
@@ -558,69 +559,4 @@ export function mergeKodlandLessons(
       `${b.lesson_date} ${b.start_time}`,
     ),
   );
-}
-import { brazilianNationalHolidays } from "@/lib/holidays";
-
-
-const dateOnly = (value: string) => value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
-const utcDay = (value: string) => Date.parse(`${value}T12:00:00Z`);
-
-const nationalHolidayDatesBetween = (from: string, to: string, weekday: number) => {
-  const dates = new Set<string>();
-  for (let year = Number(from.slice(0, 4)); year <= Number(to.slice(0, 4)); year += 1) {
-    brazilianNationalHolidays(year).forEach((holiday) => {
-      const day = utcDay(holiday.date);
-      if (holiday.date > from && holiday.date <= to && new Date(day).getUTCDay() === weekday) {
-        dates.add(holiday.date);
-      }
-    });
-  }
-  return dates.size;
-};
-
-/**
- * `schedule_view` advances its raw course position on a Brazilian national
- * holiday, even when Kodland's own group timetable omits that class. Rebuild
- * the position from dated weekly occurrences so the selected catalog lesson
- * stays equal to the lesson displayed in the official timetable.
- */
-export function reconcileKodlandScheduleIndexes(lessons: KodlandLesson[]): KodlandLesson[] {
-  const dated = lessons
-    .map((lesson, index) => ({ lesson, index, date: dateOnly(lesson.lesson_date) }))
-    .filter(({ lesson, date }) => Boolean(date) && (lesson.course_index ?? 0) > 0)
-    .sort((left, right) => left.date.localeCompare(right.date) || left.lesson.start_time.localeCompare(right.lesson.start_time));
-  if (dated.length < 2) return lessons;
-
-  const corrected = new Map<number, number>();
-  let offset = 0;
-  for (let index = 1; index < dated.length; index += 1) {
-    const previous = dated[index - 1];
-    const current = dated[index];
-    const previousDate = previous.date;
-    const currentDate = current.date;
-    const difference = Math.round((utcDay(currentDate) - utcDay(previousDate)) / 86_400_000);
-    const weeks = difference > 0 && difference % 7 === 0 ? difference / 7 : 0;
-    if (!weeks) continue;
-    const skipped = nationalHolidayDatesBetween(
-      previousDate,
-      currentDate,
-      new Date(utcDay(previousDate)).getUTCDay(),
-    );
-    const rawPrevious = previous.lesson.course_index ?? 0;
-    const rawCurrent = current.lesson.course_index ?? 0;
-    const expectedAdvance = weeks - skipped;
-    const rawAdvance = rawCurrent - rawPrevious;
-    if (skipped > 0 && rawAdvance > expectedAdvance) {
-      offset += Math.min(rawAdvance - expectedAdvance, skipped);
-    }
-    if (offset) corrected.set(current.index, rawCurrent - offset);
-  }
-  return corrected.size
-    ? lessons.map((lesson, index) => {
-      const courseIndex = corrected.get(index);
-      return courseIndex
-        ? { ...lesson, course_index: courseIndex, lesson_number: courseIndex }
-        : lesson;
-    })
-    : lessons;
 }

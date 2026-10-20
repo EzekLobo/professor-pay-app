@@ -111,9 +111,6 @@ export function GroupAccordion({
             </span>
           </span>
           <span className="group-summary-meta">
-            <span className="group-student-count">
-              {activeStudents.length} aluno{activeStudents.length === 1 ? "" : "s"}
-            </span>
             {(onDelete || onRename) && <button className="group-menu-button" type="button" aria-label={`Ações da turma ${group.title}`} title="Ações da turma" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setMenuOpen((open) => !open); }}><MoreVertical size={18} aria-hidden="true" /></button>}
           </span>
           {menuOpen && <div className="group-actions-menu" role="menu" onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}>

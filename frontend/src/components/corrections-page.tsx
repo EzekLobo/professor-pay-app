@@ -12,7 +12,6 @@ import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
-import { kodlandLocalLessonNumber } from "@/lib/kodland-lessons";
 import { isActiveKodlandStudent } from "@/lib/student-ranking";
 import { whatsappUrl } from "@/lib/whatsapp";
 
@@ -94,13 +93,10 @@ const lessonForAttendance = (item: KodlandAttendance, lessons: KodlandLesson[]) 
 const attendanceLessonParts = (item: KodlandAttendance, lessons: KodlandLesson[]) => {
   const lessonRecord = lessonForAttendance(item, lessons);
   const localizedCode = moduleLessonCode(lessonRecord?.title ?? "");
-  if (localizedCode) return { module: `M${localizedCode[1]}`, lesson: `L${kodlandLocalLessonNumber(localizedCode[2])}` };
+  if (localizedCode && lessonRecord) return { module: `M${localizedCode[1]}`, lesson: `L${localizedCode[2]}` };
   const moduleNumber = lessonRecord?.module_number?.match(/\d+/)?.[0];
-  if (moduleNumber && lessonRecord?.lesson_number) return { module: `M${moduleNumber}`, lesson: `L${kodlandLocalLessonNumber(lessonRecord.lesson_number)}` };
-  const moduleLesson = moduleLessonCode(item.lesson_title);
-  if (moduleLesson) return { module: `M${moduleLesson[1]}`, lesson: `L${kodlandLocalLessonNumber(moduleLesson[2])}` };
-  const lesson = item.lesson_title.match(/(?:Aula|Lesson)\s*(\d+)/i)?.[1];
-  return { module: "", lesson: lesson ? `L${kodlandLocalLessonNumber(lesson)}` : "Aula" };
+  if (moduleNumber && lessonRecord?.lesson_number) return { module: `M${moduleNumber}`, lesson: `L${lessonRecord.lesson_number}` };
+  return { module: "", lesson: "Aula" };
 };
 const attendanceLessonDate = (item: KodlandAttendance, lessons: KodlandLesson[]) =>
   item.lesson_date || lessonForAttendance(item, lessons)?.lesson_date || "";

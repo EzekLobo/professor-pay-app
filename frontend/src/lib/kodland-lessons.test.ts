@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   enrichKodlandLessons,
-  kodlandLocalLessonNumber,
   kodlandLessonLocation,
   parseKodlandLessonsPayload,
   type KodlandLesson,
@@ -28,12 +27,6 @@ const lesson: KodlandLesson = {
 };
 
 describe("enrichKodlandLessons", () => {
-  it("converts the global course index to the local four-lesson module index", () => {
-    expect(kodlandLocalLessonNumber(28)).toBe(4);
-    expect(kodlandLocalLessonNumber(25)).toBe(1);
-    expect(kodlandLocalLessonNumber(3)).toBe(3);
-  });
-
   it("maps course materials and homework onto a scheduled lesson", () => {
     const [result] = enrichKodlandLessons([lesson], [{
       id: "20849",

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import {
   enrichKodlandLessons,
+  matchKodlandCourseLesson,
   mergeKodlandLessons,
   type KodlandCourseLesson,
   type KodlandLesson,
@@ -1590,15 +1591,7 @@ async function lessonsForGroup(
     ]),
   );
   merged.forEach((lesson) => {
-    const catalogLesson = catalog.find(
-      (item) =>
-        item.id === lesson.id ||
-        (lesson.course_index &&
-          item.course_index === lesson.course_index) ||
-        (!lesson.course_index &&
-          item.lesson_number > 0 &&
-          item.lesson_number === lesson.lesson_number),
-    );
+    const catalogLesson = matchKodlandCourseLesson(lesson, catalog);
     const key = catalogLesson?.id ?? lesson.id;
     const previous = catalogLessons.get(key);
     catalogLessons.set(

@@ -10,6 +10,8 @@ export type KodlandLesson = {
   lesson_number: number;
   /** One-based position in the full course catalog, distinct from module-local lesson_number. */
   course_index?: number;
+  /** Module-local code shown by the group schedule, such as M8.L2. */
+  schedule_code?: string;
   title: string;
   theme: string;
   lesson_date: string;
@@ -55,6 +57,41 @@ export type KodlandCourseLesson = {
   homework: unknown[];
   classroom?: unknown[];
 };
+
+export const kodlandLessonCode = (value: string) => {
+  const match = value.match(/[M\u041c]\s*(\d+)\s*\.?\s*L\s*(\d+)/i);
+  return match ? `M${match[1]}L${match[2]}` : "";
+};
+
+/**
+ * The group schedule can expose a timetable-event ID that differs from the
+ * course lesson ID. Its displayed Mx.Ly code is the most precise link when
+ * available, followed by IDs and global catalog positions.
+ */
+export function matchKodlandCourseLesson(
+  lesson: Pick<KodlandLesson, "id" | "schedule_code" | "course_index" | "lesson_number" | "title">,
+  courseLessons: KodlandCourseLesson[],
+) {
+  const code = kodlandLessonCode(lesson.schedule_code || lesson.title);
+  return (
+    (code
+      ? courseLessons.find((candidate) => kodlandLessonCode(candidate.title) === code)
+      : undefined) ??
+    courseLessons.find((candidate) => candidate.id === lesson.id) ??
+    (lesson.course_index && lesson.course_index > 0
+      ? courseLessons.find((candidate) => candidate.course_index === lesson.course_index)
+      : undefined) ??
+    (lesson.lesson_number > 0
+      ? courseLessons.find((candidate) => candidate.lesson_number === lesson.lesson_number)
+      : undefined) ??
+    (() => {
+      const lessonTitle = normalizeTitle(lesson.title);
+      return lessonTitle
+        ? courseLessons.find((candidate) => normalizeTitle(candidate.title) === lessonTitle)
+        : undefined;
+    })()
+  );
+}
 
 type ObjectValue = Record<string, unknown>;
 
@@ -225,24 +262,7 @@ export function enrichKodlandLessons(
   courseId: string,
 ): KodlandLesson[] {
   return lessons.map((lesson) => {
-    const lessonTitle = normalizeTitle(lesson.title);
-    const catalog =
-      courseLessons.find((candidate) => candidate.id === lesson.id) ??
-      (lesson.course_index && lesson.course_index > 0
-        ? courseLessons.find(
-            (candidate) => candidate.course_index === lesson.course_index,
-          )
-        : undefined) ??
-      (lesson.lesson_number > 0
-        ? courseLessons.find(
-            (candidate) => candidate.lesson_number === lesson.lesson_number,
-          )
-        : undefined) ??
-      (lessonTitle
-        ? courseLessons.find(
-            (candidate) => normalizeTitle(candidate.title) === lessonTitle,
-          )
-        : undefined);
+    const catalog = matchKodlandCourseLesson(lesson, courseLessons);
     if (!catalog)
       return {
         ...lesson,
@@ -328,6 +348,7 @@ export function parseKodlandLessonsPayload(
         value.match(/^\s*[M\u041c]\s*(\d+)\s*\.?\s*L\s*(\d+)\s*$/i),
       )
       .find(Boolean);
+    const scheduleCode = lessonCode ? `M${lessonCode[1]}L${lessonCode[2]}` : "";
     const id = readText(item, [
       "lesson_id",
       "lessonId",
@@ -445,6 +466,7 @@ export function parseKodlandLessonsPayload(
         module_number: moduleNumber,
         lesson_number: lessonNumber,
         ...(courseIndex > 0 ? { course_index: courseIndex } : {}),
+        ...(source === "schedule" && scheduleCode ? { schedule_code: scheduleCode } : {}),
         title: title || (source === "schedule" ? "Aula agendada" : "Aula"),
         theme,
         lesson_date: date,

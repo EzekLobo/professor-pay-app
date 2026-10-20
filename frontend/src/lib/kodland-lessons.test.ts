@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   enrichKodlandLessons,
+  matchKodlandCourseLesson,
   kodlandLessonLocation,
   parseKodlandLessonsPayload,
   type KodlandLesson,
@@ -122,6 +123,7 @@ describe("enrichKodlandLessons", () => {
 
     expect(scheduled.course_index).toBe(30);
     expect(scheduled.lesson_number).toBe(30);
+    expect(scheduled.schedule_code).toBe("M8L2");
 
     const [matched] = enrichKodlandLessons(
       [scheduled],
@@ -136,5 +138,21 @@ describe("enrichKodlandLessons", () => {
     );
     expect(kodlandLessonLocation(matched)).toBe("M8L2");
     expect(matched.external_url).toContain("lessonId=20850");
+  });
+
+  it("uses the schedule code before a conflicting timetable-event ID", () => {
+    const scheduled = {
+      ...lesson,
+      id: "20851",
+      schedule_code: "M8L2",
+      course_index: 30,
+      lesson_number: 30,
+      title: "PRM_BRA1919_SEG-19",
+    };
+    const match = matchKodlandCourseLesson(scheduled, [
+      { id: "20850", lesson_number: 2, course_index: 30, title: "M8.L2 O Chão é Lava. Funções", materials: [], homework: [] },
+      { id: "20851", lesson_number: 3, course_index: 31, title: "M8.L3 O Chão é Lava. Criando a Contagem", materials: [], homework: [] },
+    ]);
+    expect(match?.id).toBe("20850");
   });
 });

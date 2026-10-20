@@ -7,7 +7,7 @@ import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { Modal } from "@/components/modal";
 import { ApiError, kodlandApi, manualPedagogyApi, manualTeachingApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
-import { attendanceDateFromSchedule } from "@/lib/attendance-schedule";
+import { attendanceDateFromSchedule, attendanceLessonParts, lessonForAttendance } from "@/lib/attendance-schedule";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
@@ -78,28 +78,6 @@ const attendanceDateLabel = (value: string) => {
 };
 const attendanceSortKey = (item: KodlandAttendance) => `${item.lesson_date || "0000-00-00"} ${item.start_time || "00:00"} ${item.lesson_title}`;
 const attendanceColumnKey = (item: KodlandAttendance) => item.lesson_id || `${item.lesson_date}:${item.lesson_title}`;
-const moduleLessonCode = (value: string) => value.match(/M(\d+)(?:\s*[.·-]\s*)?L(\d+)/i);
-const lessonForAttendance = (item: KodlandAttendance, lessons: KodlandLesson[]) => {
-  const code = moduleLessonCode(item.lesson_title);
-  const sameClass = lessons.filter((lesson) => lesson.external_class_id === item.external_class_id);
-  return sameClass.find((lesson) =>
-    lesson.id === item.lesson_id
-    || lesson.source_lesson_id === item.lesson_id
-  ) ?? (code ? sameClass.find((lesson) =>
-    lesson.module_number?.match(/\d+/)?.[0] === code[1]
-    && (lesson.course_index === Number(code[2]) || lesson.lesson_number === Number(code[2]))
-  ) : undefined) ?? sameClass.find((lesson) =>
-    Boolean(item.lesson_date && lesson.lesson_date === item.lesson_date && (!item.start_time || lesson.start_time === item.start_time))
-  );
-};
-const attendanceLessonParts = (item: KodlandAttendance, lessons: KodlandLesson[]) => {
-  const lessonRecord = lessonForAttendance(item, lessons);
-  const localizedCode = moduleLessonCode(lessonRecord?.title ?? "");
-  if (localizedCode && lessonRecord) return { module: `M${localizedCode[1]}`, lesson: `L${localizedCode[2]}` };
-  const moduleNumber = lessonRecord?.module_number?.match(/\d+/)?.[0];
-  if (moduleNumber && lessonRecord?.lesson_number) return { module: `M${moduleNumber}`, lesson: `L${lessonRecord.lesson_number}` };
-  return { module: "", lesson: "Aula" };
-};
 const attendanceLessonDate = (item: KodlandAttendance, lessons: KodlandLesson[], groups: KodlandGroup[]) => {
   const lesson = lessonForAttendance(item, lessons);
   const group = groups.find((candidate) => candidate.external_id === item.external_class_id);

@@ -20,7 +20,7 @@ describe("sync diagnostics", () => {
       {
         main_info: { student_id: 3146568, full_name: "Rafael Coppola" },
         progress_info: [{ module_number: 5, lessons_data: [
-          { lesson_id: 17, lesson_number: 1, attendance_status: 0 },
+          { lesson_id: 17, lesson_title: "Aula", attendance_status: 0 },
           { lesson_id: 18, lesson_number: 2, attendance_status: 1 },
           { lesson_id: 19, lesson_number: 3, attendance_status: 2 },
           { lesson_id: 20, lesson_number: 4, attendance_status: 9 },

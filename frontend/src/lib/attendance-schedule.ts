@@ -9,6 +9,41 @@ const shiftWeeks = (date: string, weeks: number) => {
   return parsed.toISOString().slice(0, 10);
 };
 
+const moduleLessonCode = (value: string) => value.match(/M(\d+)(?:\s*[.·-]\s*)?L(\d+)/i);
+
+/** Resolves an attendance lesson against the real course catalog. */
+export function lessonForAttendance(item: KodlandAttendance, lessons: KodlandLesson[]) {
+  const sameClass = lessons.filter((lesson) => lesson.external_class_id === item.external_class_id);
+  const direct = sameClass.find((lesson) => lesson.id === item.lesson_id || lesson.source_lesson_id === item.lesson_id);
+  if (direct) return direct;
+
+  // In the main attendance grid, Kodland commonly sends the global catalog
+  // position as lesson_id. It is only used to find the catalog row; the label
+  // still comes from that row's real module and module-local lesson number.
+  const globalIndex = /^\d+$/.test(item.lesson_id) ? Number(item.lesson_id) : 0;
+  const indexed = globalIndex ? sameClass.find((lesson) => lesson.course_index === globalIndex) : undefined;
+  if (indexed) return indexed;
+
+  const code = moduleLessonCode(item.lesson_title);
+  const localized = code ? sameClass.find((lesson) =>
+    lesson.module_number?.match(/\d+/)?.[0] === code[1]
+    && lesson.lesson_number === Number(code[2])) : undefined;
+  if (localized) return localized;
+
+  return sameClass.find((lesson) =>
+    Boolean(item.lesson_date && lesson.lesson_date === item.lesson_date && (!item.start_time || lesson.start_time === item.start_time))
+  );
+}
+
+export function attendanceLessonParts(item: KodlandAttendance, lessons: KodlandLesson[]) {
+  const lesson = lessonForAttendance(item, lessons);
+  const code = moduleLessonCode(lesson?.title ?? "") ?? moduleLessonCode(item.lesson_title);
+  if (code) return { module: `M${code[1]}`, lesson: `L${code[2]}` };
+  const moduleNumber = lesson?.module_number?.match(/\d+/)?.[0];
+  if (moduleNumber && lesson?.lesson_number) return { module: `M${moduleNumber}`, lesson: `L${lesson.lesson_number}` };
+  return { module: "", lesson: "Aula" };
+}
+
 /**
  * Resolves a presence date from the synchronized class calendar. Kodland's
  * attendance grid frequently omits dates, so a real dated lesson (or the

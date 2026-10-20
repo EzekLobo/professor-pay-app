@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { attendanceDateFromSchedule } from "./attendance-schedule";
-import type { KodlandGroup, KodlandLesson } from "./api";
+import { attendanceDateFromSchedule, attendanceLessonParts, lessonForAttendance } from "./attendance-schedule";
+import type { KodlandAttendance, KodlandGroup, KodlandLesson } from "./api";
 
 const lesson = (courseIndex: number, lessonDate = ""): KodlandLesson => ({
   id: `lesson-${courseIndex}`,
@@ -26,6 +26,36 @@ const lesson = (courseIndex: number, lessonDate = ""): KodlandLesson => ({
 });
 
 describe("attendanceDateFromSchedule", () => {
+  it("uses a numeric global lesson id only to find the real module-local code", () => {
+    const catalogLesson = {
+      ...lesson(28),
+      module_number: "7",
+      lesson_number: 4,
+      title: "M7.L4 Projeto final",
+    };
+    const attendance = {
+      lesson_id: "28",
+      lesson_title: "Aula",
+      external_class_id: "group-1",
+      lesson_date: "",
+      start_time: "",
+    } as KodlandAttendance;
+
+    expect(lessonForAttendance(attendance, [catalogLesson])).toBe(catalogLesson);
+    expect(attendanceLessonParts(attendance, [catalogLesson])).toEqual({ module: "M7", lesson: "L4" });
+  });
+
+  it("preserves a module-local code already supplied by the attendance grid", () => {
+    const attendance = {
+      lesson_id: "provider-id",
+      lesson_title: "Aula M9.L2",
+      external_class_id: "group-1",
+      lesson_date: "",
+      start_time: "",
+    } as KodlandAttendance;
+    expect(attendanceLessonParts(attendance, [])).toEqual({ module: "M9", lesson: "L2" });
+  });
+
   it("uses a dated calendar lesson as the anchor for an undated attendance record", () => {
     const target = lesson(17);
     expect(attendanceDateFromSchedule(

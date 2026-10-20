@@ -67,6 +67,16 @@ describe("attendanceDateFromSchedule", () => {
     )).toBe("2026-10-06");
   });
 
+  it("uses the calendar date instead of a conflicting attendance date", () => {
+    const scheduled = lesson(18, "2026-10-19");
+    expect(attendanceDateFromSchedule(
+      { lesson_date: "2026-10-12" },
+      scheduled,
+      [scheduled],
+      undefined,
+    )).toBe("2026-10-19");
+  });
+
   it("uses the group's next scheduled lesson without assuming module size", () => {
     const target = lesson(17);
     const next = lesson(20);

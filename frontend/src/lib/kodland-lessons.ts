@@ -20,6 +20,8 @@ export type KodlandLesson = {
   status: string;
   financial_status?: string;
   lesson_passed: boolean;
+  /** Recording published for this scheduled occurrence, when Kodland provides one. */
+  recording_url?: string;
   external_url: string;
   slides_url: string;
   guide_url: string;
@@ -461,6 +463,16 @@ export function parseKodlandLessonsPayload(
       "link",
       "href",
     ]);
+    const recordingUrl = findLessonUrl(lessonItem, [
+      "recording_url",
+      "recordingUrl",
+      "recording",
+      "recordings",
+      "video_url",
+      "videoUrl",
+      "lesson_recording",
+      "lessonRecording",
+    ]);
     return [
       {
         id: lessonId,
@@ -496,6 +508,7 @@ export function parseKodlandLessonsPayload(
             lessonItem.passed ??
             lessonItem.completed,
         ),
+        ...(recordingUrl ? { recording_url: recordingUrl } : {}),
         external_url: toExternalUrl(direct, group.external_id, lessonId),
         slides_url: slidesUrl,
         guide_url: guideUrl,
@@ -543,6 +556,7 @@ export function mergeKodlandLessons(
             start_time: lesson.start_time || previous.start_time,
             end_time: lesson.end_time || previous.end_time,
             status: lesson.status || previous.status,
+            recording_url: lesson.recording_url || previous.recording_url,
             external_url: lesson.external_url || previous.external_url,
             slides_url: lesson.slides_url || previous.slides_url,
             guide_url: lesson.guide_url || previous.guide_url,

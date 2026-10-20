@@ -1624,6 +1624,50 @@ async function lessonsForGroup(
   });
 }
 
+const scheduleCode = (value: string) =>
+  value.match(/M\s*(\d+)\s*\.?\s*L\s*(\d+)/i);
+
+/** The calendar defines the class occurrence; attendance only defines the
+ * student's status in that occurrence. */
+function scheduledLessonForAttendance(item: Attendance, lessons: KodlandLesson[]) {
+  const sameClass = lessons.filter((lesson) => lesson.external_class_id === item.external_class_id);
+  const dated = sameClass.filter((lesson) => Boolean(dateOnly(lesson.lesson_date)));
+  const source = dated.length ? dated : sameClass;
+  const direct = source.find((lesson) => lesson.id === item.lesson_id || lesson.source_lesson_id === item.lesson_id);
+  if (direct) return direct;
+
+  const courseIndex = /^\d+$/.test(item.lesson_id) ? Number(item.lesson_id) : 0;
+  const indexed = courseIndex ? source.find((lesson) => lesson.course_index === courseIndex) : undefined;
+  if (indexed) return indexed;
+
+  const code = scheduleCode(item.lesson_title);
+  if (code) {
+    const byCode = source.find((lesson) => scheduleCode(`${lesson.schedule_code ?? ""} ${lesson.title}`)?.[0]
+      && scheduleCode(`${lesson.schedule_code ?? ""} ${lesson.title}`)?.[1] === code[1]
+      && scheduleCode(`${lesson.schedule_code ?? ""} ${lesson.title}`)?.[2] === code[2]);
+    if (byCode) return byCode;
+  }
+
+  return source.find((lesson) =>
+    Boolean(item.lesson_date && dateOnly(lesson.lesson_date) === item.lesson_date && (!item.start_time || lesson.start_time === item.start_time)),
+  );
+}
+
+function attachAttendanceSchedule(items: Attendance[], lessons: KodlandLesson[]): Attendance[] {
+  return items.map((item) => {
+    const scheduled = scheduledLessonForAttendance(item, lessons);
+    if (!scheduled) return item;
+    return {
+      ...item,
+      lesson_id: scheduled.source_lesson_id || scheduled.id || item.lesson_id,
+      lesson_title: scheduled.title || item.lesson_title,
+      lesson_date: dateOnly(scheduled.lesson_date) || item.lesson_date,
+      start_time: scheduled.start_time || item.start_time,
+      recording_url: scheduled.recording_url || item.recording_url,
+    };
+  });
+}
+
 export async function POST(request: NextRequest) {
   const syncId = syncReference(request);
   const startedAt = Date.now();
@@ -1869,20 +1913,32 @@ export async function POST(request: NextRequest) {
       const correctionGroups = requestedGroupIds.size
         ? active.filter((group) => requestedGroupIds.has(group.external_id))
         : active;
-      const [reviews, attendance] = await runStage("reviews", () => Promise.all([
-        mapWithConcurrency(correctionGroups, 1, (group) => reviewsForGroup(group, token)),
-        mapWithConcurrency(correctionGroups, 1, (group) => attendanceForGroup(group, token)),
-      ]), ([reviewItems, attendanceItems]) => ({
-        reviewCount: reviewItems.reduce((total, items) => total + items.length, 0),
-        attendanceCount: attendanceItems.reduce((total, items) => total + items.length, 0),
+      const courseLessonCache: CourseLessonCache = { catalog: new Map() };
+      const snapshots = await runStage("reviews", () => mapWithConcurrency(
+        correctionGroups,
+        1,
+        async (group) => {
+          const [reviews, attendance, lessons] = await Promise.all([
+            reviewsForGroup(group, token),
+            attendanceForGroup(group, token),
+            lessonsForGroup(group, token, courseLessonCache),
+          ]);
+          return { reviews, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
+        },
+      ), (result) => ({
+        reviewCount: result.reduce((total, item) => total + item.reviews.length, 0),
+        attendanceCount: result.reduce((total, item) => total + item.attendance.length, 0),
+        lessonCount: result.reduce((total, item) => total + item.lessons.length, 0),
       }));
-      const items = reviews.flat();
-      const attendanceItems = attendance.flat();
-      trace("completed", { groupCount: correctionGroups.length, reviewCount: items.length, attendanceCount: attendanceItems.length });
+      const items = snapshots.flatMap((item) => item.reviews);
+      const attendanceItems = snapshots.flatMap((item) => item.attendance);
+      const lessons = snapshots.flatMap((item) => item.lessons);
+      trace("completed", { groupCount: correctionGroups.length, reviewCount: items.length, attendanceCount: attendanceItems.length, lessonCount: lessons.length });
       return syncResponse(syncId, {
         ...emptyCollections(),
         reviews: items,
         attendance: attendanceItems,
+        lessons,
         review_group_ids: correctionGroups.map((group) => group.external_id),
         attendance_group_ids: correctionGroups.map((group) => group.external_id),
       });

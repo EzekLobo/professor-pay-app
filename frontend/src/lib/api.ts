@@ -2272,8 +2272,10 @@ export const kodlandApi = {
     if (mode === "corrections") {
       const previousReviews = await rows("kodland_reviews");
       const previousAttendance = await rows("kodland_attendance");
+      const previousLessons = await rows("kodland_lessons");
       const reviews = uniqueBy(snapshot.reviews, (item) => item.id);
       const attendance = uniqueBy(snapshot.attendance ?? [], (item) => item.id);
+      const lessons = uniqueBy(snapshot.lessons ?? [], (item) => kodlandLessonDocumentId(item));
       const upserts: Array<(batch: FirebaseWriteBatch) => void> = reviews.map(
         (item) => (batch) =>
           batch.set(doc(syncCollection("kodland_reviews"), item.id), firestorePayload({
@@ -2309,12 +2311,27 @@ export const kodlandApi = {
       const attendanceDeletes: Array<(batch: FirebaseWriteBatch) => void> = previousAttendance
         .filter((item) => attendanceGroupIds.has(String(item.external_class_id)) && !incomingAttendance.has(String(item.id)))
         .map((item) => (batch) => batch.delete(doc(syncCollection("kodland_attendance"), String(item.id))));
+      const lessonUpserts: Array<(batch: FirebaseWriteBatch) => void> = lessons.map((item) => {
+        const documentId = kodlandLessonDocumentId(item);
+        const previous = previousLessons.find((lesson) =>
+          String(lesson.id) === documentId ||
+          (String(lesson.id) === item.id && String(lesson.external_class_id) === item.external_class_id),
+        ) as Partial<KodlandLesson> | undefined;
+        return (batch) => batch.set(
+          doc(syncCollection("kodland_lessons"), documentId),
+          firestorePayload(mergeSyncedKodlandLesson(item, previous, createdAt)),
+        );
+      });
+      const staleLessonDeletes = staleScheduledKodlandLessonIds(previousLessons, lessons)
+        .map((id) => (batch: FirebaseWriteBatch) => batch.delete(doc(syncCollection("kodland_lessons"), id)));
       persistencePhase = "gravação";
       await commitWrites(upserts);
       await commitWrites(deletes);
       await commitWrites(attendanceUpserts);
       await commitWrites(attendanceDeletes);
-      return finish({ group_count: 0, student_count: 0, review_count: reviews.length, attendance_count: attendance.length, lesson_count: 0, extra_lesson_count: 0 });
+      await commitWrites(lessonUpserts);
+      await commitWrites(staleLessonDeletes);
+      return finish({ group_count: 0, student_count: 0, review_count: reviews.length, attendance_count: attendance.length, lesson_count: lessons.length, extra_lesson_count: 0 });
     }
     if (mode === "profiles") {
       const previousStudents = await rows("kodland_students");

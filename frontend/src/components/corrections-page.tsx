@@ -35,6 +35,8 @@ type AttendanceColumn = {
   module: string;
   lesson: string;
   date: string;
+  title: string;
+  recordingUrl: string;
   moduleStart: boolean;
 };
 type WhatsAppDraft = { studentName: string; phone: string; message: string };
@@ -77,17 +79,21 @@ const attendanceDateLabel = (value: string) => {
   return year && month && day ? `${day}/${month}/${year}` : value;
 };
 const attendanceSortKey = (item: KodlandAttendance) => `${item.lesson_date || "0000-00-00"} ${item.start_time || "00:00"} ${item.lesson_title}`;
-const attendanceColumnKey = (item: KodlandAttendance) => item.lesson_id || `${item.lesson_date}:${item.lesson_title}`;
+const attendanceColumnKey = (item: KodlandAttendance, lessons: KodlandLesson[]) =>
+  lessonForAttendance(item, lessons)?.id || item.lesson_id || `${item.lesson_date}:${item.lesson_title}`;
 const attendanceLessonDate = (item: KodlandAttendance, lessons: KodlandLesson[], groups: KodlandGroup[]) => {
   const lesson = lessonForAttendance(item, lessons);
   const group = groups.find((candidate) => candidate.external_id === item.external_class_id);
   return attendanceDateFromSchedule(item, lesson, lessons, group);
 };
-const attendanceMessage = (history: AttendanceStudentHistory, item: KodlandAttendance, lessons: KodlandLesson[], groups: KodlandGroup[]) => {
-  const parts = attendanceLessonParts(item, lessons);
+const attendanceMessage = (history: AttendanceStudentHistory, item: KodlandAttendance, scheduledLesson: KodlandLesson | undefined, lessons: KodlandLesson[], groups: KodlandGroup[]) => {
+  const parts = scheduledLesson ? attendanceLessonParts({ ...item, lesson_id: scheduledLesson.id }, lessons) : attendanceLessonParts(item, lessons);
   const lessonLabel = parts.module ? `${parts.module}${parts.lesson}` : item.lesson_title || parts.lesson;
-  const recordingUrl = item.recording_url?.trim() || "https://learn.kodland.org/";
-  return `Olá, ${history.name}! Sentimos sua falta na aula ${lessonLabel}, em ${attendanceDateLabel(attendanceLessonDate(item, lessons, groups))}. Aconteceu alguma coisa? Para ficar por dentro do assunto, você pode acessar a aula gravada aqui: ${recordingUrl}. Se precisar de ajuda, me avise.`;
+  const recordingUrl = scheduledLesson?.recording_url?.trim() || item.recording_url?.trim();
+  const recordingLine = recordingUrl
+    ? ` Para ficar por dentro do assunto, você pode acessar a aula gravada aqui: ${recordingUrl}.`
+    : " Assim que a gravação estiver disponível na plataforma, eu posso enviá-la para você.";
+  return `Olá, ${history.name}! Sentimos sua falta na aula ${lessonLabel}, em ${attendanceDateLabel(attendanceDateFromSchedule(item, scheduledLesson, lessons, groups.find((candidate) => candidate.external_id === item.external_class_id)))}. Aconteceu alguma coisa?${recordingLine} Se precisar de ajuda, me avise.`;
 };
 
 function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo?: CorrectionsDemoAdapter }) {
@@ -119,22 +125,48 @@ function AttendanceClassGrid({
   onWhatsApp: (draft: WhatsAppDraft) => void;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
-  const columns = useMemo(() => {
+  const columns = (() => {
+    const classId = histories[0]?.records[0]?.external_class_id;
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+    const scheduled = lessons
+      .filter((lesson) => lesson.external_class_id === classId && Boolean(lesson.lesson_date) && (lesson.lesson_passed || lesson.lesson_date.slice(0, 10) <= today))
+      .sort((first, second) => `${first.lesson_date} ${first.start_time}`.localeCompare(`${second.lesson_date} ${second.start_time}`, "pt-BR"));
+    if (scheduled.length) {
+      return scheduled.map((lesson, index): AttendanceColumn => {
+        const parts = attendanceLessonParts({
+          lesson_id: lesson.id,
+          lesson_title: lesson.title,
+          external_class_id: lesson.external_class_id,
+        } as KodlandAttendance, lessons);
+        return {
+          key: lesson.id,
+          module: parts.module,
+          lesson: parts.lesson,
+          date: lesson.lesson_date.slice(0, 10),
+          title: lesson.title,
+          recordingUrl: lesson.recording_url ?? "",
+          moduleStart: Boolean(parts.module && parts.module !== (index ? attendanceLessonParts({ lesson_id: scheduled[index - 1].id, lesson_title: scheduled[index - 1].title, external_class_id: scheduled[index - 1].external_class_id } as KodlandAttendance, lessons).module : "")),
+        };
+      });
+    }
+
+    // Compatibility fallback for an account whose class schedule has not yet
+    // been synchronized. The next sync replaces these columns with the agenda.
     const samples = new Map<string, KodlandAttendance>();
     for (const history of histories) {
-      for (const item of history.records) samples.set(attendanceColumnKey(item), item);
+      for (const item of history.records) samples.set(attendanceColumnKey(item, lessons), item);
     }
     const orderedColumns = [...samples.values()]
       .map((item) => {
         const parts = attendanceLessonParts(item, lessons);
-        return { key: attendanceColumnKey(item), module: parts.module, lesson: parts.lesson, date: attendanceLessonDate(item, lessons, groups), startTime: item.start_time };
+        return { key: attendanceColumnKey(item, lessons), module: parts.module, lesson: parts.lesson, date: attendanceLessonDate(item, lessons, groups), startTime: item.start_time, title: item.lesson_title, recordingUrl: item.recording_url ?? "" };
       })
       .sort((first, second) => `${first.date} ${first.startTime} ${first.module}${first.lesson}`.localeCompare(`${second.date} ${second.startTime} ${second.module}${second.lesson}`, "pt-BR"));
     return orderedColumns.map((column, index): AttendanceColumn => ({
       ...column,
       moduleStart: Boolean(column.module && column.module !== orderedColumns[index - 1]?.module),
     }));
-  }, [groups, histories, lessons]);
+  })();
   const gridStyle = { "--attendance-columns": columns.length } as CSSProperties;
 
   useEffect(() => {
@@ -156,7 +188,7 @@ function AttendanceClassGrid({
       </div>
       {histories.map((history) => {
         const phone = history.student?.guardian_phone || history.student?.phone || "";
-        const recordsByColumn = new Map(history.records.map((item) => [attendanceColumnKey(item), item]));
+        const recordsByColumn = new Map(history.records.map((item) => [attendanceColumnKey(item, lessons), item]));
         return <div className="attendance-grid-row" style={gridStyle} role="row" key={history.id}>
           <div className="attendance-student-summary" role="rowheader">
             <div className="attendance-student-copy"><h4>{history.name}</h4>{history.student?.email && <span>{history.student.email}</span>}</div>
@@ -171,9 +203,9 @@ function AttendanceClassGrid({
               type="button"
               aria-label={`Preparar mensagem sobre ${lessonCode} de ${history.name} no WhatsApp`}
               key={column.key}
-              title={phone ? `${title} · Preparar mensagem` : `${title} · Telefone não cadastrado`}
+              title={phone ? `${title} · ${column.title} · Preparar mensagem` : `${title} · ${column.title} · Telefone não cadastrado`}
               disabled={!phone}
-              onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history, item, lessons, groups) })}
+              onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history, item, lessons.find((lesson) => lesson.id === column.key), lessons, groups) })}
             >{lessonCode}</button>;
             return <div className={className} role="cell" aria-label={item ? `${lessonCode}: ${attendanceStatusLabel(item.status)}` : `${lessonCode}: sem registro`} key={column.key} title={title}>{lessonCode}</div>;
           })}
@@ -427,7 +459,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
             <button type="button" role="tab" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>Atividades</button>
             <button type="button" role="tab" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>Presença</button>
           </div>
-          <div className="correction-heading-actions">
+          <div className="correction-heading-actions" data-tour="corrections-filters">
             {viewMode === "attendance" ? (
               <select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>
                 <option value="ABSENT">Faltaram</option>

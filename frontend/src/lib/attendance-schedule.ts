@@ -72,10 +72,12 @@ export function attendanceDateFromSchedule(
   lessons: KodlandLesson[],
   group: KodlandGroup | undefined,
 ) {
-  const directDate = isoDate(attendance.lesson_date);
-  if (directDate) return directDate;
+  // The class calendar is canonical for the occurrence. The attendance grid
+  // only supplies who attended it and can carry a stale or absent date.
   const lessonDate = isoDate(lesson?.lesson_date);
   if (lessonDate) return lessonDate;
+  const directDate = isoDate(attendance.lesson_date);
+  if (directDate) return directDate;
   const targetIndex = lesson?.course_index;
   if (!targetIndex) return "";
 

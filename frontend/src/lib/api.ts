@@ -428,6 +428,39 @@ export function mergeSyncedKodlandLesson(
   };
 }
 
+const scheduledKodlandSlot = (lesson: Partial<KodlandLesson>) => {
+  const date = String(lesson.lesson_date ?? "").match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
+  const time = String(lesson.start_time ?? "").match(/^\d{1,2}:\d{2}/)?.[0] ?? "";
+  const group = String(lesson.external_class_id ?? "");
+  return date && time && group ? `${group}:${date}:${time}` : "";
+};
+
+/** Removes a stale scheduled occurrence only when the current import confirms
+ * another catalog lesson in exactly the same group, date and time slot. */
+export function staleScheduledKodlandLessonIds(
+  previous: Partial<KodlandLesson>[],
+  incoming: KodlandLesson[],
+) {
+  const sourcesBySlot = new Map<string, Set<string>>();
+  incoming.forEach((lesson) => {
+    const slot = scheduledKodlandSlot(lesson);
+    const source = String(lesson.source_lesson_id || lesson.id || "");
+    if (!slot || !source) return;
+    const sources = sourcesBySlot.get(slot) ?? new Set<string>();
+    sources.add(source);
+    sourcesBySlot.set(slot, sources);
+  });
+  return previous
+    .filter((lesson) => {
+      const slot = scheduledKodlandSlot(lesson);
+      const source = String(lesson.source_lesson_id || lesson.id || "");
+      const currentSources = sourcesBySlot.get(slot);
+      return Boolean(slot && source && currentSources?.size && !currentSources.has(source));
+    })
+    .map((lesson) => String(lesson.id))
+    .filter(Boolean);
+}
+
 export function mergeLoadedKodlandMaterials(
   previous: KodlandLesson,
   material: KodlandMaterial,
@@ -2374,6 +2407,10 @@ export const kodlandApi = {
       upserts.push((batch) => batch.set(doc(syncCollection("kodland_lessons"), documentId),
         firestorePayload(mergeSyncedKodlandLesson(item, previous, createdAt))));
     });
+    const staleScheduledLessonIds = staleScheduledKodlandLessonIds(oldLessons, lessons);
+    staleScheduledLessonIds.forEach((id) =>
+      deletes.push((batch) => batch.delete(doc(syncCollection("kodland_lessons"), id))),
+    );
     // Lesson endpoints are optional during the lightweight refresh. Keep an
     // older lesson rather than treating a temporary upstream omission as a
     // deletion; a future full reconciliation can remove confirmed stale rows.

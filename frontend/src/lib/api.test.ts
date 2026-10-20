@@ -3,6 +3,7 @@ import {
   __test,
   mergeLoadedKodlandMaterials,
   mergeSyncedKodlandLesson,
+  staleScheduledKodlandLessonIds,
 } from "./api";
 
 describe("Firestore financial helpers", () => {
@@ -55,6 +56,18 @@ describe("Firestore financial helpers", () => {
       created_at: "2026-10-01",
     });
     expect(synced.classroom_tasks).toHaveLength(1);
+  });
+
+  it("substitui uma aula antiga quando a agenda confirma outra no mesmo horário", () => {
+    const stale = staleScheduledKodlandLessonIds([{
+      id: "group-61918-lesson-20851", source_lesson_id: "20851", external_class_id: "61918",
+      lesson_date: "2026-10-19", start_time: "19:00",
+    }], [{
+      id: "20850", source_lesson_id: "20850", external_class_id: "61918", external_class_name: "PRM_BRA1919_SEG-19",
+      lesson_number: 2, title: "M8.L2", theme: "", lesson_date: "2026-10-19", start_time: "19:00", end_time: "20:30", status: "", lesson_passed: false,
+      external_url: "", slides_url: "", guide_url: "", homework_url: "", homework_title: "", classroom_tasks: [],
+    }]);
+    expect(stale).toEqual(["group-61918-lesson-20851"]);
   });
 
   it("recusa materiais retornados para outra aula", () => {

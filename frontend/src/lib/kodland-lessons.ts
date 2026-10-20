@@ -341,11 +341,14 @@ export function parseKodlandLessonsPayload(
       lessonItem.lessonLabel,
       lessonItem.display_name,
       lessonItem.displayName,
+      lessonItem.lesson_title,
+      lessonItem.lessonTitle,
+      lessonItem.title,
       item.lesson,
     ]
       .map(text)
       .map((value) =>
-        value.match(/^\s*[M\u041c]\s*(\d+)\s*\.?\s*L\s*(\d+)\s*$/i),
+        value.match(/[M\u041c]\s*(\d+)\s*\.?\s*L\s*(\d+)/i),
       )
       .find(Boolean);
     const scheduleCode = lessonCode ? `M${lessonCode[1]}L${lessonCode[2]}` : "";

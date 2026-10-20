@@ -159,7 +159,7 @@ describe("enrichKodlandLessons", () => {
 
   it("keeps the timetable code when the same event ID is present in the lesson list", () => {
     const [merged] = mergeKodlandLessons(
-      [{ id: "20851", lesson: "M8.L2", lesson_number: 30, date: "2026-10-19" }],
+      [{ id: "20851", lesson_title: "M8.L2 O Chão é Lava. Funções", lesson_number: 30, date: "2026-10-19" }],
       [{ id: "20851", lesson_number: 31, title: "M8.L3 O Chão é Lava. Lobby" }],
       { external_id: "61918", title: "PRM_BRA1919_SEG-19" },
     );

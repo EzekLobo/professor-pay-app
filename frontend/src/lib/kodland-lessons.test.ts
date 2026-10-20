@@ -151,13 +151,15 @@ describe("enrichKodlandLessons", () => {
         start_time: "19:00",
       }],
       data: {
-        schedule: [{
-          id: "calendar-event-30",
-          lesson: "M8.L2",
-          lesson_number: 30,
-          date: "2026-10-19",
-          start_time: "19:00",
-        }],
+        timeline_payload: {
+          occurrences: [{
+            id: "calendar-event-30",
+            lesson: "M8.L2",
+            lesson_number: 30,
+            date: "2026-10-19",
+            start_time: "19:00",
+          }],
+        },
       },
     }, { external_id: "61918", title: "PRM_BRA1919_SEG-19" }, "schedule");
 
@@ -165,6 +167,20 @@ describe("enrichKodlandLessons", () => {
       ["M8L1", "2026-10-05"],
       ["M8L2", "2026-10-19"],
     ]);
+  });
+
+  it("ignores nested material arrays while collecting every calendar list", () => {
+    const scheduled = parseKodlandLessonsPayload({
+      data: {
+        timeline_payload: {
+          occurrences: [{ id: "event-30", lesson: "M8.L2", lesson_number: 30, date: "2026-10-19" }],
+          materials: [{ id: "slide-1", title: "Slides" }],
+        },
+      },
+    }, { external_id: "61918", title: "PRM_BRA1919_SEG-19" }, "schedule");
+
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].lesson_date).toBe("2026-10-19");
   });
 
   it("uses the schedule code before a conflicting timetable-event ID", () => {

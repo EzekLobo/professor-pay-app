@@ -139,8 +139,10 @@ const lessonItems = (value: unknown, depth = 0): unknown[] => {
   // A group response may expose the first page in `results` and the full
   // official calendar inside a nested `data.schedule`. Keep both instead of
   // returning as soon as the first list is found.
-  const nested = Object.values(objectValue(value)).flatMap((item) =>
-    item && typeof item === "object" && !Array.isArray(item)
+  const nested = Object.entries(objectValue(value)).flatMap(([key, item]) =>
+    // Known arrays are already represented in `direct`; traverse unknown
+    // containers to support alternate provider payload names.
+    item && typeof item === "object" && !(Array.isArray(item) && listKeys.includes(key))
       ? lessonItems(item, depth + 1)
       : [],
   );
@@ -430,7 +432,9 @@ export function parseKodlandLessonsPayload(
       "lessonTheme",
       "topic",
     ]);
-    if (!id && !date && !lessonNumber && !title) return [];
+    // A response can also contain arrays of materials, students and metadata.
+    // They are not timeline entries even when they have an `id` and a title.
+    if (!date && !lessonNumber && !scheduleCode) return [];
     const lessonId =
       id ||
       `${group.external_id}-${date || "lesson"}-${lessonNumber || index + 1}`;

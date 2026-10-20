@@ -19,6 +19,9 @@
 - Algumas respostas colocam a primeira lista em `results` e o cronograma
   completo em `data.schedule`. O parser deve coletar listas conhecidas em
   todos os níveis relevantes, sem retornar ao encontrar a primeira delas.
+- Como a forma do payload da Kodland varia, toda lista aninhada é candidata a
+  cronograma; somente registros com data, número de aula ou código `Mx.Ly`
+  são aceitos. Isso evita importar materiais e metadados como se fossem aulas.
 
 ## R15 — Turmas próprias e demo local
 

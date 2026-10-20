@@ -37,10 +37,26 @@ export function lessonForAttendance(item: KodlandAttendance, lessons: KodlandLes
 
 export function attendanceLessonParts(item: KodlandAttendance, lessons: KodlandLesson[]) {
   const lesson = lessonForAttendance(item, lessons);
-  const code = moduleLessonCode(lesson?.title ?? "") ?? moduleLessonCode(item.lesson_title);
-  if (code) return { module: `M${code[1]}`, lesson: `L${code[2]}` };
-  const moduleNumber = lesson?.module_number?.match(/\d+/)?.[0];
-  if (moduleNumber && lesson?.lesson_number) return { module: `M${moduleNumber}`, lesson: `L${lesson.lesson_number}` };
+  const catalogCode = moduleLessonCode(lesson?.title ?? "");
+  const moduleNumber = lesson?.module_number?.match(/\d+/)?.[0] ?? catalogCode?.[1];
+  if (lesson && moduleNumber) {
+    const moduleLessons = lessons
+      .filter((candidate) => {
+        if (candidate.external_class_id !== lesson.external_class_id) return false;
+        const candidateModule = candidate.module_number?.match(/\d+/)?.[0] ?? moduleLessonCode(candidate.title)?.[1];
+        return candidateModule === moduleNumber;
+      })
+      .sort((first, second) => (first.course_index ?? Number.MAX_SAFE_INTEGER) - (second.course_index ?? Number.MAX_SAFE_INTEGER));
+    const localIndex = moduleLessons.findIndex((candidate) =>
+      candidate.id === lesson.id
+      || Boolean(candidate.source_lesson_id && candidate.source_lesson_id === lesson.source_lesson_id)
+      || Boolean(candidate.course_index && candidate.course_index === lesson.course_index),
+    );
+    if (localIndex >= 0) return { module: `M${moduleNumber}`, lesson: `L${localIndex + 1}` };
+  }
+
+  const suppliedCode = moduleLessonCode(item.lesson_title);
+  if (suppliedCode) return { module: `M${suppliedCode[1]}`, lesson: `L${suppliedCode[2]}` };
   return { module: "", lesson: "Aula" };
 }
 

@@ -1435,12 +1435,14 @@ export function attendanceFromStudentsPayload(payload: unknown, group: Group): A
         if (lesson.attendance_status === null || lesson.attendance_status === undefined) return [];
         const lessonId = text(lesson.lesson_id ?? lesson.lessonId ?? lesson.id);
         if (!lessonId) return [];
-        const lessonNumber = text(lesson.lesson_number ?? lesson.lessonNumber ?? lesson.number) || String(lessonIndex + 1);
+        const lessonNumber = String(lessonIndex + 1);
         const lessonDate = dateOnly(lesson.lesson_date ?? lesson.lessonDate ?? lesson.date ?? lesson.start_at ?? lesson.startAt);
         const suppliedTitle = text(lesson.lesson_title ?? lesson.lessonTitle ?? lesson.title ?? lesson.name);
-        const title = suppliedTitle && suppliedTitle.toLocaleLowerCase() !== "aula"
+        const title = moduleNumber
+          ? `Aula M${moduleNumber}.L${lessonNumber}`
+          : suppliedTitle && suppliedTitle.toLocaleLowerCase() !== "aula"
           ? suppliedTitle
-          : `Aula ${moduleNumber ? `M${moduleNumber}.` : ""}L${lessonNumber}`;
+          : `Aula L${lessonNumber}`;
         return [{
           id: `kodland-attendance-${group.external_id}-${studentId}-${lessonId}`,
           external_class_id: group.external_id,

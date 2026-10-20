@@ -29,8 +29,8 @@ describe("sync diagnostics", () => {
     ], { external_id: "66919", title: "PRM_BRA2429_TER-20" } as never);
 
     expect(records.map((item) => item.status)).toEqual(["ABSENT", "EXCUSED", "PRESENT", "UNKNOWN"]);
+    expect(records.map((item) => item.lesson_title)).toEqual(["Aula M5.L1", "Aula M5.L2", "Aula M5.L3", "Aula M5.L4"]);
     expect(records[0].student_name).toBe("Rafael Coppola");
-    expect(records[0].lesson_title).toBe("Aula M5.L1");
   });
 
   it.each([

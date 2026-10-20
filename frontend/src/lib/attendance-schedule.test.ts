@@ -27,22 +27,23 @@ const lesson = (courseIndex: number, lessonDate = ""): KodlandLesson => ({
 
 describe("attendanceDateFromSchedule", () => {
   it("uses a numeric global lesson id only to find the real module-local code", () => {
-    const catalogLesson = {
-      ...lesson(28),
-      module_number: "7",
-      lesson_number: 4,
-      title: "M7.L4 Projeto final",
-    };
-    const attendance = {
-      lesson_id: "28",
-      lesson_title: "Aula",
-      external_class_id: "group-1",
-      lesson_date: "",
-      start_time: "",
-    } as KodlandAttendance;
+    const catalog = [25, 26, 27, 28].map((courseIndex) => ({
+      ...lesson(courseIndex),
+      lesson_number: courseIndex,
+      title: `M7.L${courseIndex}`,
+    }));
 
-    expect(lessonForAttendance(attendance, [catalogLesson])).toBe(catalogLesson);
-    expect(attendanceLessonParts(attendance, [catalogLesson])).toEqual({ module: "M7", lesson: "L4" });
+    catalog.forEach((catalogLesson, index) => {
+      const attendance = {
+        lesson_id: String(catalogLesson.course_index),
+        lesson_title: `Aula M7.L${catalogLesson.course_index}`,
+        external_class_id: "group-1",
+        lesson_date: "",
+        start_time: "",
+      } as KodlandAttendance;
+      expect(lessonForAttendance(attendance, catalog)).toBe(catalogLesson);
+      expect(attendanceLessonParts(attendance, catalog)).toEqual({ module: "M7", lesson: `L${index + 1}` });
+    });
   });
 
   it("preserves a module-local code already supplied by the attendance grid", () => {

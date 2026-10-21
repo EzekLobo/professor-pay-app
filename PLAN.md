@@ -1076,7 +1076,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     não aparecem em `git status`.
   - Depende de: nenhuma.
 
-- [ ] R17.2 - Integração ao fluxo de trabalho do Codex
+- [x] R17.2 - Integração ao fluxo de trabalho do Codex
   - Escopo: documentar comandos curtos e adicionar uma orientação local para
     usar o grafo apenas em investigações transversais; manter `rg` como busca
     textual e evitar qualquer consulta obrigatória em edições simples.
@@ -1107,3 +1107,13 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   passam.
 - Próximo: R17.2 deve documentar o uso pontual do grafo para investigações
   transversais, preservando `rg` para busca textual.
+
+##### R17.2
+
+- Mudou: `README.md` documenta geração, consulta, exemplos e limites do índice;
+  `AGENTS.md` orienta o Codex a usá-lo somente para análise de impacto ou
+  investigações transversais, sem substituir `rg` em buscas simples.
+- Verificado pelo orquestrador: ajuda, geração, consulta de
+  `corrections-page`, referências locais da documentação e diff check passam.
+- Próximo: R17.3 deve conferir o cache ignorado e executar a validação web
+  existente antes de registrar o handoff final.

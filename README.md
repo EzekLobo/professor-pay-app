@@ -113,6 +113,42 @@ Set-Location backend; uv run --isolated pytest
 O aplicativo Expo atual continua usando os comandos existentes: `npm start` e
 `npm test`.
 
+## Contexto de dependências para o Codex
+
+O repositório tem um índice local e regenerável dos imports estáticos de
+`frontend/src`. Ele serve para reduzir a exploração em investigações que atravessam
+componentes, telas e utilitários; não altera a aplicação, o deploy ou os arquivos
+versionados.
+
+Gere o índice antes de uma investigação transversal ou análise de impacto:
+
+```powershell
+npm run codex:graph:generate
+```
+
+Em seguida, consulte um arquivo pelo nome ou por uma parte específica do caminho:
+
+```powershell
+npm run codex:graph -- corrections-page.tsx
+npm run codex:graph -- src/components/corrections-page.tsx
+```
+
+A consulta mostra as dependências diretas e os dependentes diretos do arquivo.
+Se houver mais de um resultado, informe uma parte mais específica do caminho.
+Use `npm run codex:graph -- --help` para relembrar a sintaxe.
+
+Use o grafo apenas quando a pergunta for, por exemplo, “quais telas podem ser
+afetadas por esta alteração?” ou “por onde este componente é reutilizado?”.
+Para procurar textos, nomes de funções, regras de negócio ou fazer uma edição
+isolada, mantenha `rg` como ferramenta principal; não há consulta ao grafo
+obrigatória nesses casos.
+
+O índice cobre somente relações de import estáticas TypeScript/TSX sob
+`frontend/src`. Ele não descreve fluxos em tempo de execução, dados do Firebase,
+rotas externas, chamadas de API, eventos nem regras de negócio. Como é um cache
+local em `.codex/graph/` ignorado pelo Git, ele pode estar desatualizado: gere-o
+novamente antes da análise e confirme as conclusões no código e nos testes.
+
 ## Operação e qualidade
 
 `/health` confirma que a API está em execução e `/ready` também verifica o

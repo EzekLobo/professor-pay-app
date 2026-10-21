@@ -10,6 +10,11 @@ Use this file as the first stop for every Codex session in this repo.
 
 - For broad work or unfamiliar areas, read `.codex/memory/repo-map.md` first.
 - Before continuing previous work, read `.codex/memory/current-state.md`.
+- For a cross-cutting investigation or impact analysis in `frontend/src`, generate
+  and query the local dependency graph with `npm run codex:graph:generate` and
+  `npm run codex:graph -- <arquivo-ou-parte-do-caminho>`. Use it only to narrow
+  the files to inspect; keep `rg` as the default for textual searches and simple
+  edits. Do not make a graph query mandatory for isolated changes.
 - For Expo, React Native, SQLite, or dependency changes, read `.codex/rules/expo-v56.md` before editing.
 - For planning, reviewing, or Expo validation, use the role checklists in `.codex/agents/`.
 - For repo-local skill guidance, read `.codex/skills/professor-pay-ops/SKILL.md`.

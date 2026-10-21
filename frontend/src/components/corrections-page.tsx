@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { MessageCircle, RefreshCw } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
@@ -35,6 +35,7 @@ type AttendanceColumn = {
   module: string;
   lesson: string;
   date: string;
+  startTime: string;
   title: string;
   recordingUrl: string;
   moduleStart: boolean;
@@ -78,6 +79,17 @@ const attendanceDateLabel = (value: string) => {
   const [year, month, day] = value.slice(0, 10).split("-");
   return year && month && day ? `${day}/${month}/${year}` : value;
 };
+const saoPauloNow = () => Object.fromEntries(
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date()).map((part) => [part.type, part.value]),
+);
 const attendanceSortKey = (item: KodlandAttendance) => `${item.lesson_date || "0000-00-00"} ${item.start_time || "00:00"} ${item.lesson_title}`;
 const attendanceColumnKey = (item: KodlandAttendance, lessons: KodlandLesson[]) =>
   lessonForAttendance(item, lessons)?.id || item.lesson_id || `${item.lesson_date}:${item.lesson_title}`;
@@ -144,6 +156,7 @@ function AttendanceClassGrid({
           module: parts.module,
           lesson: parts.lesson,
           date: lesson.lesson_date.slice(0, 10),
+          startTime: lesson.start_time,
           title: lesson.title,
           recordingUrl: lesson.recording_url ?? "",
           moduleStart: Boolean(parts.module && parts.module !== (index ? attendanceLessonParts({ lesson_id: scheduled[index - 1].id, lesson_title: scheduled[index - 1].title, external_class_id: scheduled[index - 1].external_class_id } as KodlandAttendance, lessons).module : "")),
@@ -169,21 +182,50 @@ function AttendanceClassGrid({
     }));
   })();
   const gridStyle = { "--attendance-columns": columns.length } as CSSProperties;
+  const focusColumnIndex = (() => {
+    const now = saoPauloNow();
+    const today = `${now.year}-${now.month}-${now.day}`;
+    const currentTime = `${now.hour}:${now.minute}`;
+    let latestOccurredIndex = -1;
+    columns.forEach((column, index) => {
+      if (column.date && (column.date < today || (column.date === today && (!column.startTime || column.startTime <= currentTime)))) {
+        latestOccurredIndex = index;
+      }
+    });
+    return latestOccurredIndex >= 0 ? latestOccurredIndex : 0;
+  })();
 
   useEffect(() => {
     if (!classOpen) return;
     const frame = window.requestAnimationFrame(() => {
       const element = gridRef.current;
-      if (element) element.scrollLeft = element.scrollWidth;
+      if (!element) return;
+      const target = element.querySelector<HTMLElement>(`[data-attendance-column-index="${focusColumnIndex}"]`);
+      const corner = element.querySelector<HTMLElement>(".attendance-grid-corner");
+      if (!target) return;
+      const stickyWidth = corner?.offsetWidth ?? 0;
+      const availableWidth = Math.max(0, element.clientWidth - stickyWidth);
+      element.scrollLeft = Math.max(0, target.offsetLeft - stickyWidth - (availableWidth - target.offsetWidth) / 2);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [classOpen, columns.length]);
+  }, [classOpen, columns.length, focusColumnIndex]);
+
+  const scrollWithMouseWheel = (event: WheelEvent<HTMLDivElement>) => {
+    const element = event.currentTarget;
+    if (element.scrollWidth <= element.clientWidth) return;
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (!delta) return;
+    const next = Math.max(0, Math.min(element.scrollWidth - element.clientWidth, element.scrollLeft + delta));
+    if (next === element.scrollLeft) return;
+    event.preventDefault();
+    element.scrollLeft = next;
+  };
 
   return (
-    <div className="attendance-grid-scroll" ref={gridRef} tabIndex={0} aria-label="Grade de histórico de presença">
+    <div className="attendance-grid-scroll" ref={gridRef} tabIndex={0} aria-label="Grade de histórico de presença" onWheel={scrollWithMouseWheel}>
       <div className="attendance-grid-header" style={gridStyle} role="row">
         <div className="attendance-grid-corner" role="columnheader">Aluno</div>
-        {columns.map((column) => <div className={`attendance-column-heading${column.moduleStart ? " attendance-module-start" : ""}`} role="columnheader" key={column.key}>
+        {columns.map((column, index) => <div className={`attendance-column-heading${column.moduleStart ? " attendance-module-start" : ""}`} role="columnheader" data-attendance-column-index={index} key={column.key}>
           <strong>{column.date ? attendanceDateLabel(column.date).slice(0, 5) : "Sem data"}</strong>
         </div>)}
       </div>

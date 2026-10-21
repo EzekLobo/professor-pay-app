@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent, type ReactNode } from "react";
+import { Download } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { kodlandApi, lessonNotesApi, type KodlandLesson } from "@/lib/api";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
@@ -286,10 +287,12 @@ export function LessonMaterialModal({
                 {activeLesson.slides_url && (
                   <li>
                     <a
+                      className="lesson-resource-download"
                       href={activeLesson.slides_url}
                       target="_blank"
                       rel="noreferrer"
                     >
+                      <Download size={16} aria-hidden="true" />
                       Slides {activeLesson.location}
                     </a>
                   </li>
@@ -297,10 +300,12 @@ export function LessonMaterialModal({
                 {activeLesson.guide_url && (
                   <li>
                     <a
+                      className="lesson-resource-download"
                       href={activeLesson.guide_url}
                       target="_blank"
                       rel="noreferrer"
                     >
+                      <Download size={16} aria-hidden="true" />
                       Roteiro {activeLesson.location}
                     </a>
                   </li>

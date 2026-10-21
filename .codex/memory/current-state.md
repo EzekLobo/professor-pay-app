@@ -1,5 +1,12 @@
 # Estado atual
 
+- Os links de Slides e Roteiro no modal compartilhado de materiais exibem
+  ícones de download, preservando a abertura segura do recurso em nova aba.
+- Ao abrir uma turma em Acompanhamento > Presença, a grade centraliza a última
+  aula já ocorrida no horário de São Paulo. A roda do mouse navega
+  horizontalmente para consultar aulas anteriores e próximas; nas
+  extremidades, a rolagem vertical normal da página continua disponível.
+
 ## Cronograma Kodland como fonte de verdade
 
 - Confirmado diretamente na Kodland em 20/10/2026: `schedule_view` usa

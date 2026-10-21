@@ -332,7 +332,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
           <small>{paidCount} competência(s) confirmada(s)</small>
         </article>
       </section>
-      <section className="panel page-fill-panel" data-tour="payments-period">
+      <section className="panel" data-tour="payments-period">
         <div className="section-heading">
           <h2>Competências mensais</h2>
           {items.length > 0 && (

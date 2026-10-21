@@ -311,9 +311,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
 
       <section className="panel data-sync-card" data-tour="data-sync">
         <div className="data-section-copy">
-          <p className="eyebrow">Kodland</p>
-          <h2>Sincronizar dados</h2>
-          <p className="muted">Atualize a agenda, os alunos, a presença e os materiais em uma única ação.</p>
+          <h2>Sincronizar Kodland</h2>
         </div>
         <Button type="button" disabled={busy} onClick={openSync}>
           Sincronizar tudo
@@ -324,14 +322,12 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
         <div className="data-backup-heading">
           <div>
             <h2>Backup</h2>
-            <p className="muted">Exporte seus dados ou restaure um arquivo JSON já salvo.</p>
           </div>
         </div>
         <div className="data-backup-actions">
           <section className="data-backup-action" data-tour="data-export">
             <div>
-              <h3>Baixar backup</h3>
-              <p className="muted">Guarde uma cópia dos seus dados.</p>
+              <h3>Exportar</h3>
             </div>
             <Button className="button-ghost" disabled={busy} onClick={() => void download()}>
               {busy ? "Preparando…" : "Baixar JSON"}
@@ -339,11 +335,9 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
           </section>
           <section className="data-backup-action" data-tour="data-import">
             <div>
-              <h3>Restaurar backup</h3>
-              <p className="muted">Confira a prévia antes de importar.</p>
+              <h3>Importar backup</h3>
             </div>
             <label className="field data-backup-file">
-              <span>Arquivo JSON</span>
               <Input type="file" accept="application/json,.json" disabled={busy || Boolean(demo)} onChange={file} />
             </label>
             {demo && <p className="muted data-backup-note">Importação indisponível na demonstração.</p>}
@@ -369,8 +363,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
 
       <details className="data-danger-zone" data-tour="data-delete">
         <summary>
-          <span>Opções avançadas</span>
-          <small>{demo ? "Restaurar demonstração" : "Apagar dados"}</small>
+          <span>{demo ? "Restaurar demonstração" : "Apagar dados"}</span>
         </summary>
         <p className="muted">{demo ? "Restaure o exemplo inicial. Apenas as alterações locais desta demonstração serão removidas." : "Turmas, aulas e confirmações serão removidas; sua conta continua existindo."}</p>
         <form className="form data-reset-form" onSubmit={reset}>

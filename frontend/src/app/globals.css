@@ -774,28 +774,23 @@ select:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 20px 22px;
+  min-height: 76px;
+  padding: 16px 20px;
 }
-.data-section-copy { display: grid; gap: 4px; }
-.data-section-copy .eyebrow { margin: 0; }
+.data-section-copy { min-width: 0; }
 .data-section-copy h2,
 .data-backup-heading h2,
 .data-backup-action h3 { margin: 0; }
-.data-section-copy .muted,
-.data-backup-heading .muted,
-.data-backup-action .muted,
 .data-danger-zone > .muted { margin: 0; }
 .data-sync-card > .button { flex: 0 0 auto; }
-.data-backup-card { display: grid; gap: 14px; padding: 20px 22px; }
+.data-backup-card { display: grid; gap: 10px; padding: 16px 20px; }
 .data-backup-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.data-backup-heading > div { display: grid; gap: 4px; }
-.data-backup-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line); }
-.data-backup-action { display: grid; align-content: start; gap: 12px; padding-top: 14px; }
+.data-backup-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.data-backup-action { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 48px; }
 .data-backup-action + .data-backup-action { border-left: 1px solid var(--line); padding-left: 20px; }
 .data-backup-action h3 { font-size: .95rem; }
 .data-backup-action .button { justify-self: start; }
-.data-backup-file { gap: 6px; font-size: .78rem; }
-.data-backup-file > span { color: var(--muted); font-weight: 700; }
+.data-backup-file { min-width: min(320px, 100%); }
 .data-backup-note { font-size: .82rem; }
 .data-import-preview { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
 .data-import-preview p { margin: 0; }
@@ -812,13 +807,14 @@ select:focus-visible {
 .data-danger-zone[open] { padding-bottom: 16px; }
 .data-danger-zone[open] summary { margin-bottom: 10px; }
 .data-danger-zone[open] summary::after { content: "−"; }
-.data-danger-zone summary small { margin-left: auto; margin-right: 10px; color: #c898a0; font-size: .75rem; font-weight: 700; }
 .data-reset-form { margin-top: 14px; }
 @media (max-width: 700px) {
   .data-sync-card { align-items: stretch; flex-direction: column; gap: 14px; }
   .data-sync-card > .button { width: 100%; }
   .data-backup-actions { grid-template-columns: 1fr; }
+  .data-backup-action { grid-template-columns: 1fr; align-items: stretch; }
   .data-backup-action + .data-backup-action { border-top: 1px solid var(--line); border-left: 0; padding-top: 14px; padding-left: 0; }
+  .data-backup-file { min-width: 0; }
   .data-import-preview { align-items: stretch; flex-direction: column; }
   .data-import-preview .button { width: 100%; }
 }

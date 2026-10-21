@@ -6,6 +6,10 @@
   aula já ocorrida no horário de São Paulo. A roda do mouse navega
   horizontalmente para consultar aulas anteriores e próximas; nas
   extremidades, a rolagem vertical normal da página continua disponível.
+- A mensagem de falta do WhatsApp usa blocos separados, código de aula no
+  formato `M7.L4`, destaque compatível com WhatsApp para a gravação e o link
+  isolado em sua própria linha. Os emojis 👋 e 🎥 reforçam a saudação e a
+  gravação sem carregar o texto; o professor ainda pode editar antes do envio.
 
 ## Cronograma Kodland como fonte de verdade
 

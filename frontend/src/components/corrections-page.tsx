@@ -98,14 +98,22 @@ const attendanceLessonDate = (item: KodlandAttendance, lessons: KodlandLesson[],
   const group = groups.find((candidate) => candidate.external_id === item.external_class_id);
   return attendanceDateFromSchedule(item, lesson, lessons, group);
 };
-const attendanceMessage = (history: AttendanceStudentHistory, item: KodlandAttendance, scheduledLesson: KodlandLesson | undefined, lessons: KodlandLesson[], groups: KodlandGroup[]) => {
+const attendanceMessage = (history: AttendanceStudentHistory, item: KodlandAttendance, scheduledLesson: KodlandLesson | undefined, lessons: KodlandLesson[]) => {
   const parts = scheduledLesson ? attendanceLessonParts({ ...item, lesson_id: scheduledLesson.id }, lessons) : attendanceLessonParts(item, lessons);
-  const lessonLabel = parts.module ? `${parts.module}${parts.lesson}` : item.lesson_title || parts.lesson;
+  const lessonLabel = parts.module ? `${parts.module}.${parts.lesson}` : item.lesson_title || parts.lesson;
   const recordingUrl = scheduledLesson?.recording_url?.trim() || item.recording_url?.trim();
   const recordingLine = recordingUrl
-    ? ` Para ficar por dentro do assunto, você pode acessar a aula gravada aqui: ${recordingUrl}.`
-    : " Assim que a gravação estiver disponível na plataforma, eu posso enviá-la para você.";
-  return `Olá, ${history.name}! Sentimos sua falta na aula ${lessonLabel}, em ${attendanceDateLabel(attendanceDateFromSchedule(item, scheduledLesson, lessons, groups.find((candidate) => candidate.external_id === item.external_class_id)))}. Aconteceu alguma coisa?${recordingLine} Se precisar de ajuda, me avise.`;
+    ? `🎥 *Para ficar por dentro do assunto, você pode acessar a aula gravada aqui:*
+${recordingUrl}`
+    : `🎥 *Para ficar por dentro do assunto:*
+Assim que a gravação estiver disponível na plataforma, eu posso enviá-la para você.`;
+  return `Olá, ${history.name}! 👋
+
+Sentimos sua falta na aula ${lessonLabel}. Aconteceu alguma coisa?
+
+${recordingLine}
+
+Se precisar de ajuda, pode contar comigo!`;
 };
 
 function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo?: CorrectionsDemoAdapter }) {
@@ -248,7 +256,7 @@ function AttendanceClassGrid({
               key={column.key}
               title={phone ? `${title} · ${column.title} · Preparar mensagem` : `${title} · ${column.title} · Telefone não cadastrado`}
               disabled={!phone}
-              onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history, item, lessons.find((lesson) => lesson.id === column.key), lessons, groups) })}
+              onClick={() => onWhatsApp({ studentName: history.name, phone, message: attendanceMessage(history, item, lessons.find((lesson) => lesson.id === column.key), lessons) })}
             >{lessonCode}</button>;
             return <div className={className} role="cell" aria-label={item ? `${lessonCode}: ${attendanceStatusLabel(item.status)}` : `${lessonCode}: sem registro`} key={column.key} title={title}>{lessonCode}</div>;
           })}
@@ -455,7 +463,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
         {whatsAppDraft && <div className="form management-form attendance-whatsapp-form">
           <p className="muted">Revise a mensagem para {whatsAppDraft.studentName} antes de enviar.</p>
           <label className="field">Mensagem
-            <textarea className="input" rows={7} value={whatsAppDraft.message} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, message: event.target.value } : current)} />
+            <textarea className="input" rows={10} value={whatsAppDraft.message} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, message: event.target.value } : current)} />
           </label>
           <div className="form-actions">
             <Button type="button" className="button-ghost" onClick={() => setWhatsAppDraft(null)}>Cancelar</Button>

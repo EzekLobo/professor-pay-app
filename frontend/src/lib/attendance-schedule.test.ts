@@ -77,6 +77,25 @@ describe("attendanceDateFromSchedule", () => {
     expect(attendanceLessonParts(attendance, [scheduled])).toEqual({ module: "M5", lesson: "L1" });
   });
 
+  it("normalizes the Cyrillic M used by the real Kodland calendar", () => {
+    const moduleLessons = [37, 38, 39, 40].map((courseIndex, index) => ({
+      ...lesson(courseIndex, `2026-12-${String(7 + index * 7).padStart(2, "0")}`),
+      module_number: "",
+      lesson_number: courseIndex,
+      title: `М10.L${index + 1} Aula do projeto final`,
+    }));
+    const target = moduleLessons[3];
+    const attendance = {
+      lesson_id: target.id,
+      lesson_title: "Aula",
+      external_class_id: "group-1",
+      lesson_date: target.lesson_date,
+      start_time: target.start_time,
+    } as KodlandAttendance;
+
+    expect(attendanceLessonParts(attendance, moduleLessons)).toEqual({ module: "M10", lesson: "L4" });
+  });
+
   it("uses a dated calendar lesson as the anchor for an undated attendance record", () => {
     const target = lesson(17);
     expect(attendanceDateFromSchedule(

@@ -9,7 +9,9 @@ const shiftWeeks = (date: string, weeks: number) => {
   return parsed.toISOString().slice(0, 10);
 };
 
-const moduleLessonCode = (value: string) => value.match(/M(\d+)(?:\s*[.·-]\s*)?L(\d+)/i);
+// Kodland mixes the Latin M (U+004D) and Cyrillic M (U+041C) in otherwise
+// identical lesson titles. Accept both, then normalize the UI back to Latin M.
+const moduleLessonCode = (value: string) => value.match(/[M\u041c](\d+)(?:\s*[.·-]\s*)?L(\d+)/i);
 
 /** Resolves an attendance lesson against the real course catalog. */
 export function lessonForAttendance(item: KodlandAttendance, lessons: KodlandLesson[]) {

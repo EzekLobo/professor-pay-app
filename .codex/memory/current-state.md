@@ -318,3 +318,7 @@ e estilos privados, sem autenticação, telemetria ou chamadas de APIs na demo.
   A grade vincula essa amostra à coluna agendada por ID/índice global: a data e
   o horário continuam vindo do cronograma, enquanto módulo e aula local vêm da
   estrutura real do curso, sem presumir quantidade fixa por módulo.
+- Confirmado diretamente nas três turmas reais em 21/10/2026: o cronograma
+  alterna o `M` latino (U+004D) e o `М` cirílico (U+041C) nos títulos das
+  aulas. O parser aceita ambos e normaliza a exibição para `M7L4`; sem isso,
+  títulos como `М10.L4` eram exibidos como `Aula`, sobretudo em aulas futuras.

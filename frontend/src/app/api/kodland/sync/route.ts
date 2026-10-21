@@ -1701,7 +1701,7 @@ async function lessonsForGroup(
 }
 
 const scheduleCode = (value: string) =>
-  value.match(/M\s*(\d+)\s*\.?\s*L\s*(\d+)/i);
+  value.match(/[M\u041c]\s*(\d+)\s*\.?\s*L\s*(\d+)/i);
 
 /** The calendar defines the class occurrence; attendance only defines the
  * student's status in that occurrence. */

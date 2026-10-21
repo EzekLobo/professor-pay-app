@@ -363,7 +363,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
   };
 
   return (
-    <div className="management-grid">
+    <div className="management-grid page-fill-grid">
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -376,7 +376,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
       )}
 
       <ManualClassesPanel adapter={demo?.manualAdapter} hasKodlandGroups={groups.length > 0} kodlandLoading={loading} />
-      <section className="panel pedagogical-panel">
+      <section className="panel pedagogical-panel page-fill-panel">
         <div className="section-heading classes-compact-heading">
           <h2>{kodlandGroupLabel}</h2>
           <div className="card-actions">

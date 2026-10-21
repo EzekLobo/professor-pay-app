@@ -408,6 +408,9 @@ select:focus-visible {
 .admin-feature-list strong { color: var(--primary); }
 .shell-main {
   min-width: 0;
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
 }
 .shell-header {
   display: grid;
@@ -516,9 +519,34 @@ select:focus-visible {
   font-weight: 700;
 }
 .page-content {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
   width: min(100%, 1280px);
   margin: 0 auto;
   padding: clamp(26px, 4vw, 56px);
+}
+.page-stage {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.page-stage > .page-fill-grid {
+  min-height: 0;
+  flex: 1;
+}
+.dashboard-grid.page-fill-grid,
+.management-grid.page-fill-grid {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+.page-fill-panel {
+  min-height: 0;
+  flex: 1;
 }
 .dashboard-grid,
 .management-grid {

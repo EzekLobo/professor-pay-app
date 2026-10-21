@@ -64,9 +64,9 @@ export function LessonsContent({ demoData }: { demoData?: { groups: KodlandGroup
   };
   const openKodlandLesson = (courseNameValue: string, lesson: KodlandLesson) => setSelectedMaterial({ ...lesson, classroom_tasks: lesson.classroom_tasks ?? [], location: kodlandLessonLocation(lesson), source: courseNameValue, note_key: `kodland:${lesson.external_class_id}:${lesson.id}` });
 
-  return <div className="management-grid">
+  return <div className="management-grid page-fill-grid">
     {error && <p className="form-error" role="alert">{error}</p>}
-    <section className="panel lessons-catalog-panel">
+    <section className="panel lessons-catalog-panel page-fill-panel">
       <div className="section-heading"><div><h2>Cursos</h2><p className="muted">Turmas sincronizadas e cursos próprios no mesmo catálogo.</p></div><Button type="button" onClick={openBuilder}>Criar novo curso</Button></div>
       {loading ? <p className="muted">Carregando cursos…</p> : !courseCatalog.length && !manualCourses.length ? <p className="muted">Nenhum curso cadastrado.</p> : <div className="course-list" data-tour="lessons-courses">
         {manualCourses.map((course) => <details className="course-card manual-course-card" key={course.id}><summary><span><strong>{course.name}</strong><small>Curso próprio · {course.modules.length} módulo{course.modules.length === 1 ? "" : "s"}</small></span><b>{course.modules.reduce((total, module) => total + module.lessons.length, 0)} aulas</b></summary><div className="course-lessons">{course.modules.map((module) => <section className="course-module" key={module.id}><div className="course-module-heading"><h3>{module.title}</h3><span>{module.lessons.length} aulas</span></div><div className="course-module-lessons">{module.lessons.map((lesson) => <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedManualLesson({ course, module, lesson })}><div><strong>{lesson.title}</strong><span>{[lesson.activities && "Atividades", lesson.guide && "Roteiro", lesson.slides && "Slides", lesson.homework && "Lição de casa"].filter(Boolean).join(" · ") || "Sem materiais cadastrados"}</span></div><span className="course-lesson-hint">Ver detalhes</span></button>)}</div></section>)}</div></details>)}

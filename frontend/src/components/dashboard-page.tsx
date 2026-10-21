@@ -286,7 +286,7 @@ export function WeekSchedule({
     });
   });
   return (
-    <section className="panel weekly-schedule" data-tour="dashboard-schedule">
+    <section className="panel weekly-schedule page-fill-panel" data-tour="dashboard-schedule">
       <div className="section-heading">
         <div className="week-heading-copy">
           <h2>Grade de horários</h2>
@@ -770,7 +770,7 @@ export function KodlandSummary({
 }) {
   const active = groups.filter((group) => !group.archived);
   return (
-    <div className="dashboard-grid">
+    <div className="dashboard-grid page-fill-grid">
       <section className="metric-grid kodland-metrics">
         <article className="metric-card">
           <span>Turmas</span>

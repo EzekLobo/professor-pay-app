@@ -140,7 +140,7 @@ function AdminContent() {
   }
 
   return (
-    <div className="management-grid admin-dashboard">
+    <div className="management-grid admin-dashboard page-fill-grid">
       <Modal
         open={createOpen}
         title="Cadastrar usuário"
@@ -218,7 +218,7 @@ function AdminContent() {
             return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.email}</small></td><td>{item.lastSeenAt ? dateTime.format(new Date(item.lastSeenAt)) : "—"}</td><td>{duration(item.activeSeconds)}</td><td>{item.sessions}</td><td><span className={item.active ? "admin-status active" : "admin-status"}>{item.active ? "Ativo agora" : "Offline"}</span></td><td><div className="admin-user-actions"><button className="button button-ghost admin-remove-user-button" type="button" onClick={() => setLogUser(item)}>Ver log</button><button className="button button-danger admin-remove-user-button" type="button" disabled={protectedAccount || removingId === item.id} title={protectedAccount ? "Esta conta administrativa é protegida." : "Remover acesso"} onClick={() => { setRemoveError(""); setRemovingUser(item); }}>{protectedAccount ? "Protegido" : "Remover"}</button></div></td></tr>;
           })}</tbody></table></div> : <p className="muted">Ainda não há acessos registrados neste período.</p>}
         </section>
-        <section className="panel admin-panel">
+        <section className="panel admin-panel page-fill-panel">
           <div className="admin-panel-heading"><div><h2>Funcionalidades mais acessadas</h2><p className="muted">Contagem de visitas às áreas do aplicativo no período selecionado.</p></div></div>
           {data.features.length ? <ol className="admin-feature-list">{data.features.map((item) => <li key={item.feature}><span>{item.feature}</span><strong>{item.views} acesso{item.views === 1 ? "" : "s"}</strong></li>)}</ol> : <p className="muted">Ainda não há funcionalidades acessadas neste período.</p>}
         </section>

@@ -247,7 +247,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
   }
 
   return (
-    <div className="management-grid">
+    <div className="management-grid page-fill-grid">
       <Modal
         open={syncOpen}
         title="Sincronizar aplicação"
@@ -318,7 +318,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
         </Button>
       </section>
 
-      <section className="panel data-backup-card">
+      <section className="panel data-backup-card page-fill-panel">
         <div className="data-backup-heading">
           <div>
             <h2>Backup</h2>

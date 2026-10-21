@@ -74,7 +74,10 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
             </div>
           </div>
         </header>
-        <main className="page-content" id="main-content" tabIndex={-1}>{banner}{children}</main>
+        <main className="page-content" id="main-content" tabIndex={-1}>
+          {banner}
+          <div className="page-stage">{children}</div>
+        </main>
       </section>
     </div>
   );

@@ -1,5 +1,10 @@
 # Estado atual
 
+- O Shell passou a manter uma área de página com altura mínima igual à janela.
+  Resumo, Pagamentos, Turmas, Aulas, Acompanhamento, Dados e Administração
+  marcam seu painel principal para ocupar o espaço restante quando há pouco
+  conteúdo, sem limitar páginas que precisem crescer e rolar.
+
 - Os links de Slides e Roteiro no modal compartilhado de materiais exibem
   ícones de download, preservando a abertura segura do recurso em nova aba.
 - Ao abrir uma turma em Acompanhamento > Presença, a grade centraliza a última

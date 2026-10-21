@@ -468,7 +468,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   const attendanceByClass = useMemo(() => groupBy(attendanceHistories, (history) => history.records[0]?.external_class_name || "Turma não informada"), [attendanceHistories]);
 
   return (
-    <div className="management-grid">
+    <div className="management-grid page-fill-grid">
       <Modal open={Boolean(whatsAppDraft)} title="Mensagem pelo WhatsApp" onClose={() => setWhatsAppDraft(null)} className="attendance-whatsapp-modal">
         {whatsAppDraft && <div className="form management-form attendance-whatsapp-form">
           <p className="muted">Revise a mensagem para {whatsAppDraft.studentName} antes de enviar.</p>
@@ -511,7 +511,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
-      <section className="panel corrections-panel">
+      <section className="panel corrections-panel page-fill-panel">
         <div className="section-heading corrections-heading">
           <div className="correction-heading-summary">
             <h2>{viewMode === "attendance" ? "Presença" : "Atividades"}</h2>

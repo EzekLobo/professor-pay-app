@@ -1060,3 +1060,50 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   diff check e o fluxo Chromium visitante passam. O e2e confirma que o fluxo
   não chama Firebase nem Kodland.
 - Próximo: validar a área privada com uma conta de teste antes de publicar.
+
+### R17 - Contexto em grafo para o Codex
+
+> Objetivo: reduzir a exploração repetida do repositório em tarefas da IA, sem
+> alterar o código entregue ao usuário, o comportamento da aplicação ou o
+> processo de deploy. O índice é local, regenerável e ignorado pelo Git.
+
+- [x] R17.1 - Gerador e consulta do grafo de dependências
+  - Escopo: adicionar uma ferramenta de desenvolvimento reproduzível para
+    extrair os imports TypeScript/TSX do frontend, salvar o índice fora do
+    versionamento e consultar dependências, dependentes e arquivos pelo nome.
+  - Aceitação: um comando gera o índice para `frontend/src`; consultas por
+    `corrections-page.tsx` mostram relações diretas; cache e artefatos gerados
+    não aparecem em `git status`.
+  - Depende de: nenhuma.
+
+- [ ] R17.2 - Integração ao fluxo de trabalho do Codex
+  - Escopo: documentar comandos curtos e adicionar uma orientação local para
+    usar o grafo apenas em investigações transversais; manter `rg` como busca
+    textual e evitar qualquer consulta obrigatória em edições simples.
+  - Aceitação: a documentação explica quando gerar/consultar o mapa, seus
+    limites e exemplos; as instruções não mudam a aplicação em produção.
+  - Depende de: R17.1.
+
+- [ ] R17.3 - Verificação e handoff
+  - Escopo: executar a geração e consultas representativas, validar o
+    versionamento limpo dos artefatos e registrar o fluxo/limites na memória
+    operacional do projeto.
+  - Aceitação: os comandos retornam resultado útil, `git check-ignore` cobre o
+    cache e as validações web existentes continuam verdes.
+  - Depende de: R17.1, R17.2.
+
+#### Handoff R17
+
+> Registrar uma entrada curta por tarefa após verificação e commit.
+
+##### R17.1
+
+- Mudou: `dependency-cruiser` foi adicionado apenas como dependência de
+  desenvolvimento. Os scripts `codex:graph:generate` e `codex:graph` geram
+  um índice local de `frontend/src` e consultam dependências/dependentes por
+  arquivo; o cache fica em `.codex/graph/`, fora do Git.
+- Verificado pelo orquestrador: geração do índice, consulta de
+  `corrections-page`, `git check-ignore` do cache, `node --check` e diff check
+  passam.
+- Próximo: R17.2 deve documentar o uso pontual do grafo para investigações
+  transversais, preservando `rg` para busca textual.

@@ -51,6 +51,9 @@ coverage/
 frontend/test-results/
 frontend/playwright-report/
 
+# local Codex dependency graph cache
+.codex/graph/
+
 # typescript
 *.tsbuildinfo
 

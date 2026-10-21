@@ -346,3 +346,5 @@ e estilos privados, sem autenticação, telemetria ou chamadas de APIs na demo.
   Firestore independentes em paralelo, preservando o limite de 400 operações e
   a repetição única em falha. Validação atual: typecheck, lint, 157 testes
   Vitest, build e 7 testes Chromium, inclusive auditoria em 1440x900 e 390x844.
+
+- Para investigações transversais em `frontend/src`, execute `npm run codex:graph:generate` na raiz e consulte com `npm run codex:graph -- <arquivo-ou-caminho>`; o índice local fica em `.codex/graph/` e é ignorado pelo Git. Ele cobre apenas imports estáticos TypeScript/TSX: confirme impacto no código e mantenha `rg` para texto, fluxos dinâmicos, Firebase, APIs e regras de negócio.

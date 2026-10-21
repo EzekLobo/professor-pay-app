@@ -1084,7 +1084,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     limites e exemplos; as instruções não mudam a aplicação em produção.
   - Depende de: R17.1.
 
-- [ ] R17.3 - Verificação e handoff
+- [x] R17.3 - Verificação e handoff
   - Escopo: executar a geração e consultas representativas, validar o
     versionamento limpo dos artefatos e registrar o fluxo/limites na memória
     operacional do projeto.
@@ -1117,3 +1117,14 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   `corrections-page`, referências locais da documentação e diff check passam.
 - Próximo: R17.3 deve conferir o cache ignorado e executar a validação web
   existente antes de registrar o handoff final.
+
+##### R17.3
+
+- Verificado pelo orquestrador: geração do índice; consultas pelo componente
+  `corrections-page` e pela rota `src/app/corrections/page.tsx`; cache coberto
+  por `git check-ignore`; typecheck, lint, build e diff check passam.
+- Mudou: a memória operacional registra o comando, o local do cache e o limite
+  do índice para que consultas futuras não confundam imports estáticos com
+  fluxos dinâmicos ou regras de negócio.
+- Entrega: o grafo permanece uma ferramenta local de contexto do Codex, sem
+  participação no bundle, no runtime ou no deploy da aplicação.

@@ -1128,3 +1128,49 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
   fluxos dinâmicos ou regras de negócio.
 - Entrega: o grafo permanece uma ferramenta local de contexto do Codex, sem
   participação no bundle, no runtime ou no deploy da aplicação.
+
+### R18 - Atividades em lista e grade compacta
+
+> Solicitação de 21/10/2026. A aba Atividades de Acompanhamento mantém a lista
+> atual como padrão e ganha a visualização Compacto, espelhando a estrutura de
+> turma, aluno e rolagem da Presença. A mudança é visual: não altera as fontes
+> de atividades, a sincronização ou a ação de correção. Como a demonstração
+> reutiliza o mesmo componente, os dois modos devem funcionar nos dois fluxos.
+
+- [x] R18.1 - Modelo e grade compacta de atividades
+  - Escopo: derivar, por turma, linhas de alunos e colunas únicas de aula/tarefa
+    para pendências Kodland e manuais; renderizar blocos compactos acionáveis,
+    mantendo a ação atual de corrigir e células vazias quando não houver entrega.
+  - Aceitação: uma turma exibe grade horizontal com aluno fixo e colunas de
+    atividade; Kodland abre a correção e a demonstração mantém o modal simulado;
+    atividades manuais continuam abrindo sua correção local.
+  - Depende de: nenhuma.
+
+- [ ] R18.2 - Seletor, responsividade e lista preservada
+  - Escopo: adicionar o seletor Lista/Compacto somente na aba Atividades;
+    preservar a lista, filtros e agrupamentos atuais e aplicar à grade compacta
+    o padrão responsivo, acessível e rolável da Presença.
+  - Aceitação: Lista inicia selecionada e mantém o comportamento atual;
+    Compacto organiza por turma, mantém busca e cabe em desktop/celular sem
+    rolagem horizontal da página.
+  - Depende de: R18.1.
+
+- [ ] R18.3 - Testes, demonstração e verificação final
+  - Escopo: cobrir as transformações e os dois modos de exibição, validar o
+    fluxo visitante e registrar o resultado operacional.
+  - Aceitação: testes relevantes, typecheck, lint, build, diff check e smoke
+    da demonstração passam; nenhuma ação da demo chama Firebase ou Kodland.
+  - Depende de: R18.1, R18.2.
+
+#### Handoff R18
+
+> Registrar uma entrada curta por tarefa após verificação e commit.
+
+##### R18.1
+
+- Mudou: `compactActivitiesModel` normaliza pendências Kodland e manuais por
+  turma, aluno e atividade. `CompactActivitiesGrid` usa aluno fixo, colunas
+  roláveis, células vazias e preserva as ações de correção real, demo e manual.
+- Verificado pelo orquestrador: typecheck, lint focado e diff check passam.
+- Próximo: R18.2 deve conectar o seletor Lista/Compacto sem modificar a lista
+  existente, e usar o modelo para a visualização compacta.

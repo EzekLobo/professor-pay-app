@@ -40,6 +40,28 @@ type AttendanceColumn = {
   recordingUrl: string;
   moduleStart: boolean;
 };
+type CompactActivityCell =
+  | { source: "kodland"; review: KodlandReview }
+  | { source: "manual"; activity: ManualActivity };
+export type CompactActivityColumn = {
+  key: string;
+  lessonLabel: string;
+  taskLabel: string;
+  sortKey: string;
+};
+export type CompactActivityRow = {
+  key: string;
+  name: string;
+  email: string;
+  cells: Record<string, CompactActivityCell>;
+};
+export type CompactActivityClass = {
+  key: string;
+  name: string;
+  columns: CompactActivityColumn[];
+  rows: CompactActivityRow[];
+};
+export type CompactActivitiesModel = CompactActivityClass[];
 type WhatsAppDraft = { studentName: string; phone: string; message: string };
 const lessonLabel = (review: KodlandReview) =>
   `Aula ${review.lesson_number || "–"}: ${review.lesson_title || "Sem título"}`;
@@ -51,6 +73,123 @@ const groupBy = <T,>(items: T[], keyFor: (item: T) => string) =>
   }, new Map<string, T[]>())].sort(([first], [second]) =>
     first.localeCompare(second, "pt-BR"),
   );
+
+type CompactActivityClassDraft = {
+  key: string;
+  name: string;
+  columns: Map<string, CompactActivityColumn>;
+  rows: Map<string, CompactActivityRow>;
+};
+
+const compactManualLessonLabel = (activity: ManualActivity) => {
+  const occurrence = activity.occurrence_id.split(":").at(-1)?.trim();
+  return occurrence ? `Aula ${occurrence}` : "Aula";
+};
+
+/**
+ * Transforms the pending work queue into the same matrix shape used by
+ * attendance: class -> student rows -> lesson/task columns. The model keeps
+ * all active students in a class, so an empty cell is meaningful rather than
+ * silently removing the student from the compact view.
+ */
+export function compactActivitiesModel({
+  reviews,
+  manualActivities,
+  groups,
+  students,
+  manualClasses,
+  manualStudents,
+}: {
+  reviews: readonly KodlandReview[];
+  manualActivities: readonly ManualActivity[];
+  groups: readonly KodlandGroup[];
+  students: readonly KodlandStudent[];
+  manualClasses: readonly ManualClass[];
+  manualStudents: readonly ManualStudent[];
+}): CompactActivitiesModel {
+  const drafts = new Map<string, CompactActivityClassDraft>();
+  const ensureClass = (key: string, name: string) => {
+    const current = drafts.get(key);
+    if (current) return current;
+    const draft: CompactActivityClassDraft = { key, name, columns: new Map(), rows: new Map() };
+    drafts.set(key, draft);
+    return draft;
+  };
+  const ensureRow = (draft: CompactActivityClassDraft, key: string, name: string, email = "") => {
+    const current = draft.rows.get(key);
+    if (current) return current;
+    const row: CompactActivityRow = { key, name: name || "Aluno", email, cells: {} };
+    draft.rows.set(key, row);
+    return row;
+  };
+
+  const groupsByExternalId = new Map(groups.map((group) => [group.external_id, group]));
+  const reviewsByClass = new Map<string, KodlandReview[]>();
+  for (const review of reviews) {
+    const key = review.external_class_id || review.external_class_name || "unknown";
+    reviewsByClass.set(key, [...(reviewsByClass.get(key) ?? []), review]);
+  }
+  for (const [externalClassId, classReviews] of reviewsByClass) {
+    const group = groupsByExternalId.get(externalClassId);
+    const draft = ensureClass(`kodland:${externalClassId}`, group?.title || classReviews[0]?.external_class_name || "Turma Kodland");
+    for (const student of students.filter((item) => item.external_class_id === externalClassId && isActiveKodlandStudent(item.status))) {
+      ensureRow(draft, student.external_id || student.id, student.name, student.email);
+    }
+    for (const review of classReviews) {
+      const studentKey = review.external_student_id || review.student_name || review.id;
+      const row = ensureRow(draft, studentKey, review.student_name);
+      const lessonKey = review.lesson_id || String(review.lesson_number) || review.lesson_title;
+      const taskKey = review.task_id || `${review.task_number}:${review.task_title}`;
+      const key = `kodland:${lessonKey}:${taskKey}`;
+      if (!draft.columns.has(key)) {
+        const lessonLabel = review.lesson_number ? `Aula ${review.lesson_number}` : "Aula";
+        draft.columns.set(key, {
+          key,
+          lessonLabel,
+          taskLabel: `${review.task_number ? `${review.task_number}. ` : ""}${review.task_title || "Atividade"}`,
+          sortKey: `${String(review.lesson_number).padStart(5, "0")}:${String(review.task_number).padStart(5, "0")}:${review.lesson_title}:${review.task_title}`,
+        });
+      }
+      row.cells[key] ??= { source: "kodland", review };
+    }
+  }
+
+  const manualClassesById = new Map(manualClasses.map((item) => [item.id, item]));
+  const manualStudentsById = new Map(manualStudents.map((item) => [item.id, item]));
+  const activitiesByClass = new Map<string, ManualActivity[]>();
+  for (const activity of manualActivities) {
+    activitiesByClass.set(activity.class_id, [...(activitiesByClass.get(activity.class_id) ?? []), activity]);
+  }
+  for (const [classId, classActivities] of activitiesByClass) {
+    const manualClass = manualClassesById.get(classId);
+    const draft = ensureClass(`manual:${classId}`, manualClass?.name || "Turma própria");
+    for (const studentId of manualClass?.student_ids ?? []) {
+      const student = manualStudentsById.get(studentId);
+      if (student?.active) ensureRow(draft, student.id, student.name, student.email);
+    }
+    for (const activity of classActivities) {
+      const student = manualStudentsById.get(activity.student_id);
+      const row = ensureRow(draft, activity.student_id || activity.id, student?.name || "Aluno", student?.email || "");
+      const key = `manual:${activity.occurrence_id}:${activity.title.trim().toLocaleLowerCase("pt-BR")}`;
+      if (!draft.columns.has(key)) {
+        draft.columns.set(key, {
+          key,
+          lessonLabel: compactManualLessonLabel(activity),
+          taskLabel: activity.title || "Atividade",
+          sortKey: `${activity.occurrence_id}:${activity.title}`,
+        });
+      }
+      row.cells[key] ??= { source: "manual", activity };
+    }
+  }
+
+  return [...drafts.values()].map((draft) => ({
+    key: draft.key,
+    name: draft.name,
+    columns: [...draft.columns.values()].sort((first, second) => first.sortKey.localeCompare(second.sortKey, "pt-BR")),
+    rows: [...draft.rows.values()].sort((first, second) => first.name.localeCompare(second.name, "pt-BR")),
+  })).sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
+}
 
 export interface CorrectionsDemoAdapter {
   reviews: KodlandReview[];
@@ -274,6 +413,55 @@ function AttendanceClassGrid({
       })}
     </div>
   );
+}
+
+/** Compact, class-scoped activity matrix. It is intentionally independent of
+ * the view switch so the list mode can continue to render unchanged. */
+export function CompactActivitiesGrid({
+  model,
+  demo,
+  onCorrectManual,
+}: {
+  model: CompactActivitiesModel;
+  demo?: CorrectionsDemoAdapter;
+  onCorrectManual: (activity: ManualActivity) => void;
+}) {
+  return <div className="correction-class-list compact-activities-list" aria-label="Atividades pendentes em formato compacto">
+    {model.map((classModel) => {
+      const gridStyle = { "--attendance-columns": classModel.columns.length } as CSSProperties;
+      return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
+        <summary className="correction-class-heading">
+          <div><h3>{classModel.name}</h3><span>{classModel.rows.length} aluno{classModel.rows.length === 1 ? "" : "s"}</span></div>
+          <span className="correction-disclosure" aria-hidden="true">⌄</span>
+        </summary>
+        <div className="correction-class-body attendance-class-body">
+          <div className="attendance-grid-scroll compact-activities-grid-scroll" tabIndex={0} role="grid" aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={classModel.rows.length + 1} aria-colcount={classModel.columns.length + 1}>
+            <div className="attendance-grid-header" style={gridStyle} role="row">
+              <div className="attendance-grid-corner" role="columnheader">Aluno</div>
+              {classModel.columns.map((column) => <div className="attendance-column-heading compact-activity-column-heading" role="columnheader" key={column.key} title={`${column.lessonLabel} · ${column.taskLabel}`}>
+                <strong>{column.lessonLabel}</strong><small>{column.taskLabel}</small>
+              </div>)}
+            </div>
+            {classModel.rows.map((row) => <div className="attendance-grid-row" style={gridStyle} role="row" key={row.key}>
+              <div className="attendance-student-summary" role="rowheader">
+                <div className="attendance-student-copy"><h4>{row.name}</h4>{row.email && <span>{row.email}</span>}</div>
+              </div>
+              {classModel.columns.map((column) => {
+                const cell = row.cells[column.key];
+                if (!cell) return <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
+                const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
+                return <div className="compact-activity-cell" role="gridcell" key={column.key}>
+                  {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>Corrigir</button>
+                    : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>Corrigir</button>
+                      : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} target="_blank" rel="noreferrer">Corrigir</a>}
+                </div>;
+              })}
+            </div>)}
+          </div>
+        </div>
+      </details>;
+    })}
+  </div>;
 }
 
 function ReviewCard({

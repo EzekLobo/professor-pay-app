@@ -2655,6 +2655,15 @@ select:focus-visible {
 .attendance-absence-action { cursor: pointer; transition: filter .15s ease, transform .15s ease; }
 .attendance-absence-action:hover, .attendance-absence-action:focus-visible { filter: brightness(1.18); outline: 2px solid #ffd7db; outline-offset: 1px; transform: translateY(-1px); }
 .attendance-absence-action:disabled { cursor: not-allowed; filter: saturate(.65); opacity: .72; transform: none; }
+.compact-activities-list { margin-top: 0; }
+.compact-activities-class .attendance-class-body { padding: 0; }
+.compact-activity-column-heading { min-height: 52px; }
+.compact-activity-column-heading small { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+.compact-activity-cell { display: grid; align-self: center; min-width: 0; min-height: 28px; padding: 0; }
+.compact-activity-action { display: grid; min-height: 28px; border: 1px solid rgba(255, 190, 62, .7); border-radius: 8px; padding: 3px 5px; place-items: center; color: #fff3cb; background: rgba(194, 118, 12, .35); font: inherit; font-size: .66rem; font-weight: 850; line-height: 1; text-decoration: none; cursor: pointer; transition: filter .15s ease, transform .15s ease; }
+.compact-activity-manual { border-color: rgba(86, 195, 255, .68); background: rgba(37, 119, 182, .35); color: #d8f4ff; }
+.compact-activity-action:hover, .compact-activity-action:focus-visible { filter: brightness(1.18); outline: 2px solid rgba(255, 224, 147, .9); outline-offset: 1px; transform: translateY(-1px); }
+.compact-activity-empty { cursor: default; }
 .attendance-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; color: var(--muted, #9db4d5); font-size: .7rem; font-weight: 750; }
 .attendance-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .attendance-legend-swatch { display: inline-block; width: 13px; height: 13px; flex: 0 0 13px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 4px; }

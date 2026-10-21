@@ -256,7 +256,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       >
         <form className="form management-form" autoComplete={demo ? "off" : "on"} onSubmit={synchronize}>
           <p className="muted">
-            Atualiza turmas, alunos, grade, aulas extras, correções e materiais em etapas.
+            Atualiza turmas, alunos, aulas, presença e materiais.
           </p>
           {demo ? <p className="notice">Na demonstração, esta operação utiliza apenas dados fictícios e não solicita credenciais.</p> : <><label className="field">
             Usuário ou e-mail
@@ -309,41 +309,53 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
 
-      <section className="panel" data-tour="data-sync">
-        <h2>Sincronização Kodland</h2>
-        <p className="muted">
-          Importe toda a aplicação de uma vez. As atualizações específicas continuam disponíveis em cada tela.
-        </p>
+      <section className="panel data-sync-card" data-tour="data-sync">
+        <div className="data-section-copy">
+          <p className="eyebrow">Kodland</p>
+          <h2>Sincronizar dados</h2>
+          <p className="muted">Atualize a agenda, os alunos, a presença e os materiais em uma única ação.</p>
+        </div>
         <Button type="button" disabled={busy} onClick={openSync}>
           Sincronizar tudo
         </Button>
       </section>
 
-      <section className="panel" data-tour="data-export">
-        <h2>Exportar backup</h2>
-        <p className="muted">Baixe um JSON com seus dados e guarde-o em local seguro.</p>
-        <Button disabled={busy} onClick={() => void download()}>
-          {busy ? "Preparando…" : "Baixar backup JSON"}
-        </Button>
-      </section>
-
-      <section className="panel" data-tour="data-import">
-        <h2>Importar do aplicativo Expo</h2>
-        <p className="muted">Selecione o JSON, confira a prévia e então confirme.</p>
-        <div className="form">
-          <label className="field">
-            Arquivo de backup JSON
-            <Input type="file" accept="application/json,.json" disabled={busy || Boolean(demo)} onChange={file} />
-          </label>
-          {demo && <p className="muted">Importação de arquivos pessoais indisponível na demonstração.</p>}
-          {payload && (
-            <Button type="button" disabled={busy} onClick={() => void check()}>
-              Gerar prévia
+      <section className="panel data-backup-card">
+        <div className="data-backup-heading">
+          <div>
+            <h2>Backup</h2>
+            <p className="muted">Exporte seus dados ou restaure um arquivo JSON já salvo.</p>
+          </div>
+        </div>
+        <div className="data-backup-actions">
+          <section className="data-backup-action" data-tour="data-export">
+            <div>
+              <h3>Baixar backup</h3>
+              <p className="muted">Guarde uma cópia dos seus dados.</p>
+            </div>
+            <Button className="button-ghost" disabled={busy} onClick={() => void download()}>
+              {busy ? "Preparando…" : "Baixar JSON"}
             </Button>
-          )}
+          </section>
+          <section className="data-backup-action" data-tour="data-import">
+            <div>
+              <h3>Restaurar backup</h3>
+              <p className="muted">Confira a prévia antes de importar.</p>
+            </div>
+            <label className="field data-backup-file">
+              <span>Arquivo JSON</span>
+              <Input type="file" accept="application/json,.json" disabled={busy || Boolean(demo)} onChange={file} />
+            </label>
+            {demo && <p className="muted data-backup-note">Importação indisponível na demonstração.</p>}
+            {payload && (
+              <Button type="button" className="button-ghost" disabled={busy} onClick={() => void check()}>
+                Gerar prévia
+              </Button>
+            )}
+          </section>
         </div>
         {preview && (
-          <div className="form">
+          <div className="data-import-preview">
             <p className="muted">
               Prévia: {summary(preview)}{preview.already_imported ? ". Já importado." : "."}
             </p>
@@ -355,10 +367,13 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
         {report && <p className="notice">Importação: {summary(report)}</p>}
       </section>
 
-      <section className="panel" data-tour="data-delete">
-        <h2>Apagar todos os dados</h2>
+      <details className="data-danger-zone" data-tour="data-delete">
+        <summary>
+          <span>Opções avançadas</span>
+          <small>{demo ? "Restaurar demonstração" : "Apagar dados"}</small>
+        </summary>
         <p className="muted">{demo ? "Restaure o exemplo inicial. Apenas as alterações locais desta demonstração serão removidas." : "Turmas, aulas e confirmações serão removidas; sua conta continua existindo."}</p>
-        <form className="form" onSubmit={reset}>
+        <form className="form data-reset-form" onSubmit={reset}>
           <label className="field">
             Digite RESETAR
             <Input value={phrase} onChange={(event) => setPhrase(event.target.value)} />
@@ -371,7 +386,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
             {demo ? "Restaurar dados demonstrativos" : "Apagar dados permanentemente"}
           </button>
         </form>
-      </section>
+      </details>
     </div>
   );
 }

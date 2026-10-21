@@ -47,6 +47,12 @@
   completo (incluindo M8.L2 em 19/10). Ela usa `kodlandLessonEntries` antes de
   paginar para preservar todas as ocorrências aninhadas.
 
+## Dados e backup
+
+- A tela prioriza três ações: sincronização completa em um cartão compacto,
+  backup/restauração no mesmo painel e área de exclusão recolhida em “Opções
+  avançadas”. Em telas pequenas, exportação e restauração ficam empilhadas.
+
 ## R15 — Turmas próprias e demo local
 
 - A organização de turmas pessoais concentra busca e ações no cabeçalho para

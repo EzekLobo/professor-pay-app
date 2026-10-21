@@ -2092,6 +2092,16 @@ select:focus-visible {
   width: auto;
   white-space: nowrap;
 }
+.correction-heading-actions-activities {
+  flex-basis: 560px;
+  grid-template-columns: max-content 142px minmax(190px, 1fr) auto;
+  max-width: 680px;
+}
+.correction-heading-actions-compact {
+  grid-template-columns: max-content minmax(190px, 1fr) auto;
+}
+.correction-activity-view-switch { white-space: nowrap; }
+.correction-activity-view-switch button { padding-inline: 10px; }
 .correction-result-count {
   display: inline-flex;
   margin-top: 7px;
@@ -2560,6 +2570,13 @@ select:focus-visible {
   .correction-heading-actions {
     grid-template-columns: minmax(0, 1fr) auto;
     width: 100%;
+  }
+  .correction-heading-actions-activities,
+  .correction-heading-actions-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .correction-heading-actions-activities .sync-icon-button {
+    justify-self: end;
   }
   .correction-heading-actions .button {
     width: auto;

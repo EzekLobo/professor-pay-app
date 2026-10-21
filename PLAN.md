@@ -1146,7 +1146,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     atividades manuais continuam abrindo sua correção local.
   - Depende de: nenhuma.
 
-- [ ] R18.2 - Seletor, responsividade e lista preservada
+- [x] R18.2 - Seletor, responsividade e lista preservada
   - Escopo: adicionar o seletor Lista/Compacto somente na aba Atividades;
     preservar a lista, filtros e agrupamentos atuais e aplicar à grade compacta
     o padrão responsivo, acessível e rolável da Presença.
@@ -1174,3 +1174,12 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Verificado pelo orquestrador: typecheck, lint focado e diff check passam.
 - Próximo: R18.2 deve conectar o seletor Lista/Compacto sem modificar a lista
   existente, e usar o modelo para a visualização compacta.
+
+##### R18.2
+
+- Mudou: Atividades ganhou o seletor acessível Lista/Compacto. Lista inicia
+  selecionada e mantém o agrupamento atual; Compacto usa a matriz por turma e
+  recebe os mesmos resultados já filtrados pela busca.
+- Verificado pelo orquestrador: typecheck, lint focado e diff check passam.
+- Próximo: R18.3 deve cobrir a normalização/ações e verificar o fluxo visitante
+  nos dois formatos antes da validação completa.

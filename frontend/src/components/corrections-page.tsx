@@ -518,6 +518,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
   const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
+  const [activitiesView, setActivitiesView] = useState<"list" | "compact">("list");
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
   const [openAttendanceClasses, setOpenAttendanceClasses] = useState<Set<string>>(() => new Set());
   const [whatsAppDraft, setWhatsAppDraft] = useState<WhatsAppDraft | null>(null);
@@ -632,6 +633,14 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
     () => groupBy(visibleReviews, (review) => review.external_class_name || "Turma não informada"),
     [visibleReviews],
   );
+  const compactActivities = useMemo(() => compactActivitiesModel({
+    reviews: visibleReviews,
+    manualActivities: visibleOwn,
+    groups,
+    students: attendanceStudents,
+    manualClasses,
+    manualStudents,
+  }), [attendanceStudents, groups, manualClasses, manualStudents, visibleOwn, visibleReviews]);
   const attendanceHistories = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const studentsByExternalId = new Map(attendanceStudents.map((student) => [student.external_id, student]));
@@ -708,7 +717,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
             <button type="button" role="tab" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>Atividades</button>
             <button type="button" role="tab" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>Presença</button>
           </div>
-          <div className="correction-heading-actions" data-tour="corrections-filters">
+          <div className={`correction-heading-actions${viewMode === "activities" ? " correction-heading-actions-activities" : ""}${viewMode === "activities" && activitiesView === "compact" ? " correction-heading-actions-compact" : ""}`} data-tour="corrections-filters">
             {viewMode === "attendance" ? (
               <select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>
                 <option value="ABSENT">Faltaram</option>
@@ -716,11 +725,17 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
                 <option value="PRESENT">Presentes</option>
               </select>
             ) : (
-              <select className="input correction-header-select" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}>
+              <>
+              <div className="correction-view-switch correction-activity-view-switch" role="group" aria-label="Formato de visualização das atividades">
+                <button type="button" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}>Lista</button>
+                <button type="button" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}>Compacto</button>
+              </div>
+              {activitiesView === "list" && <select className="input correction-header-select" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}>
                 <option value="class">Por turma</option>
                 <option value="student">Por aluno</option>
                 <option value="lesson">Por aula</option>
-              </select>
+              </select>}
+              </>
             )}
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
             {(demo || hasKodlandGroups) && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}>
@@ -757,7 +772,11 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
           </details>)}
         </div>}
         </> : <>
-        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted">Sem pendências para os filtros atuais.</p> : <div className="correction-class-list" data-tour="corrections-cards">
+        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
+          model={compactActivities}
+          demo={demo}
+          onCorrectManual={(activity) => { setEditingManual(activity); setFeedback(activity.feedback); }}
+        /> : <div className="correction-class-list" data-tour="corrections-cards">
           {ownByClass.map(([className, classActivities]) => {
             const ownGroups = grouping === "class" ? [] : groupBy(classActivities, (item) => grouping === "student"
               ? manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno"

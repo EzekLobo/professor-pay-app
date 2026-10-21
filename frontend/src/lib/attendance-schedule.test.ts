@@ -57,6 +57,26 @@ describe("attendanceDateFromSchedule", () => {
     expect(attendanceLessonParts(attendance, [])).toEqual({ module: "M9", lesson: "L2" });
   });
 
+  it("uses the attendance module code when the matched calendar title is generic", () => {
+    const scheduled = {
+      ...lesson(17, "2026-09-22"),
+      id: "catalog-17",
+      source_lesson_id: "catalog-17",
+      module_number: "",
+      lesson_number: 17,
+      title: "Aula",
+    };
+    const attendance = {
+      lesson_id: "catalog-17",
+      lesson_title: "Aula M5.L1",
+      external_class_id: "group-1",
+      lesson_date: "2026-09-22",
+      start_time: "19:00",
+    } as KodlandAttendance;
+
+    expect(attendanceLessonParts(attendance, [scheduled])).toEqual({ module: "M5", lesson: "L1" });
+  });
+
   it("uses a dated calendar lesson as the anchor for an undated attendance record", () => {
     const target = lesson(17);
     expect(attendanceDateFromSchedule(

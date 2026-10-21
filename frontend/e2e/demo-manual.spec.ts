@@ -71,7 +71,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await expect(absence).toBeVisible();
   await absence.click();
   const whatsAppDialog = page.getByRole("dialog", { name: "Mensagem pelo WhatsApp" });
-  await expect(whatsAppDialog.getByLabel("Mensagem")).toHaveValue(/Olá, .+! 👋\n\nSentimos sua falta na aula M\d+\.L\d+\. Aconteceu alguma coisa\?\n\n🎥 \*Para ficar por dentro do assunto, você pode acessar a aula gravada aqui:\*\nhttps:\/\/video\.example\.test.+\n\nSe precisar de ajuda, pode contar comigo!/s);
+  await expect(whatsAppDialog.getByLabel("Mensagem")).toHaveValue(/Olá, [^\s!]+! 👋\n\nSentimos sua falta na aula M\d+\.L\d+\. Aconteceu alguma coisa\?\n\n🎥 \*Para ficar por dentro do assunto, você pode acessar a aula gravada aqui:\*\nhttps:\/\/video\.example\.test.+\n\nSe precisar de ajuda, pode contar comigo!/s);
   await whatsAppDialog.getByLabel("Mensagem").fill("Mensagem revisada pelo professor.");
   await expect(whatsAppDialog.getByRole("link", { name: "Enviar no WhatsApp" })).toHaveAttribute("href", /Mensagem%20revisada%20pelo%20professor/);
   await whatsAppDialog.getByRole("button", { name: "Cancelar" }).click();

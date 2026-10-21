@@ -101,13 +101,14 @@ const attendanceLessonDate = (item: KodlandAttendance, lessons: KodlandLesson[],
 const attendanceMessage = (history: AttendanceStudentHistory, item: KodlandAttendance, scheduledLesson: KodlandLesson | undefined, lessons: KodlandLesson[]) => {
   const parts = scheduledLesson ? attendanceLessonParts({ ...item, lesson_id: scheduledLesson.id }, lessons) : attendanceLessonParts(item, lessons);
   const lessonLabel = parts.module ? `${parts.module}.${parts.lesson}` : item.lesson_title || parts.lesson;
+  const firstName = history.name.trim().split(/\s+/)[0];
   const recordingUrl = scheduledLesson?.recording_url?.trim() || item.recording_url?.trim();
   const recordingLine = recordingUrl
     ? `🎥 *Para ficar por dentro do assunto, você pode acessar a aula gravada aqui:*
 ${recordingUrl}`
     : `🎥 *Para ficar por dentro do assunto:*
 Assim que a gravação estiver disponível na plataforma, eu posso enviá-la para você.`;
-  return `Olá, ${history.name}! 👋
+  return `${firstName ? `Olá, ${firstName}!` : "Olá!"} 👋
 
 Sentimos sua falta na aula ${lessonLabel}. Aconteceu alguma coisa?
 
@@ -145,6 +146,13 @@ function AttendanceClassGrid({
   onWhatsApp: (draft: WhatsAppDraft) => void;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
+  const attendanceSamples = new Map<string, KodlandAttendance>();
+  for (const history of histories) {
+    for (const item of history.records) {
+      attendanceSamples.set(attendanceColumnKey(item, lessons), item);
+      attendanceSamples.set(item.lesson_id, item);
+    }
+  }
   const columns = (() => {
     const classId = histories[0]?.records[0]?.external_class_id;
     const scheduled = lessons
@@ -154,7 +162,9 @@ function AttendanceClassGrid({
       .sort((first, second) => `${first.lesson_date} ${first.start_time}`.localeCompare(`${second.lesson_date} ${second.start_time}`, "pt-BR"));
     if (scheduled.length) {
       return scheduled.map((lesson, index): AttendanceColumn => {
-        const parts = attendanceLessonParts({
+        const attendanceSample = attendanceSamples.get(lesson.id)
+          ?? attendanceSamples.get(lesson.source_lesson_id ?? "");
+        const parts = attendanceLessonParts(attendanceSample ?? {
           lesson_id: lesson.id,
           lesson_title: lesson.title,
           external_class_id: lesson.external_class_id,

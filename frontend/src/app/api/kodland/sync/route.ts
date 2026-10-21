@@ -1729,14 +1729,21 @@ function scheduledLessonForAttendance(item: Attendance, lessons: KodlandLesson[]
   );
 }
 
-function attachAttendanceSchedule(items: Attendance[], lessons: KodlandLesson[]): Attendance[] {
+export function attachAttendanceSchedule(items: Attendance[], lessons: KodlandLesson[]): Attendance[] {
   return items.map((item) => {
     const scheduled = scheduledLessonForAttendance(item, lessons);
     if (!scheduled) return item;
+    // `progress_info[].lessons_data` is the source of truth for the
+    // module-local code. Some calendar rows contain only a generic "Aula"
+    // title, so do not let them erase the precise Mx.Ly code supplied by the
+    // module structure. The calendar remains authoritative for date/time.
+    const scheduledHasLocalCode = Boolean(scheduleCode(scheduled.title));
     return {
       ...item,
       lesson_id: scheduled.source_lesson_id || scheduled.id || item.lesson_id,
-      lesson_title: scheduled.title || item.lesson_title,
+      lesson_title: scheduledHasLocalCode
+        ? scheduled.title
+        : item.lesson_title || scheduled.title,
       lesson_date: dateOnly(scheduled.lesson_date) || item.lesson_date,
       start_time: scheduled.start_time || item.start_time,
       recording_url: scheduled.recording_url || item.recording_url,

@@ -9,7 +9,8 @@
 - A mensagem de falta do WhatsApp usa blocos separados, código de aula no
   formato `M7.L4`, destaque compatível com WhatsApp para a gravação e o link
   isolado em sua própria linha. Os emojis 👋 e 🎥 reforçam a saudação e a
-  gravação sem carregar o texto; o professor ainda pode editar antes do envio.
+  gravação sem carregar o texto. A saudação usa somente o primeiro nome do
+  aluno; o professor ainda pode editar antes do envio.
 
 ## Cronograma Kodland como fonte de verdade
 
@@ -312,3 +313,8 @@ e estilos privados, sem autenticação, telemetria ou chamadas de APIs na demo.
 - O cofre local de credenciais recebe usuário e senha diretamente após uma sincronização bem-sucedida. Antes, os campos já estavam `disabled` e por isso eram omitidos pelo `FormData`, impedindo qualquer gravação; durante a sincronização agora ficam somente leitura. O cofre continua em IndexedDB com AES-GCM e chave não exportável, sem senha em `localStorage` ou Firebase.
 - A grade de presença usa o `lesson_id` numérico da Kodland somente para localizar o `course_index` global correspondente no catálogo e calcula o número local pela posição real da aula dentro do módulo (por exemplo, índices globais 25–28 do módulo 7 → `M7L1`–`M7L4`). Um código `MxLy` vindo da presença só é contingência quando não há associação com o catálogo; na sincronização, a posição dentro de `lessons_data` prevalece, sem assumir quatro aulas por módulo.
 - Em Acompanhamento > Presença, o cronograma é a fonte canônica da ocorrência: a grade cria suas colunas a partir de todas as aulas datadas da agenda, com data, horário e gravação do calendário, incluindo encontros futuros. A lista de presença só fornece o status de cada aluno. A sincronização de Acompanhamento atualiza também o cronograma da turma e anexa cada registro à aula correspondente antes de salvar; datas ou gravações vindas da presença são apenas contingência.
+- Na junção entre presença e cronograma, um título genérico `Aula` do calendário
+  não pode apagar o código `Mx.Ly` obtido de `progress_info[].lessons_data`.
+  A grade vincula essa amostra à coluna agendada por ID/índice global: a data e
+  o horário continuam vindo do cronograma, enquanto módulo e aula local vêm da
+  estrutura real do curso, sem presumir quantidade fixa por módulo.

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import {
   availabilityFromTeacherTimetable,
+  attachAttendanceSchedule,
   attendanceFromStudentsPayload,
   attendanceStatus,
   correctionUrlFor,
@@ -48,6 +49,43 @@ describe("sync diagnostics", () => {
     expect(records.map((item) => item.status)).toEqual(["ABSENT", "EXCUSED", "PRESENT", "UNKNOWN"]);
     expect(records.map((item) => item.lesson_title)).toEqual(["Aula M5.L1", "Aula M5.L2", "Aula M5.L3", "Aula M5.L4"]);
     expect(records[0].student_name).toBe("Rafael Coppola");
+  });
+
+  it("keeps the module-local code when the calendar title is generic", () => {
+    const [attendance] = attendanceFromStudentsPayload([{
+      main_info: { student_id: 3146568, full_name: "Rafael Coppola" },
+      progress_info: [{ module_number: 5, lessons_data: [
+        { lesson_id: 17, lesson_title: "Aula", attendance_status: 0 },
+      ] }],
+    }], { external_id: "66919", title: "PRM_BRA2429_TER-20" } as never);
+    const [attached] = attachAttendanceSchedule([attendance], [{
+      id: "catalog-17",
+      source_lesson_id: "catalog-17",
+      external_class_id: "66919",
+      external_class_name: "PRM_BRA2429_TER-20",
+      course_index: 17,
+      lesson_number: 17,
+      title: "Aula",
+      theme: "",
+      lesson_date: "2026-09-22",
+      start_time: "20:00",
+      end_time: "21:30",
+      status: "",
+      lesson_passed: true,
+      external_url: "",
+      slides_url: "",
+      guide_url: "",
+      homework_url: "",
+      homework_title: "",
+      classroom_tasks: [],
+    }]);
+
+    expect(attached).toMatchObject({
+      lesson_id: "catalog-17",
+      lesson_title: "Aula M5.L1",
+      lesson_date: "2026-09-22",
+      start_time: "20:00",
+    });
   });
 
   it.each([

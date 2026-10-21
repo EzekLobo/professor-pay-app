@@ -442,6 +442,7 @@ export function staleScheduledKodlandLessonIds(
   incoming: KodlandLesson[],
 ) {
   const sourcesBySlot = new Map<string, Set<string>>();
+  const incomingDocumentIds = new Set(incoming.map((lesson) => kodlandLessonDocumentId(lesson)));
   incoming.forEach((lesson) => {
     const slot = scheduledKodlandSlot(lesson);
     const source = String(lesson.source_lesson_id || lesson.id || "");
@@ -452,6 +453,7 @@ export function staleScheduledKodlandLessonIds(
   });
   return previous
     .filter((lesson) => {
+      if (incomingDocumentIds.has(String(lesson.id))) return false;
       const slot = scheduledKodlandSlot(lesson);
       const source = String(lesson.source_lesson_id || lesson.id || "");
       const currentSources = sourcesBySlot.get(slot);
@@ -588,20 +590,33 @@ const firestorePayload = <T>(value: T): T => {
 };
 const commitWrites = async (writes: Array<(batch: FirebaseWriteBatch) => void>) => {
   // Firestore accepts at most 500 operations per batch. A pedagogical snapshot
-  // can include hundreds of catalog lessons, reviews and old records.
+  // can include hundreds of catalog lessons, reviews and old records. Commit a
+  // few independent chunks together so a full synchronization does not pay one
+  // complete network round trip per 400 documents.
+  const batches: FirebaseWriteBatch[] = [];
   for (let index = 0; index < writes.length; index += 400) {
     const batch = writeBatch(getFirebaseDb());
     writes.slice(index, index + 400).forEach((write) => write(batch));
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        await batch.commit();
-        break;
-      } catch (error) {
-        if (attempt >= 1) throw error;
-        await new Promise<void>((resolve) => setTimeout(resolve, 350));
+    batches.push(batch);
+  }
+  let nextBatch = 0;
+  const commitNext = async () => {
+    while (nextBatch < batches.length) {
+      const batch = batches[nextBatch++];
+      if (!batch) return;
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          await batch.commit();
+          break;
+        } catch (error) {
+          if (attempt >= 1) throw error;
+          await new Promise<void>((resolve) => setTimeout(resolve, 350));
+        }
       }
     }
-  }
+  };
+  const concurrency = Math.min(3, batches.length);
+  await Promise.all(Array.from({ length: concurrency }, () => commitNext()));
 };
 const firestoreFailure = (error: unknown) => {
   const code = typeof error === "object" && error && "code" in error
@@ -2276,6 +2291,11 @@ export const kodlandApi = {
       const reviews = uniqueBy(snapshot.reviews, (item) => item.id);
       const attendance = uniqueBy(snapshot.attendance ?? [], (item) => item.id);
       const lessons = uniqueBy(snapshot.lessons ?? [], (item) => kodlandLessonDocumentId(item));
+      const previousLessonsById = new Map(previousLessons.map((lesson) => [String(lesson.id), lesson]));
+      const previousLessonsByLegacyKey = new Map(previousLessons.map((lesson) => [
+        `${String(lesson.external_class_id)}:${String(lesson.id)}`,
+        lesson,
+      ]));
       const upserts: Array<(batch: FirebaseWriteBatch) => void> = reviews.map(
         (item) => (batch) =>
           batch.set(doc(syncCollection("kodland_reviews"), item.id), firestorePayload({
@@ -2313,9 +2333,9 @@ export const kodlandApi = {
         .map((item) => (batch) => batch.delete(doc(syncCollection("kodland_attendance"), String(item.id))));
       const lessonUpserts: Array<(batch: FirebaseWriteBatch) => void> = lessons.map((item) => {
         const documentId = kodlandLessonDocumentId(item);
-        const previous = previousLessons.find((lesson) =>
-          String(lesson.id) === documentId ||
-          (String(lesson.id) === item.id && String(lesson.external_class_id) === item.external_class_id),
+        const previous = (
+          previousLessonsById.get(documentId) ??
+          previousLessonsByLegacyKey.get(`${item.external_class_id}:${item.id}`)
         ) as Partial<KodlandLesson> | undefined;
         return (batch) => batch.set(
           doc(syncCollection("kodland_lessons"), documentId),
@@ -2325,12 +2345,14 @@ export const kodlandApi = {
       const staleLessonDeletes = staleScheduledKodlandLessonIds(previousLessons, lessons)
         .map((id) => (batch: FirebaseWriteBatch) => batch.delete(doc(syncCollection("kodland_lessons"), id)));
       persistencePhase = "gravação";
-      await commitWrites(upserts);
-      await commitWrites(deletes);
-      await commitWrites(attendanceUpserts);
-      await commitWrites(attendanceDeletes);
-      await commitWrites(lessonUpserts);
-      await commitWrites(staleLessonDeletes);
+      await commitWrites([
+        ...upserts,
+        ...deletes,
+        ...attendanceUpserts,
+        ...attendanceDeletes,
+        ...lessonUpserts,
+        ...staleLessonDeletes,
+      ]);
       return finish({ group_count: 0, student_count: 0, review_count: reviews.length, attendance_count: attendance.length, lesson_count: lessons.length, extra_lesson_count: 0 });
     }
     if (mode === "profiles") {
@@ -2374,6 +2396,12 @@ export const kodlandApi = {
     );
     const extraLessons = uniqueBy(snapshot.extra_lessons, (item) => item.id);
     const availability = uniqueBy(snapshot.availability, (item) => item.id);
+    const oldStudentsById = new Map(oldStudents.map((student) => [String(student.id), student]));
+    const oldLessonsById = new Map(oldLessons.map((lesson) => [String(lesson.id), lesson]));
+    const oldLessonsByLegacyKey = new Map(oldLessons.map((lesson) => [
+      `${String(lesson.external_class_id)}:${String(lesson.id)}`,
+      lesson,
+    ]));
     const upserts: Array<(batch: FirebaseWriteBatch) => void> = [];
     const deletes: Array<(batch: FirebaseWriteBatch) => void> = [];
     groups.forEach((item) =>
@@ -2387,9 +2415,7 @@ export const kodlandApi = {
       ),
     );
     students.forEach((item) => {
-      const previous = oldStudents.find(
-        (student) => String(student.id) === item.id,
-      );
+      const previous = oldStudentsById.get(item.id);
       upserts.push((batch) => batch.set(doc(syncCollection("kodland_students"), item.id), firestorePayload({
         ...item,
         local_note: String(previous?.local_note ?? ""),
@@ -2415,11 +2441,9 @@ export const kodlandApi = {
     });
     lessons.forEach((item) => {
       const documentId = kodlandLessonDocumentId(item);
-      const previous = oldLessons.find(
-        (lesson) =>
-          String(lesson.id) === documentId ||
-          (String(lesson.id) === item.id &&
-            String(lesson.external_class_id) === item.external_class_id),
+      const previous = (
+        oldLessonsById.get(documentId) ??
+        oldLessonsByLegacyKey.get(`${item.external_class_id}:${item.id}`)
       ) as Partial<KodlandLesson> | undefined;
       upserts.push((batch) => batch.set(doc(syncCollection("kodland_lessons"), documentId),
         firestorePayload(mergeSyncedKodlandLesson(item, previous, createdAt))));
@@ -2488,8 +2512,7 @@ export const kodlandApi = {
       );
     }
     persistencePhase = "gravação";
-    await commitWrites(upserts);
-    await commitWrites(deletes);
+    await commitWrites([...upserts, ...deletes]);
     return finish({
       group_count: groups.length,
       student_count: students.length,

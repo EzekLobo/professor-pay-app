@@ -11,18 +11,19 @@ import {
 export type AppRoute = {
   href: string;
   label: string;
+  mobileLabel: string;
   icon: LucideIcon;
 };
 
 export const navigation: AppRoute[] = [
-  { href: "/dashboard", label: "Resumo", icon: LayoutDashboard },
-  { href: "/payments", label: "Pagamentos", icon: WalletCards },
-  { href: "/classes", label: "Turmas", icon: UsersRound },
-  { href: "/lessons", label: "Aulas", icon: BookOpen },
+  { href: "/dashboard", label: "Resumo", mobileLabel: "Resumo", icon: LayoutDashboard },
+  { href: "/payments", label: "Pagamentos", mobileLabel: "Pagamentos", icon: WalletCards },
+  { href: "/classes", label: "Turmas", mobileLabel: "Turmas", icon: UsersRound },
+  { href: "/lessons", label: "Aulas", mobileLabel: "Aulas", icon: BookOpen },
 ];
 
-export const correctionsNavigation: AppRoute = { href: "/corrections", label: "Acompanhamento", icon: ClipboardCheck };
-export const utilityNavigation: AppRoute = { href: "/data", label: "Dados e backup", icon: DatabaseBackup };
+export const correctionsNavigation: AppRoute = { href: "/corrections", label: "Acompanhamento", mobileLabel: "Acompanhar", icon: ClipboardCheck };
+export const utilityNavigation: AppRoute = { href: "/data", label: "Dados e backup", mobileLabel: "Dados", icon: DatabaseBackup };
 
 export const appRoutes = [...navigation, correctionsNavigation, utilityNavigation];
 

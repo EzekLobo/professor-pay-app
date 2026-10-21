@@ -70,6 +70,18 @@ describe("Firestore financial helpers", () => {
     expect(stale).toEqual(["group-61918-lesson-20851"]);
   });
 
+  it("não apaga o documento que será atualizado no mesmo lote", () => {
+    const stale = staleScheduledKodlandLessonIds([{
+      id: "group-61918-lesson-20850", source_lesson_id: "old-source", external_class_id: "61918",
+      lesson_date: "2026-10-19", start_time: "19:00",
+    }], [{
+      id: "20850", source_lesson_id: "new-source", external_class_id: "61918", external_class_name: "PRM_BRA1919_SEG-19",
+      lesson_number: 2, title: "M8.L2", theme: "", lesson_date: "2026-10-19", start_time: "19:00", end_time: "20:30", status: "", lesson_passed: false,
+      external_url: "", slides_url: "", guide_url: "", homework_url: "", homework_title: "", classroom_tasks: [],
+    }]);
+    expect(stale).toEqual([]);
+  });
+
   it("recusa materiais retornados para outra aula", () => {
     expect(() => mergeLoadedKodlandMaterials({
       id: "lesson-1",

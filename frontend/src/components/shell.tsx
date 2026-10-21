@@ -28,6 +28,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
   const isActive = (href: string) => pathname === href;
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Pular para o conteúdo</a>
       <aside className="sidebar">
         <Link className="brand" href={routeHref("/dashboard")} aria-label="Ir para o resumo" onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate("/dashboard"); } : undefined}>
           <Image className="brand-mark" src="/nexusclass-icon.png" alt="" width={34} height={34} priority />
@@ -38,9 +39,19 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
           {appRoutes.map((item) => {
             const Icon = item.icon;
             return (
-              <Link className={`nav-link${isActive(item.href) ? " nav-link-active" : ""}`} href={routeHref(item.href)} key={item.href} onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate(item.href); } : undefined}>
+              <Link
+                className={`nav-link${isActive(item.href) ? " nav-link-active" : ""}`}
+                href={routeHref(item.href)}
+                key={item.href}
+                aria-current={isActive(item.href) ? "page" : undefined}
+                aria-label={item.label}
+                onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate(item.href); } : undefined}
+              >
                 <span aria-hidden="true"><Icon size={19} strokeWidth={2.1} /></span>
-                <span>{item.label}</span>
+                <span className="nav-link-label" aria-hidden="true">
+                  <span className="nav-label-full">{item.label}</span>
+                  <span className="nav-label-mobile">{item.mobileLabel}</span>
+                </span>
               </Link>
             );
           })}
@@ -63,7 +74,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
             </div>
           </div>
         </header>
-        <main className="page-content">{banner}{children}</main>
+        <main className="page-content" id="main-content" tabIndex={-1}>{banner}{children}</main>
       </section>
     </div>
   );

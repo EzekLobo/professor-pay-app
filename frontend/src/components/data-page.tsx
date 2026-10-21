@@ -331,7 +331,10 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
         <h2>Importar do aplicativo Expo</h2>
         <p className="muted">Selecione o JSON, confira a prévia e então confirme.</p>
         <div className="form">
-          <Input type="file" accept="application/json,.json" disabled={busy || Boolean(demo)} onChange={file} />
+          <label className="field">
+            Arquivo de backup JSON
+            <Input type="file" accept="application/json,.json" disabled={busy || Boolean(demo)} onChange={file} />
+          </label>
           {demo && <p className="muted">Importação de arquivos pessoais indisponível na demonstração.</p>}
           {payload && (
             <Button type="button" disabled={busy} onClick={() => void check()}>

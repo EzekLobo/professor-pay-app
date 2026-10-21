@@ -322,3 +322,16 @@ e estilos privados, sem autenticação, telemetria ou chamadas de APIs na demo.
   alterna o `M` latino (U+004D) e o `М` cirílico (U+041C) nos títulos das
   aulas. O parser aceita ambos e normaliza a exibição para `M7L4`; sem isso,
   títulos como `М10.L4` eram exibidos como `Aula`, sobretudo em aulas futuras.
+- A revisão responsiva de 21/10/2026 mantém as seis áreas visíveis na barra
+  inferior em 390 px, com rótulos móveis compactos, suporte à safe area e sem
+  rolagem horizontal da página. A navegação expõe `aria-current`, oferece o
+  atalho “Pular para o conteúdo” e respeita `prefers-reduced-motion`; botões de
+  menu de turma têm área de toque maior e o seletor de backup possui rótulo.
+- O login oferece recuperação de senha por e-mail com resposta que não revela
+  se a conta existe. A tela também diferencia e-mail inválido, excesso de
+  tentativas e falha de rede.
+- A persistência da sincronização combina operações compatíveis, usa índices
+  em memória para localizar alunos/aulas anteriores e envia até três lotes
+  Firestore independentes em paralelo, preservando o limite de 400 operações e
+  a repetição única em falha. Validação atual: typecheck, lint, 157 testes
+  Vitest, build e 7 testes Chromium, inclusive auditoria em 1440x900 e 390x844.

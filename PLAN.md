@@ -1155,7 +1155,7 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
     rolagem horizontal da página.
   - Depende de: R18.1.
 
-- [ ] R18.3 - Testes, demonstração e verificação final
+- [x] R18.3 - Testes, demonstração e verificação final
   - Escopo: cobrir as transformações e os dois modos de exibição, validar o
     fluxo visitante e registrar o resultado operacional.
   - Aceitação: testes relevantes, typecheck, lint, build, diff check e smoke
@@ -1183,3 +1183,13 @@ turma, geração de aulas, confirmação de pagamento e backup em ambiente real.
 - Verificado pelo orquestrador: typecheck, lint focado e diff check passam.
 - Próximo: R18.3 deve cobrir a normalização/ações e verificar o fluxo visitante
   nos dois formatos antes da validação completa.
+
+##### R18.3
+
+- Mudou: teste unitário cobre a matriz com Kodland, atividade manual e células
+  vazias para alunos ativos; o smoke Playwright da demo alterna Lista/Compacto,
+  abre a grade e preserva a auditoria sem serviços privados.
+- Verificado pelo orquestrador: 158 testes Vitest, smoke Chromium focado,
+  typecheck, lint, build e diff check passam.
+- Entrega: Lista continua como padrão; Compacto está disponível na conta e na
+  demonstração sem alterar sincronização, Firebase ou Kodland.

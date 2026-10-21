@@ -77,6 +77,14 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await whatsAppDialog.getByRole("button", { name: "Cancelar" }).click();
   await page.getByRole("tab", { name: "Atividades" }).click();
   await expect(page.getByRole("heading", { name: "Atividades" })).toBeVisible();
+  const compactView = page.getByRole("button", { name: "Compacto" });
+  await expect(compactView).toHaveAttribute("aria-pressed", "false");
+  await compactView.click();
+  await expect(compactView).toHaveAttribute("aria-pressed", "true");
+  const compactActivities = page.getByLabel("Atividades pendentes em formato compacto");
+  await expect(compactActivities).toBeVisible();
+  await compactActivities.locator("summary").first().click();
+  await expect(compactActivities.getByRole("grid").first()).toBeVisible();
 
   await page.getByRole("link", { name: "Aulas" }).click();
   const courses = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Cursos" }) });

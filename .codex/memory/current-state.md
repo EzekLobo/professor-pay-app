@@ -348,3 +348,5 @@ e estilos privados, sem autenticação, telemetria ou chamadas de APIs na demo.
   Vitest, build e 7 testes Chromium, inclusive auditoria em 1440x900 e 390x844.
 
 - Para investigações transversais em `frontend/src`, execute `npm run codex:graph:generate` na raiz e consulte com `npm run codex:graph -- <arquivo-ou-caminho>`; o índice local fica em `.codex/graph/` e é ignorado pelo Git. Ele cobre apenas imports estáticos TypeScript/TSX: confirme impacto no código e mantenha `rg` para texto, fluxos dinâmicos, Firebase, APIs e regras de negócio.
+
+- Acompanhamento > Atividades mantém Lista como padrão e oferece Compacto, uma grade por turma com aluno fixo e colunas de aula/atividade. O modelo puro cobre pendências Kodland e próprias, inclusive células vazias de alunos ativos; o smoke Chromium da demo alterna os dois modos e confirma que o fluxo visitante não faz chamadas Firebase/Kodland. Validação em 21/10/2026: typecheck, lint, 158 testes Vitest, build, smoke Playwright e `git diff --check` passam.

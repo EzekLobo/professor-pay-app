@@ -21,7 +21,7 @@ export type ManualActivity = {
   submission_text: string;
   submission_url: string;
   feedback: string;
-  status: "pending" | "completed";
+  status: "assigned" | "submitted" | "corrected" | "pending" | "completed";
   created_at: string;
   updated_at: string;
 };
@@ -32,4 +32,4 @@ export const isHttpUrl = (value: string) => {
 };
 
 export const pendingManualActivities = (items: readonly ManualActivity[]) =>
-  items.filter((item) => item.status === "pending" && Boolean(item.submission_text.trim() || item.submission_url.trim()));
+  items.filter((item) => (item.status === "submitted" || item.status === "pending") && Boolean(item.submission_text.trim() || item.submission_url.trim()));

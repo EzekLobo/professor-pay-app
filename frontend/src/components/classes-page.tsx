@@ -12,6 +12,7 @@ import {
   ApiError,
   kodlandClassSettingsApi,
   kodlandApi,
+  tutorPreferencesApi,
   type KodlandGroup,
   type KodlandStudent,
 } from "@/lib/api";
@@ -232,6 +233,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
   const [rateInput, setRateInput] = useState("");
   const [paymentDay, setPaymentDay] = useState(15);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [kodlandEnabled, setKodlandEnabled] = useState(false);
 
   useEffect(() => {
     if (!notice) return;
@@ -243,6 +245,10 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     setLoading(true);
     setError("");
     const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
+    const preferencesApi = demo?.manualAdapter?.preferences ?? tutorPreferencesApi;
+    const preferences = await preferencesApi.get().catch(() => ({ kodland_enabled: false }));
+    setKodlandEnabled(preferences.kodland_enabled);
+    if (!preferences.kodland_enabled) { setGroups([]); setStudents([]); setLoading(false); return; }
     if (demo) {
       const currentSettings = await settingsApi.list();
       setGroups(demo.groups.filter((group) => !hiddenKodlandGroups.includes(group.external_id)).map((group) => ({ ...group, title: kodlandGroupNames[group.external_id] || group.title }))); setStudents(demo.students);
@@ -376,7 +382,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
       )}
 
       <ManualClassesPanel adapter={demo?.manualAdapter} hasKodlandGroups={groups.length > 0} kodlandLoading={loading} />
-      <section className="panel pedagogical-panel page-fill-panel">
+      {kodlandEnabled && <section className="panel pedagogical-panel page-fill-panel">
         <div className="section-heading classes-compact-heading">
           <h2>{kodlandGroupLabel}</h2>
           <div className="card-actions">
@@ -414,7 +420,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
             ))}
           </div>
         )}
-      </section>
+      </section>}
       <Modal open={Boolean(selectedGroup)} title={`Configurar ${kodlandGroupLabel}`} onClose={() => setSelectedGroup(null)}>
         {selectedGroup && <form className="management-form kodland-settings-form" onSubmit={(event) => { event.preventDefault(); void saveGroupSettings(); }}>
           <p className="muted kodland-settings-form-help">Uma única configuração será aplicada a todas as turmas Kodland sincronizadas.</p>

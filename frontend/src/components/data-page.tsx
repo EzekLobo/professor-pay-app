@@ -1,14 +1,16 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Modal } from "@/components/modal";
+import { ManualCsvPanel } from "@/components/manual-csv-panel";
 import { Shell } from "@/components/shell";
 import { Button, Input } from "@/components/ui";
 import {
   ApiError,
   dataApi,
   kodlandApi,
+  tutorPreferencesApi,
   type ImportReport,
 } from "@/lib/api";
 import {
@@ -22,13 +24,14 @@ import {
 } from "@/lib/kodland-sync-response";
 
 const summary = (report: ImportReport) =>
-  `${report.class_count} turmas legadas, ${report.lesson_count} aulas financeiras, ${report.payment_confirmation_count} confirmações (${formatMoney(report.total_cents)}), ${report.pedagogical_group_count} turmas e ${report.pedagogical_student_count} alunos Kodland, ${report.pedagogical_lesson_count} aulas sincronizadas, ${report.pedagogical_review_count} correções, ${report.manual_class_count ?? 0} turmas próprias, ${report.manual_student_count ?? 0} alunos próprios, ${report.manual_lesson_count ?? 0} conteúdos próprios e ${report.manual_activity_count ?? 0} atividades próprias`;
+  `${report.class_count} turmas legadas, ${report.lesson_count} aulas financeiras, ${report.payment_confirmation_count} confirmações (${formatMoney(report.total_cents)}), ${report.pedagogical_group_count} turmas e ${report.pedagogical_student_count} alunos Kodland, ${report.manual_class_count ?? 0} turmas próprias, ${report.manual_student_count ?? 0} alunos próprios, ${report.manual_course_count ?? 0} cursos, ${report.manual_occurrence_count ?? 0} ocorrências, ${report.manual_attendance_count ?? 0} presenças, ${report.manual_lesson_count ?? 0} conteúdos e ${report.manual_activity_count ?? 0} atividades`;
 
 export interface DataDemoAdapter {
   snapshot: object;
   onSync: () => void | Promise<void>;
   onReset: () => void;
   onNotice?: (message: string) => void;
+  kodlandEnabled?: boolean;
 }
 
 export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
@@ -50,6 +53,13 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
   );
   const [syncPassword, setSyncPassword] = useState("");
   const [saveCredentials, setSaveCredentials] = useState(true);
+  const [storedKodlandEnabled, setStoredKodlandEnabled] = useState(false);
+  const kodlandEnabled = demo ? demo.kodlandEnabled === true : storedKodlandEnabled;
+
+  useEffect(() => {
+    if (demo) return;
+    void tutorPreferencesApi.get().then((preferences) => setStoredKodlandEnabled(preferences.kodland_enabled)).catch(() => setStoredKodlandEnabled(false));
+  }, [demo]);
 
   const message = (reason: unknown) =>
     setError(
@@ -248,7 +258,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
 
   return (
     <div className="management-grid page-fill-grid">
-      <Modal
+      {kodlandEnabled && <Modal
         open={syncOpen}
         title="Sincronizar aplicação"
         className="schedule-sync-modal"
@@ -300,7 +310,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
             </Button>
           </div>
         </form>
-      </Modal>
+      </Modal>}
 
       <section className="page-heading">
         <p className="eyebrow">Privacidade e backup</p>
@@ -309,14 +319,14 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
 
-      <section className="panel data-sync-card" data-tour="data-sync">
+      {kodlandEnabled && <section className="panel data-sync-card" data-tour="data-sync">
         <div className="data-section-copy">
           <h2>Sincronizar Kodland</h2>
         </div>
         <Button type="button" disabled={busy} onClick={openSync}>
           Sincronizar tudo
         </Button>
-      </section>
+      </section>}
 
       <section className="panel data-backup-card page-fill-panel">
         <div className="data-backup-heading">
@@ -338,7 +348,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
               <h3>Importar backup</h3>
             </div>
             <label className="field data-backup-file">
-              <Input type="file" accept="application/json,.json" disabled={busy || Boolean(demo)} onChange={file} />
+              <Input aria-label="Arquivo de backup JSON" type="file" accept="application/json,.json" disabled={busy || Boolean(demo)} onChange={file} />
             </label>
             {demo && <p className="muted data-backup-note">Importação indisponível na demonstração.</p>}
             {payload && (
@@ -360,6 +370,8 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
         )}
         {report && <p className="notice">Importação: {summary(report)}</p>}
       </section>
+
+      {!demo && <ManualCsvPanel />}
 
       <details className="data-danger-zone" data-tour="data-delete">
         <summary>

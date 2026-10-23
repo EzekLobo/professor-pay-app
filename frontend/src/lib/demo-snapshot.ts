@@ -1,6 +1,8 @@
 import { calculateDashboard, type DashboardLesson, type DashboardPayment, type DashboardResponse, type KodlandAttendance, type KodlandAvailability, type KodlandExtraLesson, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "./api";
 import type { CustomHoliday } from "./holidays";
 import type { ManualActivity, ManualLessonContent } from "./manual-pedagogy";
+import type { ManualCourse } from "./manual-courses";
+import { defaultTutorPreferences, occurrenceHorizon, planManualOccurrences, type ManualAttendance, type ManualAvailability, type ManualOccurrence, type TutorPreferences } from "./manual-operations";
 import type { KodlandClassSettings, ManualClass, ManualClassGroup, ManualStudent } from "./manual-teaching";
 import type { RatePeriod } from "./teaching-finance";
 
@@ -22,6 +24,11 @@ export type DemoSnapshot = {
   manualStudents: ManualStudent[];
   manualLessons: ManualLessonContent[];
   manualActivities: ManualActivity[];
+  manualCourses: ManualCourse[];
+  manualOccurrences: ManualOccurrence[];
+  manualAttendance: ManualAttendance[];
+  manualAvailability: ManualAvailability[];
+  tutorPreferences: TutorPreferences;
   defaultRateHistory: RatePeriod[];
   kodlandSettings: KodlandClassSettings[];
   paymentSnapshots: Record<string, DashboardPayment>;
@@ -58,12 +65,24 @@ export function createDemoSnapshot(): DemoSnapshot {
   }];
   const manualStudents: ManualStudent[] = [{
     id: "demo-manual-student-helena", name: "Helena Nogueira",
-    email: "helena@example.test", phone: "", active: true,
+    email: "helena@example.test", phone: "5511999999999", guardian_name: "Marcos Nogueira",
+    guardian_phone: "5511988888888", notes: "Prefere receber lembretes pelo WhatsApp.", active: true,
     created_at: createdAt, updated_at: createdAt,
+  }];
+  const manualCourses: ManualCourse[] = [{
+    id: "demo-manual-course-math", name: "Matemática essencial", archived: false,
+    modules: [{ id: "demo-math-module-1", title: "Fundamentos", lessons: [
+      { id: "demo-math-1-1", title: "Frações", activities: "Exercícios guiados", guide: "Revisar equivalência e simplificação.", slides: "https://example.test/slides-fracoes", homework: "Lista de frações" },
+      { id: "demo-math-1-2", title: "Porcentagem", activities: "Problemas do cotidiano", guide: "Relacionar frações e porcentagens.", slides: "", homework: "Calcular descontos" },
+      { id: "demo-math-1-3", title: "Razão", activities: "Escalas", guide: "Apresentar razões equivalentes.", slides: "", homework: "Exercícios de escala" },
+    ] }, { id: "demo-math-module-2", title: "Álgebra", lessons: [
+      { id: "demo-math-2-1", title: "Expressões", activities: "Montagem de expressões", guide: "Identificar termos e operações.", slides: "", homework: "Simplificar expressões" },
+      { id: "demo-math-2-2", title: "Equações", activities: "Resolução passo a passo", guide: "Aplicar operações inversas.", slides: "", homework: "Lista de equações" },
+    ] }], created_at: createdAt, updated_at: createdAt,
   }];
   const manualClasses: ManualClass[] = [{
     id: "demo-manual-class-matematica", source: "manual", name: "Matemática particular",
-    group_id: manualClassGroups[0].id, first_lesson_date: day(-28), end_date: null,
+    group_id: manualClassGroups[0].id, course_id: manualCourses[0].id, first_lesson_date: day(-28), end_date: null,
     schedule_slots: [{
       id: "terca-18h", week_day: 1, start_time: "18:00", duration_minutes: 60,
       effective_from: day(-28), effective_until: null,
@@ -75,7 +94,18 @@ export function createDemoSnapshot(): DemoSnapshot {
     student_ids: [manualStudents[0].id], active: true,
     created_at: createdAt, updated_at: createdAt,
   }];
-  return { today, groups, students, lessons, extras, reviews, attendance, availability: [0, 1, 2, 3, 4].map((weekday) => ({ id: `demo-availability-${weekday}`, weekday, start_time: "19:00", end_time: "22:00", created_at: today })), paymentStatus: {}, financialStatus: {}, additionalExtras: [], manualClassGroups, manualClasses, manualStudents, manualLessons: [], manualActivities: [], defaultRateHistory: [], kodlandSettings: [], paymentSnapshots: {} };
+  const manualOccurrences = planManualOccurrences({ classroom: manualClasses[0], course: manualCourses[0], from: manualClasses[0].first_lesson_date, to: occurrenceHorizon(today), timestamp: createdAt });
+  const occurred = manualOccurrences.filter((item) => item.lesson_date <= today);
+  const manualAttendance: ManualAttendance[] = occurred.flatMap((item, index) => [{
+    id: `${item.id}:${manualStudents[0].id}`, occurrence_id: item.id, class_id: item.class_id,
+    student_id: manualStudents[0].id, status: index % 4 === 0 ? "ABSENT" : "PRESENT", note: "",
+    created_at: createdAt, updated_at: createdAt,
+  }]);
+  const manualAvailability: ManualAvailability[] = [0, 1, 2, 3, 4].map((week_day) => ({
+    id: `demo-manual-availability-${week_day}`, week_day, start_time: "17:00", end_time: "21:00",
+    active: true, created_at: createdAt, updated_at: createdAt,
+  }));
+  return { today, groups, students, lessons, extras, reviews, attendance, availability: [0, 1, 2, 3, 4].map((weekday) => ({ id: `demo-availability-${weekday}`, weekday, start_time: "19:00", end_time: "22:00", created_at: today })), paymentStatus: {}, financialStatus: {}, additionalExtras: [], manualClassGroups, manualClasses, manualStudents, manualLessons: [], manualActivities: [], manualCourses, manualOccurrences, manualAttendance, manualAvailability, tutorPreferences: { ...defaultTutorPreferences(createdAt), onboarding_completed: true }, defaultRateHistory: [], kodlandSettings: [], paymentSnapshots: {} };
 }
 
 export const demoFinancialLessonId = (lesson: Pick<KodlandLesson, "external_class_id" | "id">) => `kodland-${lesson.external_class_id}-${lesson.id}`;
@@ -89,7 +119,7 @@ export function demoFinancialInputs(snapshot: DemoSnapshot, customHolidays: Cust
   });
   const confirmations = Object.entries(snapshot.paymentStatus).map(([date, status]) => ({ id: date, payment_date: date, status, received_at: status === "RECEIVED" ? `${snapshot.today}T12:00:00Z` : null, payment_snapshot: status === "RECEIVED" ? snapshot.paymentSnapshots[date] : undefined }));
   const lessonRows = snapshot.additionalExtras.map((lesson) => ({ ...lesson, active: true, canceled: false, financial_status: snapshot.financialStatus[lesson.id] ?? lesson.financial_status ?? "" }));
-  return [snapshot.manualClasses.map((item) => ({ ...item })), lessonRows, confirmations, snapshot.groups.map((group) => ({ ...group })), snapshot.lessons.map((lesson) => ({ ...lesson })), snapshot.today, snapshot.extras.map((extra) => ({ ...extra })), financialOverrides, customHolidays, snapshot.defaultRateHistory, snapshot.kodlandSettings.map((item) => ({ ...item }))];
+  return [snapshot.manualClasses.map((item) => ({ ...item })), lessonRows, confirmations, snapshot.groups.map((group) => ({ ...group })), snapshot.lessons.map((lesson) => ({ ...lesson })), snapshot.today, snapshot.extras.map((extra) => ({ ...extra })), financialOverrides, customHolidays, snapshot.defaultRateHistory, snapshot.kodlandSettings.map((item) => ({ ...item })), snapshot.manualOccurrences.map((item) => ({ ...item }))];
 }
 
 export function demoDashboard(snapshot: DemoSnapshot, customHolidays: CustomHoliday[] = []): DashboardResponse {

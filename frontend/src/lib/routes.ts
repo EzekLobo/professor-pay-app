@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   DatabaseBackup,
   LayoutDashboard,
+  Settings,
   UsersRound,
   WalletCards,
 } from "lucide-react";
@@ -24,8 +25,9 @@ export const navigation: AppRoute[] = [
 
 export const correctionsNavigation: AppRoute = { href: "/corrections", label: "Acompanhamento", mobileLabel: "Acompanhar", icon: ClipboardCheck };
 export const utilityNavigation: AppRoute = { href: "/data", label: "Dados e backup", mobileLabel: "Dados", icon: DatabaseBackup };
+export const settingsNavigation: AppRoute = { href: "/settings", label: "Configurações", mobileLabel: "Ajustes", icon: Settings };
 
-export const appRoutes = [...navigation, correctionsNavigation, utilityNavigation];
+export const appRoutes = [...navigation, correctionsNavigation, settingsNavigation, utilityNavigation];
 
 export function pageTitle(pathname: string) {
   return pathname === "/admin"

@@ -8,6 +8,7 @@ import { LessonsContent } from "@/components/lessons-page";
 import { PaymentsContent, type PaymentsAdapter } from "@/components/payments-page";
 import { CorrectionsContent } from "@/components/corrections-page";
 import { DataContent } from "@/components/data-page";
+import { SettingsContent } from "@/components/settings-page";
 import { ShellFrame } from "@/components/shell";
 import { HolidayCalendarDialog } from "@/components/holiday-calendar-dialog";
 import { CalendarDays } from "lucide-react";
@@ -23,7 +24,7 @@ import type { DashboardLesson, ExtraLessonPayload, KodlandReview } from "@/lib/a
 import type { CustomHoliday } from "@/lib/holidays";
 import "../visitor.css";
 
-type View = "/dashboard" | "/payments" | "/classes" | "/lessons" | "/corrections" | "/data";
+type View = "/dashboard" | "/payments" | "/classes" | "/lessons" | "/corrections" | "/settings" | "/data";
 
 export default function DemoPage() {
   const router = useRouter();
@@ -106,8 +107,9 @@ export default function DemoPage() {
       {view === "/payments" && <PaymentsContent adapter={paymentAdapter} />}
       {view === "/classes" && <ClassesContent demo={classData} />}
       {view === "/lessons" && <LessonsContent demoData={lessonData} manualAdapter={manualAdapter} onDemoAction={() => setResource("Importar curso")} />}
-      {view === "/corrections" && <CorrectionsContent demo={{ reviews: snapshot.reviews, lessons: snapshot.lessons, attendance: snapshot.attendance, students: snapshot.students, groups: snapshot.groups, manualActivities: snapshot.manualActivities, manualClasses: snapshot.manualClasses, manualStudents: snapshot.manualStudents, onSaveManualActivity: (item) => manualAdapter.pedagogy.saveActivity(item), onSync: update, onCorrect: (item) => { setReview(item); setFeedback(""); }, onMaterial: () => setResource("Materiais da aula") }} />}
-      {view === "/data" && <DataContent demo={{ snapshot: snapshot as unknown as Record<string, unknown>, onSync: update, onReset: reset, onNotice: setNotice }} />}
+      {view === "/corrections" && <CorrectionsContent demo={{ reviews: snapshot.reviews, lessons: snapshot.lessons, attendance: snapshot.attendance, students: snapshot.students, groups: snapshot.groups, manualActivities: snapshot.manualActivities, manualClasses: snapshot.manualClasses, manualStudents: snapshot.manualStudents, manualAdapter, onSaveManualActivity: (item) => manualAdapter.pedagogy.saveActivity(item), onSync: update, onCorrect: (item) => { setReview(item); setFeedback(""); }, onMaterial: () => setResource("Materiais da aula") }} />}
+      {view === "/settings" && <SettingsContent adapter={manualAdapter} />}
+      {view === "/data" && <DataContent demo={{ snapshot: snapshot as unknown as Record<string, unknown>, kodlandEnabled: snapshot.tutorPreferences.kodland_enabled, onSync: update, onReset: reset, onNotice: setNotice }} />}
     </>}
     </ShellFrame>
     <Modal open={Boolean(resource)} title={resource} onClose={() => setResource("")} className="visitor-demo-modal"><p className="muted">Conteúdo fictício da demonstração. Na sua conta, este atalho abre o material correspondente na plataforma.</p><section className="lesson-material-section"><h3>Preparando a aula</h3><ol><li>Revisar o desafio da aula anterior.</li><li>Apresentar o conceito com um exemplo guiado.</li><li>Construir o projeto com os alunos.</li><li>Reservar tempo para dúvidas e atividade individual.</li></ol></section></Modal>

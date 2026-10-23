@@ -1,6 +1,7 @@
 import type { DemoSnapshot } from "./demo-snapshot";
 import type { ManualAdapters } from "./manual-adapters";
 import { isHttpUrl } from "./manual-pedagogy";
+import { occurrenceHorizon, planManualOccurrences } from "./manual-operations";
 import {
   reconcileWeeklySlots,
   tomorrowCivilDate,
@@ -42,7 +43,7 @@ export function createDemoManualAdapter(read: Read, change: Change): ManualAdapt
       if (!input.name.trim()) throw new RangeError("Informe o nome do aluno.");
       const previous = input.id ? read().manualStudents.find((item) => item.id === input.id) : undefined;
       if (input.id && !previous) throw new Error("Aluno não encontrado.");
-      const record = { id: input.id ?? id(), name: input.name.trim(), email: input.email?.trim() ?? "", phone: input.phone?.trim() ?? "", active: input.active ?? previous?.active ?? true, created_at: previous?.created_at ?? now(), updated_at: now() };
+      const record = { id: input.id ?? id(), name: input.name.trim(), email: input.email?.trim() ?? "", phone: input.phone?.trim() ?? "", guardian_name: input.guardian_name?.trim() ?? previous?.guardian_name ?? "", guardian_phone: input.guardian_phone?.trim() ?? previous?.guardian_phone ?? "", notes: input.notes?.trim() ?? previous?.notes ?? "", active: input.active ?? previous?.active ?? true, created_at: previous?.created_at ?? now(), updated_at: now() };
       change((current) => ({ ...current, manualStudents: [...current.manualStudents.filter((item) => item.id !== record.id), record] }));
       return record;
     },
@@ -87,6 +88,8 @@ export function createDemoManualAdapter(read: Read, change: Change): ManualAdapt
       if (input.id && !previous) throw new Error("Turma não encontrada.");
       validateManualClassInput(input, current.defaultRateHistory.at(-1)?.hourly_rate_cents != null);
       const groupId = input.group_id ?? previous?.group_id ?? null;
+      const courseId = input.course_id ?? previous?.course_id ?? null;
+      if (courseId && !current.manualCourses.some((course) => course.id === courseId && !course.archived)) throw new RangeError("O curso selecionado não existe ou está arquivado.");
       if (!previous && !groupId) throw new RangeError("Selecione ou crie um grupo para a nova turma.");
       if (groupId) {
         const group = current.manualClassGroups.find((item) => item.id === groupId);
@@ -109,7 +112,7 @@ export function createDemoManualAdapter(read: Read, change: Change): ManualAdapt
       const submittedEndDate = input.end_date || null;
       const record: ManualClass = {
         id: input.id ?? id(), source: "manual", name: input.name.trim(),
-        group_id: groupId,
+        group_id: groupId, course_id: courseId,
         first_lesson_date: previous?.first_lesson_date ?? input.first_lesson_date,
         end_date: active
           ? (previous?.active === false && submittedEndDate === previous.end_date ? null : submittedEndDate)
@@ -135,11 +138,11 @@ export function createDemoManualAdapter(read: Read, change: Change): ManualAdapt
     },
     deleteClass: async (classId) => {
       if (!read().manualClasses.some((item) => item.id === classId)) throw new Error("Turma não encontrada.");
+      if (read().manualLessons.some((item) => item.class_id === classId) || read().manualActivities.some((item) => item.class_id === classId) || read().manualAttendance.some((item) => item.class_id === classId) || read().manualOccurrences.some((item) => item.class_id === classId && (item.lesson_date <= read().today || item.status !== "planned"))) throw new RangeError("Arquive a turma: ela possui histórico financeiro ou pedagógico.");
       change((current) => ({
         ...current,
         manualClasses: current.manualClasses.filter((item) => item.id !== classId),
-        manualLessons: current.manualLessons.filter((item) => item.class_id !== classId),
-        manualActivities: current.manualActivities.filter((item) => item.class_id !== classId),
+        manualOccurrences: current.manualOccurrences.filter((item) => item.class_id !== classId),
       }));
     },
   };
@@ -170,13 +173,70 @@ export function createDemoManualAdapter(read: Read, change: Change): ManualAdapt
       if (input.submission_url?.trim() && !isHttpUrl(input.submission_url.trim())) throw new RangeError("Informe um link de entrega http(s) válido.");
       const previous = input.id ? current.manualActivities.find((item) => item.id === input.id && item.class_id === input.class_id) : undefined;
       if (input.id && !previous) throw new Error("Atividade própria não encontrada.");
-      const record = { id: input.id ?? id(), class_id: input.class_id, student_id: input.student_id, occurrence_id: input.occurrence_id, title: input.title.trim(), description: input.description?.trim() ?? "", submission_text: input.submission_text?.trim() ?? "", submission_url: input.submission_url?.trim() ?? "", feedback: input.feedback?.trim() ?? "", status: input.status ?? "pending", created_at: previous?.created_at ?? now(), updated_at: now() };
+      const record = { id: input.id ?? id(), class_id: input.class_id, student_id: input.student_id, occurrence_id: input.occurrence_id, title: input.title.trim(), description: input.description?.trim() ?? "", submission_text: input.submission_text?.trim() ?? "", submission_url: input.submission_url?.trim() ?? "", feedback: input.feedback?.trim() ?? "", status: input.status ?? (input.submission_text?.trim() || input.submission_url?.trim() ? "submitted" : "assigned"), created_at: previous?.created_at ?? now(), updated_at: now() };
       change((state) => ({ ...state, manualActivities: [...state.manualActivities.filter((item) => item.id !== record.id), record] }));
       return record;
     },
   };
   return {
     teaching, pedagogy,
+    preferences: {
+      get: async () => read().tutorPreferences,
+      save: async (input) => {
+        const current = read().tutorPreferences;
+        const record = { ...current, ...input, id: "preferences" as const, updated_at: now() };
+        if (!Number.isInteger(record.default_duration_minutes) || record.default_duration_minutes < 15 || record.default_duration_minutes > 480) throw new RangeError("A duração padrão deve ficar entre 15 e 480 minutos.");
+        validDay(record.default_payment_day);
+        if (!record.absence_message_template.trim()) throw new RangeError("Informe o modelo da mensagem de ausência.");
+        change((state) => ({ ...state, tutorPreferences: record }));
+        return record;
+      },
+    },
+    courses: {
+      list: async () => read().manualCourses,
+      save: async (course) => {
+        if (!course.name.trim() || !course.modules.length) throw new RangeError("Informe o nome e ao menos um módulo.");
+        const record = { ...course, name: course.name.trim(), updated_at: now() };
+        change((state) => ({ ...state, manualCourses: [...state.manualCourses.filter((item) => item.id !== record.id), record] }));
+        return record;
+      },
+      delete: async (courseId) => {
+        if (read().manualClasses.some((item) => item.course_id === courseId)) throw new RangeError("Arquive o curso: ele possui turmas vinculadas.");
+        change((state) => ({ ...state, manualCourses: state.manualCourses.filter((item) => item.id !== courseId) }));
+      },
+    },
+    operations: {
+      occurrences: async (classId) => read().manualOccurrences.filter((item) => !classId || item.class_id === classId),
+      ensureOccurrences: async (classId) => {
+        const state = read();
+        const classroom = state.manualClasses.find((item) => item.id === classId);
+        if (!classroom) throw new Error("Turma própria não encontrada.");
+        const planned = planManualOccurrences({ classroom, course: state.manualCourses.find((item) => item.id === classroom.course_id), existing: state.manualOccurrences.filter((item) => item.class_id === classId), from: classroom.first_lesson_date, to: occurrenceHorizon(state.today, classroom.end_date), defaultRateHistory: state.defaultRateHistory, timestamp: now() });
+        change((current) => ({ ...current, manualOccurrences: [...current.manualOccurrences.filter((item) => item.class_id !== classId), ...planned] }));
+        return planned;
+      },
+      saveOccurrence: async (input) => {
+        const record = { ...input, updated_at: now() };
+        change((state) => ({ ...state, manualOccurrences: [...state.manualOccurrences.filter((item) => item.id !== record.id), record] }));
+        return record;
+      },
+      attendance: async (classId) => read().manualAttendance.filter((item) => !classId || item.class_id === classId),
+      saveAttendance: async (input) => {
+        const previous = input.id ? read().manualAttendance.find((item) => item.id === input.id) : undefined;
+        const record = { ...input, id: input.id || `${input.occurrence_id}:${input.student_id}`, note: input.note.trim(), created_at: previous?.created_at ?? now(), updated_at: now() };
+        change((state) => ({ ...state, manualAttendance: [...state.manualAttendance.filter((item) => item.id !== record.id), record] }));
+        return record;
+      },
+      availability: async () => read().manualAvailability,
+      saveAvailability: async (input) => {
+        if (input.end_time <= input.start_time) throw new RangeError("Confira o intervalo de disponibilidade.");
+        const previous = input.id ? read().manualAvailability.find((item) => item.id === input.id) : undefined;
+        const record = { ...input, id: input.id || id(), created_at: previous?.created_at ?? now(), updated_at: now() };
+        change((state) => ({ ...state, manualAvailability: [...state.manualAvailability.filter((item) => item.id !== record.id), record] }));
+        return record;
+      },
+      deleteAvailability: async (availabilityId) => change((state) => ({ ...state, manualAvailability: state.manualAvailability.filter((item) => item.id !== availabilityId) })),
+    },
     settings: {
       get: async () => ({ rate_history: read().defaultRateHistory, default_hourly_rate_cents: read().defaultRateHistory.at(-1)?.hourly_rate_cents ?? null }),
       setDefaultRate: async (rate) => { validRate(rate); change((current) => ({ ...current, defaultRateHistory: [...current.defaultRateHistory, ratePeriod(rate)] })); },

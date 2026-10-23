@@ -94,7 +94,7 @@ describe("visitor's local manual-management adapter", () => {
     expect(restored.manualClasses[0].group_id).toBeNull();
   });
 
-  it("deletes a class with its own lessons and activities before allowing its group to be removed", async () => {
+  it("blocks permanent deletion when a class has pedagogical history", async () => {
     const { adapter, read } = setup();
     const group = await adapter.teaching.saveGroup({ name: "Temporário" });
     const student = await adapter.teaching.saveStudent({ name: "Aluno temporário" });
@@ -106,11 +106,11 @@ describe("visitor's local manual-management adapter", () => {
     await adapter.pedagogy.saveLesson({ class_id: classroom.id, title: "Conteúdo temporário" });
     await adapter.pedagogy.saveActivity({ class_id: classroom.id, student_id: student.id, occurrence_id: `manual:${classroom.id}:qua:2026-10-14`, title: "Atividade temporária" });
 
-    await adapter.teaching.deleteClass(classroom.id);
-    expect(read().manualClasses).not.toContainEqual(expect.objectContaining({ id: classroom.id }));
-    expect(read().manualLessons).not.toContainEqual(expect.objectContaining({ class_id: classroom.id }));
-    expect(read().manualActivities).not.toContainEqual(expect.objectContaining({ class_id: classroom.id }));
-    await expect(adapter.teaching.deleteGroup(group.id)).resolves.toBeUndefined();
+    await expect(adapter.teaching.deleteClass(classroom.id)).rejects.toThrow(/Arquive a turma/);
+    expect(read().manualClasses).toContainEqual(expect.objectContaining({ id: classroom.id }));
+    expect(read().manualLessons).toContainEqual(expect.objectContaining({ class_id: classroom.id }));
+    expect(read().manualActivities).toContainEqual(expect.objectContaining({ class_id: classroom.id }));
+    await expect(adapter.teaching.deleteGroup(group.id)).rejects.toThrow(/Mova as turmas/);
   });
 
   it("does not restore foreign or unsafe local records", () => {

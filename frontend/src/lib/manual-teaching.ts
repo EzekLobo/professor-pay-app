@@ -5,6 +5,9 @@ export type ManualStudent = {
   name: string;
   email: string;
   phone: string;
+  guardian_name?: string;
+  guardian_phone?: string;
+  notes?: string;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -31,6 +34,8 @@ export type ManualClass = RecurringClass & {
   source: "manual";
   /** Missing only on records created before personal groups existed. */
   group_id?: string | null;
+  /** Optional reusable curriculum assigned to this class. */
+  course_id?: string | null;
   /** The default selected at creation also covers an intentionally backdated first lesson. */
   initial_default_rate_cents?: number | null;
   payment_day_history?: PaymentDayPeriod[];
@@ -60,6 +65,7 @@ export const effectivePaymentDay = (
 export type ManualClassInput = {
   /** Required for new classes by the persistence adapters; legacy edits may omit it. */
   group_id?: string | null;
+  course_id?: string | null;
   name: string;
   first_lesson_date: string;
   end_date?: string | null;
@@ -67,6 +73,17 @@ export type ManualClassInput = {
   student_ids: string[];
   hourly_rate_cents: number | null;
   payment_day: number;
+  active?: boolean;
+};
+
+export type ManualStudentInput = {
+  id?: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  guardian_name?: string;
+  guardian_phone?: string;
+  notes?: string;
   active?: boolean;
 };
 

@@ -18,6 +18,7 @@ import {
   kodlandApi,
   manualTeachingApi,
   manualPedagogyApi,
+  tutorPreferencesApi,
   type KodlandExtraLesson,
   type KodlandExtraManualStatus,
   type KodlandAvailability,
@@ -115,6 +116,7 @@ export function WeekSchedule({
   onMaterialsLoaded,
   customHolidays,
   manualClasses = [],
+  externalSyncEnabled,
   demoMode = false,
 }: {
   groups: KodlandGroup[];
@@ -133,6 +135,7 @@ export function WeekSchedule({
   onMaterialsLoaded: (lesson: KodlandLesson) => void;
   customHolidays: CustomHoliday[];
   manualClasses?: ManualClass[];
+  externalSyncEnabled?: boolean;
   demoMode?: boolean;
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -303,7 +306,7 @@ export function WeekSchedule({
           </p>
         </div>
         <div className="week-actions">
-          {(groups.length > 0 || manualClasses.length === 0) && <button
+          {externalSyncEnabled && (groups.length > 0 || manualClasses.length === 0) && <button
             className="button button-ghost button-small"
             type="button"
             onClick={onRefresh}
@@ -745,6 +748,7 @@ export function KodlandSummary({
   manualPendingCount = 0,
   demoMode = false,
   onOpenCorrections,
+  externalSyncEnabled,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -767,8 +771,10 @@ export function KodlandSummary({
   manualPendingCount?: number;
   demoMode?: boolean;
   onOpenCorrections?: () => void;
+  externalSyncEnabled?: boolean;
 }) {
   const active = groups.filter((group) => !group.archived);
+  const canExternalSync = externalSyncEnabled ?? !demoMode;
   return (
     <div className="dashboard-grid page-fill-grid">
       <section className="metric-grid kodland-metrics">
@@ -800,6 +806,7 @@ export function KodlandSummary({
         onMaterialsLoaded={onMaterialsLoaded}
         customHolidays={customHolidays}
         manualClasses={manualClasses}
+        externalSyncEnabled={canExternalSync}
       />
     </div>
   );
@@ -821,6 +828,7 @@ function DashboardPageContent() {
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
   const [refreshNotice, setRefreshNotice] = useState("");
   const [scheduleLastUpdatedAt, setScheduleLastUpdatedAt] = useState<string | null>(null);
+  const [kodlandEnabled, setKodlandEnabled] = useState(false);
 
   useEffect(() => {
     if (!refreshNotice) return;
@@ -831,6 +839,9 @@ function DashboardPageContent() {
     setFailed(false);
     if (!keepContent) setDashboard(null);
     try {
+      const preferences = await tutorPreferencesApi.get();
+      setKodlandEnabled(preferences.kodland_enabled);
+      const empty = Promise.resolve({ items: [] });
       const [
         financial,
         kodlandGroups,
@@ -846,14 +857,14 @@ function DashboardPageContent() {
         ownActivities,
       ] = await Promise.all([
         dashboardApi.get(),
-        kodlandApi.groups(),
-        kodlandApi.students(),
-        kodlandApi.reviews(),
-        kodlandApi.lessons(),
-        kodlandApi.extraLessons(),
-        kodlandApi.availability(),
+        preferences.kodland_enabled ? kodlandApi.groups() : empty,
+        preferences.kodland_enabled ? kodlandApi.students() : empty,
+        preferences.kodland_enabled ? kodlandApi.reviews() : empty,
+        preferences.kodland_enabled ? kodlandApi.lessons() : empty,
+        preferences.kodland_enabled ? kodlandApi.extraLessons() : empty,
+        preferences.kodland_enabled ? kodlandApi.availability() : empty,
         holidaysApi.list(),
-        kodlandApi.scheduleLastUpdatedAt(),
+        preferences.kodland_enabled ? kodlandApi.scheduleLastUpdatedAt() : Promise.resolve(null),
         manualTeachingApi.classes(),
         manualTeachingApi.students(),
         manualPedagogyApi.activities(),
@@ -966,6 +977,7 @@ function DashboardPageContent() {
         manualClasses={manualClasses}
         manualStudents={manualStudents}
         manualPendingCount={manualPendingCount}
+        externalSyncEnabled={kodlandEnabled}
       />
       <DashboardContent
         state="ready"

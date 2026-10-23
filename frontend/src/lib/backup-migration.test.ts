@@ -98,7 +98,7 @@ describe("backup e migração", () => {
     expect(Math.max(...fake.batchSizes)).toBeLessThanOrEqual(400);
   });
 
-  it("exporta e restaura backup v2 com registros manuais, tarifas e extrato fechado", async () => {
+  it("exporta e restaura backup v3 com registros manuais, tarifas e extrato fechado", async () => {
     const closed = { payment_date: "2026-11-15", period: "10/2026", lesson_count: 1,
       normal_count: 1, extra_count: 0, normal_total_cents: 3000,
       extra_total_cents: 0, total_cents: 3000, status: "RECEIVED", lessons: [] };
@@ -110,19 +110,25 @@ describe("backup e migração", () => {
       rate_history: [{ effective_from: "2026-10-13", hourly_rate_cents: 5000 }], created_at: "2026-10-01" });
     fake.docs.set(key("manual_lesson_content", "content-1"), { id: "content-1", title: "Aula", created_at: "2026-10-01" });
     fake.docs.set(key("manual_activities", "activity-1"), { id: "activity-1", status: "completed", created_at: "2026-10-01" });
+    fake.docs.set(key("manual_courses", "course-1"), { id: "course-1", name: "Curso", modules: [], created_at: "2026-10-01" });
+    fake.docs.set(key("manual_occurrences", "occurrence-1"), { id: "occurrence-1", class_id: "own-1", lesson_date: "2026-10-13", status: "held", created_at: "2026-10-01" });
+    fake.docs.set(key("manual_attendance", "attendance-1"), { id: "attendance-1", occurrence_id: "occurrence-1", student_id: "student-1", status: "PRESENT", created_at: "2026-10-01" });
+    fake.docs.set(key("manual_availability", "availability-1"), { id: "availability-1", week_day: 1, start_time: "18:00", end_time: "21:00", created_at: "2026-10-01" });
     fake.docs.set(key("kodland_class_settings", "group-1"), { id: "group-1", payment_day: 20, created_at: "2026-10-01" });
     fake.docs.set(key("kodland_financial_overrides", "override-1"), { id: "override-1", financial_status: "HOLIDAY", created_at: "2026-10-01" });
     fake.docs.set(key("teaching_settings", "finance"), { rate_history: [{ effective_from: "2026-10-13", hourly_rate_cents: 4000 }] });
+    fake.docs.set(key("teaching_settings", "preferences"), { default_duration_minutes: 60, kodland_enabled: false });
     fake.docs.set(key("payments", "2026-11-15"), { payment_date: "2026-11-15", status: "RECEIVED",
       payment_snapshot: closed, created_at: "2026-10-01" });
     const exported = await dataApi.export();
-    expect(exported).toMatchObject({ schema_version: "2.0", manual_students: [{ name: "Ana" }],
+    expect(exported).toMatchObject({ schema_version: "3.0", manual_students: [{ name: "Ana" }],
       manual_class_groups: [{ name: "Autônomas" }], manual_classes: [{ name: "Própria", group_id: "personal-1" }], teaching_settings: { id: "finance" },
       payment_confirmations: [{ payment_snapshot: closed }] });
     fake.docs.clear();
     const preview = await dataApi.previewImport(exported);
     expect(preview).toMatchObject({ manual_student_count: 1, manual_class_group_count: 1, manual_class_count: 1,
-      manual_lesson_count: 1, manual_activity_count: 1 });
+      manual_lesson_count: 1, manual_activity_count: 1, manual_course_count: 1,
+      manual_occurrence_count: 1, manual_attendance_count: 1, manual_availability_count: 1 });
     await dataApi.import(exported);
     expect(fake.docs.get(key("manual_classes", "own-1"))?.rate_history).toEqual([
       { effective_from: "2026-10-13", hourly_rate_cents: 5000 },
@@ -131,6 +137,7 @@ describe("backup e migração", () => {
     expect(fake.docs.get(key("teaching_settings", "finance"))?.rate_history).toEqual([
       { effective_from: "2026-10-13", hourly_rate_cents: 4000 },
     ]);
+    expect(fake.docs.get(key("teaching_settings", "preferences"))?.kodland_enabled).toBe(false);
   });
 
   it("mantém turmas legadas sem grupo e protege a exclusão de grupos com turmas", async () => {

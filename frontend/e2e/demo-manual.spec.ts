@@ -7,8 +7,10 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   });
   await page.goto("/demo");
   await page.getByRole("link", { name: "Turmas" }).click();
-  const personalGroups = page.locator("section.manual-group-panel");
+  const personalGroups = page.locator("details.manual-group-panel");
   await expect(personalGroups.getByText("Turmas autônomas", { exact: true })).toBeVisible();
+  await expect(personalGroups.first()).not.toHaveAttribute("open", "");
+  await personalGroups.first().locator("summary").click();
   await expect(personalGroups.getByText("Matemática particular", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Configurar grupo Turmas autônomas" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Ações da turma Matemática particular" })).toBeVisible();
@@ -18,19 +20,13 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await search.fill("inexistente");
   await expect(page.getByText("Nenhum grupo, turma ou aluno encontrado.")).toBeVisible();
   await search.fill("");
+  await personalGroups.first().locator("summary").click();
   await page.getByRole("button", { name: "Ações da turma Matemática particular" }).click();
   await page.getByRole("menuitem", { name: "Editar turma" }).click();
   const existingClassDialog = page.getByRole("dialog", { name: "Editar turma" });
   await expect(existingClassDialog.getByRole("checkbox", { name: "Turma ativa" })).toBeChecked();
   await existingClassDialog.getByRole("button", { name: "Fechar" }).click();
-  const kodlandPanel = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Turmas Kodland" }) });
-  await kodlandPanel.locator("summary").first().click();
-  await kodlandPanel.getByRole("button", { name: "Configurar grupos Kodland" }).click();
-  const kodlandDialog = page.getByRole("dialog", { name: "Configurar Turmas Kodland" });
-  await kodlandDialog.getByLabel("Tarifa específica (R$/h)").fill("55,00");
-  await kodlandDialog.getByLabel("Dia do recebimento").fill("20");
-  await kodlandDialog.getByRole("button", { name: "Salvar" }).click();
-  await expect(page.getByText("Configuração aplicada a todas as turmas Kodland.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Turmas Kodland" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Adicionar turma" }).click();
   const classDialog = page.getByRole("dialog", { name: "Adicionar nova turma" });
@@ -47,6 +43,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await inlineStudent.getByRole("button", { name: "Salvar aluno" }).click();
   await classDialog.getByLabel("Joana Exemplo").check();
   await classDialog.getByRole("button", { name: "Salvar turma" }).click();
+  await page.locator("details.manual-group-panel").filter({ has: page.getByRole("heading", { name: "Reforço particular" }) }).locator("summary").click();
   await expect(page.getByText("Turma de redação")).toBeVisible();
 
   await page.getByRole("link", { name: "Acompanhamento" }).click();
@@ -58,7 +55,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   const attendanceClass = page.locator("details.attendance-class-group").first();
   await expect(attendanceClass).not.toHaveAttribute("open", "");
   await attendanceClass.locator("summary").click();
-  const attendanceGrid = attendanceClass.getByLabel("Grade de histórico de presença");
+  const attendanceGrid = attendanceClass.getByLabel(/Presença da turma/);
   await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
   const initialScroll = await attendanceGrid.evaluate((element) => element.scrollLeft);
   await attendanceGrid.hover();
@@ -67,11 +64,11 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await expect(page.getByLabel("Legenda das cores de presença").getByText("Falta sem justificativa")).toBeVisible();
   await expect(attendanceClass.locator(".attendance-column-heading strong").first()).toHaveText(/^\d{2}\/\d{2}$/);
   await expect(attendanceClass.getByText("Sem data", { exact: true })).toHaveCount(0);
-  const absence = attendanceClass.getByRole("button", { name: /Preparar mensagem sobre/ }).first();
+  const absence = attendanceClass.getByRole("button", { name: /Enviar mensagem para/ }).first();
   await expect(absence).toBeVisible();
   await absence.click();
   const whatsAppDialog = page.getByRole("dialog", { name: "Mensagem pelo WhatsApp" });
-  await expect(whatsAppDialog.getByLabel("Mensagem")).toHaveValue(/Olá, [^\s!]+! 👋\n\nSentimos sua falta na aula M\d+\.L\d+\. Aconteceu alguma coisa\?\n\n🎥 \*Para ficar por dentro do assunto, você pode acessar a aula gravada aqui:\*\nhttps:\/\/video\.example\.test.+\n\nSe precisar de ajuda, pode contar comigo!/s);
+  await expect(whatsAppDialog.getByLabel("Mensagem")).toHaveValue(/Olá, Helena! 👋\n\nSentimos sua falta na aula M\d+L\d+, em \d{2}\/\d{2}\/\d{4}\. Aconteceu alguma coisa\?\n\nSe precisar de ajuda, pode contar comigo!/s);
   await whatsAppDialog.getByLabel("Mensagem").fill("Mensagem revisada pelo professor.");
   await expect(whatsAppDialog.getByRole("link", { name: "Enviar no WhatsApp" })).toHaveAttribute("href", /Mensagem%20revisada%20pelo%20professor/);
   await whatsAppDialog.getByRole("button", { name: "Cancelar" }).click();
@@ -81,10 +78,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await expect(compactView).toHaveAttribute("aria-pressed", "false");
   await compactView.click();
   await expect(compactView).toHaveAttribute("aria-pressed", "true");
-  const compactActivities = page.getByLabel("Atividades pendentes em formato compacto");
-  await expect(compactActivities).toBeVisible();
-  await compactActivities.locator("summary").first().click();
-  await expect(compactActivities.getByRole("grid").first()).toBeVisible();
+  await expect(page.getByText("Sem pendências para os filtros atuais.")).toBeVisible();
 
   await page.getByRole("link", { name: "Aulas" }).click();
   const courses = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Cursos" }) });

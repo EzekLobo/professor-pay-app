@@ -1,5 +1,49 @@
 # Estado atual
 
+## Revisão corretiva — 22/10/2026
+
+- A importação CSV valida todas as linhas na prévia e novamente antes de gravar.
+  Horários exportados da mesma turma são reunidos ao reimportar.
+- Ocorrências registram `curriculum_mode`: substituições não consomem a fila
+  automática e aulas puladas a consomem intencionalmente; o editor expõe ambas.
+- O dashboard amplia o horizonte das turmas ativas antes das projeções, gravando
+  apenas ocorrências novas ou alteradas.
+- Kodland fica oculta em Acompanhamento quando desativada. A disponibilidade usa
+  ocorrências futuras e ignora canceladas/remarcadas.
+- Verificação: lint, typecheck, 167 testes Vitest e build passam.
+
+## Operação web independente — 21/10/2026
+
+- A operação manual ganhou preferências persistentes, cursos próprios, ocorrências
+  de aula, presença e disponibilidade. A integração Kodland nasce desativada e
+  só aparece nas telas Turmas, Aulas e Dados após ativação em Configurações.
+- Cursos próprios têm CRUD, duplicação, arquivamento, módulos com quantidades
+  diferentes de aulas e códigos derivados da estrutura real (`M7L1`). Ao salvar
+  uma turma vinculada, as ocorrências são materializadas até o fim da turma ou
+  por doze meses; cancelamento/remarcação não consome a sequência do curso.
+- Atividades próprias seguem `atribuída → entregue → corrigida`, podem ser
+  destinadas a todos ou a alunos selecionados e só entram nas pendências após
+  uma entrega. Turmas com histórico financeiro/pedagógico não podem ser
+  excluídas definitivamente: devem ser arquivadas.
+- Acompanhamento abre em Atividades e Presença inclui grades das turmas próprias,
+  inicialmente fechadas, com alunos ativos, datas reais no cabeçalho, código na
+  célula, foco na última aula e registro dos quatro estados. Falta sem justificativa
+  oferece somente o ícone do WhatsApp e mensagem editável com primeiro nome.
+- O financeiro usa `manual_occurrences`: planejada/realizada é cobrada uma vez,
+  cancelada/remarcada não é cobrada e snapshots recebidos continuam imutáveis.
+  Quantidade ou presença de alunos não multiplica o valor.
+- A tela Configurações reúne duração, pagamento, tarifa, mensagem, opt-in Kodland
+  e disponibilidade; os horários livres exibidos já descontam aulas recorrentes.
+- Dados e backup exporta/importa o esquema 3.0 com preferências, cursos,
+  ocorrências, presença e disponibilidade, preservando leitura dos backups 1.0 e
+  2.0. CSV de alunos e turmas tem prévia, validação antes de gravar, matrículas por
+  e-mail e neutralização de fórmulas na exportação.
+- A demo restaura todas as novas entidades apenas no navegador e não consulta
+  Firebase/Kodland. CI dispara na branch `master`; seletor JSON tem nome acessível.
+- Verificação local: typecheck, lint, 162 testes Vitest, cobertura, build e smoke
+  Chromium. O smoke específico da jornada manual também passa sem requisições
+  externas; executar `npm.cmd run web:e2e` para a suíte completa após mudanças.
+
 - O Shell passou a manter uma área de página com altura mínima igual à janela.
   Resumo, Pagamentos, Turmas, Aulas, Acompanhamento, Dados e Administração
   marcam seu painel principal para ocupar o espaço restante quando há pouco

@@ -21,7 +21,16 @@ import {
 } from "@/lib/holidays";
 import type { KodlandLesson } from "@/lib/kodland-lessons";
 import { isHttpUrl, type ManualActivity, type ManualLessonContent } from "@/lib/manual-pedagogy";
-import type { ManualCourse } from "@/lib/manual-courses";
+import { manualCourseLessons, type ManualCourse } from "@/lib/manual-courses";
+import {
+  defaultTutorPreferences,
+  occurrenceHorizon,
+  planManualOccurrences,
+  type ManualAttendance,
+  type ManualAvailability,
+  type ManualOccurrence,
+  type TutorPreferences,
+} from "@/lib/manual-operations";
 import {
   KodlandSyncPersistenceError,
   kodlandSyncNetworkError,
@@ -48,6 +57,7 @@ import {
   type ManualClassGroupInput,
   type ManualClassInput,
   type ManualStudent,
+  type ManualStudentInput,
   type PaymentDayPeriod,
 } from "@/lib/manual-teaching";
 
@@ -170,9 +180,13 @@ export type ImportReport = {
   manual_class_count: number;
   manual_lesson_count: number;
   manual_activity_count: number;
+  manual_course_count: number;
+  manual_occurrence_count: number;
+  manual_attendance_count: number;
+  manual_availability_count: number;
 };
 export type DataExport = {
-  schema_version: "2.0";
+  schema_version: "3.0";
   exported_at: string;
   user: User;
   classes: unknown[];
@@ -193,6 +207,11 @@ export type DataExport = {
   manual_classes: unknown[];
   manual_lesson_content: unknown[];
   manual_activities: unknown[];
+  manual_courses: unknown[];
+  manual_occurrences: unknown[];
+  manual_attendance: unknown[];
+  manual_availability: unknown[];
+  tutor_preferences: Record<string, unknown> | null;
   teaching_settings: Record<string, unknown> | null;
   kodland_class_settings: unknown[];
   kodland_financial_overrides: unknown[];
@@ -1001,6 +1020,7 @@ export const calculateDashboard = (
   customHolidays: CustomHoliday[] = [],
   defaultRateHistory: RatePeriod[] = [],
   kodlandSettings: Row[] = [],
+  manualOccurrences: Row[] = [],
 ): DashboardResponse => {
   const receivedPaymentDates = new Set(
     confirmations.filter(paymentWasReceived).map((item) => String(item.payment_date)),
@@ -1009,6 +1029,19 @@ export const calculateDashboard = (
   forecastEnd.setUTCFullYear(forecastEnd.getUTCFullYear() + 1);
   const recurringLessons = classRows.flatMap((row) => {
     if (!Array.isArray(row.schedule_slots) || !row.schedule_slots.length) return [];
+    const persisted = row.source === "manual"
+      ? manualOccurrences.filter((item) => item.class_id === row.id)
+      : [];
+    if (persisted.length) return persisted.map((occurrence) => asLesson({
+      ...occurrence,
+      number: 1,
+      student: "",
+      type: "NORMAL",
+      active: occurrence.status !== "cancelled" && occurrence.status !== "rescheduled",
+      canceled: occurrence.status === "cancelled" || occurrence.status === "rescheduled",
+      note: occurrence.status === "held" ? "Aula realizada" : occurrence.status === "cancelled" ? "Aula cancelada" : occurrence.status === "rescheduled" ? "Aula remarcada" : "Aula planejada",
+      financial_status: financialOverrides.find((item) => item.financial_lesson_id === occurrence.id)?.financial_status ?? "",
+    }, today));
     const classRecord = row as unknown as RecurringClass;
     const from = String(row.first_lesson_date ?? today);
     const to = row.active === false && !row.end_date
@@ -1333,7 +1366,7 @@ const backupCollectionNames = [
   "kodland_availability", "imported_courses", "imported_course_lessons",
   "manual_students", "manual_class_groups", "manual_classes", "manual_lesson_content",
   "manual_activities", "kodland_class_settings",
-  "manual_courses",
+  "manual_courses", "manual_occurrences", "manual_attendance", "manual_availability",
   "kodland_financial_overrides", "holidays", "lesson_notes", "tutorials",
 ] as const;
 type BackupCollection = typeof backupCollectionNames[number];
@@ -1343,7 +1376,7 @@ const backupPayload = (payload: unknown): ImportPayload => {
     throw new ApiError(400, "O arquivo de backup é inválido.");
   }
   const value = payload as ImportPayload;
-  if (value.schema_version !== "1.0" && value.schema_version !== "2.0") {
+  if (value.schema_version !== "1.0" && value.schema_version !== "2.0" && value.schema_version !== "3.0") {
     throw new ApiError(400, "Versão de backup não suportada.");
   }
   if (typeof value.exported_at !== "string" || !value.exported_at) {
@@ -1392,6 +1425,16 @@ const backupFinance = (payload: ImportPayload): Row | null => {
   }
   return firestorePayload({ ...(finance as Record<string, unknown>), id: "finance",
     created_at: String((finance as Record<string, unknown>).created_at ?? now()) }) as Row;
+};
+
+const backupPreferences = (payload: ImportPayload): Row | null => {
+  const source = payload.tutor_preferences;
+  if (source == null) return null;
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    throw new ApiError(400, "As preferências do tutor no backup são inválidas.");
+  }
+  return firestorePayload({ ...(source as Record<string, unknown>), id: "preferences",
+    created_at: String((source as Record<string, unknown>).created_at ?? now()) }) as Row;
 };
 
 type PedagogicalCollection =
@@ -1536,22 +1579,31 @@ export const authApi = {
 };
 export const dashboardApi = {
   get: async () => {
-    const [legacyClasses, manualClasses, settings, kodlandSettings,
+    const [legacyClasses, manualClasses, settings, kodlandSettings, manualOccurrences,
       lessons, payments, groups, kodlandLessons, extras, overrides, holidays] = await Promise.all([
       rows("classes"), rows("manual_classes"),
       getDoc(doc(ref("teaching_settings"), "finance")),
       rows("kodland_class_settings"),
+      rows("manual_occurrences"),
       rows("lessons"), rows("payments"), rows("kodland_groups"),
       rows("kodland_lessons"), rows("kodland_extra_lessons"),
       rows("kodland_financial_overrides"), rows("holidays"),
     ]);
     const today = isoToday();
+    const activeManualClasses = (manualClasses as unknown as ManualClass[]).filter((item) => item.active);
+    const refreshedOccurrences = activeManualClasses.length
+      ? (await Promise.all(activeManualClasses.map((item) => manualOperationsApi.ensureOccurrences(item.id)))).flat()
+      : [];
+    const currentManualOccurrences = refreshedOccurrences.length
+      ? [...(manualOccurrences as unknown as ManualOccurrence[]).filter((item) => !activeManualClasses.some((classroom) => classroom.id === item.class_id)), ...refreshedOccurrences]
+      : manualOccurrences;
     const calculate = (confirmations: Row[]) => dashboardFrom(
       [...legacyClasses, ...manualClasses], lessons, confirmations,
       groups, kodlandLessons, today, extras, overrides,
       holidays as unknown as CustomHoliday[],
       rateHistory(settings.data()?.rate_history),
       kodlandSettings,
+      currentManualOccurrences,
     );
     const initial = calculate(payments);
     const migrated = await backfillReceivedSnapshots(payments, initial);
@@ -1717,7 +1769,7 @@ export const manualTeachingApi = {
       .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name)),
   students: async (): Promise<ManualStudent[]> =>
     (await rows("manual_students")) as unknown as ManualStudent[],
-  saveStudent: async (payload: { id?: string; name: string; email?: string; phone?: string; active?: boolean }): Promise<ManualStudent> => {
+  saveStudent: async (payload: ManualStudentInput): Promise<ManualStudent> => {
     if (!payload.name.trim()) throw new ApiError(400, "Informe o nome do aluno.");
     const id = payload.id || crypto.randomUUID();
     const previous = await getDoc(doc(ref("manual_students"), id));
@@ -1726,6 +1778,9 @@ export const manualTeachingApi = {
       name: payload.name.trim(),
       email: payload.email?.trim() ?? "",
       phone: payload.phone?.trim() ?? "",
+      guardian_name: payload.guardian_name?.trim() ?? String(previous.data()?.guardian_name ?? ""),
+      guardian_phone: payload.guardian_phone?.trim() ?? String(previous.data()?.guardian_phone ?? ""),
+      notes: payload.notes?.trim() ?? String(previous.data()?.notes ?? ""),
       active: payload.active ?? true,
       created_at: String(previous.data()?.created_at ?? now()),
       updated_at: now(),
@@ -1775,8 +1830,8 @@ export const manualTeachingApi = {
     (await rows("manual_classes")) as unknown as ManualClass[],
   saveClass: async (payload: ManualClassInput & { id?: string }): Promise<ManualClass> => {
     if (payload.id) await dashboardApi.get();
-    const [settings, students] = await Promise.all([
-      teachingSettingsApi.get(), manualTeachingApi.students(),
+    const [settings, students, courses] = await Promise.all([
+      teachingSettingsApi.get(), manualTeachingApi.students(), manualCoursesApi.list(),
     ]);
     validateManualClassInput(payload, settings.default_hourly_rate_cents != null);
     const validStudentIds = new Set(students.filter((student) => student.active).map((student) => student.id));
@@ -1788,6 +1843,10 @@ export const manualTeachingApi = {
     if (payload.id && !snapshot?.exists()) throw new ApiError(404, "Turma não encontrada.");
     const previous = snapshot?.data() as ManualClass | undefined;
     const groupId = payload.group_id ?? previous?.group_id ?? null;
+    const courseId = payload.course_id ?? previous?.course_id ?? null;
+    if (courseId && !courses.some((course) => course.id === courseId && !course.archived)) {
+      throw new ApiError(400, "O curso selecionado não existe ou está arquivado.");
+    }
     if (!previous && !groupId) {
       throw new ApiError(400, "Selecione ou crie um grupo para a nova turma.");
     }
@@ -1819,6 +1878,7 @@ export const manualTeachingApi = {
       id,
       source: "manual",
       group_id: groupId,
+      course_id: courseId,
       name: payload.name.trim(),
       first_lesson_date: previous?.first_lesson_date ?? payload.first_lesson_date,
       end_date: active
@@ -1855,21 +1915,23 @@ export const manualTeachingApi = {
     });
   },
   deleteClass: async (id: string) => {
-    const [snapshot, lessons, activities] = await Promise.all([
+    const [snapshot, lessons, activities, occurrences, attendance] = await Promise.all([
       getDoc(doc(ref("manual_classes"), id)),
       rows("manual_lesson_content") as Promise<ManualLessonContent[]>,
       rows("manual_activities") as Promise<ManualActivity[]>,
+      rows("manual_occurrences") as Promise<ManualOccurrence[]>,
+      rows("manual_attendance") as Promise<ManualAttendance[]>,
     ]);
     if (!snapshot.exists()) throw new ApiError(404, "Turma não encontrada.");
     const relatedLessons = lessons.filter((item) => item.class_id === id);
     const relatedActivities = activities.filter((item) => item.class_id === id);
-    if (relatedLessons.length + relatedActivities.length + 1 > 500) {
-      throw new ApiError(409, "Esta turma possui conteúdos demais para serem excluídos de uma vez.");
-    }
+    const relatedOccurrences = occurrences.filter((item) => item.class_id === id);
+    const relatedAttendance = attendance.filter((item) => item.class_id === id);
+    if (relatedLessons.length || relatedActivities.length || relatedAttendance.length || relatedOccurrences.some((item) => item.lesson_date <= isoToday() || item.status !== "planned")) throw new ApiError(409, "Arquive a turma: ela possui histórico financeiro ou pedagógico.");
+    if (relatedOccurrences.length + 1 > 500) throw new ApiError(409, "Esta turma possui ocorrências demais para serem excluídas de uma vez.");
     const batch = writeBatch(getFirebaseDb());
     batch.delete(doc(ref("manual_classes"), id));
-    relatedLessons.forEach((item) => batch.delete(doc(ref("manual_lesson_content"), item.id)));
-    relatedActivities.forEach((item) => batch.delete(doc(ref("manual_activities"), item.id)));
+    relatedOccurrences.forEach((item) => batch.delete(doc(ref("manual_occurrences"), item.id)));
     await batch.commit();
   },
 };
@@ -1915,7 +1977,7 @@ export const manualPedagogyApi = {
   saveActivity: async (input: {
     id?: string; class_id: string; student_id: string; occurrence_id: string;
     title: string; description?: string; submission_text?: string;
-    submission_url?: string; feedback?: string; status?: "pending" | "completed";
+    submission_url?: string; feedback?: string; status?: ManualActivity["status"];
   }): Promise<ManualActivity> => {
     const [ownClass, students] = await Promise.all([
       manualTeachingApi.classes().then((items) => items.find((item) => item.id === input.class_id)),
@@ -1946,7 +2008,7 @@ export const manualPedagogyApi = {
       occurrence_id: input.occurrence_id, title: input.title.trim(),
       description: input.description?.trim() ?? "", submission_text: input.submission_text?.trim() ?? "",
       submission_url: input.submission_url?.trim() ?? "", feedback: input.feedback?.trim() ?? "",
-      status: input.status ?? "pending",
+      status: input.status ?? (input.submission_text?.trim() || input.submission_url?.trim() ? "submitted" : "assigned"),
       created_at: String(previous.data()?.created_at ?? now()), updated_at: now(),
     };
     await setDoc(reference, record);
@@ -1959,6 +2021,8 @@ export const manualCoursesApi = {
   save: async (course: ManualCourse): Promise<ManualCourse> => {
     if (!course.name.trim()) throw new ApiError(400, "Informe o nome do curso.");
     if (!course.modules.length) throw new ApiError(400, "Adicione pelo menos um módulo ao curso.");
+    const lessonIds = manualCourseLessons(course).map((item) => item.lesson.id);
+    if (new Set(lessonIds).size !== lessonIds.length) throw new ApiError(400, "As aulas do curso precisam ter identificadores únicos.");
     await setDoc(doc(ref("manual_courses"), course.id), {
       ...course,
       name: course.name.trim(),
@@ -1966,6 +2030,139 @@ export const manualCoursesApi = {
     });
     return { ...course, name: course.name.trim(), updated_at: now() };
   },
+  delete: async (id: string) => {
+    const [course, classes, occurrences] = await Promise.all([
+      getDoc(doc(ref("manual_courses"), id)),
+      manualTeachingApi.classes(),
+      rows("manual_occurrences") as Promise<ManualOccurrence[]>,
+    ]);
+    if (!course.exists()) throw new ApiError(404, "Curso não encontrado.");
+    if (classes.some((item) => item.course_id === id) || occurrences.some((item) =>
+      manualCourseLessons(course.data() as ManualCourse).some((lesson) => lesson.lesson.id === item.course_lesson_id))) {
+      throw new ApiError(409, "Arquive o curso: ele possui turmas ou aulas vinculadas.");
+    }
+    await deleteDoc(doc(ref("manual_courses"), id));
+  },
+};
+
+export const tutorPreferencesApi = {
+  get: async (): Promise<TutorPreferences> => {
+    const reference = doc(ref("teaching_settings"), "preferences");
+    const snapshot = await getDoc(reference);
+    const defaults = defaultTutorPreferences(now());
+    if (!snapshot.exists()) return defaults;
+    const value = snapshot.data() as Partial<TutorPreferences>;
+    return {
+      ...defaults,
+      ...value,
+      id: "preferences",
+      default_duration_minutes: Number(value.default_duration_minutes) || defaults.default_duration_minutes,
+      default_payment_day: Number(value.default_payment_day) || defaults.default_payment_day,
+      kodland_enabled: value.kodland_enabled === true,
+      absence_message_template: String(value.absence_message_template || defaults.absence_message_template),
+      onboarding_completed: value.onboarding_completed === true,
+    };
+  },
+  save: async (input: Partial<Omit<TutorPreferences, "id" | "created_at" | "updated_at">>): Promise<TutorPreferences> => {
+    const current = await tutorPreferencesApi.get();
+    const next: TutorPreferences = {
+      ...current,
+      ...input,
+      id: "preferences",
+      default_duration_minutes: Number(input.default_duration_minutes ?? current.default_duration_minutes),
+      default_payment_day: Number(input.default_payment_day ?? current.default_payment_day),
+      updated_at: now(),
+    };
+    if (!Number.isInteger(next.default_duration_minutes) || next.default_duration_minutes < 15 || next.default_duration_minutes > 480) {
+      throw new ApiError(400, "A duração padrão deve ficar entre 15 e 480 minutos.");
+    }
+    if (!Number.isInteger(next.default_payment_day) || next.default_payment_day < 1 || next.default_payment_day > 31) {
+      throw new ApiError(400, "O dia de pagamento deve ficar entre 1 e 31.");
+    }
+    if (!next.absence_message_template.trim()) throw new ApiError(400, "Informe o modelo da mensagem de ausência.");
+    await setDoc(doc(ref("teaching_settings"), "preferences"), next);
+    return next;
+  },
+};
+
+export const manualOperationsApi = {
+  occurrences: async (classId?: string): Promise<ManualOccurrence[]> =>
+    ((await rows("manual_occurrences")) as unknown as ManualOccurrence[])
+      .filter((item) => !classId || item.class_id === classId)
+      .sort((left, right) => `${left.lesson_date}T${left.start_time}`.localeCompare(`${right.lesson_date}T${right.start_time}`)),
+  ensureOccurrences: async (classId: string): Promise<ManualOccurrence[]> => {
+    const [classroom, courses, existing, settings] = await Promise.all([
+      manualTeachingApi.classes().then((items) => items.find((item) => item.id === classId)),
+      manualCoursesApi.list(),
+      manualOperationsApi.occurrences(classId),
+      teachingSettingsApi.get(),
+    ]);
+    if (!classroom) throw new ApiError(404, "Turma própria não encontrada.");
+    const planned = planManualOccurrences({
+      classroom,
+      course: courses.find((item) => item.id === classroom.course_id) ?? null,
+      existing,
+      from: classroom.first_lesson_date,
+      to: occurrenceHorizon(isoToday(), classroom.end_date),
+      defaultRateHistory: settings.rate_history,
+      timestamp: now(),
+    });
+    const previous = new Map(existing.map((item) => [item.id, item]));
+    const changed = planned.filter((item) => JSON.stringify(previous.get(item.id)) !== JSON.stringify(item));
+    await commitWrites(changed.map((item) => (batch) => batch.set(doc(ref("manual_occurrences"), item.id), item)));
+    return planned;
+  },
+  saveOccurrence: async (input: ManualOccurrence): Promise<ManualOccurrence> => {
+    const ownClass = (await manualTeachingApi.classes()).find((item) => item.id === input.class_id);
+    if (!ownClass) throw new ApiError(404, "Turma própria não encontrada.");
+    if (!input.id || !input.lesson_date || !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.start_time)) {
+      throw new ApiError(400, "A ocorrência da aula é inválida.");
+    }
+    for (const url of [input.recording_url, input.slides_url]) {
+      if (url.trim() && !isHttpUrl(url.trim())) throw new ApiError(400, "Informe endereços http(s) válidos para os materiais.");
+    }
+    const current = await getDoc(doc(ref("manual_occurrences"), input.id));
+    const record = { ...input, created_at: String(current.data()?.created_at ?? input.created_at ?? now()), updated_at: now() };
+    await setDoc(doc(ref("manual_occurrences"), input.id), record);
+    return record;
+  },
+  attendance: async (classId?: string): Promise<ManualAttendance[]> =>
+    ((await rows("manual_attendance")) as unknown as ManualAttendance[]).filter((item) => !classId || item.class_id === classId),
+  saveAttendance: async (input: Omit<ManualAttendance, "id" | "created_at" | "updated_at"> & { id?: string }): Promise<ManualAttendance> => {
+    const [occurrence, classroom, students] = await Promise.all([
+      getDoc(doc(ref("manual_occurrences"), input.occurrence_id)),
+      manualTeachingApi.classes().then((items) => items.find((item) => item.id === input.class_id)),
+      manualTeachingApi.students(),
+    ]);
+    if (!occurrence.exists() || occurrence.data()?.class_id !== input.class_id || !classroom) {
+      throw new ApiError(400, "A aula selecionada não pertence à turma.");
+    }
+    if (!classroom.student_ids.includes(input.student_id) || !students.some((item) => item.id === input.student_id)) {
+      throw new ApiError(400, "O aluno selecionado não pertence à turma.");
+    }
+    const id = input.id || `${input.occurrence_id}:${input.student_id}`;
+    const reference = doc(ref("manual_attendance"), id);
+    const previous = await getDoc(reference);
+    const record: ManualAttendance = { ...input, id, note: input.note.trim(), created_at: String(previous.data()?.created_at ?? now()), updated_at: now() };
+    await setDoc(reference, record);
+    return record;
+  },
+  availability: async (): Promise<ManualAvailability[]> =>
+    (await rows("manual_availability")) as unknown as ManualAvailability[],
+  saveAvailability: async (input: Omit<ManualAvailability, "created_at" | "updated_at"> & { id?: string }): Promise<ManualAvailability> => {
+    if (!Number.isInteger(input.week_day) || input.week_day < 0 || input.week_day > 6 ||
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.start_time) ||
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.end_time) || input.end_time <= input.start_time) {
+      throw new ApiError(400, "Confira o dia e o intervalo de disponibilidade.");
+    }
+    const id = input.id || crypto.randomUUID();
+    const reference = doc(ref("manual_availability"), id);
+    const previous = await getDoc(reference);
+    const record: ManualAvailability = { ...input, id, active: input.active !== false, created_at: String(previous.data()?.created_at ?? now()), updated_at: now() };
+    await setDoc(reference, record);
+    return record;
+  },
+  deleteAvailability: async (id: string) => deleteDoc(doc(ref("manual_availability"), id)),
 };
 export const kodlandClassSettingsApi = {
   list: async (): Promise<KodlandClassSettings[]> =>
@@ -2797,9 +2994,12 @@ export const dataApi = {
     const dashboard = await dashboardApi.get();
     const collections = await Promise.all(backupCollectionNames.map((name) => allRows(name)));
     const contents = Object.fromEntries(backupCollectionNames.map((name, index) => [name, collections[index]]));
-    const finance = await getDoc(doc(ref("teaching_settings"), "finance"));
+    const [finance, preferences] = await Promise.all([
+      getDoc(doc(ref("teaching_settings"), "finance")),
+      getDoc(doc(ref("teaching_settings"), "preferences")),
+    ]);
     return {
-      schema_version: "2.0",
+      schema_version: "3.0",
       exported_at: now(),
       user: await authApi.me(),
       ...contents,
@@ -2816,6 +3016,11 @@ export const dataApi = {
       manual_classes: contents.manual_classes,
       manual_lesson_content: contents.manual_lesson_content,
       manual_activities: contents.manual_activities,
+      manual_courses: contents.manual_courses,
+      manual_occurrences: contents.manual_occurrences,
+      manual_attendance: contents.manual_attendance,
+      manual_availability: contents.manual_availability,
+      tutor_preferences: preferences.exists() ? { ...preferences.data(), id: "preferences" } : null,
       teaching_settings: finance.exists() ? { ...finance.data(), id: "finance" } : null,
       kodland_class_settings: contents.kodland_class_settings,
       kodland_financial_overrides: contents.kodland_financial_overrides,
@@ -2828,6 +3033,7 @@ export const dataApi = {
     const value = backupPayload(payload);
     const collections = Object.fromEntries(backupCollectionNames.map((name) => [name, backupRows(value, name)])) as Record<BackupCollection, Row[]>;
     backupFinance(value);
+    backupPreferences(value);
     const exportId = String(
       value.export_id ??
         value.exportId ??
@@ -2855,6 +3061,10 @@ export const dataApi = {
       manual_class_count: collections.manual_classes.length,
       manual_lesson_count: collections.manual_lesson_content.length,
       manual_activity_count: collections.manual_activities.length,
+      manual_course_count: collections.manual_courses.length,
+      manual_occurrence_count: collections.manual_occurrences.length,
+      manual_attendance_count: collections.manual_attendance.length,
+      manual_availability_count: collections.manual_availability.length,
     };
   },
   import: async (payload: unknown): Promise<ImportReport> => {
@@ -2867,6 +3077,9 @@ export const dataApi = {
     const finance = backupFinance(value);
     if (finance) writes.push((batch) =>
       batch.set(doc(ref("teaching_settings"), "finance"), finance, { merge: true }));
+    const preferences = backupPreferences(value);
+    if (preferences) writes.push((batch) =>
+      batch.set(doc(ref("teaching_settings"), "preferences"), preferences, { merge: true }));
     await commitWrites(writes);
     const importedAt = now();
     await setDoc(doc(ref("imports"), preview.export_id), {

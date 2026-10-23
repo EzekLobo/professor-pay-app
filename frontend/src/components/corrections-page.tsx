@@ -6,7 +6,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { Modal } from "@/components/modal";
-import { ApiError, kodlandApi, manualPedagogyApi, manualTeachingApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
+import { ApiError, kodlandApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
 import { attendanceDateFromSchedule, attendanceLessonParts, lessonForAttendance } from "@/lib/attendance-schedule";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
@@ -15,6 +15,8 @@ import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kod
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
 import { isActiveKodlandStudent } from "@/lib/student-ranking";
 import { whatsappUrl } from "@/lib/whatsapp";
+import { ManualAttendanceGrid } from "@/components/manual-attendance-grid";
+import type { ManualAdapters } from "@/lib/manual-adapters";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => lessons.find((lesson) => {
@@ -204,6 +206,7 @@ export interface CorrectionsDemoAdapter {
   attendance?: KodlandAttendance[];
   students?: KodlandStudent[];
   groups?: KodlandGroup[];
+  manualAdapter?: ManualAdapters;
 }
 
 const attendanceStatusLabel = (status: KodlandAttendance["status"]) => ({
@@ -536,6 +539,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   const [editingManual, setEditingManual] = useState<ManualActivity | null>(null);
   const [feedback, setFeedback] = useState("");
   const [savingManual, setSavingManual] = useState(false);
+  const [kodlandEnabled, setKodlandEnabled] = useState(false);
 
   useEffect(() => {
     if (!notice) return;
@@ -544,12 +548,18 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   }, [notice]);
 
   const load = useCallback(async () => {
-    if (demo) return;
+    if (demo) {
+      const enabled = (await demo.manualAdapter?.preferences.get())?.kodland_enabled === true;
+      setKodlandEnabled(enabled); setHasKodlandGroups(enabled && (demo.groups?.length ?? 0) > 0); return;
+    }
     setLoading(true);
     setError("");
     try {
+      const preferences = await tutorPreferencesApi.get();
+      setKodlandEnabled(preferences.kodland_enabled);
+      const empty = Promise.resolve({ items: [] });
       const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents] = await Promise.all([
-        kodlandApi.reviews(), kodlandApi.lessons(), kodlandApi.groups(), kodlandApi.attendance(), kodlandApi.students(),
+        preferences.kodland_enabled ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled ? kodlandApi.attendance() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty,
         manualPedagogyApi.activities(), manualTeachingApi.classes(), manualTeachingApi.students(),
       ]);
       setReviews(reviewResult.items);
@@ -612,16 +622,16 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   }
 
   useEffect(() => {
-    if (demo) return;
     const timer = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(timer);
   }, [load, demo]);
 
   const visibleReviews = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return reviews;
-    return reviews.filter((review) => `${review.student_name} ${review.external_class_name} ${review.lesson_title} ${review.task_title}`.toLowerCase().includes(normalized));
-  }, [query, reviews]);
+    const enabledReviews = kodlandEnabled ? reviews : [];
+    if (!normalized) return enabledReviews;
+    return enabledReviews.filter((review) => `${review.student_name} ${review.external_class_name} ${review.lesson_title} ${review.task_title}`.toLowerCase().includes(normalized));
+  }, [kodlandEnabled, query, reviews]);
   const pendingOwn = useMemo(() => pendingManualActivities(manualActivities), [manualActivities]);
   const visibleOwn = useMemo(() => pendingOwn.filter((item) => {
     const student = manualStudents.find((row) => row.id === item.student_id)?.name ?? "";
@@ -685,8 +695,8 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
           event.preventDefault(); setSavingManual(true); setError("");
           try {
             const updated = demo?.onSaveManualActivity
-              ? await demo.onSaveManualActivity({ ...editingManual, feedback, status: "completed" })
-              : await manualPedagogyApi.saveActivity({ ...editingManual, feedback, status: "completed" });
+              ? await demo.onSaveManualActivity({ ...editingManual, feedback, status: "corrected" })
+              : await manualPedagogyApi.saveActivity({ ...editingManual, feedback, status: "corrected" });
             if (!demo) setManualActivities((current) => current.map((item) => item.id === updated.id ? updated : item));
             setEditingManual(null); setNotice("Atividade corrigida.");
           } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível salvar a correção."); }
@@ -738,7 +748,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
               </>
             )}
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
-            {(demo || hasKodlandGroups) && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}>
+            {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}>
               <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
             </Button>}
           </div>
@@ -753,7 +763,8 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
             ["unknown", "Sem confirmação"],
           ] as const).map(([status, label]) => <span key={status}><i className={`attendance-legend-swatch attendance-status-${status}`} aria-hidden="true" />{label}</span>)}
         </div>
-        {loading ? <p className="muted">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro. Atualize a sincronização da Kodland.</p> : <div className="correction-class-list attendance-list">
+        <ManualAttendanceGrid adapter={demo?.manualAdapter} />
+        {loading ? <p className="muted">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro.</p> : <div className="correction-class-list attendance-list">
           {attendanceByClass.map(([className, histories]) => <details
             className="correction-class-group attendance-class-group"
             key={className}

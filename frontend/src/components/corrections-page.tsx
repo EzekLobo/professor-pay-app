@@ -718,14 +718,18 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
-      <section className="panel corrections-panel page-fill-panel">
+      <nav className="corrections-page-tabs" role="tablist" aria-label="Páginas do acompanhamento">
+        <button id="activities-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>
+          <span>Atividades</span><small>Pendências e correções</small>
+        </button>
+        <button id="attendance-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>
+          <span>Presença</span><small>Histórico dos alunos</small>
+        </button>
+      </nav>
+      <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
         <div className="section-heading corrections-heading">
           <div className="correction-heading-summary">
             <h2>{viewMode === "attendance" ? "Presença" : "Atividades"}</h2>
-          </div>
-          <div className="correction-view-switch" role="tablist" aria-label="Tipo de acompanhamento">
-            <button type="button" role="tab" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>Atividades</button>
-            <button type="button" role="tab" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>Presença</button>
           </div>
           <div className={`correction-heading-actions${viewMode === "activities" ? " correction-heading-actions-activities" : ""}${viewMode === "activities" && activitiesView === "compact" ? " correction-heading-actions-compact" : ""}`} data-tour="corrections-filters">
             {viewMode === "attendance" ? (

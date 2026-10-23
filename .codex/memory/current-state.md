@@ -1,5 +1,8 @@
 # Estado atual
 
+- Preferência operacional do usuário: após concluir e validar alterações, criar
+  commit e sincronizar a branch atual com o remoto automaticamente.
+
 ## Revisão corretiva — 22/10/2026
 
 - A importação CSV valida todas as linhas na prévia e novamente antes de gravar.
@@ -11,6 +14,10 @@
 - Kodland fica oculta em Acompanhamento quando desativada. A disponibilidade usa
   ocorrências futuras e ignora canceladas/remarcadas.
 - Verificação: lint, typecheck, 167 testes Vitest e build passam.
+- Acompanhamento usa agora uma navegação própria acima do painel: Atividades e
+  Presença aparecem como abas grandes, com contexto curto e aba ativa conectada
+  visualmente ao conteúdo. Cabeçalhos de turmas manuais e sincronizadas seguem o
+  mesmo cartão. Validado no navegador em desktop e no Playwright responsivo.
 
 ## Operação web independente — 21/10/2026
 

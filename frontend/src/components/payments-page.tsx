@@ -8,6 +8,7 @@ import {
   type WheelEvent,
 } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { PaymentHistoryChart } from "@/components/payment-history-chart";
 import { PaymentStatement } from "@/components/dashboard-content";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Modal } from "@/components/modal";
@@ -327,6 +328,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
           <small>{paidCount} competência(s) confirmada(s)</small>
         </article>
       </section>
+      <PaymentHistoryChart payments={items} loading={loading} />
       <section className="panel" data-tour="payments-period">
         <div className="section-heading">
           <h2>Competências mensais</h2>

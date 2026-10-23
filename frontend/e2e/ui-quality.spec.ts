@@ -116,3 +116,20 @@ test("recebimento e estorno pedem confirmação no modal da aplicação", async 
   await expect(reversal).not.toBeVisible();
   await expect(statement.getByRole("button", { name: "Confirmar recebimento", exact: true })).toBeVisible();
 });
+
+test("pagamentos exibem gráfico mensal e valores acessíveis no celular", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/demo#payments");
+  const chart = page.getByRole("region", { name: "Gráfico de pagamentos", exact: true });
+  await expect(chart.getByRole("heading", { name: "Pagamentos por mês" })).toBeVisible();
+  await expect(chart.getByRole("img")).toHaveCount(12);
+  const year = chart.getByRole("combobox", { name: "Ano do gráfico" });
+  const options = await year.locator("option").allTextContents();
+  expect(options.length).toBeGreaterThan(0);
+  await year.selectOption(options[options.length - 1]);
+  await expect(chart.getByRole("img").first()).toHaveAttribute("aria-label", new RegExp(`jan de ${options[options.length - 1]}`));
+  await chart.locator("summary").click();
+  await expect(chart.getByRole("table")).toBeVisible();
+  await expect(chart.getByRole("row")).toHaveCount(13);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

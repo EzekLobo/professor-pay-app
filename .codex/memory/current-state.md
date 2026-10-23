@@ -1,5 +1,15 @@
 # Estado atual
 
+## Gráfico na tela de pagamentos
+
+- PaymentHistoryChart fica após os totais, com 12 meses e filtro de ano.
+  Usa payment_date e soma por RECEIVED/OVERDUE/demais estados, em centavos,
+  sem novas dependências. Detalhes exatos ficam em tabela expansível.
+- No celular, os 12 meses cabem no painel; totais abreviados aparecem no
+  desktop e os valores completos continuam nos rótulos acessíveis/tabela.
+- 173 testes unitários e 11 E2E de interface passaram, incluindo gráfico,
+  filtro de ano e confirmação/estorno.
+
 ## Sincronização com master — 23/10/2026
 
 - Integradas as atualizações remotas de configurações, operação manual,

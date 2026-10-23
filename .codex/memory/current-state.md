@@ -1,6 +1,13 @@
 # Estado atual
 
 
+## Levantamento do painel de métricas Kodland
+
+- Investigação de 23/10: proxy do ambiente devolve 403 antes do HTTPS para bo/backoffice/sso/www Kodland, inclusive fora do sandbox. Não foi possível inspecionar o painel ao vivo; o usuário foi consultado sobre o link/menu.
+- docs/kodland-metrics-review.md separa indicadores derivados das fontes existentes de possíveis métricas oficiais ainda não confirmadas. O mapa anterior de endpoints não identifica o painel de métricas. Credenciais existentes estão no cofre do navegador, sem sessão autenticada disponível aqui.
+- Não inventar endpoints ou métricas: correções sincronizadas incluem apenas pendências, sem base para taxa geral de entrega ou tempo de correção; frequência depende de cobertura e denominador; retenção precisa de histórico. Nenhum novo painel ou importação foi implementado neste levantamento.
+
+
 ## Administração simplificada e bloqueio temporário
 
 - A tela prioriza usuários, busca por nome/e-mail e último acesso, com ações compactas e layout em cartões no celular. Removidos o segundo título, os KPIs grandes e o ranking global de funcionalidades.

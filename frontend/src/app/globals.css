@@ -2058,7 +2058,7 @@ select:focus-visible {
   padding-top: 16px;
 }
 .corrections-panel {
-  padding: clamp(18px, 2.4vw, 28px);
+  padding: 10px clamp(18px, 2.4vw, 28px) clamp(18px, 2.4vw, 28px);
   margin-top: -1px;
   border-top-left-radius: 0;
 }

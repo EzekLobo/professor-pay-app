@@ -78,7 +78,7 @@ export function SettingsContent({ adapter = productionAdapter }: { adapter?: Man
         <div className="settings-section-heading"><span className="settings-section-icon"><MessageCircle size={19} aria-hidden="true" /></span><div><h3>Mensagem de ausência</h3><p>Texto editável apresentado antes do envio pelo WhatsApp.</p></div></div>
         <label className="settings-message-field"><span className="sr-only">Modelo da mensagem de ausência</span><textarea className="input" rows={7} value={preferences.absence_message_template} onChange={(event) => setPreferences({ ...preferences, absence_message_template: event.target.value })} /></label>
         <div className="settings-message-help"><span>Variáveis disponíveis</span><code>{'{primeiro_nome}'}</code><code>{'{codigo_aula}'}</code><code>{'{data}'}</code><code>{'{link_gravacao}'}</code><small>Use <code>{'{gravacao}'}</code> para ocultar o bloco quando não houver link.</small></div>
-        <Button type="button" className="button-ghost settings-restore-button" onClick={() => setPreferences({ ...preferences, absence_message_template: DEFAULT_ABSENCE_MESSAGE })}>Restaurar mensagem padrão</Button>
+        <Button type="button" className="button-ghost settings-restore-button" onClick={() => setPreferences({ ...preferences, absence_message_template: DEFAULT_ABSENCE_MESSAGE })}>Restaurar padrão</Button>
       </section>
       <section className="panel settings-section settings-integration">
         <div className="settings-section-heading"><span className="settings-section-icon"><Plug size={19} aria-hidden="true" /></span><div><h3>Integrações</h3><p>Recursos externos permanecem ocultos enquanto estiverem desativados.</p></div></div>

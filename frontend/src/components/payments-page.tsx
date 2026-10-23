@@ -164,7 +164,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
     if (carouselMotion) return;
     const payment = items[focusedIndex + step];
     if (!payment) return;
-    if (window.matchMedia("(max-width: 720px), (min-width: 1250px), (prefers-reduced-motion: reduce)").matches) {
+    if (window.matchMedia("(max-width: 720px), (prefers-reduced-motion: reduce)").matches) {
       setFocusedPaymentDate(payment.payment_date);
     } else setCarouselMotion(step === 1 ? "next" : "previous");
   }

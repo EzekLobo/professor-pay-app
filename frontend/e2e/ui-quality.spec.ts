@@ -129,7 +129,7 @@ test("pagamentos exibem gráfico mensal e valores acessíveis no celular", async
   await year.selectOption(options[options.length - 1]);
   await expect(chart.locator("button.payment-history-column").first()).toHaveAttribute("aria-label", new RegExp(`jan de ${options[options.length - 1]}`));
   await chart.getByRole("combobox", { name: "Exibir no gráfico" }).selectOption("lessons");
-  await expect(chart.getByText("Regulares", { exact: true })).toBeVisible();
+  await expect(chart.locator(".payment-history-legend").getByText("Regulares", { exact: true })).toBeVisible();
   await chart.getByRole("button", { name: "Ver detalhes", exact: true }).click();
   const details = page.getByRole("dialog", { name: /^Detalhes dos pagamentos/ });
   await expect(details.getByRole("table")).toBeVisible();
@@ -212,9 +212,13 @@ test("pagamentos aproveitam a largura e mantêm navegação de competências", a
   const periods = page.locator('[data-tour="payments-period"]');
   const chartBox = await chart.boundingBox();
   const periodsBox = await periods.boundingBox();
-  expect(chartBox!.x + chartBox!.width).toBeLessThanOrEqual(periodsBox!.x);
-  expect(Math.abs(chartBox!.y - periodsBox!.y)).toBeLessThan(2);
-  expect(periodsBox!.y + periodsBox!.height).toBeLessThanOrEqual(800);
+  expect(periodsBox!.y).toBeGreaterThanOrEqual(chartBox!.y + chartBox!.height);
+  await expect(chart.getByLabel("Gráfico complementar")).toBeVisible();
+  for (const type of ["line", "donut", "bars"]) {
+    await chart.getByRole("combobox", { name: "Tipo de gráfico" }).selectOption(type);
+    expect((await chart.boundingBox())!.height).toBe(chartBox!.height);
+    expect((await periods.boundingBox())!.y).toBe(periodsBox!.y);
+  }
   const controls = chart.locator(".payment-history-toolbar");
   const yearBox = await controls.getByRole("combobox", { name: "Ano do gráfico" }).boundingBox();
   const typeBox = await controls.getByRole("combobox", { name: "Tipo de gráfico" }).boundingBox();

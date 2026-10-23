@@ -3140,21 +3140,9 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .payment-composition { gap: 16px; padding-block: 16px; }
 .payment-donut { width: 160px; height: 160px; }
 .payment-donut > div { width: 114px; height: 114px; gap: 6px; }
-.payment-donut strong { font-size: .94rem; }
+.payment-donut strong { font-size: .85rem; white-space: nowrap; }
 .payment-donut small { font-size: .7rem; }
 .payment-composition ul { flex: 1; width: auto; min-width: 120px; max-width: 270px; }
-@media (min-width: 1250px) {
-  .payments-visual-layout { grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1fr); align-items: stretch; }
-  .payments-visual-layout.payments-visual-expanded { grid-template-columns: 1fr; }
-  .payments-visual-layout [data-tour="payments-period"] > .section-heading { gap: 8px; }
-  .payments-visual-layout [data-tour="payments-period"] h2 { font-size: 1rem; }
-  .payments-visual-layout .payment-carousel { grid-template-columns: 32px minmax(0, 1fr) 32px; gap: 8px; }
-  .payments-visual-layout .payment-carousel-nav { width: 32px; min-width: 32px; height: 36px; }
-  .payments-visual-layout .payment-carousel-rail { display: grid; grid-template-columns: minmax(0, 1fr); }
-  .payments-visual-layout .payment-carousel-rail.is-sliding-next, .payments-visual-layout .payment-carousel-rail.is-sliding-previous { animation: none; }
-  .payments-visual-layout .payment-carousel-card:not(.is-focus), .payments-visual-layout .payment-carousel-placeholder { display: none; }
-  .payments-visual-layout .payment-carousel-card.is-focus { min-height: 150px; padding: 12px; }
-}
 @media (max-width: 720px) {
   .payment-history-heading .payment-history-toolbar { display: grid; grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr) auto; width: 100%; gap: 5px; }
   .payment-history-heading .payment-history-toolbar > label { min-width: 0; }
@@ -3163,4 +3151,31 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .payment-history-track, .payment-chart-axis { height: 120px; }
   .payment-history-bars { gap: 4px; }
   .payment-line-months button { font-size: .6rem; }
+}
+
+/* Reserve the same plot space for every visualization. */
+.payment-history-visuals { display: grid; grid-template-columns: minmax(0, 1fr); height: 220px; }
+.payment-primary-visual { min-width: 0; }
+.payment-plot-frame { height: 220px; display: flex; align-items: center; min-width: 0; }
+.payment-plot-frame > * { width: 100%; }
+.payment-plot-frame .payment-history-scroll { margin-top: 0; }
+.payment-secondary-visual { display: none; min-width: 0; }
+.payment-metric-grid .metric-card { min-height: 92px; padding: 12px 18px; gap: 4px; }
+.payment-metric-grid .metric-card strong { font-size: 1.35rem; }
+@media (min-width: 1250px) {
+  .payment-history-visuals { grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr); gap: 24px; }
+  .payment-secondary-visual { display: block; border-left: 1px solid var(--border); padding-left: 24px; position: relative; }
+  .payment-secondary-visual h3 { position: absolute; top: -24px; margin: 0; color: var(--muted); font-size: .78rem; font-weight: 500; }
+  .payment-secondary-visual .payment-composition { flex-wrap: nowrap; gap: 12px; }
+  .payment-secondary-visual .payment-donut { width: 140px; height: 140px; flex-shrink: 0; }
+  .payment-secondary-visual .payment-donut > div { width: 100px; height: 100px; }
+  .payment-secondary-visual .payment-donut strong { font-size: .75rem; }
+  .payment-secondary-visual .payment-composition ul { min-width: 0; font-size: .72rem; }
+}
+@media (max-width: 720px) {
+  .payment-history-visuals, .payment-plot-frame { height: 235px; }
+  .payment-plot-frame .payment-composition { flex-wrap: nowrap; gap: 12px; }
+  .payment-plot-frame .payment-donut { width: 130px; height: 130px; flex-shrink: 0; }
+  .payment-plot-frame .payment-donut > div { width: 94px; height: 94px; }
+  .payment-plot-frame .payment-composition ul { min-width: 0; font-size: .7rem; }
 }

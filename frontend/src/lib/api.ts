@@ -2050,15 +2050,21 @@ export const tutorPreferencesApi = {
     const reference = doc(ref("teaching_settings"), "preferences");
     const snapshot = await getDoc(reference);
     const defaults = defaultTutorPreferences(now());
-    if (!snapshot.exists()) return defaults;
+    if (!snapshot.exists()) {
+      const hasLegacyKodlandData = (await rows("kodland_groups")).length > 0;
+      return { ...defaults, kodland_enabled: hasLegacyKodlandData };
+    }
     const value = snapshot.data() as Partial<TutorPreferences>;
+    const kodlandEnabled = typeof value.kodland_enabled === "boolean"
+      ? value.kodland_enabled
+      : (await rows("kodland_groups")).length > 0;
     return {
       ...defaults,
       ...value,
       id: "preferences",
       default_duration_minutes: Number(value.default_duration_minutes) || defaults.default_duration_minutes,
       default_payment_day: Number(value.default_payment_day) || defaults.default_payment_day,
-      kodland_enabled: value.kodland_enabled === true,
+      kodland_enabled: kodlandEnabled,
       absence_message_template: String(value.absence_message_template || defaults.absence_message_template),
       onboarding_completed: value.onboarding_completed === true,
     };

@@ -14,6 +14,10 @@
 - Kodland fica oculta em Acompanhamento quando desativada. A disponibilidade usa
   ocorrências futuras e ignora canceladas/remarcadas.
 - Verificação: lint, typecheck, 167 testes Vitest e build passam.
+- Migração de preferências: contas antigas sem documento `preferences`, mas com
+  `kodland_groups` já persistidos, recebem a integração Kodland ativa. Uma
+  escolha explícita de desativação continua prevalecendo. Isso preserva
+  atividades, presença e o botão de sincronização após a atualização.
 - Acompanhamento usa agora uma navegação própria acima do painel: Atividades e
   Presença aparecem como abas compactas, sem subtítulos, e a aba ativa fica
   conectada visualmente ao conteúdo. O painel não repete o título da aba;

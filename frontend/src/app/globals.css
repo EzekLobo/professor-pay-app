@@ -2112,16 +2112,8 @@ select:focus-visible {
 }
 .corrections-heading {
   flex-wrap: wrap;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 14px clamp(18px, 2vw, 30px);
-}
-.correction-heading-summary {
-  display: grid;
-  flex: 0 0 auto;
-  gap: 2px;
-}
-.correction-heading-summary h2 {
-  margin: 0;
 }
 .correction-heading-actions {
   display: grid;

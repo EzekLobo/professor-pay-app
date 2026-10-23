@@ -728,9 +728,6 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
       </nav>
       <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
         <div className="section-heading corrections-heading">
-          <div className="correction-heading-summary">
-            <h2>{viewMode === "attendance" ? "Presença" : "Atividades"}</h2>
-          </div>
           <div className={`correction-heading-actions${viewMode === "activities" ? " correction-heading-actions-activities" : ""}${viewMode === "activities" && activitiesView === "compact" ? " correction-heading-actions-compact" : ""}`} data-tour="corrections-filters">
             {viewMode === "attendance" ? (
               <select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>

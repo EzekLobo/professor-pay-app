@@ -16,7 +16,8 @@
 - Verificação: lint, typecheck, 167 testes Vitest e build passam.
 - Acompanhamento usa agora uma navegação própria acima do painel: Atividades e
   Presença aparecem como abas compactas, sem subtítulos, e a aba ativa fica
-  conectada visualmente ao conteúdo. Cabeçalhos de turmas seguem o
+  conectada visualmente ao conteúdo. O painel não repete o título da aba;
+  filtros e busca ocupam diretamente sua primeira linha. Cabeçalhos de turmas seguem o
   mesmo cartão. Validado no navegador em desktop e no Playwright responsivo.
 
 ## Operação web independente — 21/10/2026

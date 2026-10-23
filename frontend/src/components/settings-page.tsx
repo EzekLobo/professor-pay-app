@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input } from "@/components/ui";
-import Link from "next/link";
 import { CalendarClock, Clock3, MessageCircle, Plus, Plug, WalletCards } from "lucide-react";
 import { manualAdapter as productionAdapter } from "@/lib/manual-adapters-runtime";
 import type { ManualAdapters } from "@/lib/manual-adapters";
@@ -64,7 +63,6 @@ export function SettingsContent({ adapter = productionAdapter }: { adapter?: Man
   return <div className="management-grid page-fill-grid settings-page">
     <div className="page-heading"><div><h2>Configurações do tutor</h2><p>Padrões usados nos novos cadastros e na operação diária.</p></div></div>
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
-    {!preferences.onboarding_completed && <section className="panel onboarding-card"><h3>Primeiros passos</h3><p className="muted">Você pode usar a aplicação enquanto configura. Salve seus padrões e siga na ordem que preferir.</p><div className="card-actions"><Link className="button button-ghost" href="/classes">1. Cadastrar aluno e turma</Link><Link className="button button-ghost" href="/lessons">2. Criar curso</Link></div></section>}
     <form id="tutor-settings-form" className="settings-form" onSubmit={save}>
       <section className="panel settings-section settings-defaults">
         <div className="settings-section-heading"><span className="settings-section-icon"><Clock3 size={19} aria-hidden="true" /></span><div><h3>Padrões das aulas</h3><p>Valores preenchidos automaticamente em novos cadastros.</p></div></div>

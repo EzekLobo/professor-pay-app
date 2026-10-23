@@ -2171,6 +2171,11 @@ select:focus-visible {
   font-size: .82rem;
   font-weight: 700;
 }
+.correction-empty-state {
+  width: 100%;
+  margin: 32px auto;
+  text-align: center;
+}
 .correction-filters > span {
   color: var(--muted);
   font-size: .82rem;

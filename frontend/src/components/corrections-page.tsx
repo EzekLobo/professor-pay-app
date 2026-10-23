@@ -784,7 +784,7 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
           </details>)}
         </div>}
         </> : <>
-        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
+        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
           demo={demo}
           onCorrectManual={(activity) => { setEditingManual(activity); setFeedback(activity.feedback); }}

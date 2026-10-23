@@ -22,7 +22,7 @@ export async function authenticatedUser(request: Request): Promise<DecodedIdToke
   if (!token) throw new RequestAuthError(401, "Faça login para continuar.");
 
   try {
-    return await getAdminAuth().verifyIdToken(token);
+    return await getAdminAuth().verifyIdToken(token, true);
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (/credential|service account|default credentials|private key|project id/i.test(message)) {

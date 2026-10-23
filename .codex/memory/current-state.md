@@ -1,5 +1,15 @@
 # Estado atual
 
+
+## Administração simplificada e bloqueio temporário
+
+- A tela prioriza usuários, busca por nome/e-mail e último acesso, com ações compactas e layout em cartões no celular. Removidos o segundo título, os KPIs grandes e o ranking global de funcionalidades.
+- Atividade abre um Modal individual com tempo, sessões, funcionalidades mais acessadas (visitas registradas daquela pessoa no período) e histórico de páginas. Cadastro e remoção mantêm confirmação/validação.
+- PATCH /api/admin/users aceita {userId, disabled}, atualiza disabled no Firebase Auth e revoga refresh tokens ao bloquear. Protege a própria conta e o proprietário. Analytics inclui disabled, não conta bloqueados como online e exclui contas apagadas da lista sem apagar auditoria.
+- authenticatedUser usa verifyIdToken(token, true). Sessões abertas forçam atualização do token ao entrar, a cada 60s em primeiro plano e ao retornar à aba; erros de conta bloqueada/token inválido encerram a sessão, falhas de rede preservam uso offline. O bloqueio não remove dados locais já baixados; tokens antigos em acesso direto ao Firestore podem durar até a expiração (regras atuais verificam somente uid).
+- Corrigidas requisições duplicadas ao trocar o período; solicitações anteriores são canceladas. Alterações em frontend/src/app/admin/page.tsx, APIs admin, firebase-auth/server-auth e estilos admin de globals.css.
+- Validação: 189 testes unitários, typecheck, lint, build e 17 cenários Playwright de autenticação/interface. Fixture local com Firebase/API simulados conferiu busca, ranking individual, cadastro, remoção e bloqueio/desbloqueio em 1440/390/320px; não executou operações em contas reais.
+
 ## Pagamentos compactos e tooltips
 
 - Controles de ano/tipo/indicador/detalhes ficam lado a lado no cabeçalho.

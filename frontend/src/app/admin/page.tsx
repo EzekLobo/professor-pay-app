@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Modal } from "@/components/modal";
 import { Button, Input } from "@/components/ui";
 import { Shell } from "@/components/shell";
+import { Plus, RefreshCw } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/firebase";
 
 type Analytics = {
@@ -13,7 +14,7 @@ type Analytics = {
   summary: { users: number; activeNow: number; activeSeconds: number; pageViews: number };
   users: Array<{
     id: string; name: string; email: string; lastSeenAt: string | null;
-    activeSeconds: number; sessions: number; active: boolean;
+    activeSeconds: number; sessions: number; active: boolean; disabled: boolean;
     pageVisits: Array<{
       feature: string; pathname: string; startedAt: string | null;
       lastSeenAt: string | null; activeSeconds: number;
@@ -31,6 +32,8 @@ const duration = (seconds: number) => {
 };
 
 function AdminContent() {
+  const requestRef = useRef<AbortController | null>(null);
+  const [search, setSearch] = useState("");
   const [days, setDays] = useState(30);
   const [data, setData] = useState<Analytics | null>(null);
   const [error, setError] = useState("");
@@ -42,9 +45,15 @@ function AdminContent() {
   const [logUser, setLogUser] = useState<Analytics["users"][number] | null>(null);
   const [removingId, setRemovingId] = useState("");
   const [removeError, setRemoveError] = useState("");
+  const [accessUser, setAccessUser] = useState<Analytics["users"][number] | null>(null);
+  const [accessPending, setAccessPending] = useState(false);
+  const [accessError, setAccessError] = useState("");
   const [notice, setNotice] = useState("");
 
   const load = useCallback(async (periodDays = days) => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
     setLoading(true);
     setError("");
     try {
@@ -52,26 +61,28 @@ function AdminContent() {
       if (!user) throw new Error("Faça login para continuar.");
       const response = await fetch(`/api/admin/analytics?days=${periodDays}`, {
         headers: { authorization: `Bearer ${await user.getIdToken()}` },
+        signal: controller.signal,
       });
       const payload = await response.json() as Analytics | { message?: string };
       if (!response.ok) throw new Error("message" in payload ? payload.message : "Não foi possível carregar o painel.");
-      setData(payload as Analytics);
+      if (!controller.signal.aborted) setData(payload as Analytics);
     } catch (reason) {
+      if (controller.signal.aborted) return;
       setData(null);
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar o painel.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [days]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(timer);
+    return () => { window.clearTimeout(timer); requestRef.current?.abort(); };
   }, [load]);
 
   const changePeriod = (value: number) => {
     setDays(value);
-    void load(value);
+
   };
 
   async function createUser(event: FormEvent<HTMLFormElement>) {
@@ -140,6 +151,38 @@ function AdminContent() {
     }
   }
 
+  async function changeAccess() {
+    if (!accessUser || accessPending) return;
+    setAccessPending(true);
+    setAccessError("");
+    setNotice("");
+    try {
+      const current = getFirebaseAuth().currentUser;
+      if (!current) throw new Error("Faça login para continuar.");
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", authorization: `Bearer ${await current.getIdToken()}` },
+        body: JSON.stringify({ userId: accessUser.id, disabled: !accessUser.disabled }),
+      });
+      const payload = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(payload.message ?? "Não foi possível alterar o acesso.");
+      setNotice(`Acesso ${accessUser.disabled ? "desbloqueado" : "bloqueado"} para ${accessUser.name}.`);
+      setAccessUser(null);
+      await load();
+    } catch (reason) {
+      setAccessError(reason instanceof Error ? reason.message : "Não foi possível alterar o acesso.");
+    } finally {
+      setAccessPending(false);
+    }
+  }
+
+  const query = search.trim().toLocaleLowerCase("pt-BR");
+  const filteredUsers = data?.users.filter((item) => `${item.name} ${item.email}`.toLocaleLowerCase("pt-BR").includes(query)) ?? [];
+  const userFeatures = logUser ? Object.entries(logUser.pageVisits.reduce<Record<string, number>>((counts, visit) => {
+    counts[visit.feature] = (counts[visit.feature] ?? 0) + 1;
+    return counts;
+  }, {})).sort((a, b) => b[1] - a[1]) : [];
+
   return (
     <div className="management-grid admin-dashboard page-fill-grid">
       <Modal
@@ -154,7 +197,7 @@ function AdminContent() {
           <label className="field field-wide">Nome<Input name="name" required minLength={2} maxLength={100} disabled={creating} autoComplete="name" /></label>
           <label className="field">Nick<Input name="username" required minLength={3} maxLength={30} pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,29}" disabled={creating} autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="professor.ana" /></label>
           <label className="field">E-mail<Input name="email" type="email" required disabled={creating} autoComplete="email" /></label>
-          <label className="field">Senha inicial<Input name="password" type="password" required minLength={10} disabled={creating} autoComplete="new-password" /></label>
+          <label className="field">Senha inicial<Input name="password" type="password" required minLength={10} placeholder="Pelo menos 10 caracteres" disabled={creating} autoComplete="new-password" /></label>
           <div className="form-actions">
             <button className="button button-ghost" type="button" disabled={creating} onClick={() => setCreateOpen(false)}>Cancelar</button>
             <Button type="submit" disabled={creating}>{creating ? "Cadastrando…" : "Cadastrar usuário"}</Button>
@@ -179,51 +222,46 @@ function AdminContent() {
           </div>
         </>}
       </Modal>
+      <Modal open={Boolean(accessUser)} title={accessUser?.disabled ? "Desbloquear acesso" : "Bloquear acesso"} className="admin-remove-modal" onClose={() => !accessPending && setAccessUser(null)}>
+        {accessUser && <>
+          <p>{accessUser.disabled ? "Liberar novamente o acesso de" : "Bloquear temporariamente o acesso de"} <strong>{accessUser.name}</strong>?</p>
+          <p className="muted">{accessUser.disabled ? "A pessoa poderá entrar novamente com as mesmas credenciais." : "A conta e os dados serão preservados. Você pode desbloquear o acesso a qualquer momento."}</p>
+          {accessError && <p className="form-error" role="alert">{accessError}</p>}
+          <div className="form-actions admin-remove-actions"><Button type="button" className="button-ghost" disabled={accessPending} onClick={() => setAccessUser(null)}>Cancelar</Button><Button type="button" disabled={accessPending} onClick={() => void changeAccess()}>{accessPending ? "Salvando…" : accessUser.disabled ? "Desbloquear acesso" : "Bloquear acesso"}</Button></div>
+        </>}
+      </Modal>
       <Modal
         open={Boolean(logUser)}
-        title={logUser ? `Log de acesso: ${logUser.name}` : "Log de acesso"}
+        title={logUser ? `Atividade de ${logUser.name}` : "Atividade do usuário"}
         className="admin-log-modal"
         onClose={() => setLogUser(null)}
       >
         {logUser && <>
-          <p className="muted">{logUser.email || "E-mail não informado"} · {logUser.pageVisits.length} página(s) acessada(s) no período selecionado.</p>
-          {logUser.pageVisits.length ? <div className="admin-table-wrap"><table className="admin-table admin-log-table"><thead><tr><th>Página</th><th>Entrada</th><th>Última atividade</th><th>Tempo ativo</th></tr></thead><tbody>{logUser.pageVisits.map((visit, index) => <tr key={`${visit.pathname}-${visit.startedAt}-${index}`}><td><strong>{visit.feature}</strong><small>{visit.pathname}</small></td><td>{visit.startedAt ? dateTime.format(new Date(visit.startedAt)) : "—"}</td><td>{visit.lastSeenAt ? dateTime.format(new Date(visit.lastSeenAt)) : "—"}</td><td>{duration(visit.activeSeconds)}</td></tr>)}</tbody></table></div> : <p className="muted">Ainda não há visitas de páginas detalhadas neste período.</p>}
+          <p className="muted">Últimos {data?.periodDays ?? days} dias · {logUser.email || "E-mail não informado"}</p>
+          <div className="admin-activity-summary"><span><strong>{duration(logUser.activeSeconds)}</strong> de atividade</span><span><strong>{logUser.sessions}</strong> sessões</span></div>
+          <section className="admin-user-features" aria-label="Funcionalidades mais acessadas">
+            <h3>Funcionalidades mais acessadas</h3>
+            {userFeatures.length ? <ol className="admin-feature-list">{userFeatures.map(([feature, views]) => <li key={feature}><div><span>{feature}</span><strong>{views} visita{views === 1 ? "" : "s"}</strong></div><progress value={views} max={userFeatures[0][1]} aria-label={`${feature}: ${views} visitas`} /></li>)}</ol> : <p className="muted">Nenhuma visita registrada neste período.</p>}
+          </section>
+          <h3>Histórico de páginas</h3>
+          {logUser.pageVisits.length ? <div className="admin-table-wrap"><table className="admin-table admin-log-table"><thead><tr><th scope="col">Página</th><th scope="col">Entrada</th><th scope="col">Última atividade</th><th scope="col">Tempo ativo</th></tr></thead><tbody>{logUser.pageVisits.map((visit, index) => <tr key={`${visit.pathname}-${visit.startedAt}-${index}`}><td><strong>{visit.feature}</strong></td><td>{visit.startedAt ? dateTime.format(new Date(visit.startedAt)) : "—"}</td><td>{visit.lastSeenAt ? dateTime.format(new Date(visit.lastSeenAt)) : "—"}</td><td>{duration(visit.activeSeconds)}</td></tr>)}</tbody></table></div> : <p className="muted">Ainda não há visitas de páginas detalhadas neste período.</p>}
         </>}
       </Modal>
-      <section className="page-heading">
-        <p className="eyebrow">Acessos e adoção</p>
-        <h1>Administração</h1>
-        <p className="muted">Acompanhe quem usa o NexusClass, quando esteve ativo e quais áreas recebem mais acessos.</p>
-      </section>
-      <div className="admin-periods" role="group" aria-label="Período do relatório">
-        {[7, 30, 90].map((value) => (
-          <button className={value === days ? "button button-primary" : "button secondary"} key={value} type="button" onClick={() => changePeriod(value)}>
-            {value} dias
-          </button>
-        ))}
-        <Button type="button" disabled={loading} onClick={() => void load()}>{loading ? "Atualizando…" : "Atualizar"}</Button>
-        <Button type="button" onClick={() => { setCreateError(""); setCreateOpen(true); }}>Cadastrar usuário</Button>
+      <div className="admin-toolbar">
+        <label className="admin-period-select">Período<select className="input" value={days} onChange={(event) => changePeriod(Number(event.target.value))}>{[7, 30, 90].map((value) => <option key={value} value={value}>Últimos {value} dias</option>)}</select></label>
+        <div className="admin-toolbar-actions"><Button type="button" className="button-ghost button-small" disabled={loading} onClick={() => void load()}><RefreshCw size={16} aria-hidden="true" />{loading ? "Atualizando…" : "Atualizar"}</Button><Button type="button" className="button-small" onClick={() => { setCreateError(""); setCreateOpen(true); }}><Plus size={16} aria-hidden="true" />Cadastrar usuário</Button></div>
       </div>
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && <div className="admin-error"><p className="form-error" role="alert">{error}</p><Button type="button" className="button-ghost button-small" disabled={loading} onClick={() => void load()}>Tentar novamente</Button></div>}
       {notice && <p className="notice" role="status">{notice}</p>}
-      {loading && !data ? <p className="muted">Carregando indicadores…</p> : data && <>
-        <section className="metric-grid admin-metric-grid" aria-label="Resumo de acesso">
-          <article className="metric-card"><span>Usuários cadastrados</span><strong>{data.summary.users}</strong></article>
-          <article className="metric-card metric-success"><span>Ativos agora</span><strong>{data.summary.activeNow}</strong><small>atividade nos últimos 2 minutos</small></article>
-          <article className="metric-card"><span>Tempo ativo estimado</span><strong>{duration(data.summary.activeSeconds)}</strong></article>
-          <article className="metric-card"><span>Acessos a páginas</span><strong>{data.summary.pageViews}</strong></article>
-        </section>
-        <section className="panel admin-panel">
-          <div className="admin-panel-heading"><div><h2>Usuários e último acesso</h2><p className="muted">Tempo ativo calculado por atividade em primeiro plano; não mede tempo com a página minimizada.</p></div><small>Atualizado {dateTime.format(new Date(data.generatedAt))}</small></div>
-          {data.users.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Usuário</th><th>Último acesso</th><th>Tempo ativo</th><th>Sessões</th><th>Status</th><th>Ações</th></tr></thead><tbody>{data.users.map((item) => {
+      {loading && !data ? <p className="muted" role="status">Carregando usuários…</p> : data && <>
+        <section className="panel admin-panel" aria-busy={loading}>
+          <div className="admin-panel-heading"><div className="admin-users-heading"><h2>Usuários <span className="admin-count">{data.summary.users}</span></h2><span className="admin-online-count">{data.summary.activeNow} online</span></div><label className="admin-search"><span className="sr-only">Buscar usuário</span><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar nome ou e-mail" /></label></div>
+          {filteredUsers.length ? <div className="admin-table-wrap"><table className="admin-table admin-users-table"><caption className="sr-only">Usuários cadastrados e acessos nos últimos {days} dias</caption><thead><tr><th scope="col">Usuário</th><th scope="col">Último acesso</th><th scope="col">Ações</th></tr></thead><tbody>{filteredUsers.map((item) => {
             const protectedAccount = item.id === getFirebaseAuth().currentUser?.uid || item.email.toLowerCase() === "ezeklobo.dev@gmail.com";
-            return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.email}</small></td><td>{item.lastSeenAt ? dateTime.format(new Date(item.lastSeenAt)) : "—"}</td><td>{duration(item.activeSeconds)}</td><td>{item.sessions}</td><td><span className={item.active ? "admin-status active" : "admin-status"}>{item.active ? "Ativo agora" : "Offline"}</span></td><td><div className="admin-user-actions"><button className="button button-ghost admin-remove-user-button" type="button" onClick={() => setLogUser(item)}>Ver log</button><button className="button button-danger admin-remove-user-button" type="button" disabled={protectedAccount || removingId === item.id} title={protectedAccount ? "Esta conta administrativa é protegida." : "Remover acesso"} onClick={() => { setRemoveError(""); setRemovingUser(item); }}>{protectedAccount ? "Protegido" : "Remover"}</button></div></td></tr>;
-          })}</tbody></table></div> : <p className="muted">Ainda não há acessos registrados neste período.</p>}
+            return <tr key={item.id}><td><div className="admin-user-identity"><span className={item.active ? "admin-presence active" : "admin-presence"} role="img" aria-label={item.active ? "Online: atividade nos últimos 2 minutos" : "Offline"} /><div><strong>{item.name}</strong><small>{item.email}</small>{item.disabled && <span className="admin-blocked">Acesso bloqueado</span>}</div></div></td><td data-label="Último acesso">{item.lastSeenAt ? dateTime.format(new Date(item.lastSeenAt)) : "Sem acesso no período"}</td><td><div className="admin-user-actions"><button className="button button-ghost admin-remove-user-button" type="button" aria-label={`Ver atividade de ${item.name}`} onClick={() => setLogUser(item)}>Atividade</button>{protectedAccount ? <span className="admin-protected">Administrador</span> : <><button className="button button-ghost admin-remove-user-button" type="button" aria-label={`${item.disabled ? "Desbloquear" : "Bloquear"} acesso de ${item.name}`} onClick={() => { setAccessError(""); setAccessUser(item); }}>{item.disabled ? "Desbloquear" : "Bloquear"}</button><button className="button button-ghost admin-remove-user-button admin-remove-action" type="button" disabled={removingId === item.id} aria-label={`Remover ${item.name}`} onClick={() => { setRemoveError(""); setRemovingUser(item); }}>Remover</button></>}</div></td></tr>;
+          })}</tbody></table></div> : <p className="muted admin-empty">{query ? "Nenhum usuário encontrado. Tente outro nome ou e-mail." : "Nenhum usuário cadastrado."}</p>}
         </section>
-        <section className="panel admin-panel page-fill-panel">
-          <div className="admin-panel-heading"><div><h2>Funcionalidades mais acessadas</h2><p className="muted">Contagem de visitas às áreas do aplicativo no período selecionado.</p></div></div>
-          {data.features.length ? <ol className="admin-feature-list">{data.features.map((item) => <li key={item.feature}><span>{item.feature}</span><strong>{item.views} acesso{item.views === 1 ? "" : "s"}</strong></li>)}</ol> : <p className="muted">Ainda não há funcionalidades acessadas neste período.</p>}
-        </section>
+        <p className="admin-updated">Atualizado {dateTime.format(new Date(data.generatedAt))} · Atividade nos últimos {data.periodDays} dias</p>
       </>}
     </div>
   );

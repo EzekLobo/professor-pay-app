@@ -100,3 +100,26 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ message: "Não foi possível remover o usuário." }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const administrator = await authenticatedUser(request);
+    assertAdministrator(administrator);
+    const input = await request.json() as { userId?: unknown; disabled?: unknown };
+    const userId = validUserId(input);
+    if (typeof input.disabled !== "boolean") throw new RequestAuthError(400, "Informe se o acesso deve ser bloqueado.");
+    if (userId === administrator.uid) throw new RequestAuthError(400, "Você não pode bloquear a sua própria conta administrativa.");
+    const auth = getAdminAuth();
+    const target = await auth.getUser(userId);
+    if (isOwnerAdministrator(target.email)) throw new RequestAuthError(403, "A conta administradora principal não pode ser bloqueada.");
+    // Keep the account and application data; revoke existing refresh tokens when blocking.
+    await auth.updateUser(userId, { disabled: input.disabled });
+    if (input.disabled) await auth.revokeRefreshTokens(userId);
+    return NextResponse.json({ user: { id: userId, disabled: input.disabled } });
+  } catch (error) {
+    if (error instanceof RequestAuthError) return NextResponse.json({ message: error.message }, { status: error.status });
+    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+    if (code === "auth/user-not-found") return NextResponse.json({ message: "Este usuário já não existe." }, { status: 404 });
+    return NextResponse.json({ message: "Não foi possível alterar o acesso do usuário. Tente novamente." }, { status: 500 });
+  }
+}

@@ -35,7 +35,9 @@ export function AuthForm() {
       setError(
         (cause instanceof Error && cause.message === "invalid-login") || code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-email"
           ? "Nick, e-mail ou senha inválidos. Confira os dados ou redefina a senha abaixo."
-          : code === "auth/too-many-requests"
+          : code === "auth/user-disabled"
+            ? "Seu acesso está temporariamente bloqueado. Entre em contato com o administrador."
+            : code === "auth/too-many-requests"
             ? "Muitas tentativas. Aguarde alguns minutos e tente novamente."
             : code === "auth/network-request-failed"
               ? "Não foi possível conectar ao serviço de login. Verifique sua internet."

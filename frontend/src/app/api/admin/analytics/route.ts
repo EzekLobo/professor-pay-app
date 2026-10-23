@@ -61,7 +61,7 @@ export async function GET(request: Request) {
 
     const users = new Map<string, {
       id: string; name: string; email: string; lastSeenAt: string | null;
-      activeSeconds: number; sessions: number; active: boolean;
+      activeSeconds: number; sessions: number; active: boolean; disabled: boolean;
     }>();
     sessions.docs.forEach((document) => {
       const session = document.data() as Session;
@@ -77,11 +77,16 @@ export async function GET(request: Request) {
         activeSeconds: (existing?.activeSeconds ?? 0) + Number(session.activeSeconds ?? 0),
         sessions: (existing?.sessions ?? 0) + 1,
         active: active || Boolean(existing?.active),
+        disabled: false,
       });
     });
     registeredUsers.users.forEach((user) => {
       const existing = users.get(user.uid);
-      if (existing) return;
+      if (existing) {
+        existing.disabled = user.disabled;
+        if (user.disabled) existing.active = false;
+        return;
+      }
       users.set(user.uid, {
         id: user.uid,
         name: user.displayName || user.email?.split("@")[0] || "Usuário",
@@ -90,6 +95,7 @@ export async function GET(request: Request) {
         activeSeconds: 0,
         sessions: 0,
         active: false,
+        disabled: user.disabled,
       });
     });
 
@@ -116,7 +122,8 @@ export async function GET(request: Request) {
       });
       pageVisitsByUser.set(visit.userId, entries);
     });
-    const userList = [...users.values()].sort((a, b) =>
+    const registeredIds = new Set(registeredUsers.users.map((item) => item.uid));
+    const userList = [...users.values()].filter((item) => registeredIds.has(item.id)).sort((a, b) =>
       new Date(b.lastSeenAt ?? 0).getTime() - new Date(a.lastSeenAt ?? 0).getTime(),
     );
     const totalActiveSeconds = userList.reduce((total, item) => total + item.activeSeconds, 0);

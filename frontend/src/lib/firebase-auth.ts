@@ -39,7 +39,39 @@ export async function reauthenticateWithFirebase(password: string): Promise<void
 }
 
 export function subscribeToAuth(callback: (user: User | null) => void): () => void {
-  return onAuthStateChanged(getFirebaseAuth(), (user) => callback(user ? mapFirebaseUser(user) : null));
+  const auth = getFirebaseAuth();
+  let checking = false;
+  let stopped = false;
+  const checkAccess = async () => {
+    const user = auth.currentUser;
+    if (!user || checking || document.visibilityState === "hidden") return;
+    checking = true;
+    try {
+      await user.getIdToken(true);
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+      if (!stopped && auth.currentUser === user && ["auth/user-disabled", "auth/user-token-expired", "auth/invalid-user-token"].includes(code)) {
+        await signOut(auth);
+      }
+    } finally {
+      checking = false;
+    }
+  };
+  const verifyAccess = () => { void checkAccess().catch(() => undefined); };
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    callback(user ? mapFirebaseUser(user) : null);
+    if (user) verifyAccess();
+  });
+  const timer = window.setInterval(verifyAccess, 60_000);
+  window.addEventListener("focus", verifyAccess);
+  document.addEventListener("visibilitychange", verifyAccess);
+  return () => {
+    stopped = true;
+    unsubscribe();
+    window.clearInterval(timer);
+    window.removeEventListener("focus", verifyAccess);
+    document.removeEventListener("visibilitychange", verifyAccess);
+  };
 }
 
 export function logoutFromFirebase(): Promise<void> {

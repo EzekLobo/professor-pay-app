@@ -1,5 +1,15 @@
 # Estado atual
 
+## Gráfico visual sem informações repetidas
+
+- Removidos do painel do gráfico os KPIs que repetiam o resumo de pagamentos,
+  números sobre as barras, contagens sob os meses e texto explicativo longo.
+- Barras usam escala lateral e linhas de referência. Linhas mantêm apenas
+  meses; rosca mostra proporções por categoria sem repetir os valores.
+- Valores exatos, aulas, extras, média e percentuais ficam no Modal anual ou
+  mensal; seleção de ano/tipo/indicador permanece disponível.
+- Verificado: 174 testes unitários e 13 cenários de interface passam.
+
 ## Métricas e visualizações de pagamentos
 
 - Gráfico permite barras, linhas de evolução e rosca de composição do ano,

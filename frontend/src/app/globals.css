@@ -3101,3 +3101,19 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .payment-history-toolbar > .button { grid-column: 1 / -1; justify-self: end; }
   .payment-history-metric .input { width: 100%; min-width: 0; font-size: .78rem; }
 }
+
+/* The overview prioritizes the plot; numerical summaries live in details. */
+.payment-history-toolbar { margin-top: 12px; align-items: center; }
+.payment-history-legend { margin-top: 12px; }
+.payment-bars-plot { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; }
+.payment-chart-axis { height: 180px; display: flex; flex-direction: column; justify-content: space-between; color: var(--muted); font-size: .65rem; text-align: right; }
+.payment-history-track { padding-top: 0; background: linear-gradient(to bottom, #29405b66 0 1px, transparent 1px calc(50% - .5px), #29405b66 calc(50% - .5px) calc(50% + .5px), transparent calc(50% + .5px)); }
+.payment-composition li small { grid-column: 2; grid-row: 1; color: var(--text); font-size: .85rem; }
+@media (max-width: 720px) {
+  .payment-chart-axis { height: 160px; font-size: .58rem; }
+  .payment-bars-plot { grid-template-columns: 34px minmax(0, 1fr); gap: 4px; }
+  .payment-history-toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; }
+  .payment-history-toolbar > .button { grid-column: auto; min-height: 40px; padding: 8px; font-size: .7rem; }
+  .payment-history-metric .input { font-size: .72rem; padding-inline: 8px; }
+  .payment-history-month { font-size: .55rem; }
+}

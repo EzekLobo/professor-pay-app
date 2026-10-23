@@ -121,7 +121,7 @@ test("pagamentos exibem gráfico mensal e valores acessíveis no celular", async
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/demo#payments");
   const chart = page.getByRole("region", { name: "Gráfico de pagamentos", exact: true });
-  await expect(chart.getByRole("heading", { name: "Acompanhamento de pagamentos" })).toBeVisible();
+  await expect(chart.getByRole("heading", { name: "Evolução dos pagamentos" })).toBeVisible();
   await expect(chart.locator("button.payment-history-column")).toHaveCount(12);
   const year = chart.getByRole("combobox", { name: "Ano do gráfico" });
   const options = await year.locator("option").allTextContents();
@@ -149,8 +149,8 @@ for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/demo#payments");
     const chart = page.getByRole("region", { name: "Gráfico de pagamentos", exact: true });
-    await expect(chart.locator(".payment-revenue-metrics > div")).toHaveCount(4);
-    await expect(chart.locator(".payment-revenue-metrics")).toContainText("A receber");
+    await expect(chart.locator(".payment-revenue-metrics:visible")).toHaveCount(0);
+    await expect(chart.locator(".payment-history-count, .payment-history-total")).toHaveCount(0);
     await chart.getByRole("combobox", { name: "Tipo de gráfico" }).selectOption("line");
     await expect(chart.getByRole("img", { name: /^Evolução mensal/ })).toBeVisible();
     await expect(chart.locator(".payment-line-months button")).toHaveCount(12);
@@ -168,6 +168,7 @@ for (const width of [1280, 390]) {
     await chart.getByRole("button", { name: "Ver detalhes", exact: true }).click();
     const annual = page.getByRole("dialog", { name: /^Detalhes dos pagamentos/ });
     await expect(annual.getByText("Valor médio por aula", { exact: true })).toBeVisible();
+    await expect(annual.locator(".payment-revenue-metrics > div")).toHaveCount(4);
     await expect(annual.getByRole("row")).toHaveCount(13);
     await annual.getByRole("button", { name: "Fechar", exact: true }).click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

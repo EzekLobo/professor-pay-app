@@ -1,5 +1,17 @@
 # Estado atual
 
+## Métricas e visualizações de pagamentos
+
+- Gráfico permite barras, linhas de evolução e rosca de composição do ano,
+  alternando valores e quantidades de aulas regulares/extras. O ano filtra
+  gráficos e indicadores: recebido, a receber, atraso e percentual recebido.
+- Contagens mensais usam lesson_count/normal_count/extra_count. Valores e
+  aulas continuam agrupados pela data de recebimento, incluindo previsões.
+- Ver detalhes abre Modal anual; barras e botões de mês da linha abrem Modal
+  mensal. Incluem contagens, valor extras, média por aula e tabela por status.
+- Verificado: 174 testes unitários e 13 cenários de interface passaram,
+  cobrindo alternância de gráfico/indicador, ano e modais em desktop/mobile.
+
 ## Gráfico na tela de pagamentos
 
 - PaymentHistoryChart fica após os totais, com 12 meses e filtro de ano.

@@ -18,6 +18,11 @@ describe("histórico mensal de pagamentos", () => {
     expect(months[0]).toMatchObject({ received: 0, expected: 0, overdue: 0 });
     expect(months[11].month).toBe("2026-12");
   });
+  it("soma aulas e extras de vários recebimentos no mesmo mês", () => {
+    const first = { ...payment("2026-03-01", 10000, "RECEIVED"), lesson_count: 4, normal_count: 3, extra_count: 1, extra_total_cents: 3000 };
+    const second = { ...payment("2026-03-15", 5000, "EXPECTED"), lesson_count: 2, normal_count: 1, extra_count: 1, extra_total_cents: 2000 };
+    expect(paymentHistoryMonths([first, second], "2026")[2]).toMatchObject({ lessons: 6, normal: 4, extras: 2, extraAmount: 5000, received: 10000, expected: 5000 });
+  });
   it("mantém meses sem dados e não gera barras negativas", () => {
     expect(paymentHistoryMonths([], "2027").every((month) => month.received + month.expected + month.overdue === 0)).toBe(true);
     expect(paymentHistoryMonths([payment("2026-01-15", -100, "RECEIVED")], "2026")[0].received).toBe(0);

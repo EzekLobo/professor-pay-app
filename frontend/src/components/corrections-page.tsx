@@ -730,22 +730,22 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
         <div className="section-heading corrections-heading">
           <div className={`correction-heading-actions${viewMode === "activities" ? " correction-heading-actions-activities" : ""}${viewMode === "activities" && activitiesView === "compact" ? " correction-heading-actions-compact" : ""}`} data-tour="corrections-filters">
             {viewMode === "attendance" ? (
-              <select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>
-                <option value="ABSENT">Faltaram</option>
+              <label className="correction-toolbar-control"><span>Mostrar</span><select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>
+                <option value="ABSENT">Faltas</option>
                 <option value="ALL">Todos</option>
                 <option value="PRESENT">Presentes</option>
-              </select>
+              </select></label>
             ) : (
               <>
-              <div className="correction-view-switch correction-activity-view-switch" role="group" aria-label="Formato de visualização das atividades">
+              <div className="correction-toolbar-control"><span>Visualização</span><div className="correction-view-switch correction-activity-view-switch" role="group" aria-label="Formato de visualização das atividades">
                 <button type="button" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}>Lista</button>
                 <button type="button" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}>Compacto</button>
-              </div>
-              {activitiesView === "list" && <select className="input correction-header-select" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}>
-                <option value="class">Por turma</option>
-                <option value="student">Por aluno</option>
-                <option value="lesson">Por aula</option>
-              </select>}
+              </div></div>
+              {activitiesView === "list" && <label className="correction-toolbar-control"><span>Agrupar por</span><select className="input correction-header-select" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}>
+                <option value="class">Turma</option>
+                <option value="student">Aluno</option>
+                <option value="lesson">Aula</option>
+              </select></label>}
               </>
             )}
             <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />

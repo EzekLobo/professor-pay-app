@@ -507,7 +507,14 @@ function ReviewCard({
   );
 }
 
-export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) {
+type CorrectionsViewPreferences = {
+  viewMode: "attendance" | "activities";
+  activitiesView: "list" | "compact";
+  grouping: ReviewGrouping;
+  attendanceFilter: AttendanceFilter;
+};
+
+export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string }) {
   const [storedReviews, setReviews] = useState<KodlandReview[]>([]);
   const [storedLessons, setLessons] = useState<KodlandLesson[]>([]);
   const [storedAttendance, setAttendance] = useState<KodlandAttendance[]>([]);
@@ -540,6 +547,31 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
   const [feedback, setFeedback] = useState("");
   const [savingManual, setSavingManual] = useState(false);
   const [kodlandEnabled, setKodlandEnabled] = useState(false);
+  const [viewPreferencesLoaded, setViewPreferencesLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let stored: Partial<CorrectionsViewPreferences> | null = null;
+    try {
+      stored = JSON.parse(localStorage.getItem(`nexusclass.corrections.view.${preferenceKey}`) ?? "null") as Partial<CorrectionsViewPreferences> | null;
+    } catch { /* Prefer defaults when browser storage is unavailable or malformed. */ }
+    queueMicrotask(() => {
+      if (!active) return;
+      if (stored?.viewMode === "attendance" || stored?.viewMode === "activities") setViewMode(stored.viewMode);
+      if (stored?.activitiesView === "list" || stored?.activitiesView === "compact") setActivitiesView(stored.activitiesView);
+      if (stored?.grouping === "class" || stored?.grouping === "student" || stored?.grouping === "lesson") setGrouping(stored.grouping);
+      if (stored?.attendanceFilter === "ABSENT" || stored?.attendanceFilter === "ALL" || stored?.attendanceFilter === "PRESENT") setAttendanceFilter(stored.attendanceFilter);
+      setViewPreferencesLoaded(true);
+    });
+    return () => { active = false; };
+  }, [preferenceKey]);
+
+  useEffect(() => {
+    if (!viewPreferencesLoaded) return;
+    try {
+      localStorage.setItem(`nexusclass.corrections.view.${preferenceKey}`, JSON.stringify({ viewMode, activitiesView, grouping, attendanceFilter } satisfies CorrectionsViewPreferences));
+    } catch { /* The screen remains usable when storage is blocked. */ }
+  }, [activitiesView, attendanceFilter, grouping, preferenceKey, viewMode, viewPreferencesLoaded]);
 
   useEffect(() => {
     if (!notice) return;
@@ -856,5 +888,5 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
 }
 
 export default function CorrectionsPage() {
-  return <AuthGuard>{(user) => <Shell user={user}><CorrectionsContent /></Shell>}</AuthGuard>;
+  return <AuthGuard>{(user) => <Shell user={user}><CorrectionsContent preferenceKey={user.id} /></Shell>}</AuthGuard>;
 }

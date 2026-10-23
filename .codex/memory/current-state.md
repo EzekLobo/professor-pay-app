@@ -27,6 +27,9 @@
   das abas, separadas visual e semanticamente da navegação; em telas menores,
   descem para uma linha própria. Cabeçalhos de turmas seguem o
   mesmo cartão. Validado no navegador em desktop e no Playwright responsivo.
+- As preferências de Acompanhamento são persistidas no navegador por usuário:
+  aba Atividades/Presença, Lista/Compacto, agrupamento e filtro de presença.
+  A busca não é persistida para não ocultar resultados ao retornar à página.
 
 ## Operação web independente — 21/10/2026
 

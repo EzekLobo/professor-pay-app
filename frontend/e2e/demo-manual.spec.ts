@@ -52,6 +52,7 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await page.getByRole("tab", { name: "Presença" }).click();
   await expect(page.getByRole("tab", { name: "Presença" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByLabel("Filtrar presença")).toHaveValue("ABSENT");
+  await page.getByLabel("Filtrar presença").selectOption("ALL");
   const attendanceClass = page.locator("details.attendance-class-group").first();
   await expect(attendanceClass).not.toHaveAttribute("open", "");
   await attendanceClass.locator("summary").click();
@@ -74,11 +75,19 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await whatsAppDialog.getByRole("button", { name: "Cancelar" }).click();
   await page.getByRole("tab", { name: "Atividades" }).click();
   await expect(page.getByRole("tab", { name: "Atividades" })).toHaveAttribute("aria-selected", "true");
+  await page.getByLabel("Organizar atividades").selectOption("student");
   const compactView = page.getByRole("button", { name: "Compacto" });
   await expect(compactView).toHaveAttribute("aria-pressed", "false");
   await compactView.click();
   await expect(compactView).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("Sem pendências para os filtros atuais.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Atividades" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: "Compacto" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Lista" }).click();
+  await expect(page.getByLabel("Organizar atividades")).toHaveValue("student");
+  await page.getByRole("tab", { name: "Presença" }).click();
+  await expect(page.getByLabel("Filtrar presença")).toHaveValue("ALL");
 
   await page.getByRole("link", { name: "Aulas" }).click();
   const courses = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Cursos" }) });

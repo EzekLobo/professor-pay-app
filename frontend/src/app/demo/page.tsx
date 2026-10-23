@@ -107,7 +107,7 @@ export default function DemoPage() {
       {view === "/payments" && <PaymentsContent adapter={paymentAdapter} />}
       {view === "/classes" && <ClassesContent demo={classData} />}
       {view === "/lessons" && <LessonsContent demoData={lessonData} manualAdapter={manualAdapter} onDemoAction={() => setResource("Importar curso")} />}
-      {view === "/corrections" && <CorrectionsContent demo={{ reviews: snapshot.reviews, lessons: snapshot.lessons, attendance: snapshot.attendance, students: snapshot.students, groups: snapshot.groups, manualActivities: snapshot.manualActivities, manualClasses: snapshot.manualClasses, manualStudents: snapshot.manualStudents, manualAdapter, onSaveManualActivity: (item) => manualAdapter.pedagogy.saveActivity(item), onSync: update, onCorrect: (item) => { setReview(item); setFeedback(""); }, onMaterial: () => setResource("Materiais da aula") }} />}
+      {view === "/corrections" && <CorrectionsContent preferenceKey="demo" demo={{ reviews: snapshot.reviews, lessons: snapshot.lessons, attendance: snapshot.attendance, students: snapshot.students, groups: snapshot.groups, manualActivities: snapshot.manualActivities, manualClasses: snapshot.manualClasses, manualStudents: snapshot.manualStudents, manualAdapter, onSaveManualActivity: (item) => manualAdapter.pedagogy.saveActivity(item), onSync: update, onCorrect: (item) => { setReview(item); setFeedback(""); }, onMaterial: () => setResource("Materiais da aula") }} />}
       {view === "/settings" && <SettingsContent adapter={manualAdapter} />}
       {view === "/data" && <DataContent demo={{ snapshot: snapshot as unknown as Record<string, unknown>, kodlandEnabled: snapshot.tutorPreferences.kodland_enabled, onSync: update, onReset: reset, onNotice: setNotice }} />}
     </>}

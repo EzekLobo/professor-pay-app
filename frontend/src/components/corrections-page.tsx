@@ -467,9 +467,9 @@ export function CompactActivitiesGrid({
                 if (!cell) return <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
                 return <div className="compact-activity-cell" role="gridcell" key={column.key}>
-                  {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>Corrigir</button>
-                    : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>Corrigir</button>
-                      : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} target="_blank" rel="noreferrer">Corrigir</a>}
+                  {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} data-tooltip={column.taskLabel} onClick={() => onCorrectManual(cell.activity)}>Corrigir</button>
+                    : demo ? <button type="button" className="compact-activity-action" aria-label={label} data-tooltip={column.taskLabel} onClick={() => demo.onCorrect(cell.review)}>Corrigir</button>
+                      : <a className="compact-activity-action" aria-label={label} data-tooltip={column.taskLabel} href={cell.review.correction_url} target="_blank" rel="noreferrer">Corrigir</a>}
                 </div>;
               })}
             </div>)}

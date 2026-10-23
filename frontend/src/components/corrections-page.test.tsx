@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { KodlandGroup, KodlandReview, KodlandStudent } from "@/lib/api";
+import type { KodlandGroup, KodlandLesson, KodlandReview, KodlandStudent } from "@/lib/api";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { compactActivitiesModel } from "./corrections-page";
@@ -23,6 +23,12 @@ const review = (overrides: Partial<KodlandReview> = {}): KodlandReview => ({
   task_id: "task-2", task_number: 2, task_title: "Desafio", status_key: "pending", status_label: "Pendente",
   correction_url: "https://example.test/correction", created_at: timestamp, ...overrides,
 });
+const lesson = (overrides: Partial<KodlandLesson> = {}): KodlandLesson => ({
+  id: "lesson-1", external_class_id: "kodland-1", external_class_name: "Turma Kodland", module_number: "M7",
+  lesson_number: 1, course_index: 27, title: "M7.L1 Introdução", theme: "", lesson_date: "2026-10-01",
+  start_time: "19:00", end_time: "20:00", status: "planned", lesson_passed: true, external_url: "",
+  slides_url: "", guide_url: "", homework_url: "", homework_title: "", classroom_tasks: [], ...overrides,
+});
 const manualStudent = (overrides: Partial<ManualStudent> = {}): ManualStudent => ({
   id: "manual-student-1", name: "Carla", email: "carla@example.test", phone: "", active: true,
   created_at: timestamp, updated_at: timestamp, ...overrides,
@@ -42,6 +48,10 @@ describe("compactActivitiesModel", () => {
   it("organiza pendências por turma, aluno e atividade e mantém células vazias para alunos ativos", () => {
     const model = compactActivitiesModel({
       groups: [group()],
+      lessons: [
+        lesson(),
+        lesson({ id: "lesson-2", lesson_number: 2, course_index: 28, title: "M7.L2 Laços" }),
+      ],
       students: [student(), student({ id: "student-2", external_id: "external-student-2", name: "Bia" }), student({ id: "student-3", external_id: "external-student-3", name: "Inativa", status: "inactive" })],
       reviews: [
         review(),
@@ -53,7 +63,7 @@ describe("compactActivitiesModel", () => {
     });
 
     const kodland = model.find((item) => item.key === "kodland:kodland-1")!;
-    expect(kodland.columns.map((item) => item.lessonLabel)).toEqual(["Aula 1", "Aula 2"]);
+    expect(kodland.columns.map((item) => item.lessonLabel)).toEqual(["M7L1", "M7L2"]);
     expect(kodland.rows.map((item) => item.name)).toEqual(["Ana", "Bia"]);
     expect(kodland.rows.find((item) => item.name === "Bia")?.cells).toEqual({});
     expect(kodland.rows.find((item) => item.name === "Ana")?.cells["kodland:lesson-2:task-2"])

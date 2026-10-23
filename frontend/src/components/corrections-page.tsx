@@ -21,7 +21,8 @@ import type { ManualAdapters } from "@/lib/manual-adapters";
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => lessons.find((lesson) => {
   if (lesson.external_class_id !== review.external_class_id) return false;
-  if (lesson.id === review.lesson_id) return true;
+  if (lesson.id === review.lesson_id || lesson.source_lesson_id === review.lesson_id) return true;
+  if (review.lesson_number > 0 && lesson.course_index === review.lesson_number) return true;
   return review.lesson_number > 0 && lesson.lesson_number === review.lesson_number;
 });
 type ReviewGrouping = "class" | "student" | "lesson";
@@ -65,8 +66,8 @@ export type CompactActivityClass = {
 };
 export type CompactActivitiesModel = CompactActivityClass[];
 type WhatsAppDraft = { studentName: string; phone: string; message: string };
-const lessonLabel = (review: KodlandReview) =>
-  `Aula ${review.lesson_number || "–"}: ${review.lesson_title || "Sem título"}`;
+const lessonLabel = (review: KodlandReview, lessons: KodlandLesson[]) =>
+  `${compactKodlandLessonLabel(review, lessons)}: ${review.lesson_title || "Sem título"}`;
 const groupBy = <T,>(items: T[], keyFor: (item: T) => string) =>
   [...items.reduce((groups, item) => {
     const key = keyFor(item);
@@ -88,6 +89,16 @@ const compactManualLessonLabel = (activity: ManualActivity) => {
   return occurrence ? `Aula ${occurrence}` : "Aula";
 };
 
+const compactKodlandLessonLabel = (review: KodlandReview, lessons: KodlandLesson[]) => {
+  const scheduledLesson = lessonForReview(review, lessons);
+  const parts = attendanceLessonParts({
+    external_class_id: review.external_class_id,
+    lesson_id: scheduledLesson?.id ?? review.lesson_id,
+    lesson_title: scheduledLesson?.title ?? review.lesson_title,
+  } as KodlandAttendance, lessons);
+  return parts.module ? `${parts.module}${parts.lesson}` : review.lesson_title || "Aula";
+};
+
 /**
  * Transforms the pending work queue into the same matrix shape used by
  * attendance: class -> student rows -> lesson/task columns. The model keeps
@@ -96,6 +107,7 @@ const compactManualLessonLabel = (activity: ManualActivity) => {
  */
 export function compactActivitiesModel({
   reviews,
+  lessons,
   manualActivities,
   groups,
   students,
@@ -103,6 +115,7 @@ export function compactActivitiesModel({
   manualStudents,
 }: {
   reviews: readonly KodlandReview[];
+  lessons: readonly KodlandLesson[];
   manualActivities: readonly ManualActivity[];
   groups: readonly KodlandGroup[];
   students: readonly KodlandStudent[];
@@ -144,7 +157,7 @@ export function compactActivitiesModel({
       const taskKey = review.task_id || `${review.task_number}:${review.task_title}`;
       const key = `kodland:${lessonKey}:${taskKey}`;
       if (!draft.columns.has(key)) {
-        const lessonLabel = review.lesson_number ? `Aula ${review.lesson_number}` : "Aula";
+        const lessonLabel = compactKodlandLessonLabel(review, [...lessons]);
         draft.columns.set(key, {
           key,
           lessonLabel,
@@ -486,7 +499,7 @@ function ReviewCard({
           {showStudent && <h4>{review.student_name}</h4>}
           <StatusBadge tone="warning">{review.status_label}</StatusBadge>
         </div>
-        <p className="correction-card-lesson">{lessonLabel(review)}</p>
+        <p className="correction-card-lesson">{lessonLabel(review, lessons)}</p>
         <p className="correction-card-task">
           <span>Atividade</span>
           {review.task_number ? `${review.task_number}. ` : ""}{review.task_title || "Sem título"}
@@ -677,12 +690,13 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   );
   const compactActivities = useMemo(() => compactActivitiesModel({
     reviews: visibleReviews,
+    lessons,
     manualActivities: visibleOwn,
     groups,
     students: attendanceStudents,
     manualClasses,
     manualStudents,
-  }), [attendanceStudents, groups, manualClasses, manualStudents, visibleOwn, visibleReviews]);
+  }), [attendanceStudents, groups, lessons, manualClasses, manualStudents, visibleOwn, visibleReviews]);
   const attendanceHistories = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const studentsByExternalId = new Map(attendanceStudents.map((student) => [student.external_id, student]));
@@ -850,7 +864,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
                   classReviews,
                   grouping === "student"
                     ? (review) => review.student_name || "Aluno não informado"
-                    : lessonLabel,
+                    : (review) => lessonLabel(review, lessons),
                 );
             return <details className="correction-class-group" key={className}>
               <summary className="correction-class-heading">

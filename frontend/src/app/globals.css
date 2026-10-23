@@ -2058,13 +2058,20 @@ select:focus-visible {
   padding-top: 16px;
 }
 .corrections-panel {
-  padding: 14px clamp(18px, 2.4vw, 28px) clamp(18px, 2.4vw, 28px);
+  padding: clamp(18px, 2.4vw, 28px);
   margin-top: -1px;
   border-top-left-radius: 0;
 }
-.corrections-page-tabs {
+.corrections-topbar {
   position: relative;
   z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.corrections-page-tabs {
   display: flex;
   width: fit-content;
   max-width: 100%;
@@ -2122,7 +2129,7 @@ select:focus-visible {
   align-items: center;
   width: auto;
   max-width: 560px;
-  margin-left: auto;
+  margin: 0 10px 8px auto;
   gap: 10px;
 }
 .correction-heading-actions .input {
@@ -2411,6 +2418,8 @@ select:focus-visible {
     max-width: none;
     margin-left: 0;
   }
+  .corrections-topbar { align-items: stretch; flex-direction: column; gap: 10px; }
+  .corrections-topbar .correction-heading-actions { width: 100%; max-width: none; margin: 0 0 10px; }
 }
 @media (min-width: 721px) and (max-width: 900px) {
   .shell-header {

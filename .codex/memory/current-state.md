@@ -19,7 +19,9 @@
   conectada visualmente ao conteúdo. O painel não repete o título da aba;
   filtros e busca ocupam diretamente sua primeira linha. A barra identifica
   explicitamente `Visualização`, `Agrupar por` e `Mostrar`, evitando seletores
-  sem contexto, e fica mais próxima da borda superior. Cabeçalhos de turmas seguem o
+  sem contexto. Em desktop, essas ferramentas ocupam o espaço livre à direita
+  das abas, separadas visual e semanticamente da navegação; em telas menores,
+  descem para uma linha própria. Cabeçalhos de turmas seguem o
   mesmo cartão. Validado no navegador em desktop e no Playwright responsivo.
 
 ## Operação web independente — 21/10/2026

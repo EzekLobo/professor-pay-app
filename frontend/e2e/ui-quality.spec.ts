@@ -174,3 +174,58 @@ for (const width of [1280, 390]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
+
+test("tooltips mostram valores ao passar o mouse e ao navegar pelo teclado", async ({ page }) => {
+  await page.goto("/demo#payments");
+  const chart = page.getByRole("region", { name: "Gráfico de pagamentos", exact: true });
+  const month = chart.locator("button.payment-history-column").first();
+  await month.hover();
+  await expect(page.getByRole("tooltip")).toContainText("jan de");
+  await expect(page.getByRole("tooltip")).toContainText("R$");
+  await expect(page.getByRole("tooltip")).toContainText("Total");
+  await page.mouse.move(0, 0);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await month.focus();
+  await expect(page.getByRole("tooltip")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await chart.getByRole("combobox", { name: "Tipo de gráfico" }).selectOption("line");
+  await chart.locator(".payment-line-chart circle").last().hover();
+  await expect(page.getByRole("tooltip")).toContainText("R$");
+  await chart.getByRole("combobox", { name: "Tipo de gráfico" }).selectOption("donut");
+  const donut = chart.locator(".payment-donut");
+  const donutBox = await donut.boundingBox();
+  await donut.hover({ position: { x: donutBox!.width - 5, y: donutBox!.height / 2 } });
+  await expect(page.getByRole("tooltip")).toContainText("Participação");
+  await expect(page.getByRole("tooltip")).toContainText("R$");
+  await chart.getByRole("combobox", { name: "Exibir no gráfico" }).selectOption("lessons");
+  await chart.locator(".payment-composition li").first().hover();
+  await expect(page.getByRole("tooltip")).toContainText("aulas");
+  await expect(page.getByRole("tooltip")).not.toContainText("R$");
+});
+
+test("pagamentos aproveitam a largura e mantêm navegação de competências", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.goto("/demo#payments");
+  const chart = page.getByRole("region", { name: "Gráfico de pagamentos", exact: true });
+  await expect(chart.locator("button.payment-history-column")).toHaveCount(12);
+  const periods = page.locator('[data-tour="payments-period"]');
+  const chartBox = await chart.boundingBox();
+  const periodsBox = await periods.boundingBox();
+  expect(chartBox!.x + chartBox!.width).toBeLessThanOrEqual(periodsBox!.x);
+  expect(Math.abs(chartBox!.y - periodsBox!.y)).toBeLessThan(2);
+  expect(periodsBox!.y + periodsBox!.height).toBeLessThanOrEqual(800);
+  const controls = chart.locator(".payment-history-toolbar");
+  const yearBox = await controls.getByRole("combobox", { name: "Ano do gráfico" }).boundingBox();
+  const typeBox = await controls.getByRole("combobox", { name: "Tipo de gráfico" }).boundingBox();
+  expect(Math.abs(yearBox!.y - typeBox!.y)).toBeLessThan(2);
+  const month = periods.locator(".payment-carousel-month");
+  const initial = await month.textContent();
+  const previous = periods.getByRole("button", { name: "Competência anterior" });
+  if (await previous.isEnabled()) {
+    await previous.click();
+    await expect(month).not.toHaveText(initial!);
+    await periods.getByRole("button", { name: "Próxima competência" }).click();
+    await expect(month).toHaveText(initial!);
+  }
+});

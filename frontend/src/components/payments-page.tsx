@@ -163,7 +163,10 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
   function moveCarousel(step: -1 | 1) {
     if (carouselMotion) return;
     const payment = items[focusedIndex + step];
-    if (payment) setCarouselMotion(step === 1 ? "next" : "previous");
+    if (!payment) return;
+    if (window.matchMedia("(max-width: 720px), (min-width: 1250px), (prefers-reduced-motion: reduce)").matches) {
+      setFocusedPaymentDate(payment.payment_date);
+    } else setCarouselMotion(step === 1 ? "next" : "previous");
   }
   function finishCarouselMotion() {
     if (!carouselMotion) return;
@@ -328,6 +331,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
           <small>{paidCount} competência(s) confirmada(s)</small>
         </article>
       </section>
+      <div className={`payments-visual-layout${showAllPayments ? " payments-visual-expanded" : ""}`}>
       <PaymentHistoryChart payments={items} loading={loading} />
       <section className="panel" data-tour="payments-period">
         <div className="section-heading">
@@ -460,6 +464,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
           </div>
         )}
       </section>
+      </div>
       <Modal
         open={Boolean(detail)}
         title={detail ? `Extrato · ${detail.period}` : "Extrato"}

@@ -1,5 +1,18 @@
 # Estado atual
 
+## Pagamentos compactos e tooltips
+
+- Controles de ano/tipo/indicador/detalhes ficam lado a lado no cabeçalho.
+  Barras têm 140 px no desktop e 120 px no celular. Em telas de 1250 px ou
+  mais, gráfico e competências ficam em duas colunas; Ver completo expande.
+- Tooltips em portal mostram valores nas barras, pontos das linhas e fatias
+  da rosca. Barras, meses da linha e legenda da rosca também mostram os
+  dados ao receber foco; Escape e saída do mouse escondem o tooltip.
+- Navegação do carrossel em layout compacto atualiza diretamente a competência
+  sem depender de animationend quando animações estão desativadas.
+- Verificado: 15 cenários de interface passaram, incluindo hover/foco,
+  troca de competências e layout lateral que cabe na tela de 1440x800.
+
 ## Gráfico visual sem informações repetidas
 
 - Removidos do painel do gráfico os KPIs que repetiam o resumo de pagamentos,

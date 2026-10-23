@@ -5,7 +5,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input } from "@/components/ui";
 import Link from "next/link";
-import { CalendarClock, Clock3, MessageCircle, Plug, WalletCards } from "lucide-react";
+import { CalendarClock, Clock3, MessageCircle, Plus, Plug, WalletCards } from "lucide-react";
 import { manualAdapter as productionAdapter } from "@/lib/manual-adapters-runtime";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 import { DEFAULT_ABSENCE_MESSAGE, type ManualAvailability, type ManualOccurrence, type TutorPreferences } from "@/lib/manual-operations";
@@ -87,9 +87,9 @@ export function SettingsContent({ adapter = productionAdapter }: { adapter?: Man
     </form>
     <section className="panel settings-section settings-availability"><div className="settings-section-heading"><span className="settings-section-icon"><CalendarClock size={19} aria-hidden="true" /></span><div><h3>Disponibilidade semanal</h3><p>Cadastre os intervalos em que novas aulas podem ser agendadas.</p></div></div>
       <div className="availability-list">{availability.filter((item) => item.active).map((item) => <div className="availability-row" key={item.id}><span><strong>{weekdays[item.week_day]} · {item.start_time}–{item.end_time}</strong><small className="muted">Livre após descontar aulas: {freeByAvailability.get(item.id)}</small></span><button className="button button-ghost button-small" type="button" onClick={async () => { await adapter.operations.deleteAvailability(item.id); setAvailability((current) => current.filter((slot) => slot.id !== item.id)); }}>Remover</button></div>)}</div>
-      <div className="availability-add"><label><span>Dia da semana</span><select className="input" value={newSlot.week_day} onChange={(event) => setNewSlot({ ...newSlot, week_day: Number(event.target.value) })}>{weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label><label><span>Início</span><Input type="time" value={newSlot.start_time} onChange={(event) => setNewSlot({ ...newSlot, start_time: event.target.value })} /></label><label><span>Fim</span><Input type="time" value={newSlot.end_time} onChange={(event) => setNewSlot({ ...newSlot, end_time: event.target.value })} /></label><Button type="button" onClick={() => void addAvailability()}>Adicionar horário</Button></div>
+      <div className="availability-add"><label><span>Dia da semana</span><select className="input" value={newSlot.week_day} onChange={(event) => setNewSlot({ ...newSlot, week_day: Number(event.target.value) })}>{weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label><label><span>Início</span><Input type="time" value={newSlot.start_time} onChange={(event) => setNewSlot({ ...newSlot, start_time: event.target.value })} /></label><label><span>Fim</span><Input type="time" value={newSlot.end_time} onChange={(event) => setNewSlot({ ...newSlot, end_time: event.target.value })} /></label><Button className="availability-add-button" type="button" aria-label="Adicionar horário" title="Adicionar horário" onClick={() => void addAvailability()}><Plus size={20} aria-hidden="true" /></Button></div>
     </section>
-    <div className="settings-save-bar"><span><WalletCards size={17} aria-hidden="true" />As alterações valem para os próximos cadastros.</span><Button form="tutor-settings-form" disabled={busy}>{busy ? "Salvando…" : "Salvar configurações"}</Button></div>
+    <div className="settings-save-bar"><span><WalletCards size={17} aria-hidden="true" />As alterações valem para os próximos cadastros.</span><Button form="tutor-settings-form" disabled={busy}>{busy ? "Salvando…" : "Salvar"}</Button></div>
   </div>;
 }
 

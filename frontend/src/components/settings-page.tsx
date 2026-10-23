@@ -65,7 +65,7 @@ export function SettingsContent({ adapter = productionAdapter }: { adapter?: Man
     <div className="page-heading"><div><h2>Configurações do tutor</h2><p>Padrões usados nos novos cadastros e na operação diária.</p></div></div>
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     {!preferences.onboarding_completed && <section className="panel onboarding-card"><h3>Primeiros passos</h3><p className="muted">Você pode usar a aplicação enquanto configura. Salve seus padrões e siga na ordem que preferir.</p><div className="card-actions"><Link className="button button-ghost" href="/classes">1. Cadastrar aluno e turma</Link><Link className="button button-ghost" href="/lessons">2. Criar curso</Link></div></section>}
-    <form className="settings-form" onSubmit={save}>
+    <form id="tutor-settings-form" className="settings-form" onSubmit={save}>
       <section className="panel settings-section settings-defaults">
         <div className="settings-section-heading"><span className="settings-section-icon"><Clock3 size={19} aria-hidden="true" /></span><div><h3>Padrões das aulas</h3><p>Valores preenchidos automaticamente em novos cadastros.</p></div></div>
         <div className="settings-default-grid">
@@ -84,12 +84,12 @@ export function SettingsContent({ adapter = productionAdapter }: { adapter?: Man
         <div className="settings-section-heading"><span className="settings-section-icon"><Plug size={19} aria-hidden="true" /></span><div><h3>Integrações</h3><p>Recursos externos permanecem ocultos enquanto estiverem desativados.</p></div></div>
         <label className="settings-toggle"><span><strong>Kodland</strong><small>Importar turmas, cronograma e atividades.</small></span><input type="checkbox" checked={preferences.kodland_enabled} onChange={(event) => setPreferences({ ...preferences, kodland_enabled: event.target.checked })} /><i aria-hidden="true" /></label>
       </section>
-      <div className="settings-save-bar"><span><WalletCards size={17} aria-hidden="true" />As alterações valem para os próximos cadastros.</span><Button disabled={busy}>{busy ? "Salvando…" : "Salvar configurações"}</Button></div>
     </form>
     <section className="panel settings-section settings-availability"><div className="settings-section-heading"><span className="settings-section-icon"><CalendarClock size={19} aria-hidden="true" /></span><div><h3>Disponibilidade semanal</h3><p>Cadastre os intervalos em que novas aulas podem ser agendadas.</p></div></div>
       <div className="availability-list">{availability.filter((item) => item.active).map((item) => <div className="availability-row" key={item.id}><span><strong>{weekdays[item.week_day]} · {item.start_time}–{item.end_time}</strong><small className="muted">Livre após descontar aulas: {freeByAvailability.get(item.id)}</small></span><button className="button button-ghost button-small" type="button" onClick={async () => { await adapter.operations.deleteAvailability(item.id); setAvailability((current) => current.filter((slot) => slot.id !== item.id)); }}>Remover</button></div>)}</div>
       <div className="availability-add"><label><span>Dia da semana</span><select className="input" value={newSlot.week_day} onChange={(event) => setNewSlot({ ...newSlot, week_day: Number(event.target.value) })}>{weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label><label><span>Início</span><Input type="time" value={newSlot.start_time} onChange={(event) => setNewSlot({ ...newSlot, start_time: event.target.value })} /></label><label><span>Fim</span><Input type="time" value={newSlot.end_time} onChange={(event) => setNewSlot({ ...newSlot, end_time: event.target.value })} /></label><Button type="button" onClick={() => void addAvailability()}>Adicionar horário</Button></div>
     </section>
+    <div className="settings-save-bar"><span><WalletCards size={17} aria-hidden="true" />As alterações valem para os próximos cadastros.</span><Button form="tutor-settings-form" disabled={busy}>{busy ? "Salvando…" : "Salvar configurações"}</Button></div>
   </div>;
 }
 

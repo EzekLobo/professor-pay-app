@@ -93,15 +93,16 @@ function AdminContent() {
         },
         body: JSON.stringify({
           name: String(form.get("name") ?? ""),
+          username: String(form.get("username") ?? ""),
           email: String(form.get("email") ?? ""),
           password: String(form.get("password") ?? ""),
         }),
       });
-      const payload = await response.json() as { message?: string; user?: { email: string } };
+      const payload = await response.json() as { message?: string; user?: { email: string; username: string } };
       if (!response.ok) throw new Error(payload.message ?? "Não foi possível cadastrar o usuário.");
       formElement.reset();
       setCreateOpen(false);
-      setNotice(`Acesso liberado para ${payload.user?.email ?? "o novo usuário"}.`);
+      setNotice(`Acesso liberado para ${payload.user?.username ? `@${payload.user.username}` : payload.user?.email ?? "o novo usuário"}.`);
       await load();
     } catch (reason) {
       setCreateError(reason instanceof Error ? reason.message : "Não foi possível cadastrar o usuário.");
@@ -147,10 +148,11 @@ function AdminContent() {
         className="admin-user-modal"
         onClose={() => !creating && setCreateOpen(false)}
       >
-        <p className="muted">Crie o acesso por e-mail e informe a senha inicial ao usuário por um canal seguro.</p>
+        <p className="muted">Crie um nick simples para o acesso e informe a senha inicial ao usuário por um canal seguro.</p>
         {createError && <p className="form-error" role="alert">{createError}</p>}
         <form className="form management-form admin-user-form" onSubmit={createUser}>
           <label className="field field-wide">Nome<Input name="name" required minLength={2} maxLength={100} disabled={creating} autoComplete="name" /></label>
+          <label className="field">Nick<Input name="username" required minLength={3} maxLength={30} pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,29}" disabled={creating} autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="professor.ana" /></label>
           <label className="field">E-mail<Input name="email" type="email" required disabled={creating} autoComplete="email" /></label>
           <label className="field">Senha inicial<Input name="password" type="password" required minLength={10} disabled={creating} autoComplete="new-password" /></label>
           <div className="form-actions">

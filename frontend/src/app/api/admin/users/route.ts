@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { getAdminAuth } from "@/lib/firebase-admin";
+import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
+import { validLoginUsername } from "@/lib/login-username";
 import {
   assertAdministrator,
   authenticatedUser,
@@ -9,17 +11,19 @@ import {
 
 export const runtime = "nodejs";
 
-type CreateUserInput = { name?: unknown; email?: unknown; password?: unknown };
+type CreateUserInput = { name?: unknown; username?: unknown; email?: unknown; password?: unknown };
 type DeleteUserInput = { userId?: unknown };
 
 function validInput(input: CreateUserInput) {
   const name = typeof input.name === "string" ? input.name.trim() : "";
   const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
+  const username = validLoginUsername(typeof input.username === "string" ? input.username : "");
   const password = typeof input.password === "string" ? input.password : "";
   if (name.length < 2 || name.length > 100) throw new RequestAuthError(400, "Informe um nome entre 2 e 100 caracteres.");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new RequestAuthError(400, "Informe um e-mail válido.");
+  if (!username) throw new RequestAuthError(400, "Informe um nick de 3 a 30 caracteres usando letras, números, ponto, hífen ou sublinhado.");
   if (password.length < 10) throw new RequestAuthError(400, "A senha inicial precisa ter pelo menos 10 caracteres.");
-  return { name, email, password };
+  return { name, username, email, password };
 }
 
 function validUserId(input: DeleteUserInput) {
@@ -33,13 +37,27 @@ export async function POST(request: Request) {
     const administrator = await authenticatedUser(request);
     assertAdministrator(administrator);
     const input = validInput(await request.json() as CreateUserInput);
-    const user = await getAdminAuth().createUser({
+    const db = getAdminDb();
+    const usernameRef = db.collection("login_usernames").doc(input.username);
+    if ((await usernameRef.get()).exists) throw new RequestAuthError(409, "Este nick já está em uso.");
+    const auth = getAdminAuth();
+    const user = await auth.createUser({
       email: input.email,
       password: input.password,
       displayName: input.name,
       disabled: false,
     });
-    return NextResponse.json({ user: { id: user.uid, name: user.displayName, email: user.email } }, { status: 201 });
+    try {
+      await Promise.all([
+        auth.setCustomUserClaims(user.uid, { username: input.username }),
+        usernameRef.create({ uid: user.uid, email: input.email, username: input.username, created_at: FieldValue.serverTimestamp() }),
+      ]);
+    } catch (error) {
+      await auth.deleteUser(user.uid).catch(() => undefined);
+      await usernameRef.delete().catch(() => undefined);
+      throw error;
+    }
+    return NextResponse.json({ user: { id: user.uid, name: user.displayName, username: input.username, email: user.email } }, { status: 201 });
   } catch (error) {
     if (error instanceof RequestAuthError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
@@ -68,6 +86,8 @@ export async function DELETE(request: Request) {
     }
 
     await auth.deleteUser(userId);
+    const username = typeof target.customClaims?.username === "string" ? target.customClaims.username : "";
+    if (username) await getAdminDb().collection("login_usernames").doc(username).delete().catch(() => undefined);
     return NextResponse.json({ user: { id: target.uid, name: target.displayName, email: target.email } });
   } catch (error) {
     if (error instanceof RequestAuthError) {

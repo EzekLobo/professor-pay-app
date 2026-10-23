@@ -11,7 +11,7 @@ import { loginWithFirebase, resetFirebasePassword } from "@/lib/firebase-auth";
 export function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
+  const [login, setLogin] = useState("");
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
@@ -24,17 +24,17 @@ export function AuthForm() {
     setSubmitting(true);
 
     const data = new FormData(event.currentTarget);
-    const email = String(data.get("email") || "");
+    const login = String(data.get("login") || "").trim();
     const password = String(data.get("password"));
 
     try {
-      await loginWithFirebase(email, password);
+      await loginWithFirebase(login, password);
       router.replace(searchParams.get("next")?.startsWith("/") ? searchParams.get("next")! : "/dashboard");
     } catch (cause) {
       const code = cause instanceof FirebaseError ? cause.code : "";
       setError(
-        code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-email"
-          ? "E-mail ou senha inválidos. Confira os dados ou recupere a senha abaixo."
+        (cause instanceof Error && cause.message === "invalid-login") || code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-email"
+          ? "Nick, e-mail ou senha inválidos. Confira os dados ou redefina a senha abaixo."
           : code === "auth/too-many-requests"
             ? "Muitas tentativas. Aguarde alguns minutos e tente novamente."
             : code === "auth/network-request-failed"
@@ -49,11 +49,15 @@ export function AuthForm() {
   }
 
   async function recoverPassword() {
-    const normalizedEmail = email.trim();
+    const normalizedEmail = login.trim();
     setError(undefined);
     setMessage(undefined);
     if (!normalizedEmail) {
       setError("Informe seu e-mail para receber o link de recuperação.");
+      return;
+    }
+    if (!normalizedEmail.includes("@")) {
+      setError("Para redefinir a senha, informe seu e-mail no campo acima.");
       return;
     }
     setRecovering(true);
@@ -86,8 +90,8 @@ export function AuthForm() {
         <p className="muted">Gerencie aulas, alunos e pagamentos.</p>
         <form className="form" onSubmit={submit}>
           <label className="field">
-            E-mail
-            <Input name="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
+            Nick ou e-mail
+            <Input name="login" value={login} onChange={(event) => setLogin(event.target.value)} required autoComplete="username" autoCapitalize="none" spellCheck={false} />
           </label>
           <label className="field">
             Senha

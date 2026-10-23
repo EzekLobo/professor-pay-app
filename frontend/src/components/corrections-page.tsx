@@ -720,10 +720,10 @@ export function CorrectionsContent({ demo }: { demo?: CorrectionsDemoAdapter }) 
       {notice && <p className="notice" role="status">{notice}</p>}
       <nav className="corrections-page-tabs" role="tablist" aria-label="Páginas do acompanhamento">
         <button id="activities-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>
-          <span>Atividades</span><small>Pendências e correções</small>
+          Atividades
         </button>
         <button id="attendance-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>
-          <span>Presença</span><small>Histórico dos alunos</small>
+          Presença
         </button>
       </nav>
       <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>

@@ -41,6 +41,19 @@ Para testar localmente: `npm install`, `npm run web:dev` e abra
 `http://localhost:3000/demo`. A demonstração não precisa de credenciais Firebase
 ou Kodland; elas são necessárias somente para a área privada.
 
+## Uso sem sincronização Kodland
+
+Com uma conta autorizada e o Firebase configurado, cadastre um grupo, uma turma
+própria e seus alunos em **Turmas**. Em **Aulas**, o catálogo de **Cursos**
+reúne cursos próprios e sincronizados. Use **Criar novo curso** para organizar
+módulos, aulas e materiais sem sincronização Kodland.
+
+O catálogo de **Cursos** permite criar, editar e excluir cursos próprios;
+a exclusão pede confirmação. Turmas, agenda e competências financeiras não
+exigem sincronização Kodland. A área privada usa Firebase e não constitui um
+modo offline. A demonstração usa os mesmos formulários de aulas próprias com
+persistência local e dados fictícios, sem acesso a serviços privados.
+
 ## Arquitetura e histórico
 
 O aplicativo Expo existente permanece na raiz durante a migração. A versão web

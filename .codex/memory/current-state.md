@@ -1,5 +1,88 @@
 # Estado atual
 
+## Sincronização com master — 23/10/2026
+
+- Integradas as atualizações remotas de configurações, operação manual,
+  preferências, nick e organização de Acompanhamento. Preservadas duplicação,
+  arquivamento, ordenação e bloqueios de exclusão dos cursos vinculados.
+- Mantidos catálogo único, ícone de criar curso, validação de URL e modais
+  de confirmação. Configurações e Dados e backup ficam junto à saída.
+- Validação: 171 testes unitários, lint e 14 cenários E2E Chromium passaram;
+  a jornada móvel testa rolagem nos dois sentidos quando já está no limite.
+
+## Catálogo único de cursos
+
+- Por solicitação do usuário, Aulas não exibe mais o painel separado de
+  Aulas próprias. Cursos próprios e sincronizados permanecem no catálogo
+  Cursos, com criação/edição/exclusão dos próprios preservadas. Dados
+  pedagógicos existentes não foram apagados. Testes de interface acompanham
+  o catálogo unificado em desktop e mobile.
+
+## Navegação de configuração no rodapé
+
+- ShellFrame agrupa Dados e backup e rotas com rótulo Configurações no fim
+  da navegação, imediatamente acima da saída. No mobile preserva a grade.
+- Configurações foi integrada do remoto durante a sincronização e aparece
+  junto de Dados e backup no rodapé. A grade móvel comporta os sete links.
+- Verificado no navegador: posição junto à saída em 1440 px e acesso móvel
+  em 390 px. Tipos e lint passam.
+
+## Correções da revisão de interface
+
+- Cursos validam links http(s) dos slides antes de salvar, tanto na interface
+  da demo/conta quanto em manualCoursesApi. Erros permanecem no editor.
+- Conteúdo de aula ocupa a largura inteira. Sem ocorrência, a opção de
+  escopo por encontro fica desabilitada; toda a turma mostra contexto sem data.
+- ConfirmDialog reutiliza Modal, concentra cancelamento, estado pendente e
+  erros; é usado para estrutura/exclusão de cursos, recebimento/estorno,
+  importação de backup e exclusão dos dados privados. Não usa window.confirm.
+- Verificado: 160 testes unitários, 15 E2E Chromium, lint e tipos passam.
+  E2E cobre validação de URL, preservação ao cancelar substituição, contexto
+  e largura do conteúdo, confirmação/estorno na demo móvel. Importação/reset
+  privados seguem sem validação com credenciais Firebase reais.
+
+## Aulas próprias compactas
+
+- A seção mantém filtros de turma/data/horário, ações de adicionar e abas
+  Conteúdos/Atividades com contagem. Conteúdos e entregas ficam em linhas
+  expansíveis; formulários só aparecem no Modal compartilhado ao adicionar
+  ou editar. Roteiro/materiais são opcionais e recolhidos no editor.
+- Abas suportam setas/Home/End e foco por teclado. Sem encontro, adicionar
+  conteúdo começa no escopo de toda a turma; atividades exigem encontro/aluno.
+- Testes de navegador acompanham abertura dos editores, cancelamento,
+  persistência e correção em desktop/mobile; a tela inicial não monta textareas.
+
+## Consistência da interface
+
+- Revisão visual das seis áreas da demo em 1440/390/320 px e login móvel.
+  Filtros de Acompanhamento agora empilham sem sobreposição no celular.
+- Button não combina estilo primário com ghost/danger; Input preserva a
+  classe base ao receber classes locais. Textareas herdam tipografia, têm
+  foco visível e redimensionamento vertical; controles usam esquema escuro.
+- Aulas próprias têm títulos em linha inteira, cartões de conteúdo verticais,
+  carregamento explícito, indicação de gravação e cancelamento da edição.
+  Cursos usam ação destrutiva distinta e limpam erros ao abrir os diálogos.
+- Turmas próprias mostram “Turma ativa/inativa” e plural correto de alunos.
+- Verificado: 160 testes unitários e 12 E2E Chromium passam; a regressão
+  cobre filtros sem sobreposição em 320/390 px, tipografia, botões secundários
+  e cancelamento de edição. Não houve validação visual com Firebase real.
+
+## Fluxo de aulas próprias e manutenção de cursos
+
+- Aulas monta `ManualLessonsSection` com o adaptador privado ou local da demo.
+  Turma/data/horário permitem registrar conteúdo e entregas; atividades
+  pendentes seguem para Acompanhamento e recebem feedback/conclusão.
+- Trocar turma, data ou horário limpa a edição para não mover registros
+  acidentalmente entre encontros.
+- Cursos próprios têm edição preservando ID/criação e exclusão confirmada;
+  `manualCoursesApi.remove` usa a coleção da conta autenticada.
+- O campo de backup tem nome acessível. README documenta o uso sem Kodland.
+- Verificado: 160 testes web, lint, tipos e 8 E2E Chromium passam, incluindo
+  criação/entrega/correção, persistência e manutenção de cursos em 1280/390 px.
+  E2E usa a configuração externa do ambiente com Chromium instalado.
+- Firebase real e build nativo Expo continuam sem validação nesta entrega;
+  testes privados de cursos usam Firestore simulado.
+
 - Preferência operacional do usuário: após concluir e validar alterações, criar
   commit e sincronizar a branch atual com o remoto automaticamente.
 

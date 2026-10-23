@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-test("visitante cadastra turma, aula e correção com persistência local e sem serviços privados", async ({ page }) => {
+for (const width of [1280, 390]) {
+test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privados (${width}px)`, async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width, height: 844 });
   const externalRequests: string[] = [];
   page.on("request", (request) => {
     if (/firestore\.googleapis\.com|identitytoolkit\.googleapis\.com|bo\.kodland\.org|\/api\/kodland\//.test(request.url())) externalRequests.push(request.url());
@@ -58,10 +61,12 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await attendanceClass.locator("summary").click();
   const attendanceGrid = attendanceClass.getByLabel(/Presença da turma/);
   await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
-  const initialScroll = await attendanceGrid.evaluate((element) => element.scrollLeft);
+  const scroll = await attendanceGrid.evaluate((element) => ({ current: element.scrollLeft, max: element.scrollWidth - element.clientWidth }));
+  const scrollLeft = scroll.current >= scroll.max - 1;
   await attendanceGrid.hover();
-  await page.mouse.wheel(0, 300);
-  await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(initialScroll);
+  await page.mouse.wheel(0, scrollLeft ? -300 : 300);
+  if (scrollLeft) await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeLessThan(scroll.current);
+  else await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(scroll.current);
   await expect(page.getByLabel("Legenda das cores de presença").getByText("Falta sem justificativa")).toBeVisible();
   await expect(attendanceClass.locator(".attendance-column-heading strong").first()).toHaveText(/^\d{2}\/\d{2}$/);
   await expect(attendanceClass.getByText("Sem data", { exact: true })).toHaveCount(0);
@@ -108,5 +113,31 @@ test("visitante cadastra turma, aula e correção com persistência local e sem 
   await page.reload();
   await page.getByRole("link", { name: "Aulas" }).click();
   await expect(page.getByText("Redação criativa", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Aulas próprias", exact: true })).toHaveCount(0);
+  await expect(courses.getByText("Matemática essencial", { exact: true })).toBeVisible();
+  const courseCard = page.locator("details.manual-course-card").filter({ hasText: "Redação criativa" });
+  await courseCard.locator("summary").click();
+  await courseCard.getByRole("button", { name: "Editar curso", exact: true }).click();
+  const edit = page.getByRole("dialog", { name: "Editar curso", exact: true });
+  await edit.getByLabel("Nome do curso").fill("Redação revisada");
+  await edit.getByLabel("Título", { exact: true }).fill("Argumentação revisada");
+  await edit.getByRole("button", { name: "Salvar curso" }).click();
+  await page.reload();
+  await page.getByRole("link", { name: "Aulas", exact: true }).click();
+  const revised = page.locator("details.manual-course-card").filter({ hasText: "Redação revisada" });
+  await revised.locator("summary").click();
+  await expect(revised.getByText(/Argumentação revisada/)).toBeVisible();
+  await revised.getByRole("button", { name: "Excluir curso", exact: true }).click();
+  await page.getByRole("dialog", { name: "Excluir curso", exact: true }).getByRole("button", { name: "Cancelar" }).click();
+  await expect(revised).toBeVisible();
+  await revised.getByRole("button", { name: "Excluir curso", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar exclusão" }).click();
+  await expect(revised).toHaveCount(0);
+  await page.reload();
+  await page.getByRole("link", { name: "Aulas", exact: true }).click();
+  await expect(page.getByText("Redação revisada", { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(externalRequests).toEqual([]);
 });
+
+}

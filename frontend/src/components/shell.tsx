@@ -27,6 +27,20 @@ type ShellFrameProps = {
 
 export function ShellFrame({ user, pathname, children, routeHref = (href) => href, onNavigate, onLogout, logoutLabel = "Sair", headerActions, banner }: ShellFrameProps) {
   const isActive = (href: string) => pathname === href;
+  const settingsRoutes = appRoutes.filter((item) => item.href === "/data" || item.label === "Configurações");
+  const mainRoutes = appRoutes.filter((item) => !settingsRoutes.includes(item));
+  const renderNavLink = (item: (typeof appRoutes)[number], mobileOnly = false) => {
+    const Icon = item.icon;
+    return <Link
+      className={`nav-link${mobileOnly ? " nav-link-mobile-only" : ""}${isActive(item.href) ? " nav-link-active" : ""}`}
+      href={routeHref(item.href)} key={item.href}
+      aria-current={isActive(item.href) ? "page" : undefined} aria-label={item.label}
+      onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate(item.href); } : undefined}
+    >
+      <span aria-hidden="true"><Icon size={19} strokeWidth={2.1} /></span>
+      <span className="nav-link-label" aria-hidden="true"><span className="nav-label-full">{item.label}</span><span className="nav-label-mobile">{item.mobileLabel}</span></span>
+    </Link>;
+  };
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Pular para o conteúdo</a>
@@ -37,27 +51,11 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
         </Link>
         <p className="sidebar-caption">NAVEGAÇÃO</p>
         <nav className="nav" aria-label="Navegação principal">
-          {appRoutes.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                className={`nav-link${isActive(item.href) ? " nav-link-active" : ""}`}
-                href={routeHref(item.href)}
-                key={item.href}
-                aria-current={isActive(item.href) ? "page" : undefined}
-                aria-label={item.label}
-                onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate(item.href); } : undefined}
-              >
-                <span aria-hidden="true"><Icon size={19} strokeWidth={2.1} /></span>
-                <span className="nav-link-label" aria-hidden="true">
-                  <span className="nav-label-full">{item.label}</span>
-                  <span className="nav-label-mobile">{item.mobileLabel}</span>
-                </span>
-              </Link>
-            );
-          })}
+          {mainRoutes.map((item) => renderNavLink(item))}
+          {settingsRoutes.map((item) => renderNavLink(item, true))}
         </nav>
         <div className="sidebar-bottom">
+          <nav className="sidebar-settings" aria-label="Configurações e dados">{settingsRoutes.map((item) => renderNavLink(item))}</nav>
           <button className="logout-button" type="button" onClick={onLogout}>
             <span aria-hidden="true">↪</span>
             <span>{logoutLabel}</span>

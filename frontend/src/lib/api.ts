@@ -2023,6 +2023,9 @@ export const manualCoursesApi = {
     if (!course.modules.length) throw new ApiError(400, "Adicione pelo menos um módulo ao curso.");
     const lessonIds = manualCourseLessons(course).map((item) => item.lesson.id);
     if (new Set(lessonIds).size !== lessonIds.length) throw new ApiError(400, "As aulas do curso precisam ter identificadores únicos.");
+    if (course.modules.some((module) => module.lessons.some((lesson) => lesson.slides.trim() && !isHttpUrl(lesson.slides.trim())))) {
+      throw new ApiError(400, "Informe um link http(s) válido para os slides.");
+    }
     await setDoc(doc(ref("manual_courses"), course.id), {
       ...course,
       name: course.name.trim(),

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { PaymentStatement } from "@/components/dashboard-content";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
 import { Button, StatusBadge } from "@/components/ui";
@@ -78,6 +79,7 @@ export type PaymentsAdapter = {
 };
 export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {}) {
   const paymentActions = adapter ?? paymentsApi;
+  const [confirmReverse, setConfirmReverse] = useState<boolean | null>(null);
   const [items, setItems] = useState<DashboardPayment[]>([]),
     [detail, setDetail] = useState<PaymentDetail | null>(null),
     [focusedPaymentDate, setFocusedPaymentDate] = useState<string | null>(null),
@@ -259,16 +261,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
     }
   }
   async function change(reverse: boolean) {
-    if (
-      !detail ||
-      busy ||
-      !window.confirm(
-        reverse
-          ? "Estornar esta confirmação?"
-          : `Confirmar ${formatMoney(detail.total_cents)} como recebido?`,
-      )
-    )
-      return;
+    if (!detail || busy) return;
     setBusy(true);
     try {
       if (reverse) await paymentActions.reverse(detail.payment_date);
@@ -282,6 +275,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
           ? e.message
           : "Não foi possível concluir a operação.",
       );
+      throw e;
     } finally {
       setBusy(false);
     }
@@ -310,6 +304,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
   }
   return (
     <div className="management-grid page-fill-grid">
+      <ConfirmDialog open={confirmReverse !== null} title={confirmReverse ? "Estornar confirmação" : "Confirmar recebimento"} confirmLabel={confirmReverse ? "Estornar confirmação" : "Confirmar recebimento"} danger={confirmReverse === true} onClose={() => setConfirmReverse(null)} onConfirm={() => change(confirmReverse === true)}><p>{confirmReverse ? "O pagamento voltará a ficar em aberto." : `Confirmar ${formatMoney(detail?.total_cents ?? 0)} como recebido?`}</p></ConfirmDialog>
       <section className="page-heading">
         <p className="eyebrow">Financeiro</p>
         <h1>Pagamentos</h1>
@@ -496,12 +491,12 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
                   className="button button-primary"
                   type="button"
                   disabled={busy}
-                  onClick={() => void change(true)}
+                  onClick={() => setConfirmReverse(true)}
                 >
                   Estornar confirmação
                 </button>
               ) : (
-                <Button disabled={busy} onClick={() => void change(false)}>
+                <Button disabled={busy} onClick={() => setConfirmReverse(false)}>
                   Confirmar recebimento
                 </Button>
               )}

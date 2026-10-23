@@ -2,6 +2,7 @@
 
 import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Modal } from "@/components/modal";
 import { ManualCsvPanel } from "@/components/manual-csv-panel";
 import { Shell } from "@/components/shell";
@@ -40,6 +41,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
   const [report, setReport] = useState<ImportReport | null>(null);
   const [password, setPassword] = useState("");
   const [phrase, setPhrase] = useState("");
+  const [confirmation, setConfirmation] = useState<"import" | "reset" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -204,7 +206,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
 
   async function importIt() {
     if (demo) return;
-    if (!payload || !preview || busy || !window.confirm("Importar estes dados?")) {
+    if (!payload || !preview || busy) {
       return;
     }
     setBusy(true);
@@ -220,6 +222,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       );
     } catch (reason) {
       message(reason);
+      throw reason;
     } finally {
       setBusy(false);
     }
@@ -238,11 +241,15 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
     if (
       phrase !== "RESETAR" ||
       !password ||
-      busy ||
-      !window.confirm("Apagar permanentemente todos os seus dados?")
+      busy
     ) {
       return;
     }
+    setConfirmation("reset");
+  }
+
+  async function performReset() {
+    if (demo || phrase !== "RESETAR" || !password || busy) return;
     setBusy(true);
     try {
       await dataApi.reset(password);
@@ -251,6 +258,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       setNotice("Dados apagados.");
     } catch (reason) {
       message(reason);
+      throw reason;
     } finally {
       setBusy(false);
     }
@@ -258,6 +266,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
 
   return (
     <div className="management-grid page-fill-grid">
+      <ConfirmDialog open={confirmation !== null} title={confirmation === "reset" ? "Apagar dados" : "Importar backup"} confirmLabel={confirmation === "reset" ? "Apagar permanentemente" : "Importar dados"} danger={confirmation === "reset"} onClose={() => setConfirmation(null)} onConfirm={confirmation === "reset" ? performReset : importIt}><p>{confirmation === "reset" ? "Todos os dados da sua conta serão apagados permanentemente. Esta ação não pode ser desfeita." : "Importar os dados deste backup para sua conta? Confira a prévia antes de continuar."}</p></ConfirmDialog>
       {kodlandEnabled && <Modal
         open={syncOpen}
         title="Sincronizar aplicação"
@@ -363,7 +372,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
             <p className="muted">
               Prévia: {summary(preview)}{preview.already_imported ? ". Já importado." : "."}
             </p>
-            <Button disabled={busy} onClick={() => void importIt()}>
+            <Button disabled={busy} onClick={() => setConfirmation("import")}>
               Confirmar importação
             </Button>
           </div>

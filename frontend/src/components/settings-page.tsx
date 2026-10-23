@@ -5,6 +5,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input } from "@/components/ui";
 import Link from "next/link";
+import { CalendarClock, Clock3, MessageCircle, Plug, WalletCards } from "lucide-react";
 import { manualAdapter as productionAdapter } from "@/lib/manual-adapters-runtime";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 import { DEFAULT_ABSENCE_MESSAGE, type ManualAvailability, type ManualOccurrence, type TutorPreferences } from "@/lib/manual-operations";
@@ -64,17 +65,30 @@ export function SettingsContent({ adapter = productionAdapter }: { adapter?: Man
     <div className="page-heading"><div><h2>Configurações do tutor</h2><p>Padrões usados nos novos cadastros e na operação diária.</p></div></div>
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     {!preferences.onboarding_completed && <section className="panel onboarding-card"><h3>Primeiros passos</h3><p className="muted">Você pode usar a aplicação enquanto configura. Salve seus padrões e siga na ordem que preferir.</p><div className="card-actions"><Link className="button button-ghost" href="/classes">1. Cadastrar aluno e turma</Link><Link className="button button-ghost" href="/lessons">2. Criar curso</Link></div></section>}
-    <section className="panel"><form className="management-form" onSubmit={save}>
-      <label>Duração padrão (minutos)<Input type="number" min="15" max="480" value={preferences.default_duration_minutes} onChange={(event) => setPreferences({ ...preferences, default_duration_minutes: Number(event.target.value) })} /></label>
-      <label>Dia padrão de pagamento<Input type="number" min="1" max="31" value={preferences.default_payment_day} onChange={(event) => setPreferences({ ...preferences, default_payment_day: Number(event.target.value) })} /></label>
-      <label>Tarifa padrão (R$/h)<Input inputMode="decimal" value={defaultRate} onChange={(event) => setDefaultRate(event.target.value)} /></label>
-      <label className="field-wide">Modelo da mensagem de ausência<textarea className="input" rows={9} value={preferences.absence_message_template} onChange={(event) => setPreferences({ ...preferences, absence_message_template: event.target.value })} /><small className="muted">Variáveis: {'{primeiro_nome}'}, {'{codigo_aula}'}, {'{data}'} e {'{link_gravacao}'}. Use {'{gravacao}'} para ocultar automaticamente o bloco quando não houver link.</small></label>
-      <label className="checkbox-row field-wide"><input type="checkbox" checked={preferences.kodland_enabled} onChange={(event) => setPreferences({ ...preferences, kodland_enabled: event.target.checked })} />Ativar integração Kodland</label>
-      <div className="form-actions"><Button type="button" className="button-ghost" onClick={() => setPreferences({ ...preferences, absence_message_template: DEFAULT_ABSENCE_MESSAGE })}>Restaurar mensagem</Button><Button disabled={busy}>{busy ? "Salvando…" : "Salvar configurações"}</Button></div>
-    </form></section>
-    <section className="panel"><div className="panel-heading"><div><h3>Disponibilidade semanal</h3><p>Cadastre os intervalos em que novas aulas podem ser agendadas.</p></div></div>
+    <form className="settings-form" onSubmit={save}>
+      <section className="panel settings-section settings-defaults">
+        <div className="settings-section-heading"><span className="settings-section-icon"><Clock3 size={19} aria-hidden="true" /></span><div><h3>Padrões das aulas</h3><p>Valores preenchidos automaticamente em novos cadastros.</p></div></div>
+        <div className="settings-default-grid">
+          <label><span>Duração</span><span className="settings-input-with-suffix"><Input type="number" min="15" max="480" value={preferences.default_duration_minutes} onChange={(event) => setPreferences({ ...preferences, default_duration_minutes: Number(event.target.value) })} /><small>minutos</small></span></label>
+          <label><span>Dia de pagamento</span><span className="settings-input-with-suffix"><Input type="number" min="1" max="31" value={preferences.default_payment_day} onChange={(event) => setPreferences({ ...preferences, default_payment_day: Number(event.target.value) })} /><small>do mês</small></span></label>
+          <label><span>Tarifa por hora</span><span className="settings-input-with-prefix"><small>R$</small><Input inputMode="decimal" value={defaultRate} onChange={(event) => setDefaultRate(event.target.value)} /></span></label>
+        </div>
+      </section>
+      <section className="panel settings-section settings-message">
+        <div className="settings-section-heading"><span className="settings-section-icon"><MessageCircle size={19} aria-hidden="true" /></span><div><h3>Mensagem de ausência</h3><p>Texto editável apresentado antes do envio pelo WhatsApp.</p></div></div>
+        <label className="settings-message-field"><span className="sr-only">Modelo da mensagem de ausência</span><textarea className="input" rows={7} value={preferences.absence_message_template} onChange={(event) => setPreferences({ ...preferences, absence_message_template: event.target.value })} /></label>
+        <div className="settings-message-help"><span>Variáveis disponíveis</span><code>{'{primeiro_nome}'}</code><code>{'{codigo_aula}'}</code><code>{'{data}'}</code><code>{'{link_gravacao}'}</code><small>Use <code>{'{gravacao}'}</code> para ocultar o bloco quando não houver link.</small></div>
+        <Button type="button" className="button-ghost settings-restore-button" onClick={() => setPreferences({ ...preferences, absence_message_template: DEFAULT_ABSENCE_MESSAGE })}>Restaurar mensagem padrão</Button>
+      </section>
+      <section className="panel settings-section settings-integration">
+        <div className="settings-section-heading"><span className="settings-section-icon"><Plug size={19} aria-hidden="true" /></span><div><h3>Integrações</h3><p>Recursos externos permanecem ocultos enquanto estiverem desativados.</p></div></div>
+        <label className="settings-toggle"><span><strong>Kodland</strong><small>Importar turmas, cronograma e atividades.</small></span><input type="checkbox" checked={preferences.kodland_enabled} onChange={(event) => setPreferences({ ...preferences, kodland_enabled: event.target.checked })} /><i aria-hidden="true" /></label>
+      </section>
+      <div className="settings-save-bar"><span><WalletCards size={17} aria-hidden="true" />As alterações valem para os próximos cadastros.</span><Button disabled={busy}>{busy ? "Salvando…" : "Salvar configurações"}</Button></div>
+    </form>
+    <section className="panel settings-section settings-availability"><div className="settings-section-heading"><span className="settings-section-icon"><CalendarClock size={19} aria-hidden="true" /></span><div><h3>Disponibilidade semanal</h3><p>Cadastre os intervalos em que novas aulas podem ser agendadas.</p></div></div>
       <div className="availability-list">{availability.filter((item) => item.active).map((item) => <div className="availability-row" key={item.id}><span><strong>{weekdays[item.week_day]} · {item.start_time}–{item.end_time}</strong><small className="muted">Livre após descontar aulas: {freeByAvailability.get(item.id)}</small></span><button className="button button-ghost button-small" type="button" onClick={async () => { await adapter.operations.deleteAvailability(item.id); setAvailability((current) => current.filter((slot) => slot.id !== item.id)); }}>Remover</button></div>)}</div>
-      <div className="availability-add"><select className="input" aria-label="Dia da semana" value={newSlot.week_day} onChange={(event) => setNewSlot({ ...newSlot, week_day: Number(event.target.value) })}>{weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select><Input aria-label="Início da disponibilidade" type="time" value={newSlot.start_time} onChange={(event) => setNewSlot({ ...newSlot, start_time: event.target.value })} /><Input aria-label="Fim da disponibilidade" type="time" value={newSlot.end_time} onChange={(event) => setNewSlot({ ...newSlot, end_time: event.target.value })} /><Button type="button" onClick={() => void addAvailability()}>Adicionar</Button></div>
+      <div className="availability-add"><label><span>Dia da semana</span><select className="input" value={newSlot.week_day} onChange={(event) => setNewSlot({ ...newSlot, week_day: Number(event.target.value) })}>{weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label><label><span>Início</span><Input type="time" value={newSlot.start_time} onChange={(event) => setNewSlot({ ...newSlot, start_time: event.target.value })} /></label><label><span>Fim</span><Input type="time" value={newSlot.end_time} onChange={(event) => setNewSlot({ ...newSlot, end_time: event.target.value })} /></label><Button type="button" onClick={() => void addAvailability()}>Adicionar horário</Button></div>
     </section>
   </div>;
 }

@@ -277,7 +277,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       >
         <form className="form management-form" autoComplete={demo ? "off" : "on"} onSubmit={synchronize}>
           <p className="muted">
-            Atualiza turmas, alunos, aulas, presença e materiais.
+            Atualiza turmas, alunos, aulas, presença, materiais e pagamentos.
           </p>
           {demo ? <p className="notice">Na demonstração, esta operação utiliza apenas dados fictícios e não solicita credenciais.</p> : <><label className="field">
             Usuário ou e-mail
@@ -303,14 +303,15 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
               onChange={(event) => setSyncPassword(event.target.value)}
             />
           </label>
-          <label className="field">
+          <label className="sync-remember">
             <input
+              name="save_credentials"
               type="checkbox"
               checked={saveCredentials}
               disabled={busy}
               onChange={(event) => setSaveCredentials(event.target.checked)}
-            />{" "}
-            Salvar credenciais no navegador
+            />
+            <span>Salvar credenciais no navegador</span>
           </label>
           </>}
           {syncProgress && <p className="notice" role="status">{syncProgress}</p>}

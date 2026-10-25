@@ -831,8 +831,17 @@ summary:focus-visible {
 .modal-help-actions button { min-height: 34px; border: 1px solid rgb(182 145 255 / 42%); border-radius: 9px; padding: 6px 10px; background: transparent; color: #d9c8f4; font: inherit; font-size: .78rem; font-weight: 800; }
 .modal-help-actions button:last-child { border-color: #8d5eff; background: linear-gradient(135deg, #7c4ff0, #a26cff); color: white; }
 .modal-help-actions button:disabled { opacity: .42; }
-.schedule-sync-modal { width: min(560px, calc(100vw - 32px)); }
-.schedule-sync-modal .management-form { grid-template-columns: 1fr; }
+.modal-dialog.schedule-sync-modal { position: fixed; inset: 16px; margin: auto; width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-x: hidden; overflow-y: auto; padding: 20px; }
+.schedule-sync-modal .modal-heading { margin-bottom: 14px; }
+.schedule-sync-modal .modal-heading h2 { font-size: 1.12rem; }
+.schedule-sync-modal .management-form { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.schedule-sync-modal .management-form > p { margin: 0; font-size: .86rem; line-height: 1.5; }
+.schedule-sync-modal .field { min-width: 0; gap: 6px; }
+.sync-remember { display: flex; align-items: center; gap: 10px; padding-block: 4px; color: var(--muted); font-size: .82rem; cursor: pointer; }
+.sync-remember input { flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+.sync-remember span { min-width: 0; line-height: 1.4; }
+.schedule-sync-modal .form-actions { margin-top: 2px; justify-content: flex-end; }
+@media (max-width: 480px) { .schedule-sync-modal .form-actions .button { width: 100%; } }
 .data-sync-card {
   display: flex;
   align-items: center;

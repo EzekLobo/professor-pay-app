@@ -1,3 +1,5 @@
+import { getFirebaseAuth } from "@/lib/firebase";
+
 export type KodlandCredentials = {
   username: string;
   password: string;
@@ -11,7 +13,7 @@ type EncryptedCredential = {
 const databaseName = "aulapay-kodland-credentials";
 const storeName = "vault";
 const encryptionKeyId = "encryption-key";
-const credentialId = "kodland";
+const credentialId = (userId: string) => `kodland:${userId}`;
 
 function canUseBrowserVault() {
   return (
@@ -84,7 +86,7 @@ async function browserEncryptionKey() {
   return key;
 }
 
-async function saveInBrowserVault(credentials: KodlandCredentials) {
+async function saveInBrowserVault(credentials: KodlandCredentials, userId: string) {
   if (!canUseBrowserVault()) return false;
   try {
     const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -94,7 +96,7 @@ async function saveInBrowserVault(credentials: KodlandCredentials) {
       key,
       new TextEncoder().encode(JSON.stringify(credentials)),
     );
-    await writeVaultValue(credentialId, {
+    await writeVaultValue(credentialId(userId), {
       iv: iv.buffer,
       ciphertext,
     } satisfies EncryptedCredential);
@@ -104,10 +106,10 @@ async function saveInBrowserVault(credentials: KodlandCredentials) {
   }
 }
 
-async function loadFromBrowserVault(): Promise<KodlandCredentials | null> {
+async function loadFromBrowserVault(userId: string): Promise<KodlandCredentials | null> {
   if (!canUseBrowserVault()) return null;
   try {
-    const encrypted = await readVaultValue<EncryptedCredential>(credentialId);
+    const encrypted = await readVaultValue<EncryptedCredential>(credentialId(userId));
     if (!encrypted?.iv || !encrypted.ciphertext) return null;
     const key = await browserEncryptionKey();
     const value = await crypto.subtle.decrypt(
@@ -130,59 +132,23 @@ async function loadFromBrowserVault(): Promise<KodlandCredentials | null> {
   }
 }
 
-async function offerPasswordCredential(form: HTMLFormElement) {
-  if (typeof window === "undefined" || !navigator.credentials?.store) return;
-  const PasswordCredential = (
-    window as typeof window & {
-      PasswordCredential?: new (form: HTMLFormElement) => Credential;
-    }
-  ).PasswordCredential;
-  if (!PasswordCredential) return;
-  try {
-    await navigator.credentials.store(new PasswordCredential(form));
-  } catch {
-    // The local encrypted vault remains available when the browser denies this.
-  }
-}
-
-async function passwordManagerCredential(): Promise<KodlandCredentials | null> {
-  if (typeof window === "undefined" || !navigator.credentials?.get) return null;
-  try {
-    const credential = await navigator.credentials.get({
-      password: true,
-      mediation: "optional",
-    } as CredentialRequestOptions) as (Credential & {
-      id?: string;
-      password?: string;
-    }) | null;
-    if (!credential?.id || !credential.password) return null;
-    return { username: credential.id, password: credential.password };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Saves the credential in a local AES-GCM vault backed by IndexedDB. The
- * encryption key is non-extractable and also remains only in this browser.
- * The native password manager is offered as an additional convenience.
+/** Credentials belong exclusively to the signed-in NexusClass user.
+ * Legacy unscoped records and browser password-manager entries are never restored.
  */
 export async function rememberKodlandCredentials(
   credentials: KodlandCredentials,
-  form?: HTMLFormElement,
+  _form?: HTMLFormElement,
 ) {
+  void _form;
+  const userId = getFirebaseAuth().currentUser?.uid;
   const username = credentials.username.trim();
-  const password = credentials.password;
-  if (!username || !password) return false;
-  const saved = await saveInBrowserVault({ username, password });
-  if (form) await offerPasswordCredential(form);
-  return saved;
+  if (!userId || !username || !credentials.password) return false;
+  return saveInBrowserVault({ username, password: credentials.password }, userId);
 }
 
-/**
- * Restores from the app's browser-only encrypted vault first, then falls back
- * to a credential approved in the browser password manager.
- */
 export async function restoreKodlandCredentials() {
-  return (await loadFromBrowserVault()) ?? (await passwordManagerCredential());
+  const userId = getFirebaseAuth().currentUser?.uid;
+  if (!userId) return null;
+  const credentials = await loadFromBrowserVault(userId);
+  return getFirebaseAuth().currentUser?.uid === userId ? credentials : null;
 }

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { rememberKodlandCredentials, restoreKodlandCredentials } from "./browser-credentials";
 
-function memoryIndexedDb() {
-  const values = new Map<IDBValidKey, unknown>();
+const auth = vi.hoisted(() => ({ currentUser: { uid: "teacher-a" } as { uid: string } | null }));
+vi.mock("@/lib/firebase", () => ({ getFirebaseAuth: () => auth }));
+
+function memoryIndexedDb(values = new Map<IDBValidKey, unknown>()) {
   type MemoryRequest = {
     result?: unknown;
     onsuccess?: ((event: Event) => void) | null;
@@ -45,7 +47,33 @@ function memoryIndexedDb() {
 }
 
 describe("browser credentials", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { vi.unstubAllGlobals(); auth.currentUser = { uid: "teacher-a" }; });
+
+  it("isolates credentials when two tutors use the same browser", async () => {
+    vi.stubGlobal("window", { indexedDB: memoryIndexedDb() });
+    await rememberKodlandCredentials({ username: "tutor-a", password: "password-a" });
+    auth.currentUser = { uid: "teacher-b" };
+    await expect(restoreKodlandCredentials()).resolves.toBeNull();
+    await rememberKodlandCredentials({ username: "tutor-b", password: "password-b" });
+    await expect(restoreKodlandCredentials()).resolves.toEqual({ username: "tutor-b", password: "password-b" });
+    auth.currentUser = { uid: "teacher-a" };
+    await expect(restoreKodlandCredentials()).resolves.toEqual({ username: "tutor-a", password: "password-a" });
+    auth.currentUser = null;
+    await expect(restoreKodlandCredentials()).resolves.toBeNull();
+    await expect(rememberKodlandCredentials({ username: "x", password: "x" })).resolves.toBe(false);
+  });
+
+  it("never restores legacy shared credentials or requests a password-manager fallback", async () => {
+    const values = new Map<IDBValidKey, unknown>();
+    const get = vi.fn();
+    vi.stubGlobal("window", { indexedDB: memoryIndexedDb(values) });
+    vi.stubGlobal("navigator", { credentials: { get } });
+    await rememberKodlandCredentials({ username: "old-tutor", password: "old-password" });
+    values.set("kodland", values.get("kodland:teacher-a"));
+    values.delete("kodland:teacher-a");
+    await expect(restoreKodlandCredentials()).resolves.toBeNull();
+    expect(get).not.toHaveBeenCalled();
+  });
 
   it("persists explicit values even when no enabled form controls are available", async () => {
     vi.stubGlobal("window", { indexedDB: memoryIndexedDb() });

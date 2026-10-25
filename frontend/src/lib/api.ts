@@ -2466,6 +2466,9 @@ export const kodlandApi = {
       throw kodlandSyncNetworkError(syncId);
     }
     const snapshot = await readKodlandSyncResponse<KodlandSnapshot>(response, syncId);
+    if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) {
+      throw new ApiError(401, "A conta conectada mudou. Inicie a sincronização novamente.");
+    }
     let persistencePhase: "leitura" | "gravação" = "leitura";
     try {
     const createdAt = now();
@@ -2759,17 +2762,23 @@ export const kodlandApi = {
     onProgress?: (message: string) => void,
     options: KodlandSyncOptions = {},
   ): Promise<KodlandSyncResult> => {
+    const ownerId = authUser().uid;
+    const assertSyncOwner = () => {
+      if (getFirebaseAuth().currentUser?.uid !== ownerId) throw new ApiError(401, "A conta conectada mudou. Inicie a sincronização novamente.");
+    };
     onProgress?.("Atualizando turmas, alunos, agenda e aulas…");
     const core = await kodlandApi.sync(username, password, "essential", options);
     const groupIds = core.group_ids ?? [];
     let reviewCount = 0;
     for (let index = 0; index < groupIds.length; index += 1) {
+      assertSyncOwner();
       onProgress?.(`Atualizando correções: ${index + 1} de ${groupIds.length} turma(s)…`);
       const result = await kodlandApi.sync(username, password, "corrections", {
         correctionGroupIds: [groupIds[index]],
       });
       reviewCount += result.review_count;
     }
+    assertSyncOwner();
     const lessons = (await rows("kodland_lessons")) as unknown as KodlandLesson[];
     const pendingLessons = lessons
       .filter((lesson): lesson is KodlandLesson & { source_lesson_id: string } =>
@@ -2794,6 +2803,7 @@ export const kodlandApi = {
     );
     let materialCount = 0;
     for (let index = 0; index < materialLessons.length; index += KODLAND_MATERIAL_BATCH_SIZE) {
+      assertSyncOwner();
       const batch = materialLessons.slice(index, index + KODLAND_MATERIAL_BATCH_SIZE);
       const end = Math.min(index + batch.length, materialLessons.length);
       onProgress?.(`Atualizando materiais: ${index + 1}â€“${end} de ${materialLessons.length} aula(s)â€¦`);
@@ -2805,6 +2815,7 @@ export const kodlandApi = {
           source_lesson_id: lesson.source_lesson_id,
         })),
       );
+      assertSyncOwner();
       const writes: Array<(batch: FirebaseWriteBatch) => void> = [];
       materials.forEach((material) => {
         const lesson = lessonsByMaterial.get(materialKey(material));

@@ -17,8 +17,8 @@ export function AuthGuard({ children }: { children: (user: User) => ReactNode })
       const unsubscribe = subscribeToAuth((currentUser) => {
         queueMicrotask(() => {
           if (!active) return;
-          if (currentUser) setUser(currentUser);
-          else router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+          setUser(currentUser);
+          if (!currentUser) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
           setChecking(false);
         });
       });
@@ -34,5 +34,5 @@ export function AuthGuard({ children }: { children: (user: User) => ReactNode })
   }, [pathname, router]);
 
   if (checking || user === null) return <main className="auth-page"><p className="muted">Verificando sua sessão…</p></main>;
-  return <>{children(user)}</>;
+  return <div key={user.id} style={{ display: "contents" }}>{children(user)}</div>;
 }

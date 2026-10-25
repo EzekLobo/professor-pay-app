@@ -19,6 +19,7 @@ import {
   restoreKodlandCredentials,
 } from "@/lib/browser-credentials";
 import { formatMoney } from "@/lib/finance";
+import { getFirebaseAuth } from "@/lib/firebase";
 import {
   KodlandSyncPersistenceError,
   KodlandSyncResponseError,
@@ -48,11 +49,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncError, setSyncError] = useState("");
   const [syncProgress, setSyncProgress] = useState("");
-  const [syncUsername, setSyncUsername] = useState(() =>
-    demo || typeof window === "undefined"
-      ? ""
-      : window.localStorage.getItem("aulapay.kodland.username") ?? "",
-  );
+  const [syncUsername, setSyncUsername] = useState("");
   const [syncPassword, setSyncPassword] = useState("");
   const [saveCredentials, setSaveCredentials] = useState(true);
   const [storedKodlandEnabled, setStoredKodlandEnabled] = useState(false);
@@ -100,6 +97,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       return;
     }
     const form = event.currentTarget;
+    const ownerId = getFirebaseAuth().currentUser?.uid;
     const username = syncUsername.trim();
     if (busy || !username || !syncPassword) return;
 
@@ -115,7 +113,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       );
       if (saveCredentials) {
         try {
-          window.localStorage.setItem("aulapay.kodland.username", username);
+          if (!ownerId || getFirebaseAuth().currentUser?.uid !== ownerId) throw new Error("A conta conectada mudou durante a sincronização.");
           savedInBrowser = await rememberKodlandCredentials(
             { username, password: syncPassword },
             form,

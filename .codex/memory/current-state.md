@@ -5,11 +5,11 @@
 - Correção `62ce5e0`: flags de rollout do roster não são autorização para consultar períodos do próprio tutor. Removido o 403 local inventado; a API de períodos autenticada decide o acesso, com teacher do SSO e validação do dono de cada detalhe. Recusa 403 real continua bloqueada e tem teste de regressão.
 - Verificação real no navegador após publicação: seis competências importadas (05–10/2026). Outubro: R$345 contabilizados + R$120 previstos = R$465; setembro aprovado R$405. Alternância para oficial atualizou gráfico e extrato (12 aulas, 11 normais + 1 extra) sem confirmar recebimento. Typecheck, lint, build, 205 testes unitários e 2 E2E da folha passam.
 
-- `kodland-payroll.ts` normaliza a API v2 `tutor_payroll_periods/`; acesso GET com teacher do SSO, config de disponibilidade e período pertencente à lista autenticada. Não há aprovação ou transação financeira remota.
+- `kodland-payroll.ts` normaliza a API v2 `tutor_payroll_periods/`; acesso GET com teacher do SSO e período pertencente à lista autenticada. Não há aprovação ou transação financeira remota.
 - `kodlandPayrollApi` importa ano atual/anterior atomicamente por UID, com vínculo de professor e proteção contra troca de conta. Coleções: `kodland_payroll_periods`, `kodland_payroll_sync`, `kodland_payroll_settings`. Backup 4.0 continua aceitando 1/2/3.
 - Pagamentos abre em comparação; fonte oficial é opt-in. Períodos incompletos/moeda incompatível mantêm estimativa local. Valores oficiais substituem somente Kodland no mês coberto; turmas manuais e snapshots recebidos são preservados. Aprovação não significa recebimento.
 - Demonstração tem folha fictícia e alternância persistente sem serviços privados. Verificar com lint, typecheck, Vitest (204 testes), build e `playwright test e2e/payroll.spec.ts` (desktop/celular). Suíte E2E completa: 20/21; falha preexistente de wheel na presença manual em 390px permanece fora da integração.
-- Publicação `8ba618b` READY e painel confirmado no navegador. Consulta real autenticou SSO e recebeu config, mas flags de disponibilidade impediram listagem (403, referência `77d3db56-24fe-43c0-a161-672d430976d8`). Importação real não validada; nenhuma escrita financeira ocorreu. Não contornar bloqueio sem verificar acesso no portal oficial (sessão oficial expirou).
+- Histórico: `8ba618b` gerava 403 local indevido ao avaliar flags de roster. Corrigido e importação real validada por `62ce5e0`; não reintroduzir essa checagem como autorização da folha.
 
 
 

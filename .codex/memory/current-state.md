@@ -1,5 +1,10 @@
 # Estado atual
 
+## Atividades: somente pendências — 25/10/2026
+
+- Acompanhamento > Compacto tem filtro “Mostrar: Somente pendências” (padrão) / “Todos os alunos”. O padrão filtra alunos sem correções e usa linhas esparsas sem células vazias, com aula/atividade em cada cartão; a opção todos mantém a matriz original. Lista já mostra somente entregas pendentes.
+- `pendingOnly` persiste por conta junto das opções de visualização; funciona para Kodland e turmas manuais. Testes de modelo/renderização e `e2e/pending-activities.spec.ts` cobrem alternância, ausência de células vazias, 320/390/1440px e recarga. Corrigido flex-basis da barra em telas estreitas para não ocupar 560px de altura.
+
 ## Dados e backup — 25/10/2026
 
 - `DataContent` usa `.data-page`: sincronização na largura inteira, Backup completo e Planilhas lado a lado em desktop e empilhados até 1050px, sem painel esticado para preencher a altura. Campos de arquivo compactos, instruções CSV em details, exclusão isolada e fechada no fim.

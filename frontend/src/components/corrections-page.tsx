@@ -102,8 +102,7 @@ const compactKodlandLessonLabel = (review: KodlandReview, lessons: KodlandLesson
 /**
  * Transforms the pending work queue into the same matrix shape used by
  * attendance: class -> student rows -> lesson/task columns. The model keeps
- * all active students in a class, so an empty cell is meaningful rather than
- * silently removing the student from the compact view.
+ * all active students when requested, or only students with pending cells.
  */
 export function compactActivitiesModel({
   reviews,
@@ -113,6 +112,7 @@ export function compactActivitiesModel({
   students,
   manualClasses,
   manualStudents,
+  pendingOnly = false,
 }: {
   reviews: readonly KodlandReview[];
   lessons: readonly KodlandLesson[];
@@ -121,6 +121,7 @@ export function compactActivitiesModel({
   students: readonly KodlandStudent[];
   manualClasses: readonly ManualClass[];
   manualStudents: readonly ManualStudent[];
+  pendingOnly?: boolean;
 }): CompactActivitiesModel {
   const drafts = new Map<string, CompactActivityClassDraft>();
   const ensureClass = (key: string, name: string) => {
@@ -202,7 +203,7 @@ export function compactActivitiesModel({
     key: draft.key,
     name: draft.name,
     columns: [...draft.columns.values()].sort((first, second) => first.sortKey.localeCompare(second.sortKey, "pt-BR")),
-    rows: [...draft.rows.values()].sort((first, second) => first.name.localeCompare(second.name, "pt-BR")),
+    rows: [...draft.rows.values()].filter(row => !pendingOnly || Object.keys(row.cells).length > 0).sort((first, second) => first.name.localeCompare(second.name, "pt-BR")),
   })).sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
 }
 
@@ -437,10 +438,12 @@ export function CompactActivitiesGrid({
   model,
   demo,
   onCorrectManual,
+  pendingOnly = false,
 }: {
   model: CompactActivitiesModel;
   demo?: CorrectionsDemoAdapter;
   onCorrectManual: (activity: ManualActivity) => void;
+  pendingOnly?: boolean;
 }) {
   return <div className="correction-class-list compact-activities-list" aria-label="Atividades pendentes em formato compacto">
     {model.map((classModel) => {
@@ -451,22 +454,23 @@ export function CompactActivitiesGrid({
           <span className="correction-disclosure" aria-hidden="true">⌄</span>
         </summary>
         <div className="correction-class-body attendance-class-body">
-          <div className="attendance-grid-scroll compact-activities-grid-scroll" tabIndex={0} role="grid" aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={classModel.rows.length + 1} aria-colcount={classModel.columns.length + 1}>
-            <div className="attendance-grid-header" style={gridStyle} role="row">
+          <div className="attendance-grid-scroll compact-activities-grid-scroll" tabIndex={0} role={pendingOnly ? "list" : "grid"} aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={pendingOnly ? undefined : classModel.rows.length + 1} aria-colcount={pendingOnly ? undefined : classModel.columns.length + 1}>
+            {!pendingOnly && <div className="attendance-grid-header" style={gridStyle} role="row">
               <div className="attendance-grid-corner" role="columnheader">Aluno</div>
               {classModel.columns.map((column) => <div className="attendance-column-heading compact-activity-column-heading" role="columnheader" key={column.key} title={`${column.lessonLabel} · ${column.taskLabel}`}>
                 <strong>{column.lessonLabel}</strong><small>{column.taskLabel}</small>
               </div>)}
-            </div>
-            {classModel.rows.map((row) => <div className="attendance-grid-row" style={gridStyle} role="row" key={row.key}>
-              <div className="attendance-student-summary" role="rowheader">
+            </div>}
+            {classModel.rows.map((row) => <div className={pendingOnly ? "compact-pending-row" : "attendance-grid-row"} style={pendingOnly ? undefined : gridStyle} role={pendingOnly ? "listitem" : "row"} key={row.key}>
+              <div className="attendance-student-summary" role={pendingOnly ? undefined : "rowheader"}>
                 <div className="attendance-student-copy"><h4>{row.name}</h4>{row.email && <span>{row.email}</span>}</div>
               </div>
               {classModel.columns.map((column) => {
                 const cell = row.cells[column.key];
-                if (!cell) return <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
+                if (!cell) return pendingOnly ? null : <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
-                return <div className="compact-activity-cell" role="gridcell" key={column.key}>
+                return <div className="compact-activity-cell" role={pendingOnly ? "group" : "gridcell"} key={column.key}>
+                  {pendingOnly && <><strong className="compact-pending-lesson">{column.lessonLabel}</strong><small className="compact-pending-task" title={column.taskLabel}>{column.taskLabel}</small></>}
                   {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} data-tooltip={column.taskLabel} onClick={() => onCorrectManual(cell.activity)}>Corrigir</button>
                     : demo ? <button type="button" className="compact-activity-action" aria-label={label} data-tooltip={column.taskLabel} onClick={() => demo.onCorrect(cell.review)}>Corrigir</button>
                       : <a className="compact-activity-action" aria-label={label} data-tooltip={column.taskLabel} href={cell.review.correction_url} target="_blank" rel="noreferrer">Corrigir</a>}
@@ -523,6 +527,7 @@ function ReviewCard({
 type CorrectionsViewPreferences = {
   viewMode: "attendance" | "activities";
   activitiesView: "list" | "compact";
+  pendingOnly: boolean;
   grouping: ReviewGrouping;
   attendanceFilter: AttendanceFilter;
 };
@@ -542,6 +547,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
   const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
   const [activitiesView, setActivitiesView] = useState<"list" | "compact">("list");
+  const [pendingOnly, setPendingOnly] = useState(true);
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
   const [openAttendanceClasses, setOpenAttendanceClasses] = useState<Set<string>>(() => new Set());
   const [whatsAppDraft, setWhatsAppDraft] = useState<WhatsAppDraft | null>(null);
@@ -572,6 +578,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
       if (!active) return;
       if (stored?.viewMode === "attendance" || stored?.viewMode === "activities") setViewMode(stored.viewMode);
       if (stored?.activitiesView === "list" || stored?.activitiesView === "compact") setActivitiesView(stored.activitiesView);
+      setPendingOnly(typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : true);
       if (stored?.grouping === "class" || stored?.grouping === "student" || stored?.grouping === "lesson") setGrouping(stored.grouping);
       if (stored?.attendanceFilter === "ABSENT" || stored?.attendanceFilter === "ALL" || stored?.attendanceFilter === "PRESENT") setAttendanceFilter(stored.attendanceFilter);
       setViewPreferencesLoaded(true);
@@ -582,9 +589,9 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   useEffect(() => {
     if (!viewPreferencesLoaded) return;
     try {
-      localStorage.setItem(`nexusclass.corrections.view.${preferenceKey}`, JSON.stringify({ viewMode, activitiesView, grouping, attendanceFilter } satisfies CorrectionsViewPreferences));
+      localStorage.setItem(`nexusclass.corrections.view.${preferenceKey}`, JSON.stringify({ viewMode, activitiesView, grouping, attendanceFilter, pendingOnly } satisfies CorrectionsViewPreferences));
     } catch { /* The screen remains usable when storage is blocked. */ }
-  }, [activitiesView, attendanceFilter, grouping, preferenceKey, viewMode, viewPreferencesLoaded]);
+  }, [activitiesView, attendanceFilter, grouping, pendingOnly, preferenceKey, viewMode, viewPreferencesLoaded]);
 
   useEffect(() => {
     if (!notice) return;
@@ -696,7 +703,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
     students: attendanceStudents,
     manualClasses,
     manualStudents,
-  }), [attendanceStudents, groups, lessons, manualClasses, manualStudents, visibleOwn, visibleReviews]);
+    pendingOnly,
+  }), [attendanceStudents, groups, lessons, manualClasses, manualStudents, pendingOnly, visibleOwn, visibleReviews]);
   const attendanceHistories = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const studentsByExternalId = new Map(attendanceStudents.map((student) => [student.external_id, student]));
@@ -786,6 +794,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
                 <button type="button" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}>Lista</button>
                 <button type="button" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}>Compacto</button>
               </div></div>
+              {activitiesView === "compact" && <label className="correction-toolbar-control"><span>Mostrar</span><select className="input correction-header-select" aria-label="Filtrar atividades" value={pendingOnly ? "pending" : "all"} onChange={event => setPendingOnly(event.target.value === "pending")}><option value="pending">Somente pendências</option><option value="all">Todos os alunos</option></select></label>}
               {activitiesView === "list" && <label className="correction-toolbar-control"><span>Agrupar por</span><select className="input correction-header-select" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}>
                 <option value="class">Turma</option>
                 <option value="student">Aluno</option>
@@ -832,6 +841,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
         </> : <>
         {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
+          pendingOnly={pendingOnly}
           demo={demo}
           onCorrectManual={(activity) => { setEditingManual(activity); setFeedback(activity.feedback); }}
         /> : <div className="correction-class-list" data-tour="corrections-cards">

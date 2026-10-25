@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { KodlandGroup, KodlandLesson, KodlandReview, KodlandStudent } from "@/lib/api";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
-import { compactActivitiesModel } from "./corrections-page";
+import { compactActivitiesModel, CompactActivitiesGrid } from "./corrections-page";
 
 const timestamp = "2026-10-21T12:00:00.000Z";
 
@@ -45,6 +46,21 @@ const manualActivity = (overrides: Partial<ManualActivity> = {}): ManualActivity
 });
 
 describe("compactActivitiesModel", () => {
+  it("oculta alunos e células vazias no filtro de pendências para turmas próprias e Kodland", () => {
+    const inputs = {
+      groups: [group()], lessons: [lesson()], students: [student(), student({ id: "other", external_id: "other", name: "Sem pendência" })],
+      reviews: [review()], manualActivities: [manualActivity()],
+      manualClasses: [manualClass({ student_ids: ["manual-student-1", "other-manual"] })],
+      manualStudents: [manualStudent(), manualStudent({ id: "other-manual", name: "Sem entrega" })],
+    };
+    const model = compactActivitiesModel({ ...inputs, pendingOnly: true });
+    expect(model.flatMap(group => group.rows.map(row => row.name))).toEqual(["Ana", "Carla"]);
+    const markup = renderToStaticMarkup(<CompactActivitiesGrid model={model} pendingOnly onCorrectManual={() => undefined} />);
+    expect(markup).not.toContain("compact-activity-empty");
+    expect(markup).not.toContain("Sem pendência");
+    expect(markup).toContain("Desafio");
+    expect(compactActivitiesModel(inputs).flatMap(group => group.rows)).toHaveLength(4);
+  });
   it("organiza pendências por turma, aluno e atividade e mantém células vazias para alunos ativos", () => {
     const model = compactActivitiesModel({
       groups: [group()],

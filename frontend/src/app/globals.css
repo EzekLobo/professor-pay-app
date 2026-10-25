@@ -2207,7 +2207,7 @@ summary:focus-visible {
   max-width: 760px;
 }
 .correction-heading-actions-compact {
-  grid-template-columns: max-content minmax(190px, 1fr) auto;
+  grid-template-columns: max-content max-content minmax(140px, 1fr) auto;
 }
 .correction-activity-view-switch { white-space: nowrap; }
 .correction-activity-view-switch button { padding-inline: 10px; }
@@ -2484,7 +2484,7 @@ summary:focus-visible {
     margin-left: 0;
   }
   .corrections-topbar { align-items: stretch; flex-direction: column; gap: 10px; }
-  .corrections-topbar .correction-heading-actions { width: 100%; max-width: none; margin: 0 0 10px; }
+  .corrections-topbar .correction-heading-actions { flex: 0 0 auto; width: 100%; max-width: none; margin: 0 0 10px; }
 }
 @media (min-width: 721px) and (max-width: 900px) {
   .shell-header {
@@ -2811,6 +2811,13 @@ summary:focus-visible {
 .compact-activity-column-heading { min-height: 52px; }
 .compact-activity-column-heading small { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 .compact-activity-cell { display: grid; align-self: center; min-width: 0; min-height: 28px; padding: 0; }
+.compact-pending-row { display: flex; align-items: stretch; gap: 10px; width: max-content; min-width: 100%; padding: 8px 10px 8px 0; border-bottom: 1px solid rgba(65, 91, 128, .48); }
+.compact-pending-row:last-child { border-bottom: 0; }
+.compact-pending-row > .attendance-student-summary { flex: 0 0 180px; width: 180px; }
+.compact-pending-row > .compact-activity-cell { flex: 0 0 146px; width: 146px; gap: 5px; }
+.compact-pending-lesson { font-size: .72rem; color: #edf6ff; }
+.compact-pending-task { overflow: hidden; color: var(--muted); font-size: .66rem; white-space: nowrap; text-overflow: ellipsis; }
+@media (max-width: 760px) { .compact-pending-row > .attendance-student-summary { flex-basis: 150px; width: 150px; } }
 .compact-activity-action { position: relative; display: grid; min-height: 28px; border: 1px solid rgba(255, 190, 62, .7); border-radius: 8px; padding: 3px 5px; place-items: center; color: #fff3cb; background: rgba(194, 118, 12, .35); font: inherit; font-size: .66rem; font-weight: 850; line-height: 1; text-decoration: none; cursor: pointer; transition: filter .15s ease, transform .15s ease; }
 .compact-activity-manual { border-color: rgba(86, 195, 255, .68); background: rgba(37, 119, 182, .35); color: #d8f4ff; }
 .compact-activity-action:hover, .compact-activity-action:focus-visible { filter: brightness(1.18); outline: 2px solid rgba(255, 224, 147, .9); outline-offset: 1px; transform: translateY(-1px); }

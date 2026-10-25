@@ -2001,6 +2001,8 @@ summary:focus-visible {
 .group-student-count { flex: 0 0 auto; color: var(--muted); font-size: .78rem; font-weight: 700; }
 .group-summary-meta { display: inline-flex; align-items: center; gap: 12px; }
 .group-has-actions { position: relative; }
+.group-has-actions:has(.group-actions-menu) { z-index: 30; overflow: visible; }
+.manual-group-panel:has(.group-actions-menu) { z-index: 30; }
 .group-has-actions .group-accordion-summary { padding-right: 18px; }
 .group-header-actions { position: absolute; top: 10px; right: 42px; display: inline-flex; align-items: center; gap: 6px; }
 .group-settings-button, .group-delete-button, .group-menu-button { display: inline-grid; width: 40px; height: 40px; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: transparent; color: #8fcaf0; cursor: pointer; }

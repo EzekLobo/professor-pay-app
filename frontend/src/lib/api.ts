@@ -65,6 +65,9 @@ import {
 export type User = { id: string; name: string; email: string };
 export type DashboardLesson = {
   source?: "kodland_payroll";
+  payroll_status?: string;
+  payroll_flags?: string[];
+  payroll_kind?: string;
   id: string;
   class_id: string | null;
   class_name_snapshot: string;
@@ -1105,6 +1108,7 @@ export const calculateDashboard = (
           duration_minutes: entry.planned_minutes, active: payable, canceled: !payable, note: entry.lesson_title,
           financial_status: "", hourly_rate_cents: 0,
         }, today), source: "kodland_payroll", value_cents: payable ? entry.amount_cents! : 0,
+        payroll_status: entry.status, payroll_flags: entry.flagged_reasons, payroll_kind: entry.lesson_kind,
       });
     }
     // Official totals include adjustments and conversions: never recompute them from duration.
@@ -1144,6 +1148,7 @@ export const calculateDashboard = (
   );
   const paymentDates = new Set([
     ...groups.keys(),
+    ...(payrollState?.mode === "official" ? usable.map(sheet => nextMonthPaymentDate(sheet.period_start)) : []),
     ...confirmations.filter((item) => confirmedSnapshot(item)).map((item) => String(item.payment_date)),
   ]);
   const payments = [...paymentDates]

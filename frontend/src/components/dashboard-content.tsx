@@ -18,6 +18,7 @@ import type {
   ExtraLessonPayload,
 } from "@/lib/api";
 import { brlToCents } from "@/lib/finance";
+import { payrollEntryLabels } from "@/lib/kodland-payroll";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -644,6 +645,7 @@ export function PaymentStatement({
           <div className="form-actions"><button className="button button-primary" type="submit" disabled={addingExtra}>{addingExtra ? "Adicionando…" : "Adicionar ao extrato"}</button></div>
         </form>
       )}
+      {payment.payroll?.some(sheet => sheet.applied) && <p className="muted">Datas, valores e situações Kodland conforme a folha oficial. Faltas do tutor e cancelamentos aparecem quando informados pela Kodland; ausência de cobrança não significa cancelamento.</p>}
       {payment.lessons.length ? (
         <div className="payment-statement-list">
           {payment.lessons.map((lesson) => (
@@ -651,10 +653,11 @@ export function PaymentStatement({
               <div>
                 <strong>{lesson.class_name_snapshot || "Aula"}</strong>
                 <span>
-                  {formatDate(lesson.lesson_date)} · Aula {lesson.number} ·{" "}
+                  {formatDate(lesson.lesson_date)}{lesson.number > 0 ? ` · Aula ${lesson.number}` : ""} ·{" "}
                   {lesson.type === "ADJUSTMENT" ? "Ajuste" : lesson.type === "EXTRA" ? "Extra" : "Normal"}
                 </span>
                 {lesson.student && <span>{lesson.student}</span>}
+                {lesson.source === "kodland_payroll" && payrollEntryLabels(lesson.payroll_status ?? "", lesson.payroll_flags).map(label => <span className="payment-lesson-excluded" key={label}>{label}</span>)}
                 {["SUBSTITUTION", "HOLIDAY", "CANCELED"].includes(lesson.financial_status ?? "") && (
                   <span className="payment-lesson-excluded">
                     {lesson.financial_status === "SUBSTITUTION"

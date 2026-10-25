@@ -93,3 +93,20 @@ export function normalizePayroll(summary: unknown, detail: unknown, teacherId: s
 }
 
 export const payrollStatusLabel = (value: string) => ({ draft: "Rascunho", approved: "Aprovado", paid: "Pago na Kodland" }[value] ?? value);
+
+/** Keep provider facts separate: a non-payable entry is not necessarily canceled. */
+export function payrollEntryLabels(status: string, flags: string[] = []): string[] {
+  const statuses: Record<string, string> = {
+    calculated: "Contabilizada", projected: "Prevista", reassigned: "Transferida para substituto",
+    missing_rate: "Tarifa pendente", missing_fx: "Câmbio pendente", flagged: "Sinalizada pela Kodland",
+    canceled: "Cancelada", cancelled: "Cancelada",
+  };
+  const reasons: Record<string, string> = {
+    tutor_absent: "Falta do tutor", short_duration: "Duração insuficiente",
+    no_recording: "Sem gravação", no_students: "Sem alunos na aula",
+  };
+  return [...new Set([
+    ...(status ? [statuses[status] ?? `Situação Kodland: ${status}`] : []),
+    ...flags.filter(Boolean).map(flag => reasons[flag] ?? `Sinalização Kodland: ${flag}`),
+  ])];
+}

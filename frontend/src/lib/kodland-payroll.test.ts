@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateDashboard, type PayrollState } from "./api";
-import { normalizePayroll, payrollCents } from "./kodland-payroll";
+import { normalizePayroll, payrollCents, payrollEntryLabels } from "./kodland-payroll";
 
 const raw = {
   id: 12, teacher: 22, period_start: "2026-10-01", approval_status: "approved",
@@ -21,6 +21,26 @@ const calculate = (mode: PayrollState["mode"], confirmations: { id: string; [key
 );
 
 describe("official payroll", () => {
+  it("labels absences, cancellations and reassignment without inventing reasons", () => {
+    expect(payrollEntryLabels("calculated", ["tutor_absent", "no_students"])).toEqual(["Contabilizada", "Falta do tutor", "Sem alunos na aula"]);
+    expect(payrollEntryLabels("cancelled")).toEqual(["Cancelada"]);
+    expect(payrollEntryLabels("reassigned")).toEqual(["Transferida para substituto"]);
+    expect(payrollEntryLabels("unknown")).toEqual(["Situação Kodland: unknown"]);
+  });
+  it("retains zero-value periods and excluded lesson dates in the statement", () => {
+    const excluded = normalizePayroll(raw, { ...raw, payout_amount: "0", projected_lessons: 0, entries: [
+      { ...raw.entries[0], status: "flagged", amount: "0", flagged_reasons: ["tutor_absent"] },
+      { ...raw.entries[1], status: "cancelled", amount: "0" },
+    ] }, "22");
+    expect(excluded.complete).toBe(true);
+    const dashboard = calculateDashboard([], [], [], [], [], "2026-10-25", [], [], [], [], [], [], { periods: [excluded], teacher_id: "22", mode: "official", last_sync: "" });
+    const payment = dashboard.payments.find(p => p.payment_date === "2026-11-15")!;
+    expect(payment.total_cents).toBe(0);
+    expect(payment.lesson_count).toBe(0);
+    expect(payment.lessons).toHaveLength(2);
+    expect(payment.lessons[0]).toMatchObject({ lesson_date: "2026-10-06", payroll_status: "flagged", payroll_flags: ["tutor_absent"] });
+    expect(payment.lessons[1]).toMatchObject({ lesson_date: "2026-10-27", payroll_status: "cancelled", payroll_kind: "extra" });
+  });
   it("parses decimal money without silently turning missing amounts into zero", () => {
     expect(payrollCents("1234.56")).toBe(123456);
     expect(payrollCents("-3.50")).toBe(-350);

@@ -2769,6 +2769,7 @@ export const kodlandApi = {
     onProgress?.("Atualizando turmas, alunos, agenda e aulas…");
     const core = await kodlandApi.sync(username, password, "essential", options);
     const groupIds = core.group_ids ?? [];
+    const authorizedGroupIds = new Set(groupIds);
     let reviewCount = 0;
     for (let index = 0; index < groupIds.length; index += 1) {
       assertSyncOwner();
@@ -2782,7 +2783,7 @@ export const kodlandApi = {
     const lessons = (await rows("kodland_lessons")) as unknown as KodlandLesson[];
     const pendingLessons = lessons
       .filter((lesson): lesson is KodlandLesson & { source_lesson_id: string } =>
-        Boolean(lesson.external_class_id && lesson.source_lesson_id) &&
+        authorizedGroupIds.has(lesson.external_class_id) && Boolean(lesson.source_lesson_id) &&
         lesson.materials_status !== "ready" &&
         lesson.materials_status !== "empty" &&
         !hasKodlandMaterials(lesson),

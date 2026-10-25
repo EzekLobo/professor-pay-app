@@ -27,6 +27,8 @@ const validSyncId = (value: string | null) =>
 const statusMessage = (status: number, code?: string) => {
   if (code === "kodland_invalid_credentials")
     return "Usuário ou senha da Kodland inválidos. Confira os dados e tente novamente.";
+  if (code === "material_not_authorized")
+    return "O acesso à Kodland foi confirmado, mas o material solicitado não pertence às turmas ou ao curso disponíveis nesta conta. Atualize as turmas e tente novamente.";
   if (code === "kodland_rate_limited" || status === 429)
     return "A Kodland limitou temporariamente as tentativas. Aguarde alguns minutos e tente novamente.";
   if (code === "kodland_session_expired")
@@ -36,7 +38,7 @@ const statusMessage = (status: number, code?: string) => {
   if (status === 400)
     return "Informe o usuário e a senha da Kodland e tente novamente.";
   if (status === 403)
-    return "A Kodland recusou o acesso. Confira as credenciais e tente novamente.";
+    return "A consulta foi recusada por falta de permissão. Informe a referência ao suporte para identificar a etapa.";
   if (status === 408 || status === 504)
     return "A sincronização demorou além do limite. Aguarde um pouco e tente novamente.";
   if (status === 413)

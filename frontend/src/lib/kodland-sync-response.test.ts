@@ -10,6 +10,10 @@ const requestId = "d271ac9f-94e1-4907-a977-a82f68ee8c12";
 const serverId = "7f6fa104-a38c-45c0-8de1-19af9719c818";
 
 describe("Kodland sync response", () => {
+  it("does not blame valid credentials when a material is unauthorized", async () => {
+    await expect(readKodlandSyncResponse(Response.json({ code: "material_not_authorized" }, { status: 403 }), requestId))
+      .rejects.toThrow("O acesso à Kodland foi confirmado");
+  });
   it("preserves HTTP status, content type and request reference for a Vercel HTML timeout", async () => {
     const response = new Response("<html>Gateway Timeout</html>", {
       status: 504,

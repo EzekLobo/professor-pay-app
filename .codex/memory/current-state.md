@@ -6,6 +6,7 @@
 - `kodlandPayrollApi` importa ano atual/anterior atomicamente por UID, com vínculo de professor e proteção contra troca de conta. Coleções: `kodland_payroll_periods`, `kodland_payroll_sync`, `kodland_payroll_settings`. Backup 4.0 continua aceitando 1/2/3.
 - Pagamentos abre em comparação; fonte oficial é opt-in. Períodos incompletos/moeda incompatível mantêm estimativa local. Valores oficiais substituem somente Kodland no mês coberto; turmas manuais e snapshots recebidos são preservados. Aprovação não significa recebimento.
 - Demonstração tem folha fictícia e alternância persistente sem serviços privados. Verificar com lint, typecheck, Vitest (204 testes), build e `playwright test e2e/payroll.spec.ts` (desktop/celular). Suíte E2E completa: 20/21; falha preexistente de wheel na presença manual em 390px permanece fora da integração.
+- Publicação `8ba618b` READY e painel confirmado no navegador. Consulta real autenticou SSO e recebeu config, mas flags de disponibilidade impediram listagem (403, referência `77d3db56-24fe-43c0-a161-672d430976d8`). Importação real não validada; nenhuma escrita financeira ocorreu. Não contornar bloqueio sem verificar acesso no portal oficial (sessão oficial expirou).
 
 
 

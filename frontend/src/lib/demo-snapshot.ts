@@ -5,9 +5,12 @@ import type { ManualCourse } from "./manual-courses";
 import { defaultTutorPreferences, occurrenceHorizon, planManualOccurrences, type ManualAttendance, type ManualAvailability, type ManualOccurrence, type TutorPreferences } from "./manual-operations";
 import type { KodlandClassSettings, ManualClass, ManualClassGroup, ManualStudent } from "./manual-teaching";
 import type { RatePeriod } from "./teaching-finance";
+import { normalizePayroll } from "./kodland-payroll";
+import type { PayrollState } from "./api";
 
 /** Public, synthetic snapshot. Never reads a teacher account or the Kodland API. */
 export type DemoSnapshot = {
+  payroll?: PayrollState;
   today: string;
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -105,7 +108,9 @@ export function createDemoSnapshot(): DemoSnapshot {
     id: `demo-manual-availability-${week_day}`, week_day, start_time: "17:00", end_time: "21:00",
     active: true, created_at: createdAt, updated_at: createdAt,
   }));
-  return { today, groups, students, lessons, extras, reviews, attendance, availability: [0, 1, 2, 3, 4].map((weekday) => ({ id: `demo-availability-${weekday}`, weekday, start_time: "19:00", end_time: "22:00", created_at: today })), paymentStatus: {}, financialStatus: {}, additionalExtras: [], manualClassGroups, manualClasses, manualStudents, manualLessons: [], manualActivities: [], manualCourses, manualOccurrences, manualAttendance, manualAvailability, tutorPreferences: { ...defaultTutorPreferences(createdAt), onboarding_completed: true }, defaultRateHistory: [], kodlandSettings: [], paymentSnapshots: {} };
+  const payrollFixture = { id: "demo-period", teacher: "demo", period_start: `${today.slice(0, 7)}-01`, approval_status: "draft", payout_currency: "BRL", local_currency: "BRL", payout_amount: "30.00", projected_lessons: 0, total_minutes: 60, payable_lessons: 1, entries: [{ id: "demo-payroll-entry", group: groups[0]?.external_id, group_title: "Folha fictícia", lesson_started_at: `${today.slice(0, 7)}-01T20:00:00-03:00`, lesson_tz: "America/Sao_Paulo", lesson_kind: "regular", lesson_length_minutes: 60, actual_minutes: 65, amount: "30.00", currency: "BRL", status: "calculated" }] };
+  const payroll: PayrollState = { mode: "comparison", teacher_id: "demo", last_sync: createdAt, periods: [normalizePayroll(payrollFixture, payrollFixture, "demo")] };
+  return { today, groups, students, lessons, extras, reviews, attendance, availability: [0, 1, 2, 3, 4].map((weekday) => ({ id: `demo-availability-${weekday}`, weekday, start_time: "19:00", end_time: "22:00", created_at: today })), paymentStatus: {}, financialStatus: {}, additionalExtras: [], manualClassGroups, manualClasses, manualStudents, manualLessons: [], manualActivities: [], manualCourses, manualOccurrences, manualAttendance, manualAvailability, tutorPreferences: { ...defaultTutorPreferences(createdAt), onboarding_completed: true }, defaultRateHistory: [], kodlandSettings: [], paymentSnapshots: {}, payroll };
 }
 
 export const demoFinancialLessonId = (lesson: Pick<KodlandLesson, "external_class_id" | "id">) => `kodland-${lesson.external_class_id}-${lesson.id}`;
@@ -119,7 +124,7 @@ export function demoFinancialInputs(snapshot: DemoSnapshot, customHolidays: Cust
   });
   const confirmations = Object.entries(snapshot.paymentStatus).map(([date, status]) => ({ id: date, payment_date: date, status, received_at: status === "RECEIVED" ? `${snapshot.today}T12:00:00Z` : null, payment_snapshot: status === "RECEIVED" ? snapshot.paymentSnapshots[date] : undefined }));
   const lessonRows = snapshot.additionalExtras.map((lesson) => ({ ...lesson, active: true, canceled: false, financial_status: snapshot.financialStatus[lesson.id] ?? lesson.financial_status ?? "" }));
-  return [snapshot.manualClasses.map((item) => ({ ...item })), lessonRows, confirmations, snapshot.groups.map((group) => ({ ...group })), snapshot.lessons.map((lesson) => ({ ...lesson })), snapshot.today, snapshot.extras.map((extra) => ({ ...extra })), financialOverrides, customHolidays, snapshot.defaultRateHistory, snapshot.kodlandSettings.map((item) => ({ ...item })), snapshot.manualOccurrences.map((item) => ({ ...item }))];
+  return [snapshot.manualClasses.map((item) => ({ ...item })), lessonRows, confirmations, snapshot.groups.map((group) => ({ ...group })), snapshot.lessons.map((lesson) => ({ ...lesson })), snapshot.today, snapshot.extras.map((extra) => ({ ...extra })), financialOverrides, customHolidays, snapshot.defaultRateHistory, snapshot.kodlandSettings.map((item) => ({ ...item })), snapshot.manualOccurrences.map((item) => ({ ...item })), snapshot.payroll];
 }
 
 export function demoDashboard(snapshot: DemoSnapshot, customHolidays: CustomHoliday[] = []): DashboardResponse {

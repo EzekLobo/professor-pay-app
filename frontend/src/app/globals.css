@@ -310,6 +310,12 @@ summary:focus-visible {
 }
 .nav .nav-link-mobile-only { display: none; }
 .sidebar-settings { display: grid; gap: 6px; }
+.payroll-panel { grid-column: 1 / -1; display: grid; min-width: 0; gap: 12px; }
+.payroll-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.payroll-toolbar p { margin: 5px 0 0; }
+.payroll-toolbar .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.payroll-table-scroll { max-width: 100%; overflow-x: auto; margin-top: 12px; }
+.payroll-panel summary { cursor: pointer; color: var(--primary); font-weight: 700; }
 .nav-link {
   display: flex;
   align-items: center;

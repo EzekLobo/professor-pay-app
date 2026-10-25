@@ -20,6 +20,7 @@ import {
   resolveFinancialStatus,
 } from "@/lib/holidays";
 import type { KodlandLesson } from "@/lib/kodland-lessons";
+import type { PayrollPeriod } from "@/lib/kodland-payroll";
 import { isHttpUrl, type ManualActivity, type ManualLessonContent } from "@/lib/manual-pedagogy";
 import { manualCourseLessons, type ManualCourse } from "@/lib/manual-courses";
 import {
@@ -63,6 +64,7 @@ import {
 
 export type User = { id: string; name: string; email: string };
 export type DashboardLesson = {
+  source?: "kodland_payroll";
   id: string;
   class_id: string | null;
   class_name_snapshot: string;
@@ -81,6 +83,8 @@ export type DashboardLesson = {
   holiday?: { date: string; name: string; source: "NATIONAL" | "CUSTOM" };
 };
 export type DashboardPayment = {
+  adjustment_total_cents?: number;
+  payroll?: { period_id: string; teacher_id: string; official_cents: number; local_cents: number; difference_cents: number; earned_cents: number; projected_cents: number; approval_status: string; synced_at: string; applied: boolean; received_locked: boolean }[];
   payment_date: string;
   period: string;
   lesson_count: number;
@@ -164,6 +168,7 @@ export type PaymentDetail = DashboardPayment & {
   confirmation_note: string | null;
 };
 export type ImportReport = {
+  payroll_period_count?: number;
   export_id: string;
   already_imported: boolean;
   class_count: number;
@@ -186,7 +191,10 @@ export type ImportReport = {
   manual_availability_count: number;
 };
 export type DataExport = {
-  schema_version: "3.0";
+  schema_version: "4.0";
+  kodland_payroll_periods?: unknown[];
+  kodland_payroll_sync?: unknown[];
+  kodland_payroll_settings?: unknown[];
   exported_at: string;
   user: User;
   classes: unknown[];
@@ -318,6 +326,7 @@ export type KodlandSyncResult = {
   lesson_count: number;
   extra_lesson_count: number;
   material_count?: number;
+  payroll_warning?: string;
   group_ids?: string[];
 };
 type KodlandSyncOptions = {
@@ -1021,6 +1030,7 @@ export const calculateDashboard = (
   defaultRateHistory: RatePeriod[] = [],
   kodlandSettings: Row[] = [],
   manualOccurrences: Row[] = [],
+  payrollState?: PayrollState,
 ): DashboardResponse => {
   const receivedPaymentDates = new Set(
     confirmations.filter(paymentWasReceived).map((item) => String(item.payment_date)),
@@ -1076,20 +1086,43 @@ export const calculateDashboard = (
         item.financial_lesson_id === occurrence.id)?.financial_status ?? "",
     }, today));
   });
+  const localKodland = [
+    ...kodlandFinancialLessons(kodlandGroups, kodlandLessons, classRows, today, financialOverrides, defaultRateHistory, kodlandSettings),
+    ...kodlandExtraFinancialLessons(kodlandExtraLessons, today, kodlandGroups, defaultRateHistory, kodlandSettings),
+  ];
+  const payrolls = payrollState?.periods ?? [];
+  const usable = payrolls.filter(p => p.complete && p.currency === "BRL" && p.earned_cents !== null && p.projected_cents !== null);
+  const officialMonths = new Set(payrollState?.mode === "official" ? usable.map(p => p.period_start.slice(0, 7)) : []);
+  const officialLessons: Lesson[] = [];
+  if (payrollState?.mode === "official") for (const sheet of usable) {
+    const payment = nextMonthPaymentDate(sheet.period_start);
+    for (const entry of sheet.entries) {
+      const payable = ["calculated", "projected"].includes(entry.status) && entry.currency === "BRL" && entry.amount_cents !== null;
+      officialLessons.push({
+        ...asLesson({ id: `payroll:${sheet.id}:${entry.id}`, class_id: entry.group_id ? `kodland:${entry.group_id}` : null,
+          class_name_snapshot: entry.group_title || entry.lesson_title || "Aula Kodland", number: entry.lesson_number,
+          lesson_date: entry.lesson_date, payment_date: payment, type: entry.lesson_kind === "regular" ? "NORMAL" : "EXTRA",
+          duration_minutes: entry.planned_minutes, active: payable, canceled: !payable, note: entry.lesson_title,
+          financial_status: "", hourly_rate_cents: 0,
+        }, today), source: "kodland_payroll", value_cents: payable ? entry.amount_cents! : 0,
+      });
+    }
+    // Official totals include adjustments and conversions: never recompute them from duration.
+    const target = sheet.earned_cents! + sheet.projected_cents!;
+    const entriesTotal = officialLessons.filter(l => l.payment_date === payment && l.active).reduce((sum, l) => sum + l.value_cents, 0);
+    if (target !== entriesTotal) officialLessons.push({
+      ...asLesson({ id: `payroll:${sheet.id}:adjustments`, class_name_snapshot: "Ajustes da folha oficial", number: 0,
+        lesson_date: sheet.period_start, payment_date: payment, type: "ADJUSTMENT", duration_minutes: 0,
+        hourly_rate_cents: 0, active: true, note: "Bônus, correções e conciliação com o total oficial",
+      }, today), source: "kodland_payroll", value_cents: target - entriesTotal,
+    });
+  }
   const lessons = [
     ...lessonRows.map((row) => asLesson(row, today)),
     ...recurringLessons,
-    ...kodlandFinancialLessons(
-      kodlandGroups,
-      kodlandLessons,
-      classRows,
-      today,
-      financialOverrides,
-      defaultRateHistory,
-      kodlandSettings,
-    ),
-    ...kodlandExtraFinancialLessons(kodlandExtraLessons, today, kodlandGroups, defaultRateHistory, kodlandSettings),
-  ].map((lesson) => applyHolidayFinancialResolution(
+    ...localKodland.filter(l => !officialMonths.has(l.lesson_date.slice(0, 7))),
+    ...officialLessons,
+  ].map((lesson) => lesson.source === "kodland_payroll" ? lesson : applyHolidayFinancialResolution(
     lesson,
     customHolidays,
     receivedPaymentDates.has(lesson.payment_date),
@@ -1129,7 +1162,8 @@ export const calculateDashboard = (
       return {
         payment_date: date,
         period: group.length ? period(group[0].lesson_date) : period(date),
-        lesson_count: group.length,
+        lesson_count: group.filter(item => item.type !== "ADJUSTMENT").length,
+        adjustment_total_cents: group.filter(item => item.type === "ADJUSTMENT").reduce((sum, item) => sum + item.value_cents, 0),
         normal_count: normal.length,
         extra_count: extra.length,
         normal_total_cents: normal.reduce(
@@ -1152,6 +1186,17 @@ export const calculateDashboard = (
                 : "FUTURE",
         lessons: lessonsByPaymentDate.get(date) ?? group,
       };
+    }).map(payment => {
+      const sheets = usable.filter(p => nextMonthPaymentDate(p.period_start) === payment.payment_date);
+      if (!sheets.length) return payment;
+      return { ...payment, payroll: sheets.map(sheet => {
+        const local = localKodland.filter(l => l.lesson_date.startsWith(sheet.period_start.slice(0, 7)) && l.active && !l.canceled).reduce((sum, l) => sum + l.value_cents, 0);
+        const official = sheet.earned_cents! + sheet.projected_cents!;
+        return { period_id: sheet.id, teacher_id: sheet.teacher_id, official_cents: official, local_cents: local,
+          difference_cents: official - local, earned_cents: sheet.earned_cents!, projected_cents: sheet.projected_cents!,
+          approval_status: sheet.approval_status, synced_at: sheet.synced_at,
+          applied: payrollState?.mode === "official" && payment.status !== "RECEIVED", received_locked: payment.status === "RECEIVED" };
+      }) };
     });
   const completed = billable.filter((item) => item.lesson_date <= today);
   const future = billable.filter((item) => item.lesson_date > today);
@@ -1172,12 +1217,12 @@ export const calculateDashboard = (
       .filter((item) => item.type === "EXTRA")
       .reduce((sum, item) => sum + item.value_cents, 0),
     planned_cents: future.reduce((sum, item) => sum + item.value_cents, 0),
-    future_lessons: future.length,
+    future_lessons: future.filter(item => item.type !== "ADJUSTMENT").length,
     total_planned_cents: billable.reduce(
       (sum, item) => sum + item.value_cents,
       0,
     ),
-    total_lessons: billable.length,
+    total_lessons: billable.filter(item => item.type !== "ADJUSTMENT").length,
     last_payment:
       payments
         .filter(
@@ -1368,6 +1413,7 @@ const backupCollectionNames = [
   "manual_activities", "kodland_class_settings",
   "manual_courses", "manual_occurrences", "manual_attendance", "manual_availability",
   "kodland_financial_overrides", "holidays", "lesson_notes", "tutorials",
+  "kodland_payroll_periods", "kodland_payroll_sync", "kodland_payroll_settings",
 ] as const;
 type BackupCollection = typeof backupCollectionNames[number];
 
@@ -1376,7 +1422,7 @@ const backupPayload = (payload: unknown): ImportPayload => {
     throw new ApiError(400, "O arquivo de backup é inválido.");
   }
   const value = payload as ImportPayload;
-  if (value.schema_version !== "1.0" && value.schema_version !== "2.0" && value.schema_version !== "3.0") {
+  if (!["1.0", "2.0", "3.0", "4.0"].includes(String(value.schema_version))) {
     throw new ApiError(400, "Versão de backup não suportada.");
   }
   if (typeof value.exported_at !== "string" || !value.exported_at) {
@@ -1577,10 +1623,91 @@ export const authApi = {
   },
   logout: async () => undefined,
 };
+export type PayrollState = { periods: PayrollPeriod[]; mode: "comparison" | "official"; teacher_id: string; last_sync: string; error?: string };
+
+export const kodlandPayrollApi = {
+  get: async (): Promise<PayrollState> => {
+    const [periods, syncs, connection] = await Promise.all([
+      rows("kodland_payroll_periods"), rows("kodland_payroll_sync"), getDoc(doc(ref("kodland_payroll_settings"), "connection")),
+    ]);
+    const config = connection.data();
+    const teacherId = String(config?.teacher_id ?? "");
+    const permittedIds = new Set(syncs.filter(s => s.teacher_id === teacherId).flatMap(s => Array.isArray(s.period_ids) ? s.period_ids.map(String) : []));
+    return {
+      periods: periods.filter(p => p.teacher_id === teacherId && permittedIds.has(String(p.id))).map(p => p as unknown as PayrollPeriod),
+      mode: config?.mode === "official" ? "official" : "comparison", teacher_id: teacherId,
+      last_sync: String(config?.last_sync ?? ""),
+    };
+  },
+  setMode: async (mode: "comparison" | "official") => {
+    const ownerId = authUser().uid;
+    const current = await kodlandPayrollApi.get();
+    if (!current.teacher_id || !current.periods.length) throw new ApiError(409, "Sincronize a folha oficial antes de alterar a fonte.");
+    if (authUser().uid !== ownerId) throw new ApiError(401, "A conta conectada mudou.");
+    await setDoc(doc(ref("kodland_payroll_settings", ownerId), "connection"), { mode }, { merge: true });
+  },
+  sync: async (username: string, password: string, onProgress?: (message: string) => void): Promise<PayrollState> => {
+    const owner = authUser();
+    const ownerId = owner.uid;
+    const assertOwner = () => { if (getFirebaseAuth().currentUser?.uid !== ownerId) throw new ApiError(401, "A conta mudou durante a importação da folha."); };
+    type PayrollResponse = { payroll_teacher_id: string; payroll_period_ids: string[]; payroll_periods: PayrollPeriod[] };
+    const request = async (year: number, periodId?: string) => {
+      assertOwner();
+      const syncId = crypto.randomUUID();
+      const response = await fetch("/api/kodland/sync", {
+        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${await owner.getIdToken()}`, "x-sync-id": syncId },
+        body: JSON.stringify({ username, password, mode: "payroll", payroll_year: year, payroll_period_id: periodId }),
+      });
+      const result = await readKodlandSyncResponse<PayrollResponse>(response, syncId);
+      assertOwner();
+      if (!result.payroll_teacher_id || !Array.isArray(result.payroll_period_ids) || !Array.isArray(result.payroll_periods)) throw new ApiError(502, "Resposta da folha incompleta.");
+      return result;
+    };
+    const year = Number(isoToday().slice(0, 4));
+    const previous = (await getDoc(doc(ref("kodland_payroll_settings", ownerId), "connection"))).data();
+    const staged: Array<{ year: number; teacher: string; periods: PayrollPeriod[] }> = [];
+    let teacher = "";
+    for (const selectedYear of [year - 1, year]) {
+      onProgress?.(`Consultando folha oficial de ${selectedYear}…`);
+      const list = await request(selectedYear);
+      if (teacher && teacher !== list.payroll_teacher_id) throw new ApiError(409, "O professor da folha mudou durante a importação.");
+      teacher = list.payroll_teacher_id;
+      if (previous?.teacher_id && previous.teacher_id !== teacher) throw new ApiError(409, "Esta conta já está vinculada à folha de outro professor. A importação foi interrompida.");
+      const periods: PayrollPeriod[] = [];
+      for (const [index, id] of [...new Set(list.payroll_period_ids)].entries()) {
+        onProgress?.(`Importando folha ${selectedYear}: ${index + 1} de ${list.payroll_period_ids.length}…`);
+        const detail = await request(selectedYear, id);
+        const period = detail.payroll_periods[0];
+        if (detail.payroll_teacher_id !== teacher || !period || period.id !== id || period.teacher_id !== teacher || !period.period_start.startsWith(`${selectedYear}-`)) throw new ApiError(502, "A folha retornou um período incompatível.");
+        if (periods.some(existing => existing.period_start === period.period_start)) throw new ApiError(502, "Há mais de uma folha para a mesma competência. Confira os períodos antes de importar.");
+        periods.push(period);
+      }
+      staged.push({ year: selectedYear, teacher, periods });
+    }
+    assertOwner();
+    const batch = writeBatch(getFirebaseDb());
+    const synced = now();
+    for (const snapshot of staged) {
+      const ids: string[] = [];
+      for (const period of snapshot.periods) {
+        const documentId = `${teacher}-${period.id}`;
+        ids.push(documentId);
+        // All validated periods and their entries are committed atomically.
+        batch.set(doc(ref("kodland_payroll_periods", ownerId), documentId), firestorePayload({ ...period, external_id: period.id, id: documentId, created_at: synced }));
+      }
+      batch.set(doc(ref("kodland_payroll_sync", ownerId), String(snapshot.year)), { teacher_id: teacher, period_ids: ids, created_at: synced });
+    }
+    batch.set(doc(ref("kodland_payroll_settings", ownerId), "connection"), { teacher_id: teacher, mode: previous?.mode ?? "comparison", last_sync: synced, created_at: String(previous?.created_at ?? synced) });
+    assertOwner();
+    await batch.commit();
+    return kodlandPayrollApi.get();
+  },
+};
+
 export const dashboardApi = {
   get: async () => {
     const [legacyClasses, manualClasses, settings, kodlandSettings, manualOccurrences,
-      lessons, payments, groups, kodlandLessons, extras, overrides, holidays] = await Promise.all([
+      lessons, payments, groups, kodlandLessons, extras, overrides, holidays, payrollState] = await Promise.all([
       rows("classes"), rows("manual_classes"),
       getDoc(doc(ref("teaching_settings"), "finance")),
       rows("kodland_class_settings"),
@@ -1588,6 +1715,7 @@ export const dashboardApi = {
       rows("lessons"), rows("payments"), rows("kodland_groups"),
       rows("kodland_lessons"), rows("kodland_extra_lessons"),
       rows("kodland_financial_overrides"), rows("holidays"),
+      kodlandPayrollApi.get(),
     ]);
     const today = isoToday();
     const activeManualClasses = (manualClasses as unknown as ManualClass[]).filter((item) => item.active);
@@ -1597,17 +1725,18 @@ export const dashboardApi = {
     const currentManualOccurrences = refreshedOccurrences.length
       ? [...(manualOccurrences as unknown as ManualOccurrence[]).filter((item) => !activeManualClasses.some((classroom) => classroom.id === item.class_id)), ...refreshedOccurrences]
       : manualOccurrences;
-    const calculate = (confirmations: Row[]) => dashboardFrom(
+    const calculate = (confirmations: Row[], financialState = payrollState) => dashboardFrom(
       [...legacyClasses, ...manualClasses], lessons, confirmations,
       groups, kodlandLessons, today, extras, overrides,
       holidays as unknown as CustomHoliday[],
       rateHistory(settings.data()?.rate_history),
       kodlandSettings,
       currentManualOccurrences,
+      financialState,
     );
-    const initial = calculate(payments);
+    const initial = calculate(payments, { ...payrollState, mode: "comparison" });
     const migrated = await backfillReceivedSnapshots(payments, initial);
-    return migrated === payments ? initial : calculate(migrated);
+    return calculate(migrated);
   },
 };
 export const holidaysApi = {
@@ -2324,6 +2453,7 @@ export const paymentsApi = {
     sourceLessonId: string | undefined,
     status: "" | FinancialOverrideStatus,
   ) => {
+    if (financialLessonId.startsWith("payroll:")) throw new ApiError(409, "Lançamentos oficiais devem ser corrigidos na Kodland e sincronizados novamente.");
     if (
       (await rows("payments")).some(
         (row) => String(row.payment_date) === paymentDate,
@@ -2830,10 +2960,19 @@ export const kodlandApi = {
       await commitWrites(writes);
       materialCount += writes.length;
     }
+    let payrollWarning: string | undefined;
+    try {
+      assertSyncOwner();
+      await kodlandPayrollApi.sync(username, password, onProgress);
+    } catch (reason) {
+      assertSyncOwner();
+      payrollWarning = reason instanceof Error ? reason.message : "A folha oficial não pôde ser atualizada.";
+    }
     return {
       ...core,
       review_count: reviewCount,
       material_count: materialCount,
+      payroll_warning: payrollWarning,
     };
   },
   loadLessonMaterials: async (
@@ -3023,7 +3162,7 @@ export const dataApi = {
       getDoc(doc(ref("teaching_settings"), "preferences")),
     ]);
     return {
-      schema_version: "3.0",
+      schema_version: "4.0",
       exported_at: now(),
       user: await authApi.me(),
       ...contents,
@@ -3089,6 +3228,7 @@ export const dataApi = {
       manual_occurrence_count: collections.manual_occurrences.length,
       manual_attendance_count: collections.manual_attendance.length,
       manual_availability_count: collections.manual_availability.length,
+      payroll_period_count: collections.kodland_payroll_periods.length,
     };
   },
   import: async (payload: unknown): Promise<ImportReport> => {

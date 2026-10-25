@@ -1,13 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fake = vi.hoisted(() => ({
   docs: new Map<string, Record<string, unknown>>(),
   batchSizes: [] as number[],
   failMigration: false,
+  userId: "test-user",
 }));
 
 vi.mock("@/lib/firebase", () => ({
-  getFirebaseAuth: () => ({ currentUser: { uid: "test-user", email: "teacher@example.test", displayName: "Teacher" } }),
+  getFirebaseAuth: () => ({ currentUser: { uid: fake.userId, email: "teacher@example.test", displayName: "Teacher", getIdToken: async () => "firebase-token" } }),
   getFirebaseDb: () => ({}),
 }));
 vi.mock("@/lib/firebase-auth", () => ({ reauthenticateWithFirebase: vi.fn(async () => undefined) }));
@@ -61,7 +62,8 @@ vi.mock("firebase/firestore", () => {
   };
 });
 
-import { dashboardApi, dataApi, manualTeachingApi } from "./api";
+import { dashboardApi, dataApi, kodlandPayrollApi, manualTeachingApi } from "./api";
+import { normalizePayroll } from "./kodland-payroll";
 
 const key = (collection: string, id: string) => `users/test-user/${collection}/${id}`;
 const lesson = (id: string, date = "2026-10-13") => ({
@@ -74,6 +76,49 @@ beforeEach(() => {
   fake.docs.clear();
   fake.batchSizes.length = 0;
   fake.failMigration = false;
+  fake.userId = "test-user";
+});
+afterEach(() => vi.unstubAllGlobals());
+
+describe("payroll persistence", () => {
+  const install = (fail = false, changeUser = false) => {
+    const year = new Date().getUTCFullYear();
+    const raw = { id: "p1", teacher: "22", period_start: `${year}-10-01`, payout_currency: "BRL", payout_amount: "0", projected_lessons: 0, entries: [] };
+    const period = normalizePayroll(raw, raw, "22");
+    vi.stubGlobal("fetch", vi.fn(async (_url, options) => {
+      const body = JSON.parse(String(options.body));
+      if (changeUser) fake.userId = "another-user";
+      if (fail && body.payroll_period_id) return Response.json({ code: "payroll_unavailable" }, { status: 503 });
+      return Response.json({ groups: [], students: [], reviews: [], lessons: [], extra_lessons: [], availability: [],
+        payroll_teacher_id: "22", payroll_period_ids: body.payroll_year === year ? ["p1"] : [], payroll_periods: body.payroll_period_id ? [period] : [] });
+    }));
+  };
+  it("is idempotent and leaves received payments intact", async () => {
+    install();
+    const received = { status: "RECEIVED", total_cents: 999, payment_date: "2026-11-15" };
+    fake.docs.set(key("payments", "2026-11-15"), received);
+    await kodlandPayrollApi.sync("tutor", "password");
+    await kodlandPayrollApi.sync("tutor", "password");
+    expect((await kodlandPayrollApi.get()).periods).toHaveLength(1);
+    expect(fake.docs.get(key("payments", "2026-11-15"))).toEqual(received);
+  });
+  it("does not overwrite the last import when a detail request fails", async () => {
+    install(); await kodlandPayrollApi.sync("tutor", "password");
+    const before = JSON.stringify([...fake.docs]);
+    install(true);
+    await expect(kodlandPayrollApi.sync("tutor", "password")).rejects.toThrow();
+    expect(JSON.stringify([...fake.docs])).toBe(before);
+  });
+  it("rejects account switching and an existing binding to another teacher", async () => {
+    install(false, true);
+    await expect(kodlandPayrollApi.sync("tutor", "password")).rejects.toThrow("conta mudou");
+    expect(fake.docs.size).toBe(0);
+    fake.userId = "test-user";
+    fake.docs.set(key("kodland_payroll_settings", "connection"), { teacher_id: "33" });
+    install();
+    await expect(kodlandPayrollApi.sync("tutor", "password")).rejects.toThrow("outro professor");
+    expect(fake.docs.size).toBe(1);
+  });
 });
 
 describe("backup e migração", () => {
@@ -98,7 +143,7 @@ describe("backup e migração", () => {
     expect(Math.max(...fake.batchSizes)).toBeLessThanOrEqual(400);
   });
 
-  it("exporta e restaura backup v3 com registros manuais, tarifas e extrato fechado", async () => {
+  it("exporta e restaura backup v4 com registros manuais, folhas oficiais e extrato fechado", async () => {
     const closed = { payment_date: "2026-11-15", period: "10/2026", lesson_count: 1,
       normal_count: 1, extra_count: 0, normal_total_cents: 3000,
       extra_total_cents: 0, total_cents: 3000, status: "RECEIVED", lessons: [] };
@@ -118,10 +163,11 @@ describe("backup e migração", () => {
     fake.docs.set(key("kodland_financial_overrides", "override-1"), { id: "override-1", financial_status: "HOLIDAY", created_at: "2026-10-01" });
     fake.docs.set(key("teaching_settings", "finance"), { rate_history: [{ effective_from: "2026-10-13", hourly_rate_cents: 4000 }] });
     fake.docs.set(key("teaching_settings", "preferences"), { default_duration_minutes: 60, kodland_enabled: false });
+    fake.docs.set(key("kodland_payroll_periods", "teacher-period"), { teacher_id: "teacher", period_start: "2026-10-01", entries: [], created_at: "2026-10-01" });
     fake.docs.set(key("payments", "2026-11-15"), { payment_date: "2026-11-15", status: "RECEIVED",
       payment_snapshot: closed, created_at: "2026-10-01" });
     const exported = await dataApi.export();
-    expect(exported).toMatchObject({ schema_version: "3.0", manual_students: [{ name: "Ana" }],
+    expect(exported).toMatchObject({ schema_version: "4.0", kodland_payroll_periods: [{ teacher_id: "teacher" }], manual_students: [{ name: "Ana" }],
       manual_class_groups: [{ name: "Autônomas" }], manual_classes: [{ name: "Própria", group_id: "personal-1" }], teaching_settings: { id: "finance" },
       payment_confirmations: [{ payment_snapshot: closed }] });
     fake.docs.clear();
@@ -130,6 +176,7 @@ describe("backup e migração", () => {
       manual_lesson_count: 1, manual_activity_count: 1, manual_course_count: 1,
       manual_occurrence_count: 1, manual_attendance_count: 1, manual_availability_count: 1 });
     await dataApi.import(exported);
+    expect(fake.docs.get(key("kodland_payroll_periods", "teacher-period"))?.teacher_id).toBe("teacher");
     expect(fake.docs.get(key("manual_classes", "own-1"))?.rate_history).toEqual([
       { effective_from: "2026-10-13", hourly_rate_cents: 5000 },
     ]);

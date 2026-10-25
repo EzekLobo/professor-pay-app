@@ -1,5 +1,13 @@
 # Estado atual
 
+## Folha oficial Kodland — 25/10/2026
+
+- `kodland-payroll.ts` normaliza a API v2 `tutor_payroll_periods/`; acesso GET com teacher do SSO, config de disponibilidade e período pertencente à lista autenticada. Não há aprovação ou transação financeira remota.
+- `kodlandPayrollApi` importa ano atual/anterior atomicamente por UID, com vínculo de professor e proteção contra troca de conta. Coleções: `kodland_payroll_periods`, `kodland_payroll_sync`, `kodland_payroll_settings`. Backup 4.0 continua aceitando 1/2/3.
+- Pagamentos abre em comparação; fonte oficial é opt-in. Períodos incompletos/moeda incompatível mantêm estimativa local. Valores oficiais substituem somente Kodland no mês coberto; turmas manuais e snapshots recebidos são preservados. Aprovação não significa recebimento.
+- Demonstração tem folha fictícia e alternância persistente sem serviços privados. Verificar com lint, typecheck, Vitest (204 testes), build e `playwright test e2e/payroll.spec.ts` (desktop/celular). Suíte E2E completa: 20/21; falha preexistente de wheel na presença manual em 390px permanece fora da integração.
+
+
 
 ## Levantamento do painel de métricas Kodland
 

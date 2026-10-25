@@ -8,6 +8,7 @@ import {
   type KodlandLesson,
 } from "@/lib/kodland-lessons";
 import { parseGuardianContact, parseStudentContact } from "@/lib/student-profile";
+import { normalizePayroll, objectRecord, payrollList } from "@/lib/kodland-payroll";
 
 export const runtime = "nodejs";
 
@@ -1809,7 +1810,9 @@ export async function POST(request: NextRequest) {
     let body: {
       username?: string;
       password?: string;
-      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles";
+      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles" | "payroll";
+      payroll_year?: number;
+      payroll_period_id?: string;
       group_id?: string;
       source_lesson_id?: string;
       material_requests?: Array<{
@@ -1836,11 +1839,40 @@ export async function POST(request: NextRequest) {
       return syncResponse(syncId, { code: "missing_credentials" }, 400);
     }
     const mode = body.mode ?? "essential";
-    if (!["essential", "schedule", "corrections", "materials", "profiles"].includes(mode)) {
+    if (!["essential", "schedule", "corrections", "materials", "profiles", "payroll"].includes(mode)) {
       trace("invalid_request");
       return syncResponse(syncId, { code: "invalid_request" }, 400);
     }
     const token = await runStage("kodland_auth", () => kodlandLogin(username, password));
+    if (mode === "payroll") {
+      const teacherId = userId(token);
+      const currentYear = new Date().getUTCFullYear();
+      const year = body.payroll_year ?? currentYear;
+      if (!Number.isInteger(year) || year < currentYear - 1 || year > currentYear) {
+        return syncResponse(syncId, { code: "invalid_request" }, 400);
+      }
+      try {
+        const config = objectRecord(await runStage("payroll_config", () => get("tutor_payroll_roster/config/", token)));
+        if (!config.enabled || !config.enabled_for_user) return syncResponse(syncId, { code: "payroll_unavailable" }, 403);
+        const list = payrollList(await runStage("payroll_periods", () => get(`tutor_payroll_periods/?teacher_id=${encodeURIComponent(teacherId)}&year=${year}`, token)));
+        const periodId = body.payroll_period_id;
+        let periods: ReturnType<typeof normalizePayroll>[] = [];
+        if (periodId) {
+          const summary = list.find(item => String(item.id) === periodId);
+          if (!summary || !/^[\w-]+$/.test(periodId)) return syncResponse(syncId, { code: "payroll_not_authorized" }, 403);
+          const detail = await runStage("payroll_detail", () => get(`tutor_payroll_periods/${encodeURIComponent(periodId)}/`, token));
+          periods = [normalizePayroll(summary, detail, teacherId)];
+        }
+        return syncResponse(syncId, {
+          groups: [], students: [], reviews: [], lessons: [], extra_lessons: [], availability: [],
+          payroll_teacher_id: teacherId, payroll_year: year,
+          payroll_period_ids: list.map(item => String(item.id)), payroll_periods: periods,
+        });
+      } catch {
+        trace("payroll_unavailable");
+        return syncResponse(syncId, { code: "payroll_unavailable" }, 503);
+      }
+    }
     const groups = await runStage("groups", () => groupsForTeacher(userId(token), token),
       (result) => ({ groupCount: result.length }));
     const active = groups.filter((group) => !group.archived);

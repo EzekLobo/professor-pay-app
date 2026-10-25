@@ -598,6 +598,8 @@ export function PaymentStatement({
         </div>
       </div>
       <div className="payment-breakdown">
+        {payment.payroll?.map(sheet => <div key={sheet.period_id}><span>{sheet.applied ? "Fonte: folha oficial Kodland" : sheet.received_locked ? "Recebimento preservado · comparação Kodland" : "Comparação com folha Kodland"}</span><strong>Oficial: {money(sheet.official_cents)}</strong><small>Contabilizado: {money(sheet.earned_cents)} · Previsto: {money(sheet.projected_cents)}</small><small>Diferença para projeção local: {money(sheet.difference_cents)}</small></div>)}
+        {Boolean(payment.adjustment_total_cents) && <div><span>Ajustes oficiais</span><strong>{money(payment.adjustment_total_cents!)}</strong></div>}
         <div>
           <span>Normais</span>
           <strong>
@@ -650,7 +652,7 @@ export function PaymentStatement({
                 <strong>{lesson.class_name_snapshot || "Aula"}</strong>
                 <span>
                   {formatDate(lesson.lesson_date)} · Aula {lesson.number} ·{" "}
-                  {lesson.type === "EXTRA" ? "Extra" : "Normal"}
+                  {lesson.type === "ADJUSTMENT" ? "Ajuste" : lesson.type === "EXTRA" ? "Extra" : "Normal"}
                 </span>
                 {lesson.student && <span>{lesson.student}</span>}
                 {["SUBSTITUTION", "HOLIDAY", "CANCELED"].includes(lesson.financial_status ?? "") && (
@@ -665,7 +667,7 @@ export function PaymentStatement({
               </div>
               <div className="payment-statement-row-actions">
                 <strong>{money(lesson.value_cents)}</strong>
-                {onLessonFinancialStatusChange && (
+                {onLessonFinancialStatusChange && lesson.source !== "kodland_payroll" && (
                   <select
                     className="input button-small"
                     aria-label={`Status financeiro da aula ${lesson.number}`}

@@ -26,7 +26,7 @@ import {
 } from "@/lib/kodland-sync-response";
 
 const summary = (report: ImportReport) =>
-  `${report.class_count} turmas legadas, ${report.lesson_count} aulas financeiras, ${report.payment_confirmation_count} confirmações (${formatMoney(report.total_cents)}), ${report.pedagogical_group_count} turmas e ${report.pedagogical_student_count} alunos Kodland, ${report.manual_class_count ?? 0} turmas próprias, ${report.manual_student_count ?? 0} alunos próprios, ${report.manual_course_count ?? 0} cursos, ${report.manual_occurrence_count ?? 0} ocorrências, ${report.manual_attendance_count ?? 0} presenças, ${report.manual_lesson_count ?? 0} conteúdos e ${report.manual_activity_count ?? 0} atividades`;
+  `${report.class_count} turmas legadas, ${report.lesson_count} aulas financeiras, ${report.payment_confirmation_count} confirmações (${formatMoney(report.total_cents)}), ${report.pedagogical_group_count} turmas e ${report.pedagogical_student_count} alunos Kodland, ${report.manual_class_count ?? 0} turmas próprias, ${report.manual_student_count ?? 0} alunos próprios, ${report.manual_course_count ?? 0} cursos, ${report.manual_occurrence_count ?? 0} ocorrências, ${report.manual_attendance_count ?? 0} presenças, ${report.manual_lesson_count ?? 0} conteúdos, ${report.manual_activity_count ?? 0} atividades e ${report.payroll_period_count ?? 0} folhas oficiais`;
 
 export interface DataDemoAdapter {
   snapshot: object;
@@ -124,6 +124,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       }
       setSyncPassword("");
       setSyncOpen(false);
+      if (result.payroll_warning) setError(`Aulas e turmas sincronizadas. Folha oficial: ${result.payroll_warning}`);
       setNotice(
         `Sincronização concluída: ${result.group_count} turma(s), ${result.student_count} aluno(s), ${result.lesson_count} aula(s), ${result.extra_lesson_count} extra(s) e ${result.review_count} correção(ões).${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
       );

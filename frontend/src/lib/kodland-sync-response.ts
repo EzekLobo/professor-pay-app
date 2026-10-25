@@ -25,6 +25,8 @@ const validSyncId = (value: string | null) =>
     : null;
 
 const statusMessage = (status: number, code?: string) => {
+  if (code === "payroll_unavailable" || code === "payroll_not_authorized")
+    return "A folha oficial não está disponível para esta conta ou não pôde ser consultada. O financeiro anterior foi preservado.";
   if (code === "kodland_invalid_credentials")
     return "Usuário ou senha da Kodland inválidos. Confira os dados e tente novamente.";
   if (code === "material_not_authorized")

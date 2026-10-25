@@ -5,6 +5,18 @@ export type GuardianContact = {
   email: string;
 };
 
+export function parseStudentContact(payload: unknown) {
+  const detail = objectValue(payload);
+  const main = objectValue(detail.main_info ?? detail.mainInfo);
+  const student = objectValue(main.student ?? detail.student);
+  const sources = [student, main, detail];
+  return {
+    name: firstValue(sources, ["full_name", "fullName", "name"]),
+    email: firstValue(sources, ["email", "email_address"]),
+    phone: firstValue(sources, ["phone", "phone_number", "mobile"]),
+  };
+}
+
 const objectValue = (value: unknown): Record<string, unknown> => (
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}
 );

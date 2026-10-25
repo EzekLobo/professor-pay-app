@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseGuardianContact } from "./student-profile";
+import { parseGuardianContact, parseStudentContact } from "./student-profile";
 
 describe("student profile contact parser", () => {
+  it("keeps student contacts separate from the responsible contact", () => {
+    expect(parseStudentContact({ main_info: { full_name: "Aluno", phone: "111", email: "aluno@example.test", parent: { name: "Responsável", phone: "222" } } })).toEqual({ name: "Aluno", phone: "111", email: "aluno@example.test" });
+  });
   it("reads flat parent fields and ignores unrelated profile data", () => {
     expect(parseGuardianContact({
       main_info: {

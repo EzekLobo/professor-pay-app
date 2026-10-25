@@ -296,8 +296,13 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
         credentials.password,
         "essential",
       );
+      const profiles = await kodlandApi.sync(
+        credentials.username.trim(),
+        credentials.password,
+        "profiles",
+      );
       setNotice(
-        `${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda da Kodland. Apenas as concluídas entram em Pagamentos.`,
+        `${result.student_count} aluno(s) atualizado(s), com ${profiles.student_count} perfil(is) consultado(s). ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda.`,
       );
       await load();
     } catch (reason) {

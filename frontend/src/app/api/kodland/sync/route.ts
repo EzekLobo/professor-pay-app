@@ -7,7 +7,7 @@ import {
   type KodlandCourseLesson,
   type KodlandLesson,
 } from "@/lib/kodland-lessons";
-import { parseGuardianContact } from "@/lib/student-profile";
+import { parseGuardianContact, parseStudentContact } from "@/lib/student-profile";
 
 export const runtime = "nodejs";
 
@@ -817,7 +817,7 @@ function studentsFromPayload(payload: unknown, group: Group): Student[] {
 async function studentsWithProfiles(
   students: Student[],
   token: string,
-  cache: Map<string, ReturnType<typeof parseGuardianContact>>,
+  cache: Map<string, ReturnType<typeof parseGuardianContact> & { student?: ReturnType<typeof parseStudentContact> }>,
 ): Promise<Student[]> {
   return mapWithConcurrency(students, KODLAND_CONCURRENCY, async (student) => {
       let guardian = cache.get(student.external_id);
@@ -826,11 +826,14 @@ async function studentsWithProfiles(
           `students/${student.external_id}/get_general_info_for_student_backoffice_page/`,
           token,
         );
-        guardian = parseGuardianContact(profile);
+        guardian = { ...parseGuardianContact(profile), student: parseStudentContact(profile) };
         cache.set(student.external_id, guardian);
       }
       return {
         ...student,
+        name: guardian.student?.name || student.name,
+        email: guardian.student?.email || student.email,
+        phone: guardian.student?.phone || student.phone,
         guardian_name: guardian.name,
         guardian_relationship: guardian.relationship,
         guardian_phone: guardian.phone,
@@ -2028,7 +2031,7 @@ export async function POST(request: NextRequest) {
     }
     const profileCache = new Map<
       string,
-      ReturnType<typeof parseGuardianContact>
+      ReturnType<typeof parseGuardianContact> & { student?: ReturnType<typeof parseStudentContact> }
     >();
     const courseLessonCache: CourseLessonCache = {
       catalog: new Map(),

@@ -2572,6 +2572,9 @@ export const kodlandApi = {
         .map((student) => {
           const previous = previousById.get(student.id)!;
           return (batch) => batch.update(doc(syncCollection("kodland_students"), student.id), {
+            name: student.name || previous.name || "",
+            email: student.email || previous.email || "",
+            phone: student.phone || previous.phone || "",
             guardian_name: student.guardian_name || previous.guardian_name || "",
             guardian_relationship: student.guardian_relationship || previous.guardian_relationship || "",
             guardian_phone: student.guardian_phone || previous.guardian_phone || "",

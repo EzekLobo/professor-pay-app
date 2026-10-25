@@ -8,7 +8,7 @@ import {
   type KodlandLesson,
 } from "@/lib/kodland-lessons";
 import { parseGuardianContact, parseStudentContact } from "@/lib/student-profile";
-import { normalizePayroll, objectRecord, payrollList } from "@/lib/kodland-payroll";
+import { normalizePayroll, payrollList } from "@/lib/kodland-payroll";
 
 export const runtime = "nodejs";
 
@@ -17,6 +17,7 @@ type SyncFailureCode =
   | "kodland_rate_limited"
   | "kodland_session_expired"
   | "kodland_timeout"
+  | "payroll_not_authorized"
   | "kodland_unavailable";
 
 class SyncFailure extends Error {
@@ -520,6 +521,7 @@ async function get(path: string, token: string) {
         cache: "no-store",
       });
       if (response.ok) return response.json();
+      if (response.status === 403 && path.startsWith("tutor_payroll_periods/")) throw new SyncFailure("payroll_not_authorized", 403);
       const retryable = [429, 500, 502, 503, 504].includes(response.status);
       if (retryable && attempt === 0) {
         await waitForRetry(response);
@@ -1852,8 +1854,8 @@ export async function POST(request: NextRequest) {
         return syncResponse(syncId, { code: "invalid_request" }, 400);
       }
       try {
-        const config = objectRecord(await runStage("payroll_config", () => get("tutor_payroll_roster/config/", token)));
-        if (!config.enabled || !config.enabled_for_user) return syncResponse(syncId, { code: "payroll_unavailable" }, 403);
+        // Roster rollout flags are not authorization for the tutor's own periods.
+        // The authenticated periods endpoint enforces access; never infer a 403 locally.
         const list = payrollList(await runStage("payroll_periods", () => get(`tutor_payroll_periods/?teacher_id=${encodeURIComponent(teacherId)}&year=${year}`, token)));
         const periodId = body.payroll_period_id;
         let periods: ReturnType<typeof normalizePayroll>[] = [];
@@ -1868,7 +1870,8 @@ export async function POST(request: NextRequest) {
           payroll_teacher_id: teacherId, payroll_year: year,
           payroll_period_ids: list.map(item => String(item.id)), payroll_periods: periods,
         });
-      } catch {
+      } catch (error) {
+        if (error instanceof SyncFailure) throw error;
         trace("payroll_unavailable");
         return syncResponse(syncId, { code: "payroll_unavailable" }, 503);
       }

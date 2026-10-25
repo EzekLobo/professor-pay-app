@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ChangeEvent } from "react";
+import { Download, FileSpreadsheet } from "lucide-react";
 import { Button, Input } from "@/components/ui";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 import { manualAdapter as productionAdapter } from "@/lib/manual-adapters-runtime";
@@ -84,10 +85,12 @@ export function ManualCsvPanel({ adapter = productionAdapter }: { adapter?: Manu
     finally { setBusy(false); }
   };
 
-  return <section className="panel data-backup-card">
-    <div className="data-backup-heading"><div><h2>Importar e exportar CSV</h2><p className="muted">A prévia valida todas as linhas antes da gravação. Em turmas, use dia da semana de 0 (domingo) a 6 (sábado) e separe e-mails por ponto e vírgula.</p></div></div>
+  return <section className="panel data-backup-card data-csv-card" aria-label="Planilhas CSV">
+    <div className="data-backup-heading"><div><h2><FileSpreadsheet size={19} aria-hidden="true" /> Planilhas</h2><p className="muted">Importe ou exporte alunos e turmas em CSV.</p></div></div>
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice">{notice}</p>}
-    <div className="data-backup-actions"><label className="field">Tipo<select className="input" value={kind} onChange={(event) => { setKind(event.target.value as Kind); setPreview(null); }}><option value="students">Alunos</option><option value="classes">Turmas e matrículas</option></select></label><label className="field">Arquivo CSV<Input aria-label="Arquivo CSV para importação" type="file" accept=".csv,text/csv" onChange={read} /></label><Button className="button-ghost" type="button" onClick={() => void exportRows()}>Exportar CSV</Button></div>
+    <div className="data-csv-toolbar"><label className="field">Conteúdo<select className="input" disabled={busy} value={kind} onChange={(event) => { setKind(event.target.value as Kind); setPreview(null); }}><option value="students">Alunos</option><option value="classes">Turmas e matrículas</option></select></label><Button className="button-ghost" type="button" disabled={busy} onClick={() => { setBusy(true); setError(""); void exportRows().catch(reason => setError(reason instanceof Error ? reason.message : "Não foi possível exportar o CSV.")).finally(() => setBusy(false)); }}><Download size={16} aria-hidden="true" />Exportar CSV</Button></div>
+    <label className="field data-csv-file">Importar arquivo<Input aria-label="Arquivo CSV para importação" disabled={busy} type="file" accept=".csv,text/csv" onChange={read} /></label>
+    <details className="data-format-help"><summary>Formato do arquivo</summary><p className="muted">Todas as linhas são validadas antes da gravação. Em turmas, use dia da semana de 0 (domingo) a 6 (sábado) e separe e-mails por ponto e vírgula.</p></details>
     {preview && <div className="csv-preview"><p>{preview.rows.length} linha(s) encontradas.</p>{preview.errors.length > 0 && <ul className="form-error">{preview.errors.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>}<Button type="button" disabled={busy || preview.errors.length > 0} onClick={() => void commit()}>{busy ? "Importando…" : "Confirmar importação"}</Button></div>}
   </section>;
 }

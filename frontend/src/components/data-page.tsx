@@ -1,6 +1,7 @@
 "use client";
 
 import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
+import { Database, Download, RefreshCw, Upload } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Modal } from "@/components/modal";
@@ -19,6 +20,7 @@ import {
   restoreKodlandCredentials,
 } from "@/lib/browser-credentials";
 import { formatMoney } from "@/lib/finance";
+import type { ManualAdapters } from "@/lib/manual-adapters";
 import { getFirebaseAuth } from "@/lib/firebase";
 import {
   KodlandSyncPersistenceError,
@@ -29,6 +31,7 @@ const summary = (report: ImportReport) =>
   `${report.class_count} turmas legadas, ${report.lesson_count} aulas financeiras, ${report.payment_confirmation_count} confirmações (${formatMoney(report.total_cents)}), ${report.pedagogical_group_count} turmas e ${report.pedagogical_student_count} alunos Kodland, ${report.manual_class_count ?? 0} turmas próprias, ${report.manual_student_count ?? 0} alunos próprios, ${report.manual_course_count ?? 0} cursos, ${report.manual_occurrence_count ?? 0} ocorrências, ${report.manual_attendance_count ?? 0} presenças, ${report.manual_lesson_count ?? 0} conteúdos, ${report.manual_activity_count ?? 0} atividades e ${report.payroll_period_count ?? 0} folhas oficiais`;
 
 export interface DataDemoAdapter {
+  csvAdapter?: ManualAdapters;
   snapshot: object;
   onSync: () => void | Promise<void>;
   onReset: () => void;
@@ -264,7 +267,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
   }
 
   return (
-    <div className="management-grid page-fill-grid">
+    <div className="management-grid page-fill-grid data-page">
       <ConfirmDialog open={confirmation !== null} title={confirmation === "reset" ? "Apagar dados" : "Importar backup"} confirmLabel={confirmation === "reset" ? "Apagar permanentemente" : "Importar dados"} danger={confirmation === "reset"} onClose={() => setConfirmation(null)} onConfirm={confirmation === "reset" ? performReset : importIt}><p>{confirmation === "reset" ? "Todos os dados da sua conta serão apagados permanentemente. Esta ação não pode ser desfeita." : "Importar os dados deste backup para sua conta? Confira a prévia antes de continuar."}</p></ConfirmDialog>
       {kodlandEnabled && <Modal
         open={syncOpen}
@@ -329,31 +332,32 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
 
       {kodlandEnabled && <section className="panel data-sync-card" data-tour="data-sync">
         <div className="data-section-copy">
-          <h2>Sincronizar Kodland</h2>
+          <h2><RefreshCw size={19} aria-hidden="true" /> Sincronização Kodland</h2>
         </div>
         <Button type="button" disabled={busy} onClick={openSync}>
           Sincronizar tudo
         </Button>
       </section>}
 
-      <section className="panel data-backup-card page-fill-panel">
+      <section className="panel data-backup-card" aria-label="Backup completo">
         <div className="data-backup-heading">
           <div>
-            <h2>Backup</h2>
+            <h2><Database size={19} aria-hidden="true" /> Backup completo</h2>
+            <p className="muted">Salve ou restaure os dados da conta.</p>
           </div>
         </div>
         <div className="data-backup-actions">
           <section className="data-backup-action" data-tour="data-export">
             <div>
-              <h3>Exportar</h3>
+              <h3>Salvar cópia</h3>
             </div>
             <Button className="button-ghost" disabled={busy} onClick={() => void download()}>
-              {busy ? "Preparando…" : "Baixar JSON"}
+              <Download size={16} aria-hidden="true" />{busy ? "Preparando…" : "Baixar JSON"}
             </Button>
           </section>
           <section className="data-backup-action" data-tour="data-import">
             <div>
-              <h3>Importar backup</h3>
+              <h3><Upload size={16} aria-hidden="true" /> Restaurar cópia</h3>
             </div>
             <label className="field data-backup-file">
               <Input aria-label="Arquivo de backup JSON" type="file" accept="application/json,.json" disabled={busy || Boolean(demo)} onChange={file} />
@@ -379,7 +383,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
         {report && <p className="notice">Importação: {summary(report)}</p>}
       </section>
 
-      {!demo && <ManualCsvPanel />}
+      {(!demo || demo.csvAdapter) && <ManualCsvPanel adapter={demo?.csvAdapter} />}
 
       <details className="data-danger-zone" data-tour="data-delete">
         <summary>

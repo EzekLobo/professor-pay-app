@@ -1,5 +1,10 @@
 # Estado atual
 
+## Dados e backup — 25/10/2026
+
+- `DataContent` usa `.data-page`: sincronização na largura inteira, Backup completo e Planilhas lado a lado em desktop e empilhados até 1050px, sem painel esticado para preencher a altura. Campos de arquivo compactos, instruções CSV em details, exclusão isolada e fechada no fim.
+- Planilhas também funciona na demo com `csvAdapter` local explícito, sem Firebase/Kodland. Exportação CSV bloqueia duplicação e exibe falhas. `e2e/data-layout.spec.ts` cobre 320/390/1440px, ordem dos cards, ausência de overflow e CSV inválido sem gravação.
+
 ## Projeção Kodland automática — 25/10/2026
 
 - Removido o painel de comparação e a escolha de fonte em Pagamentos. `kodlandPayrollApi.get()` usa sempre a folha oficial, inclusive para preferências antigas; `syncAll` atualiza a folha junto com o restante. Demonstração segue a mesma regra.

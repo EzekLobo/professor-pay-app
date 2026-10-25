@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
-import { completeTutorial, getTutorialProgress, isTutorialVersionCompleted } from "@/lib/tutorial-progress";
-import { getRenderableTutorialSteps, getTutorialForPathname, tutorialSessionKey, type TutorialDefinition, type TutorialStep } from "@/lib/tutorials";
+import { completeTutorial } from "@/lib/tutorial-progress";
+import { getRenderableTutorialSteps, getTutorialForPathname, type TutorialDefinition, type TutorialStep } from "@/lib/tutorials";
 
-const sessionCompletedTutorials = new Set<string>();
 const TARGET_WAIT_MS = 500;
 const TARGET_CHECK_INTERVAL_MS = 50;
 type SpotlightBounds = { left: number; top: number; width: number; height: number };
@@ -54,8 +53,6 @@ export function useGuidedTour({ userId, pathname }: { userId: string; pathname: 
   }, []);
 
   const markCompleted = useCallback((definition: TutorialDefinition) => {
-    const key = tutorialSessionKey(userId, definition);
-    sessionCompletedTutorials.add(key);
     void completeTutorial(userId, definition.id, definition.version).catch(() => undefined);
   }, [userId]);
 
@@ -77,25 +74,6 @@ export function useGuidedTour({ userId, pathname }: { userId: string; pathname: 
       setIsOpen(true);
     });
   }, [pathname, prepareSteps, tutorial]);
-
-  useEffect(() => {
-    if (!tutorial) return;
-    const definition = tutorial;
-    let cancelled = false;
-    const key = tutorialSessionKey(userId, definition);
-    async function openOnFirstVisit() {
-      if (sessionCompletedTutorials.has(key)) return;
-      try {
-        const progress = await getTutorialProgress(userId, definition.id);
-        if (cancelled || isTutorialVersionCompleted(progress, definition.version)) return;
-      } catch {
-        if (cancelled) return;
-      }
-      if (!cancelled) open(null);
-    }
-    void openOnFirstVisit();
-    return () => { cancelled = true; };
-  }, [open, tutorial, userId]);
 
   const goBack = useCallback(() => setStepIndex((current) => Math.max(0, current - 1)), []);
   const goNext = useCallback(() => {

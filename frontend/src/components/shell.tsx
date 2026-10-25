@@ -11,7 +11,6 @@ import { appRoutes, pageTitle } from "@/lib/routes";
 import { GuidedTourDialog, useGuidedTour } from "@/components/guided-tour";
 import { AccessTelemetry, endStoredAccessSession } from "@/components/access-telemetry";
 import { HolidayCalendarDialog } from "@/components/holiday-calendar-dialog";
-import { FirstAccessAssistant } from "@/components/first-access-assistant";
 
 type ShellFrameProps = {
   user: User;
@@ -124,7 +123,6 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
         </>
       }>{children}</ShellFrame>
       <GuidedTourDialog tour={tour} />
-      <FirstAccessAssistant />
       <HolidayCalendarDialog open={holidayCalendarOpen} onClose={() => setHolidayCalendarOpen(false)} />
     </>
   );

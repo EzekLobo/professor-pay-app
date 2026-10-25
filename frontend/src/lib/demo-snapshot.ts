@@ -109,7 +109,7 @@ export function createDemoSnapshot(): DemoSnapshot {
     active: true, created_at: createdAt, updated_at: createdAt,
   }));
   const payrollFixture = { id: "demo-period", teacher: "demo", period_start: `${today.slice(0, 7)}-01`, approval_status: "draft", payout_currency: "BRL", local_currency: "BRL", payout_amount: "30.00", projected_lessons: 0, total_minutes: 60, payable_lessons: 1, entries: [{ id: "demo-payroll-entry", group: groups[0]?.external_id, group_title: "Folha fictícia", lesson_started_at: `${today.slice(0, 7)}-01T20:00:00-03:00`, lesson_tz: "America/Sao_Paulo", lesson_kind: "regular", lesson_length_minutes: 60, actual_minutes: 65, amount: "30.00", currency: "BRL", status: "calculated" }] };
-  const payroll: PayrollState = { mode: "comparison", teacher_id: "demo", last_sync: createdAt, periods: [normalizePayroll(payrollFixture, payrollFixture, "demo")] };
+  const payroll: PayrollState = { mode: "official", teacher_id: "demo", last_sync: createdAt, periods: [normalizePayroll(payrollFixture, payrollFixture, "demo")] };
   return { today, groups, students, lessons, extras, reviews, attendance, availability: [0, 1, 2, 3, 4].map((weekday) => ({ id: `demo-availability-${weekday}`, weekday, start_time: "19:00", end_time: "22:00", created_at: today })), paymentStatus: {}, financialStatus: {}, additionalExtras: [], manualClassGroups, manualClasses, manualStudents, manualLessons: [], manualActivities: [], manualCourses, manualOccurrences, manualAttendance, manualAvailability, tutorPreferences: { ...defaultTutorPreferences(createdAt), onboarding_completed: true }, defaultRateHistory: [], kodlandSettings: [], paymentSnapshots: {}, payroll };
 }
 

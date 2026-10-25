@@ -1095,7 +1095,6 @@ export const calculateDashboard = (
   ];
   const payrolls = payrollState?.periods ?? [];
   const usable = payrolls.filter(p => p.complete && p.currency === "BRL" && p.earned_cents !== null && p.projected_cents !== null);
-  const officialMonths = new Set(payrollState?.mode === "official" ? usable.map(p => p.period_start.slice(0, 7)) : []);
   const officialLessons: Lesson[] = [];
   if (payrollState?.mode === "official") for (const sheet of usable) {
     const payment = nextMonthPaymentDate(sheet.period_start);
@@ -1124,7 +1123,7 @@ export const calculateDashboard = (
   const lessons = [
     ...lessonRows.map((row) => asLesson(row, today)),
     ...recurringLessons,
-    ...localKodland.filter(l => !officialMonths.has(l.lesson_date.slice(0, 7))),
+    ...(payrollState?.mode === "official" ? [] : localKodland),
     ...officialLessons,
   ].map((lesson) => lesson.source === "kodland_payroll" ? lesson : applyHolidayFinancialResolution(
     lesson,
@@ -1640,16 +1639,9 @@ export const kodlandPayrollApi = {
     const permittedIds = new Set(syncs.filter(s => s.teacher_id === teacherId).flatMap(s => Array.isArray(s.period_ids) ? s.period_ids.map(String) : []));
     return {
       periods: periods.filter(p => p.teacher_id === teacherId && permittedIds.has(String(p.id))).map(p => p as unknown as PayrollPeriod),
-      mode: config?.mode === "official" ? "official" : "comparison", teacher_id: teacherId,
+      mode: "official", teacher_id: teacherId,
       last_sync: String(config?.last_sync ?? ""),
     };
-  },
-  setMode: async (mode: "comparison" | "official") => {
-    const ownerId = authUser().uid;
-    const current = await kodlandPayrollApi.get();
-    if (!current.teacher_id || !current.periods.length) throw new ApiError(409, "Sincronize a folha oficial antes de alterar a fonte.");
-    if (authUser().uid !== ownerId) throw new ApiError(401, "A conta conectada mudou.");
-    await setDoc(doc(ref("kodland_payroll_settings", ownerId), "connection"), { mode }, { merge: true });
   },
   sync: async (username: string, password: string, onProgress?: (message: string) => void): Promise<PayrollState> => {
     const owner = authUser();
@@ -1702,7 +1694,7 @@ export const kodlandPayrollApi = {
       }
       batch.set(doc(ref("kodland_payroll_sync", ownerId), String(snapshot.year)), { teacher_id: teacher, period_ids: ids, created_at: synced });
     }
-    batch.set(doc(ref("kodland_payroll_settings", ownerId), "connection"), { teacher_id: teacher, mode: previous?.mode ?? "comparison", last_sync: synced, created_at: String(previous?.created_at ?? synced) });
+    batch.set(doc(ref("kodland_payroll_settings", ownerId), "connection"), { teacher_id: teacher, mode: "official", last_sync: synced, created_at: String(previous?.created_at ?? synced) });
     assertOwner();
     await batch.commit();
     return kodlandPayrollApi.get();
@@ -2968,7 +2960,9 @@ export const kodlandApi = {
     let payrollWarning: string | undefined;
     try {
       assertSyncOwner();
-      await kodlandPayrollApi.sync(username, password, onProgress);
+      const payroll = await kodlandPayrollApi.sync(username, password, onProgress);
+      const incomplete = payroll.periods.filter(period => !period.complete);
+      if (incomplete.length) payrollWarning = `Há ${incomplete.length} competência(s) com valores oficiais incompletos. Essas competências não entraram na projeção; sincronize novamente após a conferência na Kodland.`;
     } catch (reason) {
       assertSyncOwner();
       payrollWarning = reason instanceof Error ? reason.message : "A folha oficial não pôde ser atualizada.";

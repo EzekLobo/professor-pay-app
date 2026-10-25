@@ -9,7 +9,6 @@ import {
 } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { PaymentHistoryChart } from "@/components/payment-history-chart";
-import { PayrollPanel, type PayrollDemo } from "@/components/payroll-panel";
 import { PaymentStatement } from "@/components/dashboard-content";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Modal } from "@/components/modal";
@@ -79,7 +78,7 @@ export type PaymentsAdapter = {
   confirm: (date: string) => Promise<unknown>;
   createExtra: (payload: ExtraLessonPayload) => Promise<unknown>;
 };
-export function PaymentsContent({ adapter, payrollDemo }: { adapter?: PaymentsAdapter; payrollDemo?: PayrollDemo } = {}) {
+export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {}) {
   const paymentActions = adapter ?? paymentsApi;
   const [confirmReverse, setConfirmReverse] = useState<boolean | null>(null);
   const [items, setItems] = useState<DashboardPayment[]>([]),
@@ -320,7 +319,6 @@ export function PaymentsContent({ adapter, payrollDemo }: { adapter?: PaymentsAd
       </section>
       {error && <p className="form-error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
-      {(!adapter || payrollDemo) && <PayrollPanel payments={items} onChange={load} demo={payrollDemo} />}
       <section className="metric-grid payment-metric-grid" data-tour="payments-summary">
         <article className="metric-card">
           <span>Estimativa a receber</span>

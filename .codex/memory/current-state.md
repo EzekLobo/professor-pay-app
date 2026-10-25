@@ -1,5 +1,10 @@
 # Estado atual
 
+## Projeção Kodland automática — 25/10/2026
+
+- Removido o painel de comparação e a escolha de fonte em Pagamentos. `kodlandPayrollApi.get()` usa sempre a folha oficial, inclusive para preferências antigas; `syncAll` atualiza a folha junto com o restante. Demonstração segue a mesma regra.
+- Em modo oficial, não gerar nenhuma previsão Kodland a partir de calendário/tarifa local, mesmo sem folha disponível. Apenas períodos oficiais completos entram nos valores; competências incompletas geram aviso na sincronização. Turmas manuais continuam locais; recebimentos confirmados ficam preservados. O modo comparison só permanece no cálculo puro para migração segura dos snapshots legados, sem controle público.
+
 ## Extrato responsivo — 25/10/2026
 
 - Modais de extrato no Resumo e Pagamentos usam `payment-statement-modal`: largura de até 960px, altura limitada à viewport e uma rolagem no próprio modal (sem lista com scrollbar aninhada). Visual compacto: fonte em etiqueta simples, sem comparação/textos de apoio redundantes no extrato (comparação permanece no painel da folha), datas dd/MM com data completa no tooltip; oculta “Normal”/“Contabilizada” repetidos e extras zeradas. Mantém situações excepcionais e quantidade remunerada separada de registros sem cobrança.
@@ -15,7 +20,7 @@
 
 - `kodland-payroll.ts` normaliza a API v2 `tutor_payroll_periods/`; acesso GET com teacher do SSO e período pertencente à lista autenticada. Não há aprovação ou transação financeira remota.
 - `kodlandPayrollApi` importa ano atual/anterior atomicamente por UID, com vínculo de professor e proteção contra troca de conta. Coleções: `kodland_payroll_periods`, `kodland_payroll_sync`, `kodland_payroll_settings`. Backup 4.0 continua aceitando 1/2/3.
-- Pagamentos abre em comparação; fonte oficial é opt-in. Períodos incompletos/moeda incompatível mantêm estimativa local. Valores oficiais substituem somente Kodland no mês coberto; turmas manuais e snapshots recebidos são preservados. Aprovação não significa recebimento.
+- Fonte oficial automática para Kodland (substitui o antigo opt-in/comparação). Períodos indisponíveis ou incompatíveis não recebem estimativas locais. Turmas manuais e snapshots recebidos são preservados. Aprovação não significa recebimento.
 - Demonstração tem folha fictícia e alternância persistente sem serviços privados. Verificar com lint, typecheck, Vitest (204 testes), build e `playwright test e2e/payroll.spec.ts` (desktop/celular). Suíte E2E completa: 20/21; falha preexistente de wheel na presença manual em 390px permanece fora da integração.
 - Histórico: `8ba618b` gerava 403 local indevido ao avaliar flags de roster. Corrigido e importação real validada por `62ce5e0`; não reintroduzir essa checagem como autorização da folha.
 

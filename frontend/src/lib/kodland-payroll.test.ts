@@ -21,6 +21,14 @@ const calculate = (mode: PayrollState["mode"], confirmations: { id: string; [key
 );
 
 describe("official payroll", () => {
+  it("does not fabricate local Kodland forecasts when the provider has no period", () => {
+    const dashboard = calculateDashboard([], [{ id: "own", lesson_date: "2026-10-10", type: "NORMAL", duration_minutes: 60, hourly_rate_cents: 1000 }], [],
+      [{ id: "g", external_id: "2", title: "Turma", start_date: "2026-10-06", course_name: "4 L 90 min" }], [], "2026-10-25", [], [], [], [], [], [],
+      { periods: [], teacher_id: "22", mode: "official", last_sync: "" });
+    expect(dashboard.payments).toHaveLength(1);
+    expect(dashboard.payments[0].total_cents).toBe(1000);
+    expect(dashboard.payments[0].lessons.map(lesson => lesson.id)).toEqual(["own"]);
+  });
   it("labels absences, cancellations and reassignment without inventing reasons", () => {
     expect(payrollEntryLabels("calculated", ["tutor_absent", "no_students"])).toEqual(["Contabilizada", "Falta do tutor", "Sem alunos na aula"]);
     expect(payrollEntryLabels("cancelled")).toEqual(["Cancelada"]);

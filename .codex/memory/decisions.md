@@ -1,5 +1,10 @@
 # Decisões
 
+## 2026-10-25 — Projeção oficial automática para Kodland
+
+- A pedido do usuário, folha/projeção Kodland é a única fonte financeira para turmas sincronizadas. Removidos painel de comparação, alternância e sincronização de folha separada. Atualização entra em Sincronizar tudo.
+- Não preencher períodos sem dados oficiais com cálculo local. Preservar turmas manuais e snapshots recebidos. A comparação anterior fica restrita à migração interna de recebimentos legados.
+
 ## 2026-10-25 — Folha oficial sem alterar recebimentos
 
 - Importação da folha é somente leitura remota e começa em comparação. Fonte oficial requer escolha explícita e só substitui estimativas Kodland de períodos validados; não altera receita manual nem pagamentos recebidos.

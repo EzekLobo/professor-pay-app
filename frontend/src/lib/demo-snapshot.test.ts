@@ -23,7 +23,7 @@ describe("public faithful demonstration", () => {
     expect(seed.extras.some((item) => item.lesson_date === "2026-10-14" && !item.completed)).toBe(true);
     expect(kodlandStudentPoints(activeStudentsRankedByPoints(seed.students)[0].progress_summary)).toBe(940);
   });
-  it("reconciles simulated extra status, financial classification and payment status locally", () => {
+  it("keeps official payroll independent of local extra and lesson overrides", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-14T12:00:00Z"));
     const seed = createDemoSnapshot();
@@ -31,23 +31,23 @@ describe("public faithful demonstration", () => {
     expect(before.payments.every((payment) => payment.payment_date.endsWith("-15"))).toBe(true);
     const extra = seed.extras.find((item) => !item.completed)!;
     const after = demoDashboard({ ...seed, extras: seed.extras.map((item) => item.id === extra.id ? { ...item, completed: true, manual_status: "DONE" } : item) });
-    expect(after.extra_lessons).toBe(before.extra_lessons + 1);
-    expect(after.total_planned_cents - before.total_planned_cents).toBe(3000);
+    expect(after.extra_lessons).toBe(before.extra_lessons);
+    expect(after.total_planned_cents).toBe(before.total_planned_cents);
     const lesson = seed.lessons[0];
     const omitted = demoDashboard({ ...seed, financialStatus: { [lesson.id]: "CANCELED" } });
-    expect(before.total_planned_cents - omitted.total_planned_cents).toBe(4500);
+    expect(omitted.total_planned_cents).toBe(before.total_planned_cents);
     const date = before.next_payment!.payment_date;
     const paid = demoDashboard({ ...seed, paymentStatus: { [date]: "RECEIVED" } });
     expect(paid.payments.find((payment) => payment.payment_date === date)?.status).toBe("RECEIVED");
     expect(createDemoSnapshot().paymentStatus).toEqual({});
   });
-  it("excludes a custom holiday from an open payment and allows an explicit billable override", () => {
+  it("does not recalculate official amounts from local holidays or overrides", () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-14T12:00:00Z"));
     const seed = createDemoSnapshot();
     const lesson = seed.lessons.find((item) => item.lesson_date === "2026-10-15")!;
     const holiday = { id: "demo-holiday", date: lesson.lesson_date, name: "Feriado fictício", source: "CUSTOM" as const, affects_financial_total: true as const, created_at: seed.today, updated_at: seed.today };
     const original = demoDashboard(seed);
-    expect(demoDashboard(seed, [holiday]).total_planned_cents).toBe(original.total_planned_cents - 4500);
+    expect(demoDashboard(seed, [holiday]).total_planned_cents).toBe(original.total_planned_cents);
     expect(demoDashboard({ ...seed, financialStatus: { [lesson.id]: "BILLABLE" } }, [holiday]).total_planned_cents).toBe(original.total_planned_cents);
   });
   it("restores only permitted local changes and keeps seeded account links and identities", () => {
@@ -98,15 +98,15 @@ describe("public faithful demonstration", () => {
     const result = demoDashboard(seed);
     expect(result).toEqual(calculateDashboard(...inputs));
     expect(result.payments.some((payment) => payment.status === "RECEIVED")).toBe(false);
-    expect(demoDashboard({ ...seed, today: "2026-10-16" }).payments.find((payment) => payment.payment_date === "2026-10-15")?.status).toBe("OVERDUE");
+    expect(seed.payroll?.mode).toBe("official");
     expect(result.payments.flatMap((payment) => payment.lessons)
-      .filter((lesson) => lesson.type === "NORMAL" && lesson.id.startsWith("kodland-"))).toHaveLength(24);
-    const lesson = result.payments.flatMap((payment) => payment.lessons).find((item) => item.financial_source_id === seed.lessons[0].id)!;
-    expect(lesson.id).toBe(demoFinancialLessonId(seed.lessons[0]));
-    expect(lesson.duration_minutes).toBe(90);
-    expect(lesson.period).toBe("09/2026");
+      .filter((lesson) => lesson.id.startsWith("kodland-"))).toHaveLength(0);
+    const lesson = result.payments.flatMap((payment) => payment.lessons).find((item) => item.source === "kodland_payroll")!;
+    expect(lesson.value_cents).toBe(3000);
+    expect(lesson.duration_minutes).toBe(60);
+    expect(lesson.period).toBe("10/2026");
   });
-  it.each(["PENDING", "DONE", "ACCOUNTED"] as const)("uses private date and extra rules for %s", (manualStatus) => {
+  it.each(["PENDING", "DONE", "ACCOUNTED"] as const)("does not override official extras with local status %s", (manualStatus) => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-14T12:00:00Z"));
     const seed = createDemoSnapshot();
     const extras = seed.extras.map((extra) => ({ ...extra, completed: true, manual_status: manualStatus }));
@@ -114,12 +114,8 @@ describe("public faithful demonstration", () => {
     const result = demoDashboard(scenario);
     expect(result).toEqual(calculateDashboard(...demoFinancialInputs(scenario)));
     const financialExtras = result.payments.flatMap((payment) => payment.lessons).filter((lesson) => lesson.type === "EXTRA");
-    expect(financialExtras).toHaveLength(manualStatus === "PENDING" ? 0 : 3);
-    if (manualStatus !== "PENDING") {
-      expect(financialExtras.find((lesson) => lesson.lesson_date === seed.today)?.status).toBe("COMPLETED");
-      expect(financialExtras.find((lesson) => lesson.lesson_date > seed.today)?.status).toBe("FUTURE");
-      expect(result.extra_lessons).toBe(2);
-    }
+    expect(financialExtras).toHaveLength(0);
+    expect(result.total_planned_cents).toBe(demoDashboard(seed).total_planned_cents);
   });
   it("preserves received competencies against automatic calendar changes through the same engine", () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-14T12:00:00Z"));

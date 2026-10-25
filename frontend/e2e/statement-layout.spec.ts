@@ -5,8 +5,6 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/demo#payments");
     await page.evaluate(() => localStorage.setItem("nexusclass:modal-guide:demo-payment-statement:v2", "1"));
-    await page.getByRole("button", { name: "Usar valores oficiais", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Usar projeção local", exact: true })).toBeVisible();
     await page.locator(".payment-carousel-card.is-focus").click();
     const statement = page.getByRole("dialog", { name: /^Extrato/ });
     await expect(statement).toBeVisible();

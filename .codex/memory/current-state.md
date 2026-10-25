@@ -1,5 +1,10 @@
 # Estado atual
 
+## Extrato responsivo — 25/10/2026
+
+- Modais de extrato no Resumo e Pagamentos usam `payment-statement-modal`: largura de até 960px, altura limitada à viewport e uma rolagem no próprio modal (sem lista com scrollbar aninhada). Fonte oficial separada dos indicadores, comparação recolhível, cards compactos; labels distinguem aulas remuneradas de registros sem cobrança.
+- Estados contabilizado/previsto possuem cores próprias; extra criado pelo tutor é explicitamente manual em períodos oficiais. Cobertura de layout em `e2e/statement-layout.spec.ts` verifica 390/1440px, limites do modal, cards e acesso à confirmação sem executá-la.
+
 ## Folha oficial Kodland — 25/10/2026
 
 - Extratos oficiais preservam `payroll_status`, `payroll_flags` e `payroll_kind` por linha, inclusive eventos sem cobrança e competências de valor zero. Labels distinguem falta do tutor, ausência de alunos, duração insuficiente, falta de gravação e transferência; não deduzir cancelamento por valor zero. `b0d85d3`: 207 testes, lint, typecheck, build e E2E da folha passam.

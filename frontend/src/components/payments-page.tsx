@@ -469,6 +469,7 @@ export function PaymentsContent({ adapter, payrollDemo }: { adapter?: PaymentsAd
       </div>
       <Modal
         open={Boolean(detail)}
+        className="payment-statement-modal"
         title={detail ? `Extrato · ${detail.period}` : "Extrato"}
         onClose={() => setDetail(null)}
         help={{

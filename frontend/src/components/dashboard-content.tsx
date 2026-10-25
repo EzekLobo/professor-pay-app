@@ -267,6 +267,7 @@ export function DashboardContent(props: DashboardContentProps) {
       </section>
       <Modal
         open={Boolean(selectedPayment)}
+        className="payment-statement-modal"
         title={
           selectedPayment ? `Extrato · ${selectedPayment.period}` : "Extrato"
         }
@@ -598,8 +599,12 @@ export function PaymentStatement({
           <strong>{money(payment.total_cents)}</strong>
         </div>
       </div>
+      {payment.payroll?.map(sheet => <section className="payment-statement-source" aria-label="Origem dos valores" key={sheet.period_id}>
+        <strong>{sheet.applied ? "Fonte: folha oficial Kodland" : sheet.received_locked ? "Recebimento preservado · comparação Kodland" : "Comparação com folha Kodland"}</strong>
+        <span>Contabilizado: {money(sheet.earned_cents)} · Previsto: {money(sheet.projected_cents)}</span>
+        <details><summary>Comparação com a projeção local</summary><p>Oficial: {money(sheet.official_cents)} · Diferença: {money(sheet.difference_cents)}</p></details>
+      </section>)}
       <div className="payment-breakdown">
-        {payment.payroll?.map(sheet => <div key={sheet.period_id}><span>{sheet.applied ? "Fonte: folha oficial Kodland" : sheet.received_locked ? "Recebimento preservado · comparação Kodland" : "Comparação com folha Kodland"}</span><strong>Oficial: {money(sheet.official_cents)}</strong><small>Contabilizado: {money(sheet.earned_cents)} · Previsto: {money(sheet.projected_cents)}</small><small>Diferença para projeção local: {money(sheet.difference_cents)}</small></div>)}
         {Boolean(payment.adjustment_total_cents) && <div><span>Ajustes oficiais</span><strong>{money(payment.adjustment_total_cents!)}</strong></div>}
         <div>
           <span>Normais</span>
@@ -614,7 +619,7 @@ export function PaymentStatement({
           </strong>
         </div>
         <div>
-          <span>Total de aulas</span>
+          <span>Aulas remuneradas</span>
           <strong>{payment.lesson_count}</strong>
         </div>
       </div>
@@ -629,7 +634,7 @@ export function PaymentStatement({
               onClick={() => setExtraFormOpen((open) => !open)}
               aria-expanded={extraFormOpen}
             >
-              {extraFormOpen ? "Cancelar" : "Adicionar aula extra"}
+              {extraFormOpen ? "Cancelar" : payment.payroll?.some(sheet => sheet.applied) ? "Adicionar extra manual" : "Adicionar aula extra"}
             </button>
           )}
         </div>
@@ -645,7 +650,7 @@ export function PaymentStatement({
           <div className="form-actions"><button className="button button-primary" type="submit" disabled={addingExtra}>{addingExtra ? "Adicionando…" : "Adicionar ao extrato"}</button></div>
         </form>
       )}
-      {payment.payroll?.some(sheet => sheet.applied) && <p className="muted">Datas, valores e situações Kodland conforme a folha oficial. Faltas do tutor e cancelamentos aparecem quando informados pela Kodland; ausência de cobrança não significa cancelamento.</p>}
+      {payment.payroll?.some(sheet => sheet.applied) && <details className="payment-statement-note"><summary>Sobre as situações oficiais</summary><p className="muted">Faltas do tutor e cancelamentos aparecem quando informados pela Kodland. Registros sem cobrança permanecem na lista e não entram na quantidade de aulas remuneradas.</p></details>}
       {payment.lessons.length ? (
         <div className="payment-statement-list">
           {payment.lessons.map((lesson) => (
@@ -657,7 +662,7 @@ export function PaymentStatement({
                   {lesson.type === "ADJUSTMENT" ? "Ajuste" : lesson.type === "EXTRA" ? "Extra" : "Normal"}
                 </span>
                 {lesson.student && <span>{lesson.student}</span>}
-                {lesson.source === "kodland_payroll" && payrollEntryLabels(lesson.payroll_status ?? "", lesson.payroll_flags).map(label => <span className="payment-lesson-excluded" key={label}>{label}</span>)}
+                {lesson.source === "kodland_payroll" && payrollEntryLabels(lesson.payroll_status ?? "", lesson.payroll_flags).map((label, index) => <span className={index === 0 && lesson.payroll_status === "calculated" ? "payment-lesson-confirmed" : index === 0 && lesson.payroll_status === "projected" ? "payment-lesson-planned" : "payment-lesson-excluded"} key={label}>{label}</span>)}
                 {["SUBSTITUTION", "HOLIDAY", "CANCELED"].includes(lesson.financial_status ?? "") && (
                   <span className="payment-lesson-excluded">
                     {lesson.financial_status === "SUBSTITUTION"

@@ -1756,7 +1756,7 @@ summary:focus-visible {
 .payment-statement {
   display: grid;
   min-width: 0;
-  gap: 18px;
+  gap: 12px;
 }
 .modal-dialog.payment-statement-modal {
   width: min(960px, calc(100vw - 24px));
@@ -1765,10 +1765,8 @@ summary:focus-visible {
   overflow-x: hidden;
   overscroll-behavior: contain;
 }
-.payment-statement-source { display: grid; gap: 7px; min-width: 0; padding: 12px 14px; border: 1px solid #274b68; border-radius: 12px; background: rgb(71 191 238 / 5%); }
-.payment-statement-source > span, .payment-statement-source summary, .payment-statement-note { color: var(--muted); font-size: .8rem; }
-.payment-statement-source p, .payment-statement-note p { margin: 8px 0 0; }
-.payment-statement-source summary, .payment-statement-note summary { cursor: pointer; }
+.payment-statement-source { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-width: 0; color: #8ddcff; font-size: .8rem; }
+.payment-statement-source > span { color: var(--muted); font-size: .8rem; }
 .payment-statement-summary,
 .payment-breakdown,
 .payment-statement-footer {
@@ -1802,7 +1800,7 @@ summary:focus-visible {
   gap: 6px;
   border: 1px solid #1d3556;
   border-radius: 12px;
-  padding: 12px;
+  padding: 9px 12px;
   background: rgb(8 18 34 / 54%);
 }
 .payment-breakdown span,
@@ -1848,7 +1846,7 @@ summary:focus-visible {
 }
 .payment-statement-list {
   display: grid;
-  gap: 9px;
+  gap: 6px;
   min-width: 0;
 }
 .payment-statement-row {
@@ -1858,7 +1856,7 @@ summary:focus-visible {
   gap: 16px;
   border: 1px solid #1d3556;
   border-radius: 12px;
-  padding: 12px;
+  padding: 8px 12px;
   background: rgb(8 18 34 / 54%);
 }
 .payment-statement-row > div {
@@ -1871,7 +1869,6 @@ summary:focus-visible {
   color: #ffbd67 !important;
   font-weight: 800;
 }
-.payment-lesson-confirmed { color: #58df9d !important; font-weight: 700; }
 .payment-lesson-planned { color: #6ed4ff !important; font-weight: 700; }
 .payment-statement-row-actions {
   display: grid;
@@ -1888,7 +1885,7 @@ summary:focus-visible {
 }
 @media (max-width: 700px) {
   .modal-dialog.payment-statement-modal { padding: 16px; }
-  .payment-statement { gap: 14px; }
+  .payment-statement { gap: 10px; }
   .payment-statement-row { flex-wrap: wrap; gap: 10px; }
   .payment-statement-row-actions { margin-left: auto; }
   .payment-statement-heading {

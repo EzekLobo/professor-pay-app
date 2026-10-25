@@ -2,7 +2,7 @@
 
 ## Extrato responsivo — 25/10/2026
 
-- Modais de extrato no Resumo e Pagamentos usam `payment-statement-modal`: largura de até 960px, altura limitada à viewport e uma rolagem no próprio modal (sem lista com scrollbar aninhada). Fonte oficial separada dos indicadores, comparação recolhível, cards compactos; labels distinguem aulas remuneradas de registros sem cobrança.
+- Modais de extrato no Resumo e Pagamentos usam `payment-statement-modal`: largura de até 960px, altura limitada à viewport e uma rolagem no próprio modal (sem lista com scrollbar aninhada). Visual compacto: fonte em etiqueta simples, sem comparação/textos de apoio redundantes no extrato (comparação permanece no painel da folha), datas dd/MM com data completa no tooltip; oculta “Normal”/“Contabilizada” repetidos e extras zeradas. Mantém situações excepcionais e quantidade remunerada separada de registros sem cobrança.
 - Estados contabilizado/previsto possuem cores próprias; extra criado pelo tutor é explicitamente manual em períodos oficiais. Cobertura de layout em `e2e/statement-layout.spec.ts` verifica 390/1440px, limites do modal, cards e acesso à confirmação sem executá-la.
 
 ## Folha oficial Kodland — 25/10/2026

@@ -600,9 +600,8 @@ export function PaymentStatement({
         </div>
       </div>
       {payment.payroll?.map(sheet => <section className="payment-statement-source" aria-label="Origem dos valores" key={sheet.period_id}>
-        <strong>{sheet.applied ? "Fonte: folha oficial Kodland" : sheet.received_locked ? "Recebimento preservado · comparação Kodland" : "Comparação com folha Kodland"}</strong>
-        <span>Contabilizado: {money(sheet.earned_cents)} · Previsto: {money(sheet.projected_cents)}</span>
-        <details><summary>Comparação com a projeção local</summary><p>Oficial: {money(sheet.official_cents)} · Diferença: {money(sheet.difference_cents)}</p></details>
+        <strong>{sheet.applied ? "Kodland · oficial" : sheet.received_locked ? "Recebimento preservado" : "Kodland · comparação"}</strong>
+        {sheet.projected_cents > 0 && <span>Contabilizado {money(sheet.earned_cents)} · Previsto {money(sheet.projected_cents)}</span>}
       </section>)}
       <div className="payment-breakdown">
         {Boolean(payment.adjustment_total_cents) && <div><span>Ajustes oficiais</span><strong>{money(payment.adjustment_total_cents!)}</strong></div>}
@@ -612,21 +611,17 @@ export function PaymentStatement({
             {payment.normal_count} · {money(payment.normal_total_cents)}
           </strong>
         </div>
-        <div>
+        {payment.extra_count > 0 && <div>
           <span>Extras</span>
           <strong>
             {payment.extra_count} · {money(payment.extra_total_cents)}
           </strong>
-        </div>
-        <div>
-          <span>Aulas remuneradas</span>
-          <strong>{payment.lesson_count}</strong>
-        </div>
+        </div>}
       </div>
       <div className="section-heading payment-statement-heading">
-        <h3>Aulas da competência</h3>
+        <h3>Aulas</h3>
         <div className="payment-statement-heading-actions">
-          <span className="muted">{payment.lessons.length} registro(s)</span>
+          <span className="muted">{payment.lessons.length === payment.lesson_count ? payment.lesson_count : `${payment.lesson_count} remuneradas · ${payment.lessons.length} registros`}</span>
           {onCreateExtra && payment.status !== "RECEIVED" && (
             <button
               className="button button-ghost button-small"
@@ -650,7 +645,6 @@ export function PaymentStatement({
           <div className="form-actions"><button className="button button-primary" type="submit" disabled={addingExtra}>{addingExtra ? "Adicionando…" : "Adicionar ao extrato"}</button></div>
         </form>
       )}
-      {payment.payroll?.some(sheet => sheet.applied) && <details className="payment-statement-note"><summary>Sobre as situações oficiais</summary><p className="muted">Faltas do tutor e cancelamentos aparecem quando informados pela Kodland. Registros sem cobrança permanecem na lista e não entram na quantidade de aulas remuneradas.</p></details>}
       {payment.lessons.length ? (
         <div className="payment-statement-list">
           {payment.lessons.map((lesson) => (
@@ -658,11 +652,11 @@ export function PaymentStatement({
               <div>
                 <strong>{lesson.class_name_snapshot || "Aula"}</strong>
                 <span>
-                  {formatDate(lesson.lesson_date)}{lesson.number > 0 ? ` · Aula ${lesson.number}` : ""} ·{" "}
-                  {lesson.type === "ADJUSTMENT" ? "Ajuste" : lesson.type === "EXTRA" ? "Extra" : "Normal"}
+                  <time dateTime={lesson.lesson_date} title={formatDate(lesson.lesson_date)}>{lesson.lesson_date.slice(5).split("-").reverse().join("/")}</time>{lesson.number > 0 ? ` · Aula ${lesson.number}` : ""}
+                  {lesson.type === "ADJUSTMENT" ? " · Ajuste" : lesson.type === "EXTRA" ? " · Extra" : ""}
                 </span>
                 {lesson.student && <span>{lesson.student}</span>}
-                {lesson.source === "kodland_payroll" && payrollEntryLabels(lesson.payroll_status ?? "", lesson.payroll_flags).map((label, index) => <span className={index === 0 && lesson.payroll_status === "calculated" ? "payment-lesson-confirmed" : index === 0 && lesson.payroll_status === "projected" ? "payment-lesson-planned" : "payment-lesson-excluded"} key={label}>{label}</span>)}
+                {lesson.source === "kodland_payroll" && payrollEntryLabels(lesson.payroll_status ?? "", lesson.payroll_flags).filter(label => label !== "Contabilizada").map(label => <span className={label === "Prevista" ? "payment-lesson-planned" : "payment-lesson-excluded"} key={label}>{label}</span>)}
                 {["SUBSTITUTION", "HOLIDAY", "CANCELED"].includes(lesson.financial_status ?? "") && (
                   <span className="payment-lesson-excluded">
                     {lesson.financial_status === "SUBSTITUTION"

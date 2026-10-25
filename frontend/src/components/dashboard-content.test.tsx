@@ -125,7 +125,9 @@ describe("DashboardContent", () => {
       />,
     );
 
-    expect(markup).toContain("Aulas da competência");
+    expect(markup).toContain("<h3>Aulas</h3>");
+    expect(markup).toContain('dateTime="2026-09-18"');
+    expect(markup).toContain("18/09");
     expect(markup).toContain("Turma de terça");
     expect(markup).toContain("Aula extra");
     expect(markup).toContain("Feriado");

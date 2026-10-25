@@ -10,6 +10,9 @@ for (const width of [390, 1440]) {
     await page.locator(".payment-carousel-card.is-focus").click();
     const statement = page.getByRole("dialog", { name: /^Extrato/ });
     await expect(statement).toBeVisible();
+    await expect(statement.getByRole("region", { name: "Origem dos valores" })).toContainText("Kodland · oficial");
+    await expect(statement.getByText("Contabilizada", { exact: true })).toHaveCount(0);
+    await expect(statement.getByText("Sobre as situações oficiais", { exact: true })).toHaveCount(0);
     const geometry = await statement.evaluate(element => {
       const rect = element.getBoundingClientRect();
       return { top: rect.top, bottom: rect.bottom, right: rect.right, left: rect.left, width: element.clientWidth, content: element.scrollWidth };

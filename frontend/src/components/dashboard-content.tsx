@@ -603,6 +603,7 @@ export function PaymentStatement({
         <strong>{sheet.applied ? "Kodland · oficial" : sheet.received_locked ? "Recebimento preservado" : "Kodland · comparação"}</strong>
         {sheet.projected_cents > 0 && <span>Contabilizado {money(sheet.earned_cents)} · Previsto {money(sheet.projected_cents)}</span>}
       </section>)}
+      {payment.lessons.some(lesson => lesson.source === "kodland_local") && <section className="payment-statement-source" aria-label="Origem da previsão local"><strong title="Histórico anterior à primeira competência fornecida pela Kodland">Kodland · previsão local</strong></section>}
       <div className="payment-breakdown">
         {Boolean(payment.adjustment_total_cents) && <div><span>Ajustes oficiais</span><strong>{money(payment.adjustment_total_cents!)}</strong></div>}
         <div>

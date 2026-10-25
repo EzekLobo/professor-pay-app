@@ -64,7 +64,7 @@ import {
 
 export type User = { id: string; name: string; email: string };
 export type DashboardLesson = {
-  source?: "kodland_payroll";
+  source?: "kodland_payroll" | "kodland_local";
   payroll_status?: string;
   payroll_flags?: string[];
   payroll_kind?: string;
@@ -1094,6 +1094,9 @@ export const calculateDashboard = (
     ...kodlandExtraFinancialLessons(kodlandExtraLessons, today, kodlandGroups, defaultRateHistory, kodlandSettings),
   ];
   const payrolls = payrollState?.periods ?? [];
+  // A missing early history may use local estimates, never gaps or future periods
+  // after the provider started supplying payrolls (including incomplete sheets).
+  const firstOfficialMonth = payrolls.map(sheet => sheet.period_start.slice(0, 7)).sort()[0];
   const usable = payrolls.filter(p => p.complete && p.currency === "BRL" && p.earned_cents !== null && p.projected_cents !== null);
   const officialLessons: Lesson[] = [];
   if (payrollState?.mode === "official") for (const sheet of usable) {
@@ -1123,7 +1126,10 @@ export const calculateDashboard = (
   const lessons = [
     ...lessonRows.map((row) => asLesson(row, today)),
     ...recurringLessons,
-    ...(payrollState?.mode === "official" ? [] : localKodland),
+    ...(payrollState?.mode === "official"
+      ? localKodland.filter(lesson => firstOfficialMonth && lesson.lesson_date.slice(0, 7) < firstOfficialMonth)
+        .map(lesson => ({ ...lesson, source: "kodland_local" as const }))
+      : localKodland),
     ...officialLessons,
   ].map((lesson) => lesson.source === "kodland_payroll" ? lesson : applyHolidayFinancialResolution(
     lesson,

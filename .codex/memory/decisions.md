@@ -1,5 +1,9 @@
 # Decisões
 
+## 2026-10-25 — Contingência apenas para histórico anterior à folha
+
+- Meses anteriores à primeira competência oficial disponível podem usar previsão local, sinalizada no extrato. A partir da primeira folha (mesmo incompleta), manter somente a fonte oficial, sem preencher lacunas ou futuro. Não duplicar cobranças nem alterar recebimentos confirmados.
+
 ## 2026-10-25 — Projeção oficial automática para Kodland
 
 - A pedido do usuário, folha/projeção Kodland é a única fonte financeira para turmas sincronizadas. Removidos painel de comparação, alternância e sincronização de folha separada. Atualização entra em Sincronizar tudo.

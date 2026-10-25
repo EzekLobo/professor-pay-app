@@ -33,7 +33,7 @@ describe("public faithful demonstration", () => {
     const after = demoDashboard({ ...seed, extras: seed.extras.map((item) => item.id === extra.id ? { ...item, completed: true, manual_status: "DONE" } : item) });
     expect(after.extra_lessons).toBe(before.extra_lessons);
     expect(after.total_planned_cents).toBe(before.total_planned_cents);
-    const lesson = seed.lessons[0];
+    const lesson = seed.lessons.find(item => item.lesson_date.startsWith(seed.today.slice(0, 7)))!;
     const omitted = demoDashboard({ ...seed, financialStatus: { [lesson.id]: "CANCELED" } });
     expect(omitted.total_planned_cents).toBe(before.total_planned_cents);
     const date = before.next_payment!.payment_date;
@@ -99,8 +99,9 @@ describe("public faithful demonstration", () => {
     expect(result).toEqual(calculateDashboard(...inputs));
     expect(result.payments.some((payment) => payment.status === "RECEIVED")).toBe(false);
     expect(seed.payroll?.mode).toBe("official");
-    expect(result.payments.flatMap((payment) => payment.lessons)
-      .filter((lesson) => lesson.id.startsWith("kodland-"))).toHaveLength(0);
+    const initialHistory = result.payments.flatMap(payment => payment.lessons).filter(lesson => lesson.source === "kodland_local");
+    expect(initialHistory.length).toBeGreaterThan(0);
+    expect(initialHistory.every(lesson => lesson.lesson_date < "2026-10-01")).toBe(true);
     const lesson = result.payments.flatMap((payment) => payment.lessons).find((item) => item.source === "kodland_payroll")!;
     expect(lesson.value_cents).toBe(3000);
     expect(lesson.duration_minutes).toBe(60);

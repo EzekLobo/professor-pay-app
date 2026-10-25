@@ -21,6 +21,19 @@ const calculate = (mode: PayrollState["mode"], confirmations: { id: string; [key
 );
 
 describe("official payroll", () => {
+  it("estimates only the initial uncovered months, not official months, later gaps or future", () => {
+    const first = normalizePayroll(raw, { ...raw, period_start: "2026-05-01", entries: raw.entries.map((entry, index) => ({ ...entry, lesson_started_at: `2026-05-${index ? "27" : "06"}T23:00:00Z` })) }, "22");
+    const calculateHistory = (period = first) => calculateDashboard([], [], [],
+      [{ id: "g", external_id: "2", title: "Turma", start_date: "2026-02-03", course_name: "40 L 90 min" }], [], "2026-10-25", [], [], [], [], [], [],
+      { periods: [period], teacher_id: "22", mode: "official", last_sync: "" });
+    const lessons = calculateHistory().payments.flatMap(payment => payment.lessons);
+    const estimated = lessons.filter(lesson => lesson.source === "kodland_local");
+    expect(estimated.length).toBeGreaterThan(0);
+    expect([...new Set(estimated.map(lesson => lesson.lesson_date.slice(0, 7)))]).toEqual(["2026-02", "2026-03", "2026-04"]);
+    expect(lessons.filter(lesson => lesson.source === "kodland_payroll")).toHaveLength(2);
+    expect(lessons.some(lesson => lesson.lesson_date >= "2026-06-01")).toBe(false);
+    expect(calculateHistory({ ...first, complete: false, issues: ["Tarifa pendente"] }).payments.flatMap(payment => payment.lessons).every(lesson => lesson.lesson_date < "2026-05-01")).toBe(true);
+  });
   it("does not fabricate local Kodland forecasts when the provider has no period", () => {
     const dashboard = calculateDashboard([], [{ id: "own", lesson_date: "2026-10-10", type: "NORMAL", duration_minutes: 60, hourly_rate_cents: 1000 }], [],
       [{ id: "g", external_id: "2", title: "Turma", start_date: "2026-10-06", course_name: "4 L 90 min" }], [], "2026-10-25", [], [], [], [], [], [],

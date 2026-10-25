@@ -3,7 +3,7 @@
 ## Projeção Kodland automática — 25/10/2026
 
 - Removido o painel de comparação e a escolha de fonte em Pagamentos. `kodlandPayrollApi.get()` usa sempre a folha oficial, inclusive para preferências antigas; `syncAll` atualiza a folha junto com o restante. Demonstração segue a mesma regra.
-- Em modo oficial, não gerar nenhuma previsão Kodland a partir de calendário/tarifa local, mesmo sem folha disponível. Apenas períodos oficiais completos entram nos valores; competências incompletas geram aviso na sincronização. Turmas manuais continuam locais; recebimentos confirmados ficam preservados. O modo comparison só permanece no cálculo puro para migração segura dos snapshots legados, sem controle público.
+- Histórico inicial: meses anteriores à primeira competência retornada pela Kodland usam cálculo local, identificado no extrato como “Kodland · previsão local”. A data de corte considera também folhas incompletas: não preencher lacunas posteriores nem meses futuros. Sem nenhuma folha não há data de corte conhecida, logo não gerar previsões Kodland. Meses oficiais completos continuam autoritativos; turmas manuais e recebimentos confirmados são preservados.
 
 ## Extrato responsivo — 25/10/2026
 

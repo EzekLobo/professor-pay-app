@@ -2,6 +2,9 @@
 
 ## Folha oficial Kodland — 25/10/2026
 
+- Extratos oficiais preservam `payroll_status`, `payroll_flags` e `payroll_kind` por linha, inclusive eventos sem cobrança e competências de valor zero. Labels distinguem falta do tutor, ausência de alunos, duração insuficiente, falta de gravação e transferência; não deduzir cancelamento por valor zero. `b0d85d3`: 207 testes, lint, typecheck, build e E2E da folha passam.
+- Conferência do backup atual exportado pela própria UI: 82 registros nas seis folhas (73 calculated, 6 reassigned, 3 projected), cinco flags short_duration; nenhuma falta/cancelamento explícito nesta resposta. Não prometer que a API retorna eventos que ela não enviou.
+
 - Correção `62ce5e0`: flags de rollout do roster não são autorização para consultar períodos do próprio tutor. Removido o 403 local inventado; a API de períodos autenticada decide o acesso, com teacher do SSO e validação do dono de cada detalhe. Recusa 403 real continua bloqueada e tem teste de regressão.
 - Verificação real no navegador após publicação: seis competências importadas (05–10/2026). Outubro: R$345 contabilizados + R$120 previstos = R$465; setembro aprovado R$405. Alternância para oficial atualizou gráfico e extrato (12 aulas, 11 normais + 1 extra) sem confirmar recebimento. Typecheck, lint, build, 205 testes unitários e 2 E2E da folha passam.
 

@@ -2842,13 +2842,13 @@ summary:focus-visible {
 .manual-group-panel .group-header-actions { position: static; display: inline-flex; align-items: center; gap: 6px; }
 .manual-group-panel-heading .group-settings-button, .manual-group-panel-heading .group-delete-button { width: 42px; height: 42px; border-radius: 12px; }
 
-.management-grid.page-fill-grid.data-page { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-items: start; gap: 16px; }
+.management-grid.page-fill-grid.data-page { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-items: stretch; gap: 16px; }
 .management-grid.data-page > .panel { grid-column: auto; min-width: 0; }
 .management-grid.data-page > .data-sync-card { grid-column: 1 / -1; }
 .data-page h2, .data-page h3 { display: flex; align-items: center; gap: 9px; margin: 0; }
 .data-page h2 { font-size: 1.05rem; }
 .data-page .data-backup-heading p { margin: 5px 0 0; font-size: .82rem; }
-.data-page .data-backup-card { gap: 18px; padding: 20px; }
+.data-page .data-backup-card { align-content: start; gap: 18px; padding: 20px; }
 .data-page .data-backup-actions { grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .data-page .data-backup-action { min-height: 0; }
 .data-page .data-backup-action:first-child { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

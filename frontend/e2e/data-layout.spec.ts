@@ -16,6 +16,7 @@ for (const width of [320, 390, 1440]) {
     const boxes = await Promise.all([backup.boundingBox(), csv.boundingBox()]);
     if (width === 1440) {
       expect(Math.abs(boxes[0]!.y - boxes[1]!.y)).toBeLessThan(2);
+      expect(Math.abs(boxes[0]!.height - boxes[1]!.height)).toBeLessThan(2);
       expect(boxes[0]!.x + boxes[0]!.width).toBeLessThan(boxes[1]!.x);
     } else expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y + boxes[0]!.height);
     const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }));

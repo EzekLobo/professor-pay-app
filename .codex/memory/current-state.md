@@ -1,6 +1,13 @@
 # Estado atual
 
 
+## Plano da área Tarefas — 26/10/2026
+
+- docs/plans/task-board-implementation.md registra proposta inspirada no Trello: quadro pessoal com quatro etapas, cartões Tarefa/Problema, checklist, prioridades, prazo, movimentação acessível e arquivo. Não implementado; não anunciar em Novidades ainda.
+- Plano inclui modelo de dados, adaptadores Firestore/demo, cache offline a validar, concorrência, regras sem permissões sobrepostas, backup 5.0 proposto, navegação móvel Mais, fases e critérios de aceite. Estimativa preliminar V1: 15–22 dias úteis; contexto de turma/aluno fica na V2 e colaboração/automação em etapas posteriores.
+- Pesquisa externa bloqueada por 403 do proxy para Trello/Atlassian/W3C; referências oficiais estão identificadas como pendentes, sem alegar leitura. Revisão interna confirmou ausência de cache persistente explícito e de biblioteca de arraste. Alterações somente documentais; testes de aplicação não foram repetidos.
+
+
 ## Menu interno de Configurações — 26/10/2026
 
 - SettingsContent organiza Conta (somente autenticados), Aulas e pagamentos, Mensagens, Integrações e Disponibilidade em abas acessíveis: menu lateral no desktop e grade compacta no celular. Uma seção visível por vez, com setas/Home/End e rascunhos preservados ao alternar.

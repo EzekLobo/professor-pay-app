@@ -4,12 +4,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { type MouseEvent, type ReactNode, useState } from "react";
-import { CalendarDays, ShieldCheck } from "lucide-react";
+import { CalendarDays, HelpCircle, ShieldCheck } from "lucide-react";
 import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
 import { appRoutes, pageTitle } from "@/lib/routes";
 import { GuidedTourDialog, useGuidedTour } from "@/components/guided-tour";
 import { AccessTelemetry, endStoredAccessSession } from "@/components/access-telemetry";
+import { ReleaseNotes } from "@/components/release-notes";
 import { HolidayCalendarDialog } from "@/components/holiday-calendar-dialog";
 
 type ShellFrameProps = {
@@ -99,6 +100,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
       <AccessTelemetry user={user} pathname={pathname} />
       <ShellFrame user={user} pathname={pathname} onLogout={logout} headerActions={
         <>
+          <ReleaseNotes userId={user.id} blocked={tour.isOpen || holidayCalendarOpen} />
           <button className="button button-ghost header-calendar-button" type="button" aria-label="Abrir calendário de feriados" title="Feriados" onClick={() => setHolidayCalendarOpen(true)}>
             <CalendarDays size={18} strokeWidth={2.2} aria-hidden="true" />
             <span>Feriados</span>
@@ -117,7 +119,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
               title="Como usar esta página"
               onClick={(event) => tour.open(event.currentTarget)}
             >
-              Como usar
+              <HelpCircle size={18} aria-hidden="true" /><span>Como usar</span>
             </button>
           )}
         </>

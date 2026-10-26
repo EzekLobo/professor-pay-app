@@ -1,6 +1,14 @@
 # Estado atual
 
 
+## Novidades desde a última leitura — 26/10/2026
+
+- Shell autenticado abre ReleaseNotes automaticamente só quando há versões não vistas. X/Escape/fundo/Entendi/atalho confirmam leitura; botão Novidades permite rever o catálogo. Abertura aguarda outros modais/guia/feriados. Demo só consulta manual, com adaptador local, sem chamadas privadas.
+- Catálogo publicado em release-notes.ts tem IDs crescentes e links internos. AGENTS.md pede entrada ao entregar novas funções; docs/RELEASE_NOTES.md detalha publicação. Não gerar novidades automaticamente de commits nem anunciar funcionalidades não verificadas.
+- Progresso por UID em users/{uid}/ui_state/release_notes, com transação monotônica; cache local por conta e fallback em memória. Leitura lenta usa marcador local após 2s; sincronização entre dispositivos requer rede. Usa regras Firebase existentes, sem Admin SDK adicional. Declaração local de transaction.set atualizada em types/firebase.d.ts.
+- Validação: 247 testes unitários, typecheck, lint, build e 20 E2E de autenticação/interface/novidades. Fixture local exercitou abertura automática, ausência de repetição, uma versão nova, consulta completa, isolamento e espera de outro modal em 1440/390/320px, sem modificar contas reais.
+
+
 ## Nick editável nas Configurações — 26/10/2026
 
 - Configurações > Acesso à conta permite definir/trocar nick único (3–30 caracteres, normalizado em minúsculas). Formulário próprio com Salvar nick, carregamento, conflito e retry; e-mail continua válido para login/recuperação.

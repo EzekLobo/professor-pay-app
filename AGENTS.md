@@ -21,6 +21,8 @@ Use this file as the first stop for every Codex session in this repo.
 
 ## Summary Rules
 
+- Para novas funcionalidades visíveis ao usuário, adicione uma entrada curta em `frontend/src/lib/release-notes.ts` com versão única crescente, comportamento entregue e atalho interno. Consulte `docs/RELEASE_NOTES.md`; não anuncie propostas ou integrações não verificadas.
+
 - Update `.codex/memory/current-state.md` after meaningful architecture, dependency, workflow, or product-state changes.
 - Add an entry to `.codex/memory/decisions.md` only for decisions likely to matter in future sessions.
 - Keep summaries short and operational: where to look, what changed, what risks remain, and what commands verify it.

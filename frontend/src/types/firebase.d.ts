@@ -33,6 +33,7 @@ declare module "firebase/firestore" {
   export function writeBatch(db: unknown): { set(ref: unknown, data: DocumentData, options?: { merge: boolean }): unknown; update(ref: unknown, data: DocumentData): unknown; delete(ref: unknown): unknown; commit(): Promise<void> };
   export function runTransaction<T>(db: unknown, update: (transaction: {
     get(ref: unknown): Promise<{ exists(): boolean; data(): DocumentData | undefined }>;
+    set(ref: unknown, data: DocumentData, options?: { merge: boolean }): unknown;
     update(ref: unknown, data: DocumentData): unknown;
   }) => Promise<T>): Promise<T>;
   export function query(...args: unknown[]): Query;

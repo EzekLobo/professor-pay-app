@@ -72,3 +72,26 @@
   .task-checklist-add .button { flex: 0 0 auto; }
   .task-editor .form-actions .button { width: auto; }
 }
+.task-list-options { border: 0; background: none; color: var(--muted); cursor: pointer; min-width: 32px; min-height: 32px; }
+.tasks-column-heading h3 { flex: 1; overflow-wrap: anywhere; }
+.task-lists-modal { width: min(640px,calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.task-lists-editor { display: grid; gap: 12px; margin: 16px 0; }
+.task-list-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
+.task-list-row.is-archived { background: rgb(255 255 255 / 3%); }
+.task-list-row > label, .task-list-delete-options > label { display: grid; gap: 6px; color: var(--muted); font-size: .8rem; }
+.task-list-row .input { width: 100%; min-width: 0; }
+.task-list-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .75rem; }
+.task-list-controls > label { display: flex; align-items: center; gap: 7px; }
+.task-list-controls > div { display: flex; flex-shrink: 0; }
+.task-list-controls button { width: 36px; height: 36px; background: none; color: var(--muted); border: 0; cursor: pointer; }
+.task-list-controls button:disabled { opacity: .3; }
+.task-list-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.task-list-actions .button { width: auto; }
+.task-list-help { font-size: .78rem; line-height: 1.5; }
+.tasks-no-lists { font-size: .85rem; }
+@media (min-width: 1051px) { .tasks-board:not(.is-archive) { grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); } }
+@media (max-width: 720px) {
+  .task-list-controls { flex-wrap: wrap; }
+  .task-list-controls button { width: 40px; height: 40px; }
+  .task-lists-modal { padding: 18px; }
+}

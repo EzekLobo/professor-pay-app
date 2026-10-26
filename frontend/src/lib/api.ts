@@ -1,4 +1,4 @@
-import { validateTaskCard } from "@/lib/task-board";
+import { validateTaskCard, validateTaskLists } from "@/lib/task-board";
 import { assertTaskBoardReadyForDataChange, clearTaskBoardLocalState, withTaskBoardDataChange } from "@/lib/task-board-store";
 import {
   collection,
@@ -199,6 +199,7 @@ export type ImportReport = {
 export type DataExport = {
   schema_version: "4.0";
   task_cards?: unknown[];
+  task_settings?: unknown[];
   kodland_payroll_periods?: unknown[];
   kodland_payroll_sync?: unknown[];
   kodland_payroll_settings?: unknown[];
@@ -1427,7 +1428,7 @@ const backupCollectionNames = [
   "manual_activities", "kodland_class_settings",
   "manual_courses", "manual_occurrences", "manual_attendance", "manual_availability",
   "kodland_financial_overrides", "holidays", "lesson_notes", "tutorials",
-  "kodland_payroll_periods", "kodland_payroll_sync", "kodland_payroll_settings", "task_cards",
+  "kodland_payroll_periods", "kodland_payroll_sync", "kodland_payroll_settings", "task_cards", "task_settings",
 ] as const;
 type BackupCollection = typeof backupCollectionNames[number];
 
@@ -1461,6 +1462,11 @@ const backupRows = (payload: ImportPayload, name: BackupCollection): Row[] => {
       : value.id ?? (name === "kodland_groups" ? value.external_id : undefined);
     if (typeof id !== "string" || !id.trim() || id.includes("/")) {
       throw new ApiError(400, `O registro ${index + 1} de ${name} não tem identificador válido.`);
+    }
+    if (name === "task_settings") {
+      if (id !== "lists") throw new ApiError(400, "Configuração de listas inválida.");
+      try { return { id, lists: validateTaskLists(value.lists) } as unknown as Row; }
+      catch (reason) { throw new ApiError(400, reason instanceof Error ? reason.message : "Listas inválidas."); }
     }
     if (name === "task_cards") {
       try { return firestorePayload({ ...validateTaskCard({ ...value, id }), id }) as unknown as Row; }

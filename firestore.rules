@@ -24,13 +24,12 @@ service cloud.firestore {
         && card.category is string && card.category.size() <= 80
         && card.kind in ['task', 'problem']
         && card.priority in ['low', 'normal', 'high', 'urgent']
-        && card.column in ['todo', 'doing', 'waiting', 'done']
+        && card.column is string && card.column.matches('^[A-Za-z0-9_-]{1,120}$')
         && card.position is number && card.position >= -9007199254740991 && card.position <= 9007199254740991
         && card.checklist is list && card.checklist.size() <= 50
         && optionalTaskDate(card.due_date)
         && optionalTaskTimestamp(card.archived_at)
         && optionalTaskTimestamp(card.completed_at)
-        && ((card.column == 'done' && card.completed_at is string) || (card.column != 'done' && card.completed_at == null))
         && card.created_at is string && card.created_at.size() <= 40
         && card.updated_at is string && card.updated_at.size() <= 40;
     }
@@ -39,7 +38,16 @@ service cloud.firestore {
       allow read, write: if signedInAs(userId);
 
       match /{subcollection}/{documentId} {
-        allow read, write: if signedInAs(userId) && subcollection != 'task_cards';
+        allow read, write: if signedInAs(userId) && !(subcollection in ['task_cards', 'task_settings']);
+      }
+
+      match /task_settings/{settingsId} {
+        allow read, delete: if signedInAs(userId);
+        allow create, update: if signedInAs(userId) && settingsId == 'lists'
+          && request.resource.data.keys().hasAll(['lists'])
+          && request.resource.data.keys().hasOnly(['id', 'lists'])
+          && (!('id' in request.resource.data) || request.resource.data.id == 'lists')
+          && request.resource.data.lists is list && request.resource.data.lists.size() <= 100;
       }
 
       match /task_cards/{cardId} {

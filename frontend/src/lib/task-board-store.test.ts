@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mock = vi.hoisted(() => ({ uid: "a", getDocs: vi.fn(), setDoc: vi.fn(), deleteDoc: vi.fn(), updateDoc: vi.fn() }));
+const mock = vi.hoisted(() => ({ uid: "a", getDoc: vi.fn(), getDocs: vi.fn(), setDoc: vi.fn(), deleteDoc: vi.fn(), updateDoc: vi.fn() }));
 vi.mock("@/lib/firebase", () => ({ getFirebaseAuth: () => ({ currentUser: { uid: mock.uid } }), getFirebaseDb: () => ({}) }));
-vi.mock("firebase/firestore", () => ({ collection: (_db: unknown, ...path: string[]) => path.join("/"), doc: (_db: unknown, ...path: string[]) => path.join("/"), getDocs: mock.getDocs, setDoc: mock.setDoc, deleteDoc: mock.deleteDoc, updateDoc: mock.updateDoc }));
+vi.mock("firebase/firestore", () => ({ collection: (_db: unknown, ...path: string[]) => path.join("/"), doc: (_db: unknown, ...path: string[]) => path.join("/"), getDocs: mock.getDocs, getDoc: mock.getDoc, setDoc: mock.setDoc, deleteDoc: mock.deleteDoc, updateDoc: mock.updateDoc }));
 import { taskBoardStore as store, assertTaskBoardReadyForDataChange, clearTaskBoardLocalState, withTaskBoardDataChange } from "./task-board-store";
-import { createTaskCard } from "./task-board";
+import { createTaskCard, defaultTaskLists } from "./task-board";
 const data = new Map<string, string>();
 beforeEach(() => {
   vi.resetAllMocks(); data.clear(); mock.uid = "a";
   vi.stubGlobal("window", { localStorage: { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => data.set(key, value), removeItem: (key: string) => data.delete(key) } });
-  mock.getDocs.mockResolvedValue({ docs: [] }); mock.setDoc.mockResolvedValue(undefined); mock.deleteDoc.mockResolvedValue(undefined); mock.updateDoc.mockResolvedValue(undefined);
+  mock.getDocs.mockResolvedValue({ docs: [] }); mock.getDoc.mockResolvedValue({ exists: () => false }); mock.setDoc.mockResolvedValue(undefined); mock.deleteDoc.mockResolvedValue(undefined); mock.updateDoc.mockResolvedValue(undefined);
 });
 describe("persistência e fila offline", () => {
   it("preserva a tarefa offline e sincroniza depois sem duplicar", async () => {
@@ -49,10 +49,27 @@ describe("persistência e fila offline", () => {
     expect(mock.updateDoc).toHaveBeenCalledWith(`users/a/task_cards/${card.id}`, { title: "Atualizada" });
     expect(store.status!().pending).toBe(1);
   });
-  it("recusa exclusão de tarefa que não foi arquivada", async () => {
-    const card = await store.save(createTaskCard({ title: "Preservar" })); await store.sync!();
-    await expect(store.remove(card.id)).rejects.toThrow(/Arquive/);
+  it("recusa identificador de exclusão inválido", async () => {
+    await expect(store.remove("../outra-conta")).rejects.toThrow();
     expect(mock.deleteDoc).not.toHaveBeenCalled();
+  });
+  it("preserva listas e movimentações offline na mesma gravação local", async () => {
+    const card = await store.save(createTaskCard({ title: "Migrar", column: "waiting" })); await store.sync!();
+    mock.updateDoc.mockRejectedValue(new Error("offline"));
+    const lists = defaultTaskLists().filter((list) => list.id !== "waiting"); lists[0].label = "Planejar";
+    await store.updateLists!(lists, [{ ...card, column: "todo" }], []);
+    await expect(store.sync!()).rejects.toThrow();
+    expect(await store.columns!()).toEqual(lists);
+    mock.getDocs.mockRejectedValue(new Error("offline"));
+    expect((await store.list())[0].column).toBe("todo");
+    await expect(store.sync!()).rejects.toThrow();
+    mock.updateDoc.mockResolvedValue(undefined);
+    await store.sync!();
+    expect(mock.setDoc).toHaveBeenLastCalledWith("users/a/task_settings/lists", { lists });
+  });
+  it("mantém o quadro vazio após excluir todas as listas", async () => {
+    await store.updateLists!([], [], []); await store.sync!();
+    expect(await store.columns!()).toEqual([]);
   });
   it("não diz que salvou se o armazenamento local estiver indisponível", async () => {
     vi.stubGlobal("window", { localStorage: { getItem: () => null, setItem: () => { throw new Error("Sem espaço"); } } });

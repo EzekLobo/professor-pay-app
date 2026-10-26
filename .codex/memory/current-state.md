@@ -1,6 +1,14 @@
 # Estado atual
 
 
+## Listas de tarefas personalizáveis — 26/10/2026
+
+- Tarefas > Listas e botão ••• permitem criar, renomear, ordenar, arquivar/restaurar e excluir listas. Exclusão com tarefas exige destino ativo ou confirmação de exclusão de todas, incluindo arquivadas. Tarefas também podem ser excluídas diretamente pelo editor. Quadro vazio é permitido e não recria as listas padrão.
+- TaskList tem id/label/position/role/archived_at; coluna do cartão passa a ID livre validado e completed_at determina conclusão/atraso. A função da lista controla conclusão ao mover/alterar configuração, com confirmação para checklist pendente. Listas arquivadas preservam cartões no arquivo; IDs órfãos recuperam uma lista visível.
+- Configuração users/uid/task_settings/lists; cache/outbox guarda mudanças de listas e cartões em uma operação local. Servidor aplica cartões antes da configuração e mantém fila em falha (não é transação remota global). Demo migra arrays anteriores para envelope cards/lists. Backup4.0 inclui task_settings opcional. Regras atualizadas, sem publicação/emulador.
+- Validado: 268 testes unitários, typecheck/lint/build e 28 cenários Playwright de listas, tarefas, interface, novidades e backup em1440/390/320px. Testes cobrem renomear, remover aguardando movendo cartões, arquivo/restauração, exclusão direta e quadro sem listas. Novidade2026102605.
+
+
 ## Tarefas pessoais implementadas — 26/10/2026
 
 - /tasks e /demo#tasks têm quadro com quatro etapas, tarefas/problemas, prioridade, prazo, categoria, checklist, edição, busca/filtros, ordenação/movimentação, conclusão confirmada, duplicação e arquivo/restauração/exclusão. Desktop usa quadro e celular uma etapa selecionada.

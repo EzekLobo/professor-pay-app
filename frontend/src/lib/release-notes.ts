@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026102605, date: "2026-10-26", title: "Personalize as listas das suas tarefas",
+    description: "Escolha os nomes e a quantidade de listas. Crie, reordene, arquive ou exclua listas; ao excluir, você decide o destino das tarefas.",
+    href: "/tasks", action: "Organizar minhas listas",
+  },
+  {
     version: 2026102604, date: "2026-10-26", title: "Organize suas tarefas em um quadro",
     description: "Crie tarefas e problemas com prioridade, prazo e checklist. Mova entre etapas, arquive o que terminou e encontre Tarefas em Mais no celular.",
     href: "/tasks", action: "Abrir minhas tarefas",

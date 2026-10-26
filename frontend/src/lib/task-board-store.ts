@@ -1,8 +1,9 @@
-import { collection, deleteDoc, doc, getDocs, setDoc, updateDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
-import { sortTaskCards, validateTaskCard, type TaskBoardStore, type TaskCard } from "@/lib/task-board";
-type Operation = { token: string; id: string; card: TaskCard | null; update?: Partial<TaskCard> };
-type Cache = { cards: TaskCard[]; pending: Operation[] };
+import { defaultTaskLists, validateTaskLists, sortTaskCards, validateTaskCard, type TaskList, type TaskBoardStore, type TaskCard } from "@/lib/task-board";
+type ListChange = { lists: TaskList[]; changes: TaskCard[]; removedIds: string[] };
+type Operation = { board?: ListChange; token: string; id: string; card: TaskCard | null; update?: Partial<TaskCard> };
+type Cache = { cards: TaskCard[]; pending: Operation[]; lists?: TaskList[] };
 const listeners = new Set<() => void>();
 const errors = new Map<string, string>();
 const locks = new Map<string, Promise<void>>();
@@ -18,8 +19,9 @@ function read(uid: string): Cache {
   if (!raw) return { cards: [], pending: [] };
   const data = JSON.parse(raw) as Cache;
   if (!Array.isArray(data.cards) || !Array.isArray(data.pending)) throw new Error("Não foi possível ler as tarefas locais. Preserve o armazenamento deste navegador.");
-  return { cards: data.cards.map(validateTaskCard), pending: data.pending.map((op) => {
+  return { ...(data.lists ? { lists: validateTaskLists(data.lists) } : {}), cards: data.cards.map(validateTaskCard), pending: data.pending.map((op) => {
     if (!op || typeof op.token !== "string" || !/^[A-Za-z0-9_-]{1,120}$/.test(op.id)) throw new Error("Fila de tarefas inválida.");
+    if (op.board) return { token: op.token, id: op.id, card: null, board: { lists: validateTaskLists(op.board.lists), changes: op.board.changes.map(validateTaskCard), removedIds: op.board.removedIds.filter((id) => /^[A-Za-z0-9_-]{1,120}$/.test(id)) } };
     const card = op.card === null ? null : validateTaskCard(op.card);
     const update = card && op.update && typeof op.update === "object" ? Object.fromEntries(Object.entries(card).filter(([field]) => Object.hasOwn(op.update!, field))) as Partial<TaskCard> : undefined;
     return { token: op.token, id: op.id, card, ...(update ? { update } : {}) };
@@ -27,10 +29,14 @@ function read(uid: string): Cache {
 }
 function write(uid: string, cache: Cache) {
   owner(uid);
-  window.localStorage.setItem(key(uid), JSON.stringify(cache));
+  window.localStorage.setItem(key(uid), JSON.stringify({ ...cache, lists: cache.lists ?? read(uid).lists }));
   listeners.forEach((listener) => listener());
 }
 function apply(cards: TaskCard[], op: Operation) {
+  if (op.board) {
+    const { changes, removedIds } = op.board;
+    return [...cards.filter((card) => !removedIds.includes(card.id) && !changes.some((change) => change.id === card.id)), ...changes];
+  }
   const rest = cards.filter((card) => card.id !== op.id);
   return op.card ? [...rest, op.card] : rest;
 }
@@ -50,7 +56,13 @@ async function sync(uid = owner()): Promise<void> {
         const op = read(uid).pending[0];
         if (!op) break;
         const reference = doc(getFirebaseDb(), "users", uid, "task_cards", op.id);
-        if (op.card && op.update) await updateDoc(reference, op.update);
+        if (op.board) {
+          for (const card of op.board.changes) { owner(uid); await updateDoc(doc(getFirebaseDb(), "users", uid, "task_cards", card.id), { column: card.column, completed_at: card.completed_at, archived_at: card.archived_at, updated_at: card.updated_at }); }
+          for (const id of op.board.removedIds) { owner(uid); await deleteDoc(doc(getFirebaseDb(), "users", uid, "task_cards", id)); }
+          owner(uid);
+          await setDoc(doc(getFirebaseDb(), "users", uid, "task_settings", "lists"), { lists: op.board.lists });
+        }
+        else if (op.card && op.update) await updateDoc(reference, op.update);
         else if (op.card) await setDoc(reference, op.card);
         else await deleteDoc(reference);
         owner(uid);
@@ -82,6 +94,25 @@ export function clearTaskBoardLocalState(uid: string) {
   if (typeof window !== "undefined") window.localStorage.removeItem(key(uid)); errors.delete(uid);
 }
 export const taskBoardStore: TaskBoardStore = {
+  columns: async () => {
+    const uid = owner();
+    const initial = read(uid);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const snapshot = await Promise.race([getDoc(doc(getFirebaseDb(), "users", uid, "task_settings", "lists")), new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), 2000); })]);
+      owner(uid);
+      if (snapshot?.exists()) await mutate(uid, (cache) => ({ ...cache, lists: cache.pending.filter((op) => op.board).at(-1)?.board?.lists ?? (JSON.stringify(cache.lists) !== JSON.stringify(initial.lists) ? cache.lists : undefined) ?? initial.pending.filter((op) => op.board).at(-1)?.board?.lists ?? validateTaskLists(snapshot.data()?.lists) }));
+    } catch { owner(uid); } finally { clearTimeout(timer); }
+    return read(uid).lists ?? defaultTaskLists();
+  },
+  updateLists: async (input, changes, removedIds) => {
+    const uid = owner(); const lists = validateTaskLists(input);
+    const board = { lists, changes: changes.map(validateTaskCard), removedIds };
+    if (removedIds.some((id) => !/^[A-Za-z0-9_-]{1,120}$/.test(id))) throw new Error("Tarefa inválida.");
+    const op: Operation = { token: crypto.randomUUID(), id: "lists", card: null, board };
+    await mutate(uid, (cache) => ({ cards: apply(cache.cards, op), lists, pending: [...cache.pending, op] }));
+    void sync(uid).catch(() => undefined);
+  },
   list: async () => {
     const uid = owner();
     const cached = read(uid);
@@ -116,8 +147,8 @@ export const taskBoardStore: TaskBoardStore = {
     return card;
   },
   remove: async (id) => {
-    const uid = owner(); const cache = read(uid);
-    if (!/^[A-Za-z0-9_-]{1,120}$/.test(id) || cache.cards.some((card) => card.id === id && !card.archived_at)) throw new Error("Arquive a tarefa antes de excluí-la.");
+    const uid = owner();
+    if (!/^[A-Za-z0-9_-]{1,120}$/.test(id)) throw new Error("Tarefa inválida.");
     const op = { token: crypto.randomUUID(), id, card: null };
     await mutate(uid, (cache) => ({ cards: apply(cache.cards, op), pending: [...cache.pending, op] }));
     void sync(uid).catch(() => undefined);

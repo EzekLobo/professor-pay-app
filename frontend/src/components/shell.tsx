@@ -4,13 +4,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { type MouseEvent, type ReactNode, useState } from "react";
-import { CalendarDays, HelpCircle, ShieldCheck } from "lucide-react";
+import { CalendarDays, HelpCircle, MoreHorizontal, ShieldCheck } from "lucide-react";
 import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
 import { appRoutes, pageTitle } from "@/lib/routes";
 import { GuidedTourDialog, useGuidedTour } from "@/components/guided-tour";
 import { AccessTelemetry, endStoredAccessSession } from "@/components/access-telemetry";
 import { ReleaseNotes } from "@/components/release-notes";
+import { Modal } from "@/components/modal";
 import { HolidayCalendarDialog } from "@/components/holiday-calendar-dialog";
 
 type ShellFrameProps = {
@@ -26,16 +27,19 @@ type ShellFrameProps = {
 };
 
 export function ShellFrame({ user, pathname, children, routeHref = (href) => href, onNavigate, onLogout, logoutLabel = "Sair", headerActions, banner }: ShellFrameProps) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const primaryPaths = ["/dashboard", "/payments", "/classes", "/lessons"];
+  const secondaryRoutes = appRoutes.filter((item) => !primaryPaths.includes(item.href));
   const isActive = (href: string) => pathname === href;
   const settingsRoutes = appRoutes.filter((item) => item.href === "/data" || item.label === "Configurações");
   const mainRoutes = appRoutes.filter((item) => !settingsRoutes.includes(item));
-  const renderNavLink = (item: (typeof appRoutes)[number], mobileOnly = false) => {
+  const renderNavLink = (item: (typeof appRoutes)[number], inMore = false) => {
     const Icon = item.icon;
     return <Link
-      className={`nav-link${mobileOnly ? " nav-link-mobile-only" : ""}${isActive(item.href) ? " nav-link-active" : ""}`}
+      className={`nav-link${!inMore && !primaryPaths.includes(item.href) ? " nav-link-secondary" : ""}${isActive(item.href) ? " nav-link-active" : ""}`}
       href={routeHref(item.href)} key={item.href}
       aria-current={isActive(item.href) ? "page" : undefined} aria-label={item.label}
-      onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate(item.href); } : undefined}
+      onClick={(event: MouseEvent<HTMLAnchorElement>) => { setMoreOpen(false); if (onNavigate) { event.preventDefault(); onNavigate(item.href); } }}
     >
       <span aria-hidden="true"><Icon size={19} strokeWidth={2.1} /></span>
       <span className="nav-link-label" aria-hidden="true"><span className="nav-label-full">{item.label}</span><span className="nav-label-mobile">{item.mobileLabel}</span></span>
@@ -52,7 +56,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
         <p className="sidebar-caption">NAVEGAÇÃO</p>
         <nav className="nav" aria-label="Navegação principal">
           {mainRoutes.map((item) => renderNavLink(item))}
-          {settingsRoutes.map((item) => renderNavLink(item, true))}
+          <button className={`nav-link mobile-more-trigger${secondaryRoutes.some((item) => isActive(item.href)) ? " nav-link-active" : ""}`} type="button" aria-label="Mais opções" aria-expanded={moreOpen} aria-controls="mobile-more-options" aria-current={secondaryRoutes.some((item) => isActive(item.href)) ? "page" : undefined} onClick={() => setMoreOpen(true)}><span aria-hidden="true"><MoreHorizontal size={19} /></span><span>Mais</span></button>
         </nav>
         <div className="sidebar-bottom">
           <nav className="sidebar-settings" aria-label="Configurações e dados">{settingsRoutes.map((item) => renderNavLink(item))}</nav>
@@ -78,6 +82,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
           <div className="page-stage">{children}</div>
         </main>
       </section>
+      <Modal open={moreOpen} title="Mais opções" onClose={() => setMoreOpen(false)} className="mobile-more-modal"><nav id="mobile-more-options" className="mobile-more-options" aria-label="Outras áreas">{secondaryRoutes.map((item) => renderNavLink(item, true))}</nav></Modal>
     </div>
   );
 }

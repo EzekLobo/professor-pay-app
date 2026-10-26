@@ -3363,3 +3363,16 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .settings-content .settings-save-bar { gap: 10px; }
   .settings-content .settings-save-bar > span { font-size: .72rem; }
 }
+
+.mobile-more-trigger { display: none; }
+.mobile-more-modal { width: min(460px, calc(100vw - 28px)); }
+.mobile-more-options { display: grid; gap: 8px; }
+.mobile-more-options .nav-link { min-height: 48px; flex-direction: row; justify-content: flex-start; padding: 12px; text-align: left; font-size: .9rem; }
+.mobile-more-options .nav-label-full { display: inline; }
+.mobile-more-options .nav-label-mobile { display: none; }
+@media (max-width: 720px) {
+  .nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .nav .nav-link-secondary { display: none; }
+  .nav .mobile-more-trigger { display: flex; border: 0; font-family: inherit; cursor: pointer; }
+  .mobile-more-options .nav-link { flex-direction: row; justify-content: flex-start; }
+}

@@ -1,3 +1,4 @@
+import { createTaskCard } from "./task-board";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fake = vi.hoisted(() => ({
@@ -166,16 +167,19 @@ describe("backup e migração", () => {
     fake.docs.set(key("kodland_payroll_periods", "teacher-period"), { teacher_id: "teacher", period_start: "2026-10-01", entries: [], created_at: "2026-10-01" });
     fake.docs.set(key("payments", "2026-11-15"), { payment_date: "2026-11-15", status: "RECEIVED",
       payment_snapshot: closed, created_at: "2026-10-01" });
+    fake.docs.set(key("task_cards", "task-backup"), createTaskCard({ id: "task-backup", title: "Tarefa no backup" }));
     const exported = await dataApi.export();
     expect(exported).toMatchObject({ schema_version: "4.0", kodland_payroll_periods: [{ teacher_id: "teacher" }], manual_students: [{ name: "Ana" }],
       manual_class_groups: [{ name: "Autônomas" }], manual_classes: [{ name: "Própria", group_id: "personal-1" }], teaching_settings: { id: "finance" },
       payment_confirmations: [{ payment_snapshot: closed }] });
     fake.docs.clear();
     const preview = await dataApi.previewImport(exported);
+    expect(preview.task_card_count).toBe(1);
     expect(preview).toMatchObject({ manual_student_count: 1, manual_class_group_count: 1, manual_class_count: 1,
       manual_lesson_count: 1, manual_activity_count: 1, manual_course_count: 1,
       manual_occurrence_count: 1, manual_attendance_count: 1, manual_availability_count: 1 });
     await dataApi.import(exported);
+    expect(fake.docs.get(key("task_cards", "task-backup"))?.title).toBe("Tarefa no backup");
     expect(fake.docs.get(key("kodland_payroll_periods", "teacher-period"))?.teacher_id).toBe("teacher");
     expect(fake.docs.get(key("manual_classes", "own-1"))?.rate_history).toEqual([
       { effective_from: "2026-10-13", hourly_rate_cents: 5000 },

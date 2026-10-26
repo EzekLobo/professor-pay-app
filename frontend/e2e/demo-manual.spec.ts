@@ -49,7 +49,8 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await page.locator("details.manual-group-panel").filter({ has: page.getByRole("heading", { name: "Reforço particular" }) }).locator("summary").click();
   await expect(page.getByText("Turma de redação")).toBeVisible();
 
-  await page.getByRole("link", { name: "Acompanhamento" }).click();
+  if (width <= 720) await page.getByRole("button", { name: "Mais opções", exact: true }).click();
+  await page.getByRole("link", { name: "Acompanhamento", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Acompanhamento" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Atividades" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "Presença" }).click();

@@ -1,6 +1,15 @@
 # Estado atual
 
 
+## Tarefas pessoais implementadas — 26/10/2026
+
+- /tasks e /demo#tasks têm quadro com quatro etapas, tarefas/problemas, prioridade, prazo, categoria, checklist, edição, busca/filtros, ordenação/movimentação, conclusão confirmada, duplicação e arquivo/restauração/exclusão. Desktop usa quadro e celular uma etapa selecionada.
+- Navegação desktop inclui Tarefas; celular mantém quatro destinos + Mais para Acompanhamento/Tarefas/Configurações/Dados. Demo não usa serviços privados.
+- task-board-store.ts grava cache/outbox localStorage por UID antes de confirmar UI; sincroniza na carga, online ou manualmente. Patches não recriam cartões apagados; fila só confirma após resposta. Web Locks serializa abas e backup; fallback sem Locks tem coordenação apenas por sessão. Cache não é PWA nem criptografia. Dados remotos users/uid/task_cards.
+- Backup4.0 inclui task_cards opcional, preview, export/import/reset e bloqueio com pendências. Regras específicas prontas em firestore.rules, excluídas do allow genérico; NÃO publicadas nem testadas em emulador. docs/TASKS.md descreve operação e limites.
+- Validação final: typecheck/lint/build e 260 testes unitários passam; 36 E2E de interface passaram, com seis de Tarefas/Novidades repetidos após últimos ajustes. Sem operações em contas reais. Novidade2026102604 cadastrada.
+
+
 ## Plano da área Tarefas — 26/10/2026
 
 - docs/plans/task-board-implementation.md registra proposta inspirada no Trello: quadro pessoal com quatro etapas, cartões Tarefa/Problema, checklist, prioridades, prazo, movimentação acessível e arquivo. Não implementado; não anunciar em Novidades ainda.

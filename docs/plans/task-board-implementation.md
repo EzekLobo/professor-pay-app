@@ -1,6 +1,6 @@
 # Plano de implementação: Tarefas do NexusClass
 
-Data: 26/10/2026. Estado: proposta de implementação; nenhuma funcionalidade deste plano foi implementada.
+Data: 26/10/2026. Estado: plano original; núcleo da V1 implementado em 26/10/2026. Consulte [Tarefas pessoais](../TASKS.md) para o escopo entregue, validações e diferenças, incluindo cache local e publicação das regras pendente.
 
 ## 1. Recomendação
 

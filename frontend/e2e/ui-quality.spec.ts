@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const demoRoutes = ["dashboard", "payments", "classes", "lessons", "corrections", "settings", "data"];
+const demoRoutes = ["dashboard", "payments", "classes", "lessons", "corrections", "settings", "data", "tasks"];
 
 for (const viewport of [
   { name: "desktop", width: 1440, height: 900 },
@@ -21,16 +21,28 @@ for (const viewport of [
   });
 }
 
-test("navegação móvel mantém todas as áreas visíveis e identificadas", async ({ page }) => {
+test("navegação móvel mantém áreas principais e oferece as demais em Mais", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/demo#data");
   const navigation = page.getByRole("navigation", { name: "Navegação principal" });
-  for (const label of ["Resumo", "Pagamentos", "Turmas", "Aulas", "Acompanhamento", "Configurações", "Dados e backup"]) {
-    const link = navigation.getByRole("link", { name: label });
+  for (const label of ["Resumo", "Pagamentos", "Turmas", "Aulas"]) {
+    const link = navigation.getByRole("link", { name: label, exact: true });
     await expect(link).toBeVisible();
     await expect(link).toBeInViewport();
   }
-  await expect(navigation.getByRole("link", { name: "Dados e backup" })).toHaveAttribute("aria-current", "page");
+  const more = navigation.getByRole("button", { name: "Mais opções", exact: true });
+  await expect(more).toBeInViewport();
+  await expect(more).toHaveAttribute("aria-current", "page");
+  await more.click();
+  const dialog = page.getByRole("dialog", { name: "Mais opções", exact: true });
+  const extras = dialog.getByRole("navigation", { name: "Outras áreas" });
+  for (const label of ["Acompanhamento", "Tarefas", "Configurações", "Dados e backup"]) {
+    await expect(extras.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+  await expect(extras.getByRole("link", { name: "Dados e backup", exact: true })).toHaveAttribute("aria-current", "page");
+  await extras.getByRole("link", { name: "Tarefas", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page).toHaveURL(/demo#tasks$/);
 });
 
 test("atalho de teclado e importação possuem nomes acessíveis", async ({ page }) => {

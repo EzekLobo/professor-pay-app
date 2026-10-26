@@ -6,11 +6,47 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    function optionalTaskDate(value) {
+      return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
+    }
+
+    function optionalTaskTimestamp(value) {
+      return value == null || (value is string && value.size() <= 40);
+    }
+
+    function validTaskCard(card, cardId) {
+      return card.keys().hasAll(['id', 'title', 'description', 'kind', 'priority', 'category', 'due_date', 'column', 'position', 'checklist', 'resolution', 'archived_at', 'completed_at', 'created_at', 'updated_at'])
+        && card.keys().hasOnly(['id', 'title', 'description', 'kind', 'priority', 'category', 'due_date', 'column', 'position', 'checklist', 'resolution', 'archived_at', 'completed_at', 'created_at', 'updated_at'])
+        && card.id == cardId && cardId.matches('^[A-Za-z0-9_-]{1,120}$')
+        && card.title is string && card.title.size() > 0 && card.title.size() <= 160
+        && card.description is string && card.description.size() <= 10000
+        && card.resolution is string && card.resolution.size() <= 2000
+        && card.category is string && card.category.size() <= 80
+        && card.kind in ['task', 'problem']
+        && card.priority in ['low', 'normal', 'high', 'urgent']
+        && card.column in ['todo', 'doing', 'waiting', 'done']
+        && card.position is number && card.position >= -9007199254740991 && card.position <= 9007199254740991
+        && card.checklist is list && card.checklist.size() <= 50
+        && optionalTaskDate(card.due_date)
+        && optionalTaskTimestamp(card.archived_at)
+        && optionalTaskTimestamp(card.completed_at)
+        && ((card.column == 'done' && card.completed_at is string) || (card.column != 'done' && card.completed_at == null))
+        && card.created_at is string && card.created_at.size() <= 40
+        && card.updated_at is string && card.updated_at.size() <= 40;
+    }
+
     match /users/{userId} {
       allow read, write: if signedInAs(userId);
 
       match /{subcollection}/{documentId} {
-        allow read, write: if signedInAs(userId);
+        allow read, write: if signedInAs(userId) && subcollection != 'task_cards';
+      }
+
+      match /task_cards/{cardId} {
+        allow read, delete: if signedInAs(userId);
+        allow create: if signedInAs(userId) && validTaskCard(request.resource.data, cardId);
+        allow update: if signedInAs(userId) && validTaskCard(request.resource.data, cardId)
+          && request.resource.data.created_at == resource.data.created_at;
       }
     }
   }

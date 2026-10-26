@@ -8,6 +8,9 @@ import { LessonsContent } from "@/components/lessons-page";
 import { PaymentsContent, type PaymentsAdapter } from "@/components/payments-page";
 import { CorrectionsContent } from "@/components/corrections-page";
 import { DataContent } from "@/components/data-page";
+import { TasksContent } from "@/components/tasks-page";
+import { demoTaskBoardStore, resetDemoTaskBoard } from "@/lib/demo-task-board-store";
+import type { TaskCard } from "@/lib/task-board";
 import { SettingsContent } from "@/components/settings-page";
 import { ReleaseNotes } from "@/components/release-notes";
 import { localReleaseNotesStore } from "@/lib/release-notes-store";
@@ -26,10 +29,11 @@ import type { DashboardLesson, ExtraLessonPayload, KodlandReview } from "@/lib/a
 import type { CustomHoliday } from "@/lib/holidays";
 import "../visitor.css";
 
-type View = "/dashboard" | "/payments" | "/classes" | "/lessons" | "/corrections" | "/settings" | "/data";
+type View = "/dashboard" | "/payments" | "/classes" | "/lessons" | "/corrections" | "/settings" | "/data" | "/tasks";
 
 export default function DemoPage() {
   const router = useRouter();
+  const [demoTasks, setDemoTasks] = useState<TaskCard[]>([]);
   const [snapshot, setSnapshot] = useState<DemoSnapshot | null>(null);
   const [manualAdapter, setManualAdapter] = useState<ManualAdapters | null>(null);
   const snapshotRef = useRef<DemoSnapshot | null>(null);
@@ -55,6 +59,7 @@ export default function DemoPage() {
     return () => { window.clearTimeout(timer); window.removeEventListener("hashchange", syncView); };
   }, [mutate]);
   useEffect(() => { if (!snapshot) return; try { window.localStorage.setItem(DEMO_STATE_KEY, JSON.stringify({ version: 2, snapshot, holidays })); } catch { /* The demo remains functional without storage. */ } }, [snapshot, holidays]);
+  useEffect(() => { if (view !== "/data") return; let active = true; void demoTaskBoardStore.list().then((items) => { if (active) setDemoTasks(items); }); return () => { active = false; }; }, [view]);
   const navigate = (href: string) => { if (!appRoutes.some((item) => item.href === href)) return; setView(href as View); window.history.replaceState(null, "", `/demo#${href.slice(1)}`); setNotice(""); };
   const update = useCallback(() => {
     const confirmedExtras = new Set(createDemoSnapshot().extras.filter((extra) => extra.completed).map((extra) => extra.id));
@@ -62,7 +67,7 @@ export default function DemoPage() {
     setUpdatedAt(new Date().toISOString());
     setNotice("Atualização simulada concluída. As aulas confirmadas no cenário fictício foram reconciliadas.");
   }, [mutate]);
-  const reset = useCallback(() => { const seed = createDemoSnapshot(); snapshotRef.current = seed; setSnapshot(seed); setHolidays([]); holidaysRef.current = []; try { const keys = Object.keys(window.localStorage).filter((key) => key.startsWith("nexusclass.demo.note.")); keys.forEach((key) => window.localStorage.removeItem(key)); } catch { /* Storage is optional. */ } setUpdatedAt(new Date().toISOString()); setNotice("Cenário fictício restaurado."); }, []);
+  const reset = useCallback(() => { resetDemoTaskBoard(); setDemoTasks([]); const seed = createDemoSnapshot(); snapshotRef.current = seed; setSnapshot(seed); setHolidays([]); holidaysRef.current = []; try { const keys = Object.keys(window.localStorage).filter((key) => key.startsWith("nexusclass.demo.note.")); keys.forEach((key) => window.localStorage.removeItem(key)); } catch { /* Storage is optional. */ } setUpdatedAt(new Date().toISOString()); setNotice("Cenário fictício restaurado."); }, []);
   const interceptMaterial = (event: MouseEvent<HTMLElement>) => { const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href^='#demo-material']"); if (!link) return; event.preventDefault(); setResource(link.textContent?.trim() || "Material da aula"); };
   const saveExtra = useCallback(async (payload: ExtraLessonPayload) => {
     const date = new Date(`${payload.lesson_date}T12:00:00Z`); date.setUTCMonth(date.getUTCMonth() + 1, 15);
@@ -110,8 +115,9 @@ export default function DemoPage() {
       {view === "/classes" && <ClassesContent demo={classData} />}
       {view === "/lessons" && <LessonsContent demoData={lessonData} manualAdapter={manualAdapter} onDemoAction={() => setResource("Importar curso")} />}
       {view === "/corrections" && <CorrectionsContent preferenceKey="demo" demo={{ reviews: snapshot.reviews, lessons: snapshot.lessons, attendance: snapshot.attendance, students: snapshot.students, groups: snapshot.groups, manualActivities: snapshot.manualActivities, manualClasses: snapshot.manualClasses, manualStudents: snapshot.manualStudents, manualAdapter, onSaveManualActivity: (item) => manualAdapter.pedagogy.saveActivity(item), onSync: update, onCorrect: (item) => { setReview(item); setFeedback(""); }, onMaterial: () => setResource("Materiais da aula") }} />}
+      {view === "/tasks" && <TasksContent store={demoTaskBoardStore} />}
       {view === "/settings" && <SettingsContent adapter={manualAdapter} />}
-      {view === "/data" && <DataContent demo={{ snapshot: snapshot as unknown as Record<string, unknown>, csvAdapter: manualAdapter, kodlandEnabled: snapshot.tutorPreferences.kodland_enabled, onSync: update, onReset: reset, onNotice: setNotice }} />}
+      {view === "/data" && <DataContent demo={{ snapshot: { ...snapshot, task_cards: demoTasks } as unknown as Record<string, unknown>, csvAdapter: manualAdapter, kodlandEnabled: snapshot.tutorPreferences.kodland_enabled, onSync: update, onReset: reset, onNotice: setNotice }} />}
     </>}
     </ShellFrame>
     <Modal open={Boolean(resource)} title={resource} onClose={() => setResource("")} className="visitor-demo-modal"><p className="muted">Conteúdo fictício da demonstração. Na sua conta, este atalho abre o material correspondente na plataforma.</p><section className="lesson-material-section"><h3>Preparando a aula</h3><ol><li>Revisar o desafio da aula anterior.</li><li>Apresentar o conceito com um exemplo guiado.</li><li>Construir o projeto com os alunos.</li><li>Reservar tempo para dúvidas e atividade individual.</li></ol></section></Modal>

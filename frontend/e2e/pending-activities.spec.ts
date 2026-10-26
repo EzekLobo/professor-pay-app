@@ -9,6 +9,7 @@ for (const width of [320, 390, 1440]) {
     await expect(page.getByRole("checkbox", { name: /Kodland/ })).toBeChecked();
     await page.getByRole("button", { name: "Salvar", exact: true }).click();
     await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible();
+    if (width <= 720) await page.getByRole("button", { name: "Mais opções", exact: true }).click();
     await page.getByRole("link", { name: "Acompanhamento", exact: true }).click();
     await page.getByRole("button", { name: "Compacto", exact: true }).click();
     const filter = page.getByRole("combobox", { name: "Filtrar atividades", exact: true });

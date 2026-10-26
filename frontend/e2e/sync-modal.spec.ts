@@ -8,6 +8,7 @@ for (const width of [320, 1440]) {
     await page.getByText("Kodland", { exact: true }).click();
     await page.getByRole("button", { name: "Salvar", exact: true }).click();
     await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible();
+    if (width <= 720) await page.getByRole("button", { name: "Mais opções", exact: true }).click();
     await page.getByRole("link", { name: "Dados e backup", exact: true }).click();
     await page.getByRole("button", { name: "Sincronizar tudo", exact: true }).click();
     const modal = page.getByRole("dialog", { name: "Sincronizar aplicação" });

@@ -1,3 +1,5 @@
+import { validateTaskCard } from "@/lib/task-board";
+import { assertTaskBoardReadyForDataChange, clearTaskBoardLocalState, withTaskBoardDataChange } from "@/lib/task-board-store";
 import {
   collection,
   deleteDoc,
@@ -172,6 +174,7 @@ export type PaymentDetail = DashboardPayment & {
 };
 export type ImportReport = {
   payroll_period_count?: number;
+  task_card_count?: number;
   export_id: string;
   already_imported: boolean;
   class_count: number;
@@ -195,6 +198,7 @@ export type ImportReport = {
 };
 export type DataExport = {
   schema_version: "4.0";
+  task_cards?: unknown[];
   kodland_payroll_periods?: unknown[];
   kodland_payroll_sync?: unknown[];
   kodland_payroll_settings?: unknown[];
@@ -594,8 +598,8 @@ const rows = async (name: string): Promise<Row[]> =>
     ...(item.data() as Row),
     id: item.id,
   }));
-const allRows = async (name: string): Promise<Row[]> =>
-  (await getDocs(ref(name))).docs.map((item) => ({
+const allRows = async (name: string, userId = authUser().uid): Promise<Row[]> =>
+  (await getDocs(ref(name, userId))).docs.map((item) => ({
     ...(item.data() as Row),
     id: item.id,
   }));
@@ -1423,7 +1427,7 @@ const backupCollectionNames = [
   "manual_activities", "kodland_class_settings",
   "manual_courses", "manual_occurrences", "manual_attendance", "manual_availability",
   "kodland_financial_overrides", "holidays", "lesson_notes", "tutorials",
-  "kodland_payroll_periods", "kodland_payroll_sync", "kodland_payroll_settings",
+  "kodland_payroll_periods", "kodland_payroll_sync", "kodland_payroll_settings", "task_cards",
 ] as const;
 type BackupCollection = typeof backupCollectionNames[number];
 
@@ -1457,6 +1461,10 @@ const backupRows = (payload: ImportPayload, name: BackupCollection): Row[] => {
       : value.id ?? (name === "kodland_groups" ? value.external_id : undefined);
     if (typeof id !== "string" || !id.trim() || id.includes("/")) {
       throw new ApiError(400, `O registro ${index + 1} de ${name} não tem identificador válido.`);
+    }
+    if (name === "task_cards") {
+      try { return firestorePayload({ ...validateTaskCard({ ...value, id }), id }) as unknown as Row; }
+      catch (reason) { throw new ApiError(400, reason instanceof Error ? reason.message : "O cartão do backup é inválido."); }
     }
     const normalized = name === "classes" ? normalizeClass(value)
       : name === "lessons" ? normalizeLesson(value)
@@ -3157,15 +3165,23 @@ export const courseImportApi = {
     return result;
   },
 };
+const assertDataOwner = (userId: string) => {
+  if (getFirebaseAuth().currentUser?.uid !== userId) throw new ApiError(401, "A conta mudou durante a operação. Tente novamente.");
+};
 export const dataApi = {
   export: async (): Promise<DataExport> => {
+    const ownerId = authUser().uid;
+    return withTaskBoardDataChange(ownerId, async () => {
+    await assertTaskBoardReadyForDataChange(ownerId);
+    assertDataOwner(ownerId);
     const dashboard = await dashboardApi.get();
-    const collections = await Promise.all(backupCollectionNames.map((name) => allRows(name)));
+    const collections = await Promise.all(backupCollectionNames.map((name) => allRows(name, ownerId)));
     const contents = Object.fromEntries(backupCollectionNames.map((name, index) => [name, collections[index]]));
     const [finance, preferences] = await Promise.all([
-      getDoc(doc(ref("teaching_settings"), "finance")),
-      getDoc(doc(ref("teaching_settings"), "preferences")),
+      getDoc(doc(ref("teaching_settings", ownerId), "finance")),
+      getDoc(doc(ref("teaching_settings", ownerId), "preferences")),
     ]);
+    assertDataOwner(ownerId);
     return {
       schema_version: "4.0",
       exported_at: now(),
@@ -3196,8 +3212,10 @@ export const dataApi = {
       lesson_notes: contents.lesson_notes,
       tutorials: contents.tutorials,
     };
+    });
   },
   previewImport: async (payload: unknown): Promise<ImportReport> => {
+    const ownerId = authUser().uid;
     const value = backupPayload(payload);
     const collections = Object.fromEntries(backupCollectionNames.map((name) => [name, backupRows(value, name)])) as Record<BackupCollection, Row[]>;
     backupFinance(value);
@@ -3209,7 +3227,8 @@ export const dataApi = {
         value.exportedAt ??
         crypto.randomUUID(),
     );
-    const imported = await getDoc(doc(ref("imports"), exportId));
+    const imported = await getDoc(doc(ref("imports", ownerId), exportId));
+    assertDataOwner(ownerId);
     return {
       export_id: exportId,
       already_imported: imported.exists(),
@@ -3234,38 +3253,56 @@ export const dataApi = {
       manual_attendance_count: collections.manual_attendance.length,
       manual_availability_count: collections.manual_availability.length,
       payroll_period_count: collections.kodland_payroll_periods.length,
+      task_card_count: collections.task_cards.length,
     };
   },
   import: async (payload: unknown): Promise<ImportReport> => {
+    const ownerId = authUser().uid;
+    return withTaskBoardDataChange(ownerId, async () => {
     const value = backupPayload(payload);
     const preview = await dataApi.previewImport(value);
+    assertDataOwner(ownerId);
     if (preview.already_imported) return preview;
+    await assertTaskBoardReadyForDataChange(ownerId);
+    assertDataOwner(ownerId);
     const writes = backupCollectionNames.flatMap((name) => backupRows(value, name).map((item) =>
-      (batch: FirebaseWriteBatch) => batch.set(doc(ref(name), item.id), item, { merge: true }),
+      (batch: FirebaseWriteBatch) => batch.set(doc(ref(name, ownerId), item.id), item, { merge: true }),
     ));
     const finance = backupFinance(value);
     if (finance) writes.push((batch) =>
-      batch.set(doc(ref("teaching_settings"), "finance"), finance, { merge: true }));
+      batch.set(doc(ref("teaching_settings", ownerId), "finance"), finance, { merge: true }));
     const preferences = backupPreferences(value);
     if (preferences) writes.push((batch) =>
-      batch.set(doc(ref("teaching_settings"), "preferences"), preferences, { merge: true }));
+      batch.set(doc(ref("teaching_settings", ownerId), "preferences"), preferences, { merge: true }));
     await commitWrites(writes);
+    assertDataOwner(ownerId);
+    clearTaskBoardLocalState(ownerId);
     const importedAt = now();
-    await setDoc(doc(ref("imports"), preview.export_id), {
+    await setDoc(doc(ref("imports", ownerId), preview.export_id), {
       imported_at: importedAt,
       created_at: importedAt,
       schema_version: value.schema_version,
     });
     return { ...preview, imported_at: importedAt };
+    });
   },
   reset: async (password: string) => {
     if (!password) throw new ApiError(400, "Informe sua senha para confirmar.");
+    const ownerId = authUser().uid;
+    return withTaskBoardDataChange(ownerId, async () => {
     await reauthenticateWithFirebase(password);
+    assertDataOwner(ownerId);
+    await assertTaskBoardReadyForDataChange(ownerId);
+    assertDataOwner(ownerId);
     const names: string[] = [...backupCollectionNames, "imports", "teaching_settings", "sync_status"];
-    const collections = await Promise.all(names.map((name) => allRows(name)));
+    const collections = await Promise.all(names.map((name) => allRows(name, ownerId)));
+    assertDataOwner(ownerId);
     await commitWrites(names.flatMap((name, index) => collections[index].map((item) =>
-      (batch: FirebaseWriteBatch) => batch.delete(doc(ref(name), String(item.id))),
+      (batch: FirebaseWriteBatch) => batch.delete(doc(ref(name, ownerId), String(item.id))),
     )));
+    assertDataOwner(ownerId);
+    clearTaskBoardLocalState(ownerId);
+    });
   },
 };
 export const __test = {

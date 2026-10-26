@@ -3333,3 +3333,33 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .header-actions { gap: 6px; }
   .release-notes-modal { padding: 18px; }
 }
+
+.settings-page.settings-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: start; gap: 22px; }
+.settings-layout > * { grid-column: auto; min-width: 0; }
+.settings-page [hidden] { display: none !important; }
+.settings-menu { display: grid; gap: 5px; position: sticky; top: 16px; }
+.settings-menu button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--muted); text-align: left; font: inherit; font-size: .8rem; cursor: pointer; }
+.settings-menu button:hover { background: rgb(106 207 255 / 5%); color: var(--text); }
+.settings-menu button[aria-selected="true"] { color: var(--primary); border-color: rgb(106 207 255 / 25%); background: rgb(106 207 255 / 8%); }
+.settings-menu button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.settings-menu button:disabled { opacity: .6; cursor: wait; }
+.settings-menu svg { flex-shrink: 0; }
+.settings-content { display: grid; gap: 14px; min-width: 0; }
+.settings-content .settings-form { grid-template-columns: minmax(0, 1fr); }
+.settings-fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.settings-content .settings-save-bar { flex-direction: row; align-items: center; }
+.settings-content .settings-save-bar .button { width: auto; }
+.settings-content .availability-add { grid-template-columns: minmax(120px, 1fr) 110px 110px auto; }
+.settings-content .availability-list { margin: 0; }
+.settings-empty { margin: 0; font-size: .82rem; }
+@media (max-width: 1050px) {
+  .settings-page.settings-layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .settings-menu { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .settings-menu button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  .settings-menu button { padding: 9px; gap: 7px; font-size: .74rem; }
+  .settings-content .availability-add { grid-template-columns: 1fr 1fr; }
+  .settings-content .settings-save-bar { gap: 10px; }
+  .settings-content .settings-save-bar > span { font-size: .72rem; }
+}

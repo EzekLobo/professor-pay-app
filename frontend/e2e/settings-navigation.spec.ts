@@ -1,0 +1,57 @@
+import { expect, test } from "@playwright/test";
+
+for (const width of [1440, 390, 320]) {
+  test(`configurações separam assuntos e preservam rascunhos em ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/demo#settings");
+    const menu = page.getByRole("tablist", { name: "Seções das configurações" });
+    await expect(menu.getByRole("tab")).toHaveCount(4);
+    const panel = page.getByRole("tabpanel");
+    await expect(panel).toHaveCount(1);
+    await expect(panel).toHaveAccessibleName("Aulas e pagamentos");
+    const duration = page.getByRole("spinbutton", { name: /^Duração/ });
+    await duration.fill("75");
+    const rate = page.getByRole("textbox", { name: /^Tarifa por hora/ });
+    await rate.fill("35,00");
+    await menu.getByRole("tab", { name: "Mensagens", exact: true }).click();
+    const message = page.getByRole("textbox", { name: "Modelo da mensagem de ausência" });
+    const original = await message.inputValue();
+    await message.fill("Rascunho ainda não salvo");
+    await menu.getByRole("tab", { name: "Aulas e pagamentos", exact: true }).click();
+    await expect(duration).toHaveValue("75");
+    await page.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("Configurações salvas.");
+    await menu.getByRole("tab", { name: "Mensagens", exact: true }).click();
+    await expect(message).toHaveValue("Rascunho ainda não salvo");
+    await page.reload();
+    await expect(duration).toHaveValue("75");
+    await expect(rate).toHaveValue("35,00");
+    await menu.getByRole("tab", { name: "Mensagens", exact: true }).click();
+    await expect(message).toHaveValue(original);
+    await menu.getByRole("tab", { name: "Aulas e pagamentos", exact: true }).click();
+    await rate.fill("inválido");
+    await menu.getByRole("tab", { name: "Mensagens", exact: true }).click();
+    await message.fill("Mensagem personalizada {primeiro_nome}");
+    await page.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("Configurações salvas.");
+    await menu.getByRole("tab", { name: "Disponibilidade", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Salvar", exact: true })).not.toBeVisible();
+    await expect(panel).toHaveAccessibleName("Disponibilidade");
+    const initialRows = await panel.locator(".availability-row").count();
+    await page.getByRole("combobox", { name: "Dia da semana", exact: true }).selectOption("6");
+    await page.getByRole("button", { name: "Adicionar horário", exact: true }).click();
+    await expect(panel.locator(".availability-row")).toHaveCount(initialRows + 1);
+    await panel.locator(".availability-row").filter({ hasText: "Sábado · 18:00–21:00" }).getByRole("button", { name: "Remover", exact: true }).click();
+    await expect(panel.locator(".availability-row")).toHaveCount(initialRows);
+    await menu.getByRole("tab", { name: "Disponibilidade", exact: true }).focus();
+    await page.keyboard.press("Home");
+    await expect(menu.getByRole("tab", { name: "Aulas e pagamentos", exact: true })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(panel).toHaveAccessibleName("Mensagens");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `/tmp/settings-menu-${width}.png` });
+    await page.reload();
+    await menu.getByRole("tab", { name: "Mensagens", exact: true }).click();
+    await expect(message).toHaveValue("Mensagem personalizada {primeiro_nome}");
+  });
+}

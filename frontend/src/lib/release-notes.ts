@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026102603, date: "2026-10-26", title: "Configurações separadas por assunto",
+    description: "Use o menu interno para acessar conta, aulas e pagamentos, mensagens, integrações e disponibilidade. Cada seção tem suas próprias ações de salvar.",
+    href: "/settings", action: "Abrir configurações",
+  },
+  {
     version: 2026102602, date: "2026-10-26", title: "Fique por dentro das novidades",
     description: "Ao entrar, você verá as melhorias que ainda não conhece. Use Novidades no cabeçalho para consultar o histórico.",
     href: "/dashboard", action: "Ir para o resumo",

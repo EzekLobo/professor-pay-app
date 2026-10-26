@@ -4,8 +4,8 @@ for (const width of [320, 1440]) {
   test(`modal de sincronização cabe na tela e mantém ações acessíveis (${width}px)`, async ({ page }) => {
     await page.setViewportSize({ width, height: 700 });
     await page.goto("/demo#settings");
+    await page.getByRole("tab", { name: "Integrações", exact: true }).click();
     await page.getByText("Kodland", { exact: true }).click();
-    await page.getByRole("textbox", { name: /^Tarifa por hora/ }).fill("30,00");
     await page.getByRole("button", { name: "Salvar", exact: true }).click();
     await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Dados e backup", exact: true }).click();

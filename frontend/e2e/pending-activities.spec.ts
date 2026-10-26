@@ -4,9 +4,9 @@ for (const width of [320, 390, 1440]) {
   test(`filtro de pendências oculta alunos e campos vazios e mantém preferência (${width}px)`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/demo#settings");
+    await page.getByRole("tab", { name: "Integrações", exact: true }).click();
     await page.getByText("Kodland", { exact: true }).click();
     await expect(page.getByRole("checkbox", { name: /Kodland/ })).toBeChecked();
-    await page.getByRole("textbox", { name: /^Tarifa por hora/ }).fill("30,00");
     await page.getByRole("button", { name: "Salvar", exact: true }).click();
     await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Acompanhamento", exact: true }).click();

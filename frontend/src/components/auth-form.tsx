@@ -90,14 +90,14 @@ export function AuthForm() {
         </Link>
         <h1>Bem-vindo de volta</h1>
         <p className="muted">Gerencie aulas, alunos e pagamentos.</p>
-        <form className="form" onSubmit={submit}>
+        <form id="nexusclass-sign-in" name="nexusclass-sign-in" className="form" onSubmit={submit}>
           <label className="field">
             Nick ou e-mail
-            <Input name="login" value={login} onChange={(event) => setLogin(event.target.value)} required autoComplete="username" autoCapitalize="none" spellCheck={false} />
+            <Input id="nexusclass-login" name="login" value={login} onChange={(event) => setLogin(event.target.value)} required autoComplete="section-nexusclass username" autoCapitalize="none" spellCheck={false} />
           </label>
           <label className="field">
             Senha
-            <Input name="password" type="password" required autoComplete="current-password" />
+            <Input id="nexusclass-password" name="password" type="password" required autoComplete="section-nexusclass current-password" />
           </label>
           {error && <p className="form-error" role="alert">{error}</p>}
           {message && <p className="form-success" role="status">{message}</p>}

@@ -275,17 +275,23 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
         className="schedule-sync-modal"
         onClose={() => !busy && setSyncOpen(false)}
       >
-        <form className="form management-form" autoComplete={demo ? "off" : "on"} onSubmit={synchronize}>
+        <form id="kodland-sync" name="kodland-sync" className="form management-form" autoComplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" onSubmit={synchronize}>
           <p className="muted">
             Atualiza turmas, alunos, aulas, presença, materiais e pagamentos.
           </p>
           {demo ? <p className="notice">Na demonstração, esta operação utiliza apenas dados fictícios e não solicita credenciais.</p> : <><label className="field">
             Usuário ou e-mail
             <Input
-              name="username"
+              id="kodland-sync-username"
+              name="kodland_sync_username"
               type="text"
               required
-              autoComplete="username"
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-bwignore="true"
               readOnly={busy}
               value={syncUsername}
               onChange={(event) => setSyncUsername(event.target.value)}
@@ -294,10 +300,14 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
           <label className="field">
             Senha
             <Input
-              name="password"
+              id="kodland-sync-password"
+              name="kodland_sync_password"
               type="password"
               required
-              autoComplete="current-password"
+              autoComplete="off"
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-bwignore="true"
               readOnly={busy}
               value={syncPassword}
               onChange={(event) => setSyncPassword(event.target.value)}
@@ -311,7 +321,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
               disabled={busy}
               onChange={(event) => setSaveCredentials(event.target.checked)}
             />
-            <span>Salvar credenciais no navegador</span>
+            <span>Salvar credenciais da Kodland neste navegador</span>
           </label>
           </>}
           {syncProgress && <p className="notice" role="status">{syncProgress}</p>}

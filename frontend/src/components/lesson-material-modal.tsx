@@ -217,13 +217,13 @@ export function LessonMaterialModal({
           ) : (
             <>
           {needsMaterials && (
-            <form className="form lesson-material-load-form" onSubmit={loadMaterials}>
+            <form id="kodland-materials" name="kodland-materials" className="form lesson-material-load-form" autoComplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" onSubmit={loadMaterials}>
               <p className="muted">Os materiais desta aula ainda não foram consultados. Informe suas credenciais da Kodland para carregar apenas esta aula.</p>
               <label className="field">Usuário ou e-mail
-                <input className="input" name="username" autoComplete="username" value={materialUsername} onChange={(event) => setMaterialUsername(event.target.value)} required disabled={loadingMaterials} />
+                <input className="input" id="kodland-materials-username" name="kodland_materials_username" autoComplete="off" autoCapitalize="none" spellCheck={false} data-1p-ignore="true" data-lpignore="true" data-bwignore="true" value={materialUsername} onChange={(event) => setMaterialUsername(event.target.value)} required disabled={loadingMaterials} />
               </label>
               <label className="field">Senha
-                <input className="input" name="password" type="password" autoComplete="current-password" value={materialPassword} onChange={(event) => setMaterialPassword(event.target.value)} required disabled={loadingMaterials} />
+                <input className="input" id="kodland-materials-password" name="kodland_materials_password" type="password" autoComplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" value={materialPassword} onChange={(event) => setMaterialPassword(event.target.value)} required disabled={loadingMaterials} />
               </label>
               {materialError && <p className="form-error" role="alert">{materialError}</p>}
               <div className="form-actions">

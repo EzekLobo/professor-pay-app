@@ -1,5 +1,12 @@
 # Estado atual
 
+## Separação do preenchimento de credenciais — 26/10/2026
+
+- AuthForm identifica acesso NexusClass com IDs próprios e autocomplete section-nexusclass username/current-password. Sincronização e materiais Kodland usam nomes/IDs próprios, autocomplete off e sinais ignore para gerenciadores compatíveis (1Password/LastPass/Bitwarden), sem alterar o envio das credenciais pelos estados React.
+- Validado: 268 testes unitários, 5 E2E de autenticação/dados, lint e build com TypeScript passam. Não testado com cofre real de extensões.
+- Opção de salvar identifica explicitamente Kodland; cofre IndexedDB por UID permanece separado do login. Não há remoção de entradas já salvas em gerenciadores externos, nem garantia de que todo navegador/extensão respeite os sinais; entradas antigas associadas ao domínio Nexus precisam de correção pelo usuário.
+
+
 ## Ações compactas com ícones — 26/10/2026
 
 - Preferência do usuário registrada em AGENTS.md. Tarefas usa ícones para Listas/Filtros/Arquivo e ações secundárias do editor no mobile, mantendo texto no desktop, ações principais e confirmações. Arquivar/restaurar/excluir listas são ícones de 44px com aria-label/title; gerenciador organiza nome e ações lateralmente.

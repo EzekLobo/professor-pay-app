@@ -116,3 +116,25 @@ competência ainda aberta; pagamentos recebidos preservam o histórico financeir
 As coleções `admin_access_sessions`, `admin_usage_daily` e `admin_page_visits` são gravadas apenas
 pelas rotas de servidor com credenciais administrativas. Elas não exigem nem
 recebem permissões adicionais nas regras do cliente.
+
+## Nick de acesso nas Configurações
+
+Em **Configurações > Acesso à conta**, cada usuário autenticado pode definir ou
+alterar o próprio nick. São aceitos de 3 a 30 caracteres: letras sem acento,
+números, ponto, hífen e sublinhado. A comparação não diferencia maiúsculas de
+minúsculas. O login por e-mail e a recuperação de senha continuam disponíveis.
+
+`GET/PATCH /api/account/username` identifica a conta pelo token Firebase, nunca
+por um UID informado pelo cliente. O servidor usa uma transação Firestore para
+reservar o nome em `login_usernames/{nick}`, atualizar
+`login_accounts/{uid}` e liberar o nome anterior, somente se pertencer à mesma
+conta. Nomes ocupados retornam 409 sem alterar o nick atual.
+
+As coleções de índices são acessadas apenas pelo Admin SDK e permanecem
+bloqueadas pelas regras atuais para leitura ou escrita direta do navegador.
+O serviço usa a configuração de servidor já exigida pela administração
+(`FIREBASE_SERVICE_ACCOUNT_JSON`); não requer novas variáveis nem novas regras.
+Contas criadas anteriormente são reconhecidas pela claim `username`, sem
+migração manual. Após uma troca, `login_accounts` é a fonte autoritativa; a
+exclusão administrativa limpa os índices atual e legado sem afetar terceiros.
+A demonstração não altera nicks nem chama essa API de conta real.

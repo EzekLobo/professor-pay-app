@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { removeAccountUsernames } from "@/lib/account-username";
 import { validLoginUsername } from "@/lib/login-username";
 import {
   assertAdministrator,
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
       ]);
     } catch (error) {
       await auth.deleteUser(user.uid).catch(() => undefined);
-      await usernameRef.delete().catch(() => undefined);
+      await removeAccountUsernames(user.uid, input.username).catch(() => undefined);
       throw error;
     }
     return NextResponse.json({ user: { id: user.uid, name: user.displayName, username: input.username, email: user.email } }, { status: 201 });
@@ -87,7 +88,7 @@ export async function DELETE(request: Request) {
 
     await auth.deleteUser(userId);
     const username = typeof target.customClaims?.username === "string" ? target.customClaims.username : "";
-    if (username) await getAdminDb().collection("login_usernames").doc(username).delete().catch(() => undefined);
+    await removeAccountUsernames(userId, username);
     return NextResponse.json({ user: { id: target.uid, name: target.displayName, email: target.email } });
   } catch (error) {
     if (error instanceof RequestAuthError) {

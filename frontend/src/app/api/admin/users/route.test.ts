@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   authenticatedUser: vi.fn(), assertAdministrator: vi.fn(), getUser: vi.fn(),
   updateUser: vi.fn(), revokeRefreshTokens: vi.fn(), deleteUser: vi.fn(),
 }));
+vi.mock("@/lib/account-username", () => ({ removeAccountUsernames: vi.fn() }));
 vi.mock("@/lib/server-auth", () => ({
   authenticatedUser: mocks.authenticatedUser,
   assertAdministrator: mocks.assertAdministrator,

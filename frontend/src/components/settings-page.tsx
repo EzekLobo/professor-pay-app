@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { AccountUsernameSettings } from "@/components/account-username-settings";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input } from "@/components/ui";
@@ -15,7 +16,7 @@ const minutes = (value: string) => { const [hour, minute] = value.split(":").map
 const clock = (value: number) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
 const todayInSaoPaulo = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
-export function SettingsContent({ adapter = productionAdapter }: { adapter?: ManualAdapters }) {
+export function SettingsContent({ adapter = productionAdapter, accountAccess = false }: { adapter?: ManualAdapters; accountAccess?: boolean }) {
   const [preferences, setPreferences] = useState<TutorPreferences | null>(null);
   const [availability, setAvailability] = useState<ManualAvailability[]>([]);
   const [classes, setClasses] = useState<ManualClass[]>([]);
@@ -63,6 +64,7 @@ export function SettingsContent({ adapter = productionAdapter }: { adapter?: Man
   return <div className="management-grid page-fill-grid settings-page">
     <div className="page-heading"><div><h2>Configurações do tutor</h2><p>Padrões usados nos novos cadastros e na operação diária.</p></div></div>
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
+    {accountAccess && <AccountUsernameSettings />}
     <form id="tutor-settings-form" className="settings-form" onSubmit={save}>
       <section className="panel settings-section settings-defaults">
         <div className="settings-section-heading"><span className="settings-section-icon"><Clock3 size={19} aria-hidden="true" /></span><div><h3>Padrões das aulas</h3><p>Valores preenchidos automaticamente em novos cadastros.</p></div></div>
@@ -93,4 +95,4 @@ export function SettingsContent({ adapter = productionAdapter }: { adapter?: Man
   </div>;
 }
 
-export default function SettingsPage() { return <AuthGuard>{(user) => <Shell user={user}><SettingsContent /></Shell>}</AuthGuard>; }
+export default function SettingsPage() { return <AuthGuard>{(user) => <Shell user={user}><SettingsContent accountAccess /></Shell>}</AuthGuard>; }

@@ -3300,3 +3300,15 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .admin-users-table .admin-user-actions { padding-left: 0; }
   .admin-users-table .admin-user-actions .button { width: auto; padding: 6px; font-size: .7rem; }
 }
+
+.settings-account { grid-column: 1 / -1; }
+.account-username-form { display: grid; gap: 8px; max-width: 560px; }
+.account-username-form > label { color: var(--muted); font-size: .82rem; }
+.account-username-controls { display: flex; align-items: center; gap: 10px; }
+.account-username-controls .input { min-width: 0; flex: 1; }
+.account-username-controls .button { flex: 0 0 auto; width: auto; white-space: nowrap; }
+.account-username-form > small { font-size: .75rem; line-height: 1.5; }
+@media (max-width: 720px) {
+  .account-username-controls { gap: 8px; }
+  .account-username-controls .button { padding-inline: 10px; }
+}

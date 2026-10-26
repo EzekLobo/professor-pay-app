@@ -1,5 +1,13 @@
 # Estado atual
 
+
+## Nick editável nas Configurações — 26/10/2026
+
+- Configurações > Acesso à conta permite definir/trocar nick único (3–30 caracteres, normalizado em minúsculas). Formulário próprio com Salvar nick, carregamento, conflito e retry; e-mail continua válido para login/recuperação.
+- GET/PATCH /api/account/username usa somente UID autenticado. account-username.ts reserva login_usernames e atualiza login_accounts por transação, liberando o nome anterior apenas se for da mesma conta. login_accounts é server-only e autoritativo; claims antigas servem como fallback inicial. Exclusão/rollback administrativo limpa índices sem remover nicks de terceiros.
+- Somente SettingsPage autenticada habilita accountAccess; demo não faz chamadas privadas. Sem alteração de regras/variáveis Firebase: usa Admin SDK existente. docs/FIREBASE.md descreve o fluxo.
+- Validação: 228 testes unitários, lint, typecheck, build e 17 E2E de autenticação/interface. Fixture local com serviços simulados verificou criação/troca, case normalization, nome ocupado, HTML validation, persistência e retry em 1440/390/320px. Não alterou contas reais.
+
 ## Atividades: somente pendências — 25/10/2026
 
 - Acompanhamento > Compacto tem filtro “Mostrar: Somente pendências” (padrão) / “Todos os alunos”. O padrão filtra alunos sem correções e usa linhas esparsas sem células vazias, com aula/atividade em cada cartão; a opção todos mantém a matriz original. Lista já mostra somente entregas pendentes.

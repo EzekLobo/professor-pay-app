@@ -1,6 +1,14 @@
 # Estado atual
 
 
+## Menu interno de Configurações — 26/10/2026
+
+- SettingsContent organiza Conta (somente autenticados), Aulas e pagamentos, Mensagens, Integrações e Disponibilidade em abas acessíveis: menu lateral no desktop e grade compacta no celular. Uma seção visível por vez, com setas/Home/End e rascunhos preservados ao alternar.
+- Preferências salvam apenas os campos da seção ativa; tarifa é validada/gravada somente em Aulas e pagamentos. Nick mantém seu formulário separado e horários são salvos por inclusão/remoção, com estado ocupado e erros tratados. Painéis ocultos ficam desabilitados para não bloquear a validação do formulário ativo. Conta é a aba inicial autenticada; demo começa em Aulas e pagamentos.
+- Novidade 2026102603 anuncia a reorganização. E2E de pendências/sincronização passam a abrir Integrações antes de ativar Kodland, sem exigir tarifa em outra seção.
+- Verificado: typecheck, lint, build, 247 testes unitários e 26 E2E de interface/novidades/navegação/configurações. Novo settings-navigation.spec.ts cobre rascunhos, salvamento independente, persistência, horários, teclado e overflow em 1440/390/320px. Fixture local com Conta habilitada validou os cinco itens, rascunho do nick e salvamento, sem alterar contas reais.
+
+
 ## Novidades desde a última leitura — 26/10/2026
 
 - Shell autenticado abre ReleaseNotes automaticamente só quando há versões não vistas. X/Escape/fundo/Entendi/atalho confirmam leitura; botão Novidades permite rever o catálogo. Abertura aguarda outros modais/guia/feriados. Demo só consulta manual, com adaptador local, sem chamadas privadas.

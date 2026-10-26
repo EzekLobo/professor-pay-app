@@ -119,7 +119,7 @@ recebem permissões adicionais nas regras do cliente.
 
 ## Nick de acesso nas Configurações
 
-Em **Configurações > Acesso à conta**, cada usuário autenticado pode definir ou
+Em **Configurações > Conta > Acesso à conta**, cada usuário autenticado pode definir ou
 alterar o próprio nick. São aceitos de 3 a 30 caracteres: letras sem acento,
 números, ponto, hífen e sublinhado. A comparação não diferencia maiúsculas de
 minúsculas. O login por e-mail e a recuperação de senha continuam disponíveis.

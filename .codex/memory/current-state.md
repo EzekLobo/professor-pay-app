@@ -1,5 +1,11 @@
 # Estado atual
 
+## Ações compactas com ícones — 26/10/2026
+
+- Preferência do usuário registrada em AGENTS.md. Tarefas usa ícones para Listas/Filtros/Arquivo e ações secundárias do editor no mobile, mantendo texto no desktop, ações principais e confirmações. Arquivar/restaurar/excluir listas são ícones de 44px com aria-label/title; gerenciador organiza nome e ações lateralmente.
+- Barra mobile une busca e três ações numa linha. Rótulos acessíveis preservam teclado/leitores de tela e testes existentes. Validação: 9 E2E em 320/390/1440px, typecheck, lint e build passam; inspeção visual do gerenciador em 320px sem overflow.
+
+
 ## Revisão visual e restauração de tarefas — 26/10/2026
 
 - Editor de listas mais compacto, sem rótulos visuais repetidos; rolagem interna e ações de salvar/cancelar fora da área rolável. Exclusão tem destaque de perigo; nomes mantêm rótulos acessíveis.

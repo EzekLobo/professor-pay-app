@@ -21,6 +21,8 @@ Use this file as the first stop for every Codex session in this repo.
 
 ## Summary Rules
 
+- Interface: preferir ícones reconhecíveis para ações secundárias, sobretudo no mobile. Botões só com ícone precisam de nome acessível, título e área de toque de ao menos 44px; manter texto nas ações principais e confirmações destrutivas.
+
 - Para novas funcionalidades visíveis ao usuário, adicione uma entrada curta em `frontend/src/lib/release-notes.ts` com versão única crescente, comportamento entregue e atalho interno. Consulte `docs/RELEASE_NOTES.md`; não anuncie propostas ou integrações não verificadas.
 
 - Update `.codex/memory/current-state.md` after meaningful architecture, dependency, workflow, or product-state changes.

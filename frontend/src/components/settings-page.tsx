@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { DataContent } from "@/components/data-page";
 import { AccountUsernameSettings } from "@/components/account-username-settings";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input } from "@/components/ui";
-import { AtSign, CalendarClock, Clock3, MessageCircle, Plus, Plug } from "lucide-react";
+import { AtSign, CalendarClock, Clock3, DatabaseBackup, MessageCircle, Plus, Plug } from "lucide-react";
 import { manualAdapter as productionAdapter } from "@/lib/manual-adapters-runtime";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 import { DEFAULT_ABSENCE_MESSAGE, type ManualAvailability, type ManualOccurrence, type TutorPreferences } from "@/lib/manual-operations";
@@ -22,12 +23,19 @@ const settingsSections = [
   { id: "message", label: "Mensagens", icon: MessageCircle },
   { id: "integration", label: "Integrações", icon: Plug },
   { id: "availability", label: "Disponibilidade", icon: CalendarClock },
+  { id: "data", label: "Dados e backup", icon: DatabaseBackup },
 ] as const;
 type SettingsSection = (typeof settingsSections)[number]["id"];
 
-export function SettingsContent({ adapter = productionAdapter, accountAccess = false }: { adapter?: ManualAdapters; accountAccess?: boolean }) {
+export function SettingsContent({ adapter = productionAdapter, accountAccess = false, dataContent, initialSection }: { adapter?: ManualAdapters; accountAccess?: boolean; dataContent?: ReactNode; initialSection?: SettingsSection }) {
   const sections = settingsSections.filter((section) => accountAccess || section.id !== "account");
-  const [section, setSection] = useState<SettingsSection>(accountAccess ? "account" : "defaults");
+  const [section, setSection] = useState<SettingsSection>(initialSection ?? (accountAccess ? "account" : "defaults"));
+  useEffect(() => {
+    const syncHash = () => { if (window.location.hash === "#data") setSection("data"); };
+    const timer = window.setTimeout(syncHash, 0);
+    window.addEventListener("hashchange", syncHash);
+    return () => { window.clearTimeout(timer); window.removeEventListener("hashchange", syncHash); };
+  }, []);
   const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [preferences, setPreferences] = useState<TutorPreferences | null>(null);
@@ -65,7 +73,7 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!preferences || busy || section === "account" || section === "availability") return;
+    if (!preferences || busy || section === "account" || section === "availability" || section === "data") return;
     setBusy(true); setError(""); setNotice("");
     try {
       const rate = Math.round(Number(defaultRate.replace(",", ".")) * 100);
@@ -117,7 +125,7 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
     <div className="settings-content">
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     {accountAccess && <div id="settings-panel-account" role="tabpanel" aria-labelledby="settings-tab-account" hidden={section !== "account"} tabIndex={0}><AccountUsernameSettings /></div>}
-    <form id="tutor-settings-form" className="settings-form" onSubmit={save} hidden={section === "account" || section === "availability"}>
+    <form id="tutor-settings-form" className="settings-form" onSubmit={save} hidden={section === "account" || section === "availability" || section === "data"}>
       <div id="settings-panel-defaults" role="tabpanel" aria-labelledby="settings-tab-defaults" hidden={section !== "defaults"} tabIndex={0}><fieldset className="settings-fieldset" disabled={section !== "defaults" || busy}>
       <section className="panel settings-section settings-defaults">
         <div className="settings-section-heading"><span className="settings-section-icon"><Clock3 size={19} aria-hidden="true" /></span><div><h3>Padrões das aulas</h3><p>Valores preenchidos automaticamente em novos cadastros.</p></div></div>
@@ -151,6 +159,7 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
       <div className="availability-list">{availability.filter((item) => item.active).map((item) => <div className="availability-row" key={item.id}><span><strong>{weekdays[item.week_day]} · {item.start_time}–{item.end_time}</strong><small className="muted">Livre após descontar aulas: {freeByAvailability.get(item.id)}</small></span><button className="button button-ghost button-small" type="button" disabled={availabilityBusy} onClick={() => void removeAvailability(item.id)}>Remover</button></div>)}</div>
       <div className="availability-add"><label><span>Dia da semana</span><select className="input" value={newSlot.week_day} onChange={(event) => setNewSlot({ ...newSlot, week_day: Number(event.target.value) })}>{weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label><label><span>Início</span><Input type="time" value={newSlot.start_time} onChange={(event) => setNewSlot({ ...newSlot, start_time: event.target.value })} /></label><label><span>Fim</span><Input type="time" value={newSlot.end_time} onChange={(event) => setNewSlot({ ...newSlot, end_time: event.target.value })} /></label><Button className="availability-add-button" disabled={availabilityBusy} type="button" aria-label="Adicionar horário" title="Adicionar horário" onClick={() => void addAvailability()}><Plus size={20} aria-hidden="true" /></Button></div>
     </section>
+    <div id="settings-panel-data" role="tabpanel" aria-labelledby="settings-tab-data" hidden={section !== "data"} tabIndex={0}>{section === "data" && (dataContent ?? <DataContent />)}</div>
     </div>
   </div>;
 }

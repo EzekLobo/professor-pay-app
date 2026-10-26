@@ -2890,6 +2890,7 @@ summary:focus-visible {
 .management-grid.page-fill-grid.settings-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; overflow: visible; }
 .settings-page > * { grid-column: 1 / -1; }
 .settings-page .panel { align-self: start; }
+.settings-page .data-page > .data-backup-card { align-self: stretch; }
 .settings-form { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr); grid-auto-flow: dense; gap: 14px; }
 .settings-section { display: grid; min-width: 0; gap: 16px; }
 .settings-message, .settings-save-bar { grid-column: 1 / -1; }

@@ -29,7 +29,7 @@ export const correctionsNavigation: AppRoute = { href: "/corrections", label: "A
 export const utilityNavigation: AppRoute = { href: "/data", label: "Dados e backup", mobileLabel: "Dados", icon: DatabaseBackup };
 export const settingsNavigation: AppRoute = { href: "/settings", label: "Configurações", mobileLabel: "Ajustes", icon: Settings };
 
-export const appRoutes = [...navigation, correctionsNavigation, tasksNavigation, settingsNavigation, utilityNavigation];
+export const appRoutes = [...navigation, correctionsNavigation, tasksNavigation, settingsNavigation];
 
 export function pageTitle(pathname: string) {
   return pathname === "/admin"

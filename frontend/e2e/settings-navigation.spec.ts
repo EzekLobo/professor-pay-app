@@ -5,7 +5,7 @@ for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/demo#settings");
     const menu = page.getByRole("tablist", { name: "Seções das configurações" });
-    await expect(menu.getByRole("tab")).toHaveCount(4);
+    await expect(menu.getByRole("tab")).toHaveCount(5);
     const panel = page.getByRole("tabpanel");
     await expect(panel).toHaveCount(1);
     await expect(panel).toHaveAccessibleName("Aulas e pagamentos");

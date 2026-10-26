@@ -1,3 +1,3 @@
-"use client";
+import { redirect } from "next/navigation";
 
-export { default } from "@/components/data-page";
+export default function DataPage() { redirect("/settings#data"); }

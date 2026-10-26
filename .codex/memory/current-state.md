@@ -1,5 +1,10 @@
 # Estado atual
 
+## Dados e backup dentro de Configurações — 26/10/2026
+
+- SettingsContent inclui aba Dados e backup com sincronização, JSON, CSV e reset fora do formulário de preferências. Removido destino separado da navegação desktop/mobile; /data redireciona para /settings#data. Demo preserva #data como atalho compatível, com adaptador local e Configurações selecionada.
+- Cards mantêm alturas iguais e layout responsivo dentro do painel. Novidade 2026102606. Validação: lint, typecheck, 268 testes unitários e 23 E2E de dados/configurações/sincronização/interface passaram.
+
 ## Separação do preenchimento de credenciais — 26/10/2026
 
 - AuthForm identifica acesso NexusClass com IDs próprios e autocomplete section-nexusclass username/current-password. Sincronização e materiais Kodland usam nomes/IDs próprios, autocomplete off e sinais ignore para gerenciadores compatíveis (1Password/LastPass/Bitwarden), sem alterar o envio das credenciais pelos estados React.

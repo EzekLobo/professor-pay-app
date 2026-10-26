@@ -5,7 +5,9 @@ for (const width of [320, 390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const privateRequests: string[] = [];
     page.on("request", request => { if (/firestore.googleapis|identitytoolkit|\/api\/kodland/.test(request.url())) privateRequests.push(request.url()); });
-    await page.goto("/demo#data");
+    await page.goto("/demo#settings");
+    await page.getByRole("tab", { name: "Dados e backup", exact: true }).click();
+    await expect(page.getByRole("link", { name: "Dados e backup", exact: true })).toHaveCount(0);
     const backup = page.getByRole("region", { name: "Backup completo" });
     const csv = page.getByRole("region", { name: "Planilhas CSV" });
     await expect(backup).toBeVisible();

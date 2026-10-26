@@ -9,6 +9,7 @@ export type ReleaseNote = {
 
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
+  { version: 2026102606, date: "2026-10-26", title: "Dados e backup nas Configurações", description: "Encontre sincronização, cópias de segurança e planilhas na seção Dados e backup das Configurações.", href: "/settings#data", action: "Abrir dados e backup" },
   {
     version: 2026102605, date: "2026-10-26", title: "Personalize as listas das suas tarefas",
     description: "Escolha os nomes e a quantidade de listas. Crie, reordene, arquive ou exclua listas; ao excluir, você decide o destino das tarefas.",

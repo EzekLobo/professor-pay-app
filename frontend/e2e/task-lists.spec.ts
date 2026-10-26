@@ -6,6 +6,10 @@ for (const width of [1440, 390, 320]) {
     await page.goto("/demo#tasks");
     await page.getByRole("button", { name: "Listas", exact: true }).click();
     const manager = page.getByRole("dialog", { name: "Organizar listas", exact: true });
+    const saveBounds = await manager.getByRole("button", { name: "Salvar listas", exact: true }).boundingBox();
+    expect(saveBounds).not.toBeNull();
+    expect(saveBounds!.y + saveBounds!.height).toBeLessThanOrEqual(900);
+    expect(await manager.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     await manager.getByRole("textbox", { name: "Nome da lista 1", exact: true }).fill("Planejar");
     await manager.locator(".task-list-row").filter({ has: page.getByRole("textbox", { name: "Nome da lista 3", exact: true }) }).getByRole("button", { name: "Excluir lista", exact: true }).click();
     const deletion = page.getByRole("dialog", { name: "Excluir lista", exact: true });
@@ -78,4 +82,28 @@ test("exclusão confirmada pode esvaziar o quadro e permite criar outra lista", 
   await expect(manager).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Nova tarefa", exact: true })).toBeEnabled();
   await expect(page.getByRole("region", { name: "Meu fluxo", exact: true })).toBeVisible();
+});
+
+for (const destination of ["doing", "done"]) test(`restaurar tarefa de lista arquivada para ${destination} preserva restauração e confirmação`, async ({ page }) => {
+  await page.goto("/demo#tasks");
+  await page.getByRole("button", { name: "Listas", exact: true }).click();
+  const manager = page.getByRole("dialog", { name: "Organizar listas", exact: true });
+  await manager.locator(".task-list-row").first().getByRole("button", { name: "Arquivar lista", exact: true }).click();
+  await manager.getByRole("button", { name: "Salvar listas", exact: true }).click();
+  await page.getByRole("button", { name: "Ver arquivo", exact: true }).click();
+  await page.getByRole("button", { name: "Preparar a próxima aula", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "Editar tarefa", exact: true });
+  await editor.getByRole("combobox", { name: "Lista", exact: true }).selectOption(destination);
+  await editor.getByRole("button", { name: "Restaurar", exact: true }).click();
+  if (destination === "done") {
+    const confirmation = page.getByRole("dialog", { name: "Concluir com itens pendentes", exact: true });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "Concluir mesmo assim", exact: true }).click();
+  }
+  await expect(editor).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Preparar a próxima aula", exact: true })).not.toBeVisible();
+  await page.getByRole("button", { name: "Voltar ao quadro", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Preparar a próxima aula", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Preparar a próxima aula", exact: true })).toBeVisible();
 });

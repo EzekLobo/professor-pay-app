@@ -1,5 +1,12 @@
 # Estado atual
 
+## Revisão visual e restauração de tarefas — 26/10/2026
+
+- Editor de listas mais compacto, sem rótulos visuais repetidos; rolagem interna e ações de salvar/cancelar fora da área rolável. Exclusão tem destaque de perigo; nomes mantêm rótulos acessíveis.
+- Corrigida restauração de cartão de lista arquivada após escolher destino ativo: usa origem do cartão para determinar restauração e respeita confirmação de checklist ao concluir. Teste E2E cobre persistência após recarga.
+- Validação: 268 testes unitários e 9 E2E passam, incluindo 320/390/1440px, restauração para lista aberta/concluída e rodapé visível. Lint, typecheck e build passam. Regras Firebase continuam pendentes de publicação manual.
+
+
 
 ## Listas de tarefas personalizáveis — 26/10/2026
 

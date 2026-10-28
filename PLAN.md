@@ -1,5 +1,22 @@
 # Plano de Implementação — AulaPay Web
 
+## Notificações de acompanhamento — execução 28/10/2026
+
+Plano detalhado: [notificações](docs/plans/student-notifications-implementation.md).
+
+- [x] N1 — Revisão, contratos, regras e persistência. Verificado pelo orquestrador: typecheck e 31 testes focados passaram. Aceitação: motor/fonte/persistência/backup testados e typecheck; não confundir correções com não entrega. Sem dependências.
+- [ ] N2 — Sino, configurações, navegação contextual e mensagens. Depende de N1. Aceitação: conta/demo, classificação e prazo manual, alerta abre aluno/aula e permite confirmar contato, com erros e estados vazios acessíveis.
+- [ ] N3 — Revisão integrada, E2E, documentação e novidades. Depende de N2. Aceitação: lint/typecheck/unitários/build/E2E pertinentes; inspeção 320/390/1440px; limitações e operação documentadas.
+
+### Handoff N1
+
+- Motor e contrato em `student-notification-rules.ts`; estado e ações em `student-notification-store.ts`; origem compartilhada em `student-notification-source.ts`. Preferências iniciam desativadas para primeira configuração explícita.
+- Fonte externa preserva progresso allowlisted (`kodland_task_progress`) além das correções. Tipo somente por task ID presente nos links dos materiais; não classificados bloqueiam a afirmação “nenhuma entregue”. Casa externa precisa de política explícita de prazo em dias. Atualizar Acompanhamento popula o progresso novo; nenhuma chamada de escrita externa.
+- ManualActivity aceita `kind`, `due_at` (ISO com offset/Z), `required`, `exempt`; legado é unknown. Save/restore/backup preservam campos; edições parciais preservam metadados existentes.
+- Coleções novas `notification_settings`, `notification_cases`, `kodland_task_progress` incluídas em export/import/reset. Regras vigentes já permitem subcoleções exclusivas do próprio UID; não houve mudança nem publicação de regras.
+- Verificado pelo subagente: 68 testes em 6 arquivos focados, `npm run web:typecheck`, lint e diff check passam. npm ci concluído sem alterar dependências/lock. Registro completo das APIs no plano detalhado.
+- Próximo: N2 deve manter uma instância do store por UID/demo, compartilhar load/cache, invalidar fonte no evento e atualizar periodicamente enquanto aberto. Não marcar contato confirmado apenas ao abrir WhatsApp. Criar interface de classificação/prazo manual e abrir o contexto em Acompanhamento.
+
 ## Refatoração operacional (execução atual)
 
 Objetivo: aproximar a web da experiência do aplicativo móvel, centralizando

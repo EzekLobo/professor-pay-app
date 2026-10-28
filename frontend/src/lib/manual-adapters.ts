@@ -1,4 +1,4 @@
-import type { ManualActivity, ManualLessonContent } from "./manual-pedagogy";
+import type { ManualActivity, ManualLessonContent, ManualActivityNotificationFields } from "./manual-pedagogy";
 import type {
   KodlandClassSettings,
   ManualClass,
@@ -57,6 +57,6 @@ export type ManualAdapters = {
     lessons(): Promise<ManualLessonContent[]>;
     activities(): Promise<ManualActivity[]>;
     saveLesson(input: { id?: string; class_id: string; occurrence_id?: string | null; title: string; content?: string; guide?: string; links?: { label: string; url: string }[] }): Promise<ManualLessonContent>;
-    saveActivity(input: { id?: string; class_id: string; student_id: string; occurrence_id: string; title: string; description?: string; submission_text?: string; submission_url?: string; feedback?: string; status?: ManualActivity["status"] }): Promise<ManualActivity>;
+    saveActivity(input: ManualActivityNotificationFields & { id?: string; class_id: string; student_id: string; occurrence_id: string; title: string; description?: string; submission_text?: string; submission_url?: string; feedback?: string; status?: ManualActivity["status"] }): Promise<ManualActivity>;
   };
 };

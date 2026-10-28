@@ -1,4 +1,6 @@
 import { createTaskCard, defaultTaskLists } from "./task-board";
+import { defaultNotificationSettings, evaluateStudentNotifications } from "./student-notification-rules";
+import { reconcileNotificationCases } from "./student-notification-store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fake = vi.hoisted(() => ({
@@ -169,6 +171,12 @@ describe("backup e migração", () => {
       payment_snapshot: closed, created_at: "2026-10-01" });
     fake.docs.set(key("task_cards", "task-backup"), createTaskCard({ id: "task-backup", title: "Tarefa no backup" }));
     fake.docs.set(key("task_settings", "lists"), { lists: defaultTaskLists().filter((list) => list.id !== "waiting") });
+    const notificationSettings = { ...defaultNotificationSettings("2026-10-01"), enabled: true };
+    const notification = evaluateStudentNotifications([{ source: "manual", class_id: "c", class_name: "Turma", student_id: "s", student_name: "Ana", occurrence_id: "l", lesson_label: "M1L1", lesson_date: "2026-10-13", ended_at: "2026-10-13T20:00:00Z", active: true, cancelled: false, attendance: "absent", guardian_name: "Maria", guardian_phone: "55" }], [], notificationSettings, new Date("2026-10-15T12:00:00Z"))[0];
+    const notificationCase = reconcileNotificationCases([], [notification], "2026-10-15T12:00:00Z")[0];
+    fake.docs.set(key("notification_settings", "default"), notificationSettings);
+    fake.docs.set(key("notification_cases", notification.id), notificationCase);
+    fake.docs.set(key("kodland_task_progress", "progress-1"), { id: "progress-1", external_class_id: "k", external_student_id: "s", lesson_id: "l", task_id: "t", task_title: "Exercício", state: "missing" });
     const exported = await dataApi.export();
     expect(exported).toMatchObject({ schema_version: "4.0", kodland_payroll_periods: [{ teacher_id: "teacher" }], manual_students: [{ name: "Ana" }],
       manual_class_groups: [{ name: "Autônomas" }], manual_classes: [{ name: "Própria", group_id: "personal-1" }], teaching_settings: { id: "finance" },
@@ -183,6 +191,9 @@ describe("backup e migração", () => {
     await dataApi.import(exported);
     expect(fake.docs.get(key("task_cards", "task-backup"))?.title).toBe("Tarefa no backup");
     expect(fake.docs.get(key("task_settings", "lists"))?.lists).toHaveLength(3);
+    expect(fake.docs.get(key("notification_settings", "default"))).toEqual(notificationSettings);
+    expect(fake.docs.get(key("notification_cases", notification.id))).toMatchObject(notificationCase);
+    expect(fake.docs.get(key("kodland_task_progress", "progress-1"))?.state).toBe("missing");
     expect(fake.docs.get(key("kodland_payroll_periods", "teacher-period"))?.teacher_id).toBe("teacher");
     expect(fake.docs.get(key("manual_classes", "own-1"))?.rate_history).toEqual([
       { effective_from: "2026-10-13", hourly_rate_cents: 5000 },

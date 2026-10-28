@@ -23,7 +23,10 @@ import {
 } from "@/lib/holidays";
 import type { KodlandLesson } from "@/lib/kodland-lessons";
 import type { PayrollPeriod } from "@/lib/kodland-payroll";
-import { isHttpUrl, type ManualActivity, type ManualLessonContent } from "@/lib/manual-pedagogy";
+import { isHttpUrl, manualActivityNotificationFields, type ManualActivityNotificationFields, type ManualActivity, type ManualLessonContent } from "@/lib/manual-pedagogy";
+import { validateNotificationSettings } from "@/lib/student-notification-rules";
+import { validateKodlandTaskProgress, type KodlandTaskProgress } from "@/lib/kodland-task-progress";
+import { validateNotificationCase, notifyStudentNotificationsChanged } from "@/lib/student-notification-store";
 import { manualCourseLessons, type ManualCourse } from "@/lib/manual-courses";
 import {
   defaultTutorPreferences,
@@ -200,6 +203,9 @@ export type DataExport = {
   schema_version: "4.0";
   task_cards?: unknown[];
   task_settings?: unknown[];
+  notification_settings?: unknown[];
+  notification_cases?: unknown[];
+  kodland_task_progress?: unknown[];
   kodland_payroll_periods?: unknown[];
   kodland_payroll_sync?: unknown[];
   kodland_payroll_settings?: unknown[];
@@ -392,6 +398,7 @@ export type CourseImportResult = {
 };
 export type { KodlandLesson } from "@/lib/kodland-lessons";
 type KodlandSnapshot = {
+  task_progress?: KodlandTaskProgress[];
   groups: Omit<KodlandGroup, "id" | "local_class_id" | "created_at">[];
   students: Omit<KodlandStudent, "local_note" | "hidden" | "created_at">[];
   reviews: Omit<KodlandReview, "created_at">[];
@@ -1428,7 +1435,7 @@ const backupCollectionNames = [
   "manual_activities", "kodland_class_settings",
   "manual_courses", "manual_occurrences", "manual_attendance", "manual_availability",
   "kodland_financial_overrides", "holidays", "lesson_notes", "tutorials",
-  "kodland_payroll_periods", "kodland_payroll_sync", "kodland_payroll_settings", "task_cards", "task_settings",
+  "kodland_payroll_periods", "kodland_payroll_sync", "kodland_payroll_settings", "task_cards", "task_settings", "notification_settings", "notification_cases", "kodland_task_progress",
 ] as const;
 type BackupCollection = typeof backupCollectionNames[number];
 
@@ -1463,6 +1470,13 @@ const backupRows = (payload: ImportPayload, name: BackupCollection): Row[] => {
     if (typeof id !== "string" || !id.trim() || id.includes("/")) {
       throw new ApiError(400, `O registro ${index + 1} de ${name} não tem identificador válido.`);
     }
+    if (name === "notification_settings") {
+      if (id !== "default") throw new ApiError(400, "Configuração de notificações inválida.");
+      return validateNotificationSettings(value) as unknown as Row;
+    }
+    if (name === "notification_cases") return validateNotificationCase(value) as unknown as Row;
+    if (name === "kodland_task_progress") return validateKodlandTaskProgress(value) as unknown as Row;
+    if (name === "manual_activities") return { ...value, ...manualActivityNotificationFields(value) } as unknown as Row;
     if (name === "task_settings") {
       if (id !== "lists") throw new ApiError(400, "Configuração de listas inválida.");
       try { return { id, lists: validateTaskLists(value.lists) } as unknown as Row; }
@@ -2120,7 +2134,7 @@ export const manualPedagogyApi = {
     await setDoc(reference, record);
     return record;
   },
-  saveActivity: async (input: {
+  saveActivity: async (input: ManualActivityNotificationFields & {
     id?: string; class_id: string; student_id: string; occurrence_id: string;
     title: string; description?: string; submission_text?: string;
     submission_url?: string; feedback?: string; status?: ManualActivity["status"];
@@ -2150,6 +2164,7 @@ export const manualPedagogyApi = {
       throw new ApiError(404, "Atividade própria não encontrada.");
     }
     const record: ManualActivity = {
+      ...manualActivityNotificationFields(input, previous.data() as ManualActivityNotificationFields | undefined),
       id, class_id: ownClass.id, student_id: input.student_id,
       occurrence_id: input.occurrence_id, title: input.title.trim(),
       description: input.description?.trim() ?? "", submission_text: input.submission_text?.trim() ?? "",
@@ -2158,6 +2173,7 @@ export const manualPedagogyApi = {
       created_at: String(previous.data()?.created_at ?? now()), updated_at: now(),
     };
     await setDoc(reference, record);
+    notifyStudentNotificationsChanged();
     return record;
   },
 };
@@ -2279,6 +2295,7 @@ export const manualOperationsApi = {
     const current = await getDoc(doc(ref("manual_occurrences"), input.id));
     const record = { ...input, created_at: String(current.data()?.created_at ?? input.created_at ?? now()), updated_at: now() };
     await setDoc(doc(ref("manual_occurrences"), input.id), record);
+    notifyStudentNotificationsChanged();
     return record;
   },
   attendance: async (classId?: string): Promise<ManualAttendance[]> =>
@@ -2300,6 +2317,7 @@ export const manualOperationsApi = {
     const previous = await getDoc(reference);
     const record: ManualAttendance = { ...input, id, note: input.note.trim(), created_at: String(previous.data()?.created_at ?? now()), updated_at: now() };
     await setDoc(reference, record);
+    notifyStudentNotificationsChanged();
     return record;
   },
   availability: async (): Promise<ManualAvailability[]> =>
@@ -2526,6 +2544,11 @@ export const kodlandApi = {
   reviews: async () => ({
     items: (await rows("kodland_reviews")) as unknown as KodlandReview[],
   }),
+  taskProgress: async () => ({ items: (await rows("kodland_task_progress")).map(validateKodlandTaskProgress) }),
+  notificationSyncStatus: async () => {
+    const snapshot = await getDoc(doc(ref("sync_status"), "kodland"));
+    return snapshot.exists() ? snapshot.data() as { status?: string; sync_id?: string; completed_at?: string } : null;
+  },
   attendance: async () => ({
     items: (await rows("kodland_attendance")) as unknown as KodlandAttendance[],
   }),
@@ -2638,6 +2661,7 @@ export const kodlandApi = {
           completed_at: completedAt,
         });
       }
+      notifyStudentNotificationsChanged();
       return result;
     };
     if (mode === "corrections") {
@@ -2700,6 +2724,14 @@ export const kodlandApi = {
       });
       const staleLessonDeletes = staleScheduledKodlandLessonIds(previousLessons, lessons)
         .map((id) => (batch: FirebaseWriteBatch) => batch.delete(doc(syncCollection("kodland_lessons"), id)));
+      const progressWrites: Array<(batch: FirebaseWriteBatch) => void> = [];
+      if (snapshot.task_progress) {
+        const progress = uniqueBy(snapshot.task_progress.map(validateKodlandTaskProgress), item => item.id);
+        const existingProgress = await rows("kodland_task_progress");
+        const ids = new Set(progress.map(item => item.id));
+        progress.forEach(item => progressWrites.push(batch => batch.set(doc(syncCollection("kodland_task_progress"), item.id), item)));
+        existingProgress.filter(item => reviewedGroupIds.has(String(item.external_class_id)) && !ids.has(String(item.id))).forEach(item => progressWrites.push(batch => batch.delete(doc(syncCollection("kodland_task_progress"), String(item.id)))));
+      }
       persistencePhase = "gravação";
       await commitWrites([
         ...upserts,
@@ -2708,6 +2740,7 @@ export const kodlandApi = {
         ...attendanceDeletes,
         ...lessonUpserts,
         ...staleLessonDeletes,
+        ...progressWrites,
       ]);
       return finish({ group_count: 0, student_count: 0, review_count: reviews.length, attendance_count: attendance.length, lesson_count: lessons.length, extra_lesson_count: 0 });
     }
@@ -3289,6 +3322,7 @@ export const dataApi = {
       created_at: importedAt,
       schema_version: value.schema_version,
     });
+    notifyStudentNotificationsChanged();
     return { ...preview, imported_at: importedAt };
     });
   },
@@ -3308,6 +3342,7 @@ export const dataApi = {
     )));
     assertDataOwner(ownerId);
     clearTaskBoardLocalState(ownerId);
+    notifyStudentNotificationsChanged();
     });
   },
 };

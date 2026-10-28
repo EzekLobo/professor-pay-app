@@ -9,6 +9,7 @@ import {
 } from "@/lib/kodland-lessons";
 import { parseGuardianContact, parseStudentContact } from "@/lib/student-profile";
 import { normalizePayroll, payrollList } from "@/lib/kodland-payroll";
+import { kodlandDeliveryState, type KodlandTaskProgress } from "@/lib/kodland-task-progress";
 
 export const runtime = "nodejs";
 
@@ -1378,6 +1379,7 @@ async function extrasForStudents(
 async function reviewsForGroup(
   group: Group,
   token: string,
+  taskProgress: KodlandTaskProgress[],
 ): Promise<Review[]> {
     const lessons = list(
       await get(`student_groups/${group.external_id}/lessons/`, token),
@@ -1394,6 +1396,7 @@ async function reviewsForGroup(
             token,
           ),
         );
+        if (!Array.isArray(progress.lesson_tasks) || !Array.isArray(progress.students_progress)) throw new SyncFailure("kodland_unavailable", 502);
         const tasks = new Map(
           list(progress.lesson_tasks).map((value) => {
             const task = record(value);
@@ -1404,10 +1407,15 @@ async function reviewsForGroup(
           const student = record(value);
           const studentId = text(student.student_id);
           const studentName = text(student.student_name);
+          if (studentId && !Array.isArray(student.tasks_data)) throw new SyncFailure("kodland_unavailable", 502);
           return list(student.tasks_data).flatMap((value) => {
             const data = record(value);
             const status = text(data.task_status_key);
             const task = tasks.get(text(data.task_id));
+            if (studentId && task && text(task.id ?? task.task_id) && lessonId) {
+              const taskId = text(task.id ?? task.task_id);
+              taskProgress.push({ id: `${group.external_id}-${studentId}-${lessonId}-${taskId}`, external_class_id: group.external_id, external_student_id: studentId, lesson_id: lessonId, task_id: taskId, task_title: text(task.title ?? task.task_title) || "Atividade", state: kodlandDeliveryState(status) });
+            }
             if (
               !studentId ||
               !studentName ||
@@ -2039,12 +2047,13 @@ export async function POST(request: NextRequest) {
         correctionGroups,
         1,
         async (group) => {
+          const taskProgress: KodlandTaskProgress[] = [];
           const [reviews, attendance, lessons] = await Promise.all([
-            reviewsForGroup(group, token),
+            reviewsForGroup(group, token, taskProgress),
             attendanceForGroup(group, token),
             lessonsForGroup(group, token, courseLessonCache),
           ]);
-          return { reviews, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
+          return { reviews, taskProgress, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
         },
       ), (result) => ({
         reviewCount: result.reduce((total, item) => total + item.reviews.length, 0),
@@ -2058,6 +2067,7 @@ export async function POST(request: NextRequest) {
       return syncResponse(syncId, {
         ...emptyCollections(),
         reviews: items,
+        task_progress: snapshots.flatMap(item => item.taskProgress),
         attendance: attendanceItems,
         lessons,
         review_group_ids: correctionGroups.map((group) => group.external_id),

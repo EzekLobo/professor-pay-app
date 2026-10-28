@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { NotificationSettingsPanel } from "./student-notifications";
 import { DataContent } from "@/components/data-page";
 import { AccountUsernameSettings } from "@/components/account-username-settings";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input } from "@/components/ui";
-import { AtSign, CalendarClock, Clock3, DatabaseBackup, MessageCircle, Plus, Plug } from "lucide-react";
+import { AtSign, Bell, CalendarClock, Clock3, DatabaseBackup, MessageCircle, Plus, Plug } from "lucide-react";
 import { manualAdapter as productionAdapter } from "@/lib/manual-adapters-runtime";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 import { DEFAULT_ABSENCE_MESSAGE, type ManualAvailability, type ManualOccurrence, type TutorPreferences } from "@/lib/manual-operations";
@@ -20,6 +21,7 @@ const todayInSaoPaulo = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Amer
 const settingsSections = [
   { id: "account", label: "Conta", icon: AtSign },
   { id: "defaults", label: "Aulas e pagamentos", icon: Clock3 },
+  { id: "notifications", label: "Notificações", icon: Bell },
   { id: "message", label: "Mensagens", icon: MessageCircle },
   { id: "integration", label: "Integrações", icon: Plug },
   { id: "availability", label: "Disponibilidade", icon: CalendarClock },
@@ -31,10 +33,12 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
   const sections = settingsSections.filter((section) => accountAccess || section.id !== "account");
   const [section, setSection] = useState<SettingsSection>(initialSection ?? (accountAccess ? "account" : "defaults"));
   useEffect(() => {
-    const syncHash = () => { if (window.location.hash === "#data") setSection("data"); };
+    const syncHash = () => { if (window.location.hash === "#data") setSection("data"); else if (window.location.hash === "#notifications" || new URLSearchParams(window.location.search).get("section") === "notifications") setSection("notifications"); };
+    const openNotifications = () => setSection("notifications");
+    window.addEventListener("nexusclass:open-notification-settings", openNotifications);
     const timer = window.setTimeout(syncHash, 0);
     window.addEventListener("hashchange", syncHash);
-    return () => { window.clearTimeout(timer); window.removeEventListener("hashchange", syncHash); };
+    return () => { window.clearTimeout(timer); window.removeEventListener("hashchange", syncHash); window.removeEventListener("nexusclass:open-notification-settings", openNotifications); };
   }, []);
   const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -73,7 +77,7 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!preferences || busy || section === "account" || section === "availability" || section === "data") return;
+    if (!preferences || busy || section === "account" || section === "availability" || (section === "data" || section === "notifications")) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const rate = Math.round(Number(defaultRate.replace(",", ".")) * 100);
@@ -125,7 +129,8 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
     <div className="settings-content">
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     {accountAccess && <div id="settings-panel-account" role="tabpanel" aria-labelledby="settings-tab-account" hidden={section !== "account"} tabIndex={0}><AccountUsernameSettings /></div>}
-    <form id="tutor-settings-form" className="settings-form" onSubmit={save} hidden={section === "account" || section === "availability" || section === "data"}>
+    <div id="settings-panel-notifications" role="tabpanel" aria-labelledby="settings-tab-notifications" hidden={section !== "notifications"} tabIndex={0}>{section === "notifications" && <NotificationSettingsPanel />}</div>
+    <form id="tutor-settings-form" className="settings-form" onSubmit={save} hidden={section === "account" || section === "availability" || (section === "data" || section === "notifications")}>
       <div id="settings-panel-defaults" role="tabpanel" aria-labelledby="settings-tab-defaults" hidden={section !== "defaults"} tabIndex={0}><fieldset className="settings-fieldset" disabled={section !== "defaults" || busy}>
       <section className="panel settings-section settings-defaults">
         <div className="settings-section-heading"><span className="settings-section-icon"><Clock3 size={19} aria-hidden="true" /></span><div><h3>Padrões das aulas</h3><p>Valores preenchidos automaticamente em novos cadastros.</p></div></div>

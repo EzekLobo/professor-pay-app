@@ -3377,3 +3377,21 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .nav .mobile-more-trigger { display: flex; border: 0; font-family: inherit; cursor: pointer; }
   .mobile-more-options .nav-link { flex-direction: row; justify-content: flex-start; }
 }
+
+/* Student follow-up notifications */
+.notification-bell { position: relative; min-width: 44px; min-height: 44px; padding: 10px; flex-shrink: 0; }
+.notification-counter { position: absolute; right: -3px; top: -3px; min-width: 19px; height: 19px; padding: 1px 4px; border-radius: 999px; background: #b42318; color: #fff; font-size: 11px; line-height: 17px; }
+.notification-toolbar, .notification-form-grid { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.notification-toolbar button { min-height: 44px; }
+.notification-list, .notification-fields { display: grid; gap: 16px; }
+.notification-list { margin-top: 16px; }
+.notification-card { display: grid; gap: 6px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; min-width: 0; overflow-wrap: anywhere; }
+.notification-card p { margin: 4px 0; }
+.notification-modal { width: min(620px, calc(100vw - 24px)); }
+.notification-resolution { outline: 2px solid #7c6be6; scroll-margin-top: 20px; overflow-wrap: anywhere; }
+.notification-resolution .field { display: grid; gap: 6px; margin: 16px 0; }
+.notification-form-grid { align-items: start; }
+.notification-form-grid > label { flex: 1 1 200px; min-width: 0; }
+.notification-settings .input, .notification-resolution .input { width: 100%; min-width: 0; }
+.notification-settings small { overflow-wrap: anywhere; }
+@media (max-width: 480px) { .notification-toolbar { gap: 4px; } .notification-toolbar .button { padding-inline: 8px; } .notification-card { padding: 12px; } .notification-resolution .form-actions { flex-direction: column; align-items: stretch; } }

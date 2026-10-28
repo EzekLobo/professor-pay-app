@@ -1,4 +1,6 @@
 "use client";
+import type { StudentNotification } from "@/lib/student-notification-rules";
+import { NotificationResolution } from "./student-notifications";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { MessageCircle, RefreshCw } from "lucide-react";
@@ -567,6 +569,11 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   const [savingManual, setSavingManual] = useState(false);
   const [kodlandEnabled, setKodlandEnabled] = useState(false);
   const [viewPreferencesLoaded, setViewPreferencesLoaded] = useState(false);
+  const resolveNotificationContext = useCallback((item: StudentNotification) => {
+    setViewMode(item.category === "absence" ? "attendance" : "activities");
+    setQuery(item.student_name); setAttendanceFilter("ALL");
+    setOpenAttendanceClasses(new Set([item.class_name]));
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -581,13 +588,19 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
       setPendingOnly(typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : true);
       if (stored?.grouping === "class" || stored?.grouping === "student" || stored?.grouping === "lesson") setGrouping(stored.grouping);
       if (stored?.attendanceFilter === "ABSENT" || stored?.attendanceFilter === "ALL" || stored?.attendanceFilter === "PRESENT") setAttendanceFilter(stored.attendanceFilter);
+      const context = new URLSearchParams(window.location.search);
+      if (context.has("notification")) {
+        setViewMode(context.get("tab") === "attendance" ? "attendance" : "activities");
+        setQuery(""); setAttendanceFilter("ALL");
+        if (context.get("class")) setOpenAttendanceClasses(new Set([context.get("class")!]));
+      }
       setViewPreferencesLoaded(true);
     });
     return () => { active = false; };
   }, [preferenceKey]);
 
   useEffect(() => {
-    if (!viewPreferencesLoaded) return;
+    if (!viewPreferencesLoaded || new URLSearchParams(window.location.search).has("notification")) return;
     try {
       localStorage.setItem(`nexusclass.corrections.view.${preferenceKey}`, JSON.stringify({ viewMode, activitiesView, grouping, attendanceFilter, pendingOnly } satisfies CorrectionsViewPreferences));
     } catch { /* The screen remains usable when storage is blocked. */ }
@@ -730,6 +743,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
 
   return (
     <div className="management-grid page-fill-grid">
+      <NotificationResolution onContext={resolveNotificationContext} />
       <Modal open={Boolean(whatsAppDraft)} title="Mensagem pelo WhatsApp" onClose={() => setWhatsAppDraft(null)} className="attendance-whatsapp-modal">
         {whatsAppDraft && <div className="form management-form attendance-whatsapp-form">
           <p className="muted">Revise a mensagem para {whatsAppDraft.studentName} antes de enviar.</p>

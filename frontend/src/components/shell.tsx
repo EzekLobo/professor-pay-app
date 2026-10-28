@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { StudentNotificationsProvider, StudentNotificationBell } from "./student-notifications";
+import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { type MouseEvent, type ReactNode, useState } from "react";
@@ -24,9 +26,11 @@ type ShellFrameProps = {
   logoutLabel?: string;
   headerActions?: ReactNode;
   banner?: ReactNode;
+  notificationSnapshot?: DemoSnapshot | null;
+  onNotificationDemoChange?: (change: (value: DemoSnapshot) => DemoSnapshot) => void;
 };
 
-export function ShellFrame({ user, pathname, children, routeHref = (href) => href, onNavigate, onLogout, logoutLabel = "Sair", headerActions, banner }: ShellFrameProps) {
+export function ShellFrame({ user, pathname, children, routeHref = (href) => href, onNavigate, onLogout, logoutLabel = "Sair", headerActions, banner, notificationSnapshot, onNotificationDemoChange }: ShellFrameProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const primaryPaths = ["/dashboard", "/payments", "/classes", "/lessons"];
   const secondaryRoutes = appRoutes.filter((item) => !primaryPaths.includes(item.href));
@@ -46,6 +50,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
     </Link>;
   };
   return (
+    <StudentNotificationsProvider uid={user.id} snapshot={notificationSnapshot} onDemoChange={onNotificationDemoChange}>
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Pular para o conteúdo</a>
       <aside className="sidebar">
@@ -70,6 +75,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
         <header className="shell-header">
           <h1 className="shell-title">{pageTitle(pathname)}</h1>
           <div className="header-actions">
+            <StudentNotificationBell />
             {headerActions}
             <div className="profile-chip" aria-label={`Perfil de ${user.name}`}>
               <span>{user.name.slice(0, 1).toUpperCase()}</span>
@@ -84,6 +90,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
       </section>
       <Modal open={moreOpen} title="Mais opções" onClose={() => setMoreOpen(false)} className="mobile-more-modal"><nav id="mobile-more-options" className="mobile-more-options" aria-label="Outras áreas">{secondaryRoutes.map((item) => renderNavLink(item, true))}</nav></Modal>
     </div>
+    </StudentNotificationsProvider>
   );
 }
 

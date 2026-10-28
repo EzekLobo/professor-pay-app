@@ -7,6 +7,12 @@ const settings = { ...defaultNotificationSettings("2026-10-01"), enabled: true }
 const now = new Date("2026-10-28T15:00:00Z");
 const activity = (id: string, changes: Partial<NotificationObligation> = {}): NotificationObligation => ({ id, source: "manual", class_id: "class", student_id: "student", occurrence_id: "lesson", title: `Atividade ${id}`, kind: "classroom", due_at: null, state: "missing", required: true, exempt: false, ...changes });
 describe("regras de acompanhamento", () => {
+  it("aguarda o prazo explícito de aula e sua tolerância", () => {
+    const pending = activity("future", { due_at: "2026-10-28T15:00:00Z" });
+    expect(evaluateStudentNotifications([lesson], [pending], { ...settings, tolerance_minutes: 30 }, now)).toEqual([]);
+    expect(evaluateStudentNotifications([lesson], [pending], settings, new Date("2026-10-28T14:59:00Z"))).toEqual([]);
+    expect(evaluateStudentNotifications([lesson], [pending], settings, now)).toHaveLength(1);
+  });
   it("não confunde nenhuma atribuição com nenhuma entrega", () => {
     expect(evaluateStudentNotifications([lesson], [], settings, now)).toEqual([]);
     expect(evaluateStudentNotifications([lesson], [activity("1")], settings, now)[0].category).toBe("classroom");

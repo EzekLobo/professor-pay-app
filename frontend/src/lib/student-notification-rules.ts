@@ -83,7 +83,8 @@ export function evaluateStudentNotifications(lessons: readonly NotificationLesso
     if (settings.attendance_enabled && lesson.attendance === "absent") add("absence", "Falta sem justificativa: entrar em contato com o responsável.");
     const assigned = (grouped.get(identity(lesson)) ?? []).filter(item => item.required && !item.exempt);
     const classroom = assigned.filter(item => item.kind === "classroom");
-    const missing = classroom.filter(item => item.state === "missing");
+    const due = (item: NotificationObligation) => !item.due_at || (Number.isFinite(Date.parse(item.due_at)) && Date.parse(item.due_at) + settings.tolerance_minutes * 60000 <= now.getTime());
+    const missing = classroom.filter(item => item.state === "missing" && due(item));
     // Unknown statuses prevent an assertion that absolutely nothing was delivered.
     if (settings.classroom_rule === "none_submitted" && !assigned.some(item => item.kind === "unknown") && classroom.length > 0 && missing.length === classroom.length) add("classroom", "Nenhuma atividade da aula foi entregue.", missing);
     if (settings.classroom_rule === "more_than" && missing.length > settings.classroom_threshold) add("classroom", `${missing.length} atividades da aula não entregues.`, missing);

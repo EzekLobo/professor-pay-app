@@ -17,6 +17,16 @@ Plano detalhado: [notificações](docs/plans/student-notifications-implementatio
 - Verificado pelo subagente: 68 testes em 6 arquivos focados, `npm run web:typecheck`, lint e diff check passam. npm ci concluído sem alterar dependências/lock. Registro completo das APIs no plano detalhado.
 - Próximo: N2 deve manter uma instância do store por UID/demo, compartilhar load/cache, invalidar fonte no evento e atualizar periodicamente enquanto aberto. Não marcar contato confirmado apenas ao abrir WhatsApp. Criar interface de classificação/prazo manual e abrir o contexto em Acompanhamento.
 
+### Handoff N2
+
+- `student-notifications.tsx` reúne provider por UID/demo, carregamento/cache compartilhado com atualização a cada minuto/foco/rede/eventos, sino, painel Pendentes/Histórico, filtros, configurações/prévia e resolução com mensagem editável e cadastro local do responsável. Abrir WhatsApp nunca confirma contato: confirmação explícita é persistida antes de retirar da fila.
+- `ShellFrame` fornece contexto às telas autenticadas e demo; demo injeta snapshot/mutator local. Links de notificações demo usam âncoras nativas porque o roteador de hash existente não acompanha mudanças de query feitas pelo Next Link. Dados e histórico locais sobrevivem à navegação/recarga. Conta usa Next Link e resolução consome `useSearchParams` sob Suspense, inclusive entre casos na mesma rota.
+- Acompanhamento abre o detalhe exato do alerta, aba, busca do aluno e turma. Preferências normais de visualização não são sobrescritas por links contextuais. As atividades manuais permitem tipo Aula/Casa/Desconhecido, prazo com horário do dispositivo, obrigatoriedade e dispensa. Legados desconhecidos continuam sem cobrança.
+- Corrigida revisão N1: atividades de aula com prazo explícito aguardam vencimento e tolerância; teste de borda adicionado.
+- Verificado pelo subagente: typecheck, lint, 16 testes em regras/correções e 3 E2E em 320/390/1440px passam, incluindo configuração/prévia, alerta aula/casa, confirmação persistida após recarga, segundo caso na mesma rota, isolamento demo sem chamadas privadas e ausência de overflow. `git diff --check` passa.
+- Evidências visuais temporárias: `work/notifications-panel-{320,390,1440}.png` e `work/notifications-resolution-{320,390,1440}.png`. Não versionar capturas. Inspeção do painel 320px e resolução 390px feita; controles cabem e ações permanecem acessíveis por rolagem.
+- Próximo N3: revisão independente, testes ampliados/build e cenários conta autenticada/contato ausente, documentação e novidades somente após validação. Nenhum deploy/push foi feito nesta tarefa.
+
 ## Refatoração operacional (execução atual)
 
 Objetivo: aproximar a web da experiência do aplicativo móvel, centralizando

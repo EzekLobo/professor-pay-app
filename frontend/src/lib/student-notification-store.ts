@@ -16,6 +16,7 @@ export function validateNotificationCase(input: unknown): NotificationCase {
   const item = value.notification;
   if (!item || !["manual", "kodland"].includes(item.source) || !["absence", "classroom", "homework"].includes(item.category)
     || typeof value.id !== "string" || !value.id || value.id.includes("/") || value.id.length > 1400 || item.id !== value.id
+    || (value.reconciled_at !== undefined && (typeof value.reconciled_at !== "string" || !Number.isFinite(Date.parse(value.reconciled_at))))
     || typeof value.active !== "boolean" || !Array.isArray(value.confirmed_revisions) || value.confirmed_revisions.some(revision => typeof revision !== "string")
     || ![item.class_id, item.class_name, item.student_id, item.student_name, item.occurrence_id, item.lesson_label, item.lesson_date, item.guardian_name, item.guardian_phone, item.revision, item.reason, value.first_seen_at, value.updated_at].every(field => typeof field === "string")
     || typeof item.active !== "boolean" || typeof item.cancelled !== "boolean"
@@ -27,9 +28,9 @@ export function validateNotificationCase(input: unknown): NotificationCase {
 }
 export function reconcileNotificationCases(previous: NotificationCase[], items: StudentNotification[], timestamp: string): NotificationCase[] {
   const incoming = new Map(items.map(item => [item.id, item]));
-  const merged = previous.map(item => ({ ...item, notification: incoming.get(item.id) ?? item.notification, active: incoming.has(item.id), updated_at: timestamp }));
+  const merged = previous.map(item => item.reconciled_at && Date.parse(item.reconciled_at) > Date.parse(timestamp) ? item : ({ ...item, notification: incoming.get(item.id) ?? item.notification, active: incoming.has(item.id), updated_at: timestamp, reconciled_at: timestamp }));
   const existing = new Set(previous.map(item => item.id));
-  return [...merged, ...items.filter(item => !existing.has(item.id)).map(notification => ({ id: notification.id, notification, active: true, read_revision: null, confirmed_revisions: [], first_seen_at: timestamp, updated_at: timestamp, contact_confirmed_at: null }))];
+  return [...merged, ...items.filter(item => !existing.has(item.id)).map(notification => ({ id: notification.id, notification, active: true, read_revision: null, confirmed_revisions: [], first_seen_at: timestamp, updated_at: timestamp, reconciled_at: timestamp, contact_confirmed_at: null }))];
 }
 const EVENT = "nexusclass:notifications-changed";
 export function notifyStudentNotificationsChanged() { if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new Event(EVENT)); }
@@ -62,8 +63,18 @@ export function createStudentNotificationStore(uid: string): StudentNotification
   };
   return {
     settings, cases,
-    saveSettings: async input => { const value = validateNotificationSettings(input); await setDoc(reference("notification_settings", "default"), value); owner(uid); notifyStudentNotificationsChanged(); return value; },
+    saveSettings: async input => { const value = validateNotificationSettings(input); await setDoc(reference("notification_settings", "default"), { ...value, _last_reconciled_at: new Date().toISOString() }); owner(uid); notifyStudentNotificationsChanged(); return value; },
     reconcile: async (items, timestamp) => {
+      const watermark = reference("notification_settings", "default");
+      const accepted = await runTransaction(getFirebaseDb(), async transaction => {
+        owner(uid); const snapshot = await transaction.get(watermark); owner(uid);
+        const current: Record<string, unknown> = snapshot.data() ?? { ...defaultNotificationSettings() };
+        const previousTime = Date.parse(String(current._last_reconciled_at ?? ""));
+        if (Number.isFinite(previousTime) && previousTime > Date.parse(timestamp)) return false;
+        transaction.set(watermark, { ...current, _last_reconciled_at: timestamp });
+        return true;
+      });
+      if (!accepted) return cases();
       const previous = await cases();
       const desired = reconcileNotificationCases(previous, items, timestamp);
       // Small batches avoid flooding the transport, while transactions preserve contact actions from other devices.
@@ -73,9 +84,14 @@ export function createStudentNotificationStore(uid: string): StudentNotification
           if (old && old.active === item.active && JSON.stringify(old.notification) === JSON.stringify(item.notification)) return;
           const target = reference("notification_cases", item.id);
           await runTransaction(getFirebaseDb(), async transaction => {
-            owner(uid); const snapshot = await transaction.get(target); owner(uid);
+            owner(uid);
+            const marker = await transaction.get(watermark);
+            const snapshot = await transaction.get(target); owner(uid);
+            if (Date.parse(String(marker.data()?._last_reconciled_at ?? "")) > Date.parse(timestamp)) return;
             const current = snapshot.exists() ? validateNotificationCase({ ...snapshot.data(), id: item.id }) : null;
-            transaction.set(target, current ? { ...current, notification: item.notification, active: item.active, updated_at: timestamp } : item);
+            // An older tab/read must not reactivate a case regularized by a newer snapshot.
+            if (current?.reconciled_at && Date.parse(current.reconciled_at) > Date.parse(timestamp)) return;
+            transaction.set(target, current ? { ...current, notification: item.notification, active: item.active, updated_at: timestamp, reconciled_at: timestamp } : item);
           });
         }));
       }

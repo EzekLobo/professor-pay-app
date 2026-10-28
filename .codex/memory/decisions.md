@@ -1,5 +1,10 @@
 # Decisões
 
+## 2026-10-28 — Notificações exigem atribuição e estado explícitos
+
+- Não inferir não entrega da fila de correções. Usar progresso por aluno/atividade e classificação comprovada por IDs; legado/desconhecido não vira cobrança. Prazo de casa sem fonte precisa de política escolhida pelo professor.
+- Leitura, contato confirmado e regularização pedagógica são independentes. Abrir WhatsApp não confirma envio. Reconciliação transacional usa um marcador global por professor para rejeitar leituras antigas, gravando apenas casos alterados; não regravar histórico inteiro a cada polling.
+
 ## 2026-10-25 — Contingência apenas para histórico anterior à folha
 
 - Meses anteriores à primeira competência oficial disponível podem usar previsão local, sinalizada no extrato. A partir da primeira folha (mesmo incompleta), manter somente a fonte oficial, sem preencher lacunas ou futuro. Não duplicar cobranças nem alterar recebimentos confirmados.

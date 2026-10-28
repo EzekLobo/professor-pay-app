@@ -1,0 +1,42 @@
+# Notificações de acompanhamento
+
+## Ativar e configurar
+
+Abra **Configurações > Notificações**. Ative o recurso, escolha a data inicial de acompanhamento e use **Ver prévia** antes de salvar. As notificações começam desativadas para que o professor decida quais aulas anteriores deseja acompanhar.
+
+- **Faltas:** alerta somente para ausência explícita sem justificativa, após o fim da aula e a tolerância configurada.
+- **Atividades de aula:** escolha Não alertar, Nenhuma entregue ou Mais de N sem entregar. Com N=2, o alerta começa em 3 pendências.
+- **Dever de casa:** habilitação independente; desligue os alertas de aula para acompanhar somente deveres de casa. Considere desativar faltas também se quiser exclusivamente atividades.
+- **Prazos:** atividades de aula aguardam o encerramento e eventual prazo explícito. Casa precisa de prazo explícito ou de uma política de dias após a aula, cujo vencimento ocorre às 23:59 no fuso configurado. A tolerância é aplicada antes da cobrança.
+- **Mensagens:** o modelo de atividades fica nessa seção; faltas reutilizam Configurações > Mensagens.
+
+Nas atividades próprias, defina Aula ou Casa, prazo, obrigatoriedade e dispensa ao cadastrar/editar a atividade. O campo de prazo manual informa que usa o horário do dispositivo. Registros antigos sem tipo ficam como Desconhecido até classificação explícita.
+
+## Resolver um alerta
+
+1. Abra o sino no cabeçalho e selecione **Resolver** no caso desejado.
+2. Acompanhamento abre o aluno, a turma e a aula do caso. Revise a ocorrência, as atividades faltantes e a mensagem.
+3. Cadastre ou edite o contato do responsável, se necessário. O telefone do aluno não é usado como substituto automático.
+4. Use **Abrir WhatsApp** e revise/envie a mensagem no aplicativo. Também é possível realizar o contato por outro meio.
+5. Clique em **Confirmar contato realizado** somente após o contato. Abrir WhatsApp não comprova envio nem confirma o caso.
+
+O contador representa casos ativos que exigem contato, e não apenas notificações não lidas. Um contato confirmado sai da fila e permanece no Histórico. A atividade continua pendente até entrega/dispensa ou outra regularização registrada na fonte. Uma nova aula ou novas atividades vencidas formam outro caso/revisão acionável. A mesma revisão não reaparece apenas por sincronizar novamente.
+
+Se os dados forem regularizados, a condição deixa de estar ativa, preservando o histórico. Se a consulta falhar ou a sincronização estiver incompleta, os alertas anteriores são preservados com indicação de erro. Consulte os dados atuais antes de agir sobre um histórico antigo.
+
+## Cobertura e limites
+
+- A central é interna à aplicação web. Reavalia ao carregar, focar a janela, voltar à rede, alterar dados e a cada minuto enquanto aberta. Não envia push e não executa cobranças com o aplicativo fechado.
+- Turmas próprias usam atribuições e estados de entrega explícitos. Entrega aguardando correção não conta como não entregue. Alunos inativos, aulas canceladas, tarefas dispensadas/opcionais e dados desconhecidos não viram cobranças automáticas.
+- A sincronização de Acompanhamento preserva o progresso externo em `kodland_task_progress`. Classifica Aula/Casa somente quando o ID da tarefa corresponde aos links de materiais da aula. Estados não documentados ou classificação desconhecida ficam fora da cobrança; a regra Nenhuma entregue aguarda classificação completa.
+- Não há prazo individual importado da plataforma externa. Para dever de casa dessa origem, defina a política de dias após a aula. Presenças sem horário final confiável ficam fora dos alertas de falta.
+- A cobertura externa foi verificada com contratos/documentação e fixtures locais; não houve operação em conta real nessa implementação. Os avisos da central indicam dados insuficientes. Faça uma nova sincronização de Acompanhamento para popular o progresso; uma fila de correções antiga não substitui esse inventário.
+- Conta autenticada usa Firestore e requer rede para confirmar contato. O estado é isolado por UID; a demonstração usa armazenamento local separado. Não há nova promessa de funcionamento offline entre recargas.
+
+## Dados e manutenção
+
+Preferências: `users/{uid}/notification_settings/default`. Histórico: `users/{uid}/notification_cases/{id}`. Os casos possuem chave por fonte/turma/aluno/ocorrência/categoria, revisão do conjunto de atividades e confirmação de contato independente da leitura.
+
+Reconciliação transacional preserva confirmações concorrentes e impede que uma leitura anterior sobrescreva uma reconciliação mais recente. Um marcador técnico `_last_reconciled_at` no documento de preferências é atualizado uma vez por leitura; somente casos alterados são gravados. Esse marcador não é dado pedagógico e é descartado na validação de backup, sendo recriado após restauração. Backup/importação/reset incluem preferências, casos e progresso, mantendo a compatibilidade com backups anteriores sem essas coleções. O acesso segue as regras existentes de dados do próprio UID; nenhuma regra foi publicada nesta entrega.
+
+Código principal: `student-notification-rules.ts` (motor puro), `student-notification-source.ts` (fontes/cache), `student-notification-store.ts` (persistência) e `student-notifications.tsx` (interface). O evento `nexusclass:notifications-changed` invalida o cache e atualiza a central após alterações relevantes.

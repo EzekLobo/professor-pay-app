@@ -62,6 +62,11 @@ describe("regras de acompanhamento", () => {
     expect(notificationTarget(first)).not.toContain("Ana");
     expect(notificationMessage(first, "{responsavel}: {aluno}, {atividades}")).toBe("Maria: Ana, Atividade 1, Atividade 2");
   });
+  it("preserva variáveis do modelo de falta sem trocar nome do aluno pelo responsável", () => {
+    const item = evaluateStudentNotifications([{ ...lesson, attendance: "absent", recording_url: "https://example.test/recording" }], [], settings, now)[0];
+    expect(notificationMessage(item, "{primeiro_nome}: {link_gravacao} / {responsavel}")).toBe("Ana: https://example.test/recording / Maria");
+    expect(notificationMessage({ ...item, recording_url: "" }, "{gravacao}")).toBe("");
+  });
   it("valida configurações e conversões civis sem depender do fuso do servidor", () => {
     expect(validateNotificationSettings(settings)).toEqual(settings);
     for (const patch of [{ classroom_threshold: -1 }, { classroom_threshold: 2.5 }, { tolerance_minutes: -1 }, { time_zone: "invalid" }, { start_date: "2026-02-30" }]) expect(() => validateNotificationSettings({ ...settings, ...patch })).toThrow();

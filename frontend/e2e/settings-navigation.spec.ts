@@ -5,7 +5,7 @@ for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/demo#settings");
     const menu = page.getByRole("tablist", { name: "Seções das configurações" });
-    await expect(menu.getByRole("tab")).toHaveCount(5);
+    await expect(menu.getByRole("tab")).toHaveCount(6);
     const panel = page.getByRole("tabpanel");
     await expect(panel).toHaveCount(1);
     await expect(panel).toHaveAccessibleName("Aulas e pagamentos");
@@ -46,6 +46,8 @@ for (const width of [1440, 390, 320]) {
     await menu.getByRole("tab", { name: "Disponibilidade", exact: true }).focus();
     await page.keyboard.press("Home");
     await expect(menu.getByRole("tab", { name: "Aulas e pagamentos", exact: true })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(panel).toHaveAccessibleName("Notificações");
     await page.keyboard.press("ArrowDown");
     await expect(panel).toHaveAccessibleName("Mensagens");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

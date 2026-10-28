@@ -1,3 +1,5 @@
+import { renderAbsenceMessage } from "./manual-operations";
+
 export type NotificationCategory = "absence" | "classroom" | "homework";
 export type ActivityKind = "classroom" | "homework" | "unknown";
 export type NotificationSettings = {
@@ -107,6 +109,7 @@ export type NotificationCase = {
   id: string; notification: StudentNotification; active: boolean;
   read_revision: string | null; confirmed_revisions: string[];
   first_seen_at: string; updated_at: string; contact_confirmed_at: string | null;
+  reconciled_at?: string;
 };
 export const needsNotificationContact = (item: NotificationCase) => item.active && !item.confirmed_revisions.includes(item.notification.revision);
 export function notificationTarget(item: StudentNotification, demo = false) {
@@ -115,5 +118,6 @@ export function notificationTarget(item: StudentNotification, demo = false) {
 }
 export function notificationMessage(item: StudentNotification, template: string) {
   const values: Record<string, string> = { responsavel: item.guardian_name || "responsável", aluno: item.student_name, turma: item.class_name, aula: item.lesson_label, data: item.lesson_date.split("-").reverse().join("/"), atividades: item.activities.map(activity => activity.title).join(", "), prazo: item.activities.map(activity => activity.due_at).filter(Boolean).join(", "), gravacao: item.recording_url || "", primeiro_nome: item.guardian_name.split(" ")[0] || "responsável", codigo_aula: item.lesson_label };
-  return template.replace(/\{([a-z_]+)\}/g, (token, key: string) => values[key] ?? token);
+  const prepared = item.category === "absence" ? renderAbsenceMessage({ template, studentName: item.student_name, lessonCode: item.lesson_label, date: item.lesson_date.split("-").reverse().join("/"), recordingUrl: item.recording_url }) : template;
+  return prepared.replace(/\{([a-z_]+)\}/g, (token, key: string) => values[key] ?? token);
 }

@@ -108,3 +108,13 @@ Propor parâmetros internos em `/corrections`: aba, fonte, turma, aluno e ocorr�
 ## Decisões propostas para iniciar
 
 Central interna primeiro; regras globais por professor; atividades de aula e casa separadas; contato manual confirmado; nenhuma cobrança baseada apenas na fila de correções. A principal incerteza é a cobertura das entregas Kodland. Concluir essa investigação antes de estimar a implementação completa; se faltar cobertura, entregar faltas e dados manuais completos, identificando claramente a limitação da integração.
+
+
+## Revisão da implementação — 28/10/2026
+
+- Central, preferências, destinos e confirmação de contato implementados para conta e demonstração. Ativação começa desligada para o professor escolher a data inicial antes de gerar casos antigos.
+- Progresso externo agora é preservado, usando os estados documentados e correspondência de IDs com materiais. Não houve validação com conta real; classificação desconhecida não gera cobrança. Casa externa depende da política de dias, pois não há prazo individual comprovado.
+- Fonte de presença exige horário final confiável. Atividades próprias possuem tipo/prazo/obrigatoriedade/dispensa. A fila de correções não foi usada como inventário de não entregas.
+- Revisão corrigiu prazo futuro de aula e reconciliação fora de ordem. Preview valida as mesmas configurações usadas ao salvar.
+- Testes de conta autenticada são locais com Firestore simulado (isolamento UID, gravação, falha e confirmação); não houve login em conta real nem execução de emulador de regras. Testes de navegador exercitam o fluxo completo na demo sem chamadas privadas. Não afirmar verificação ponta a ponta em produção.
+- Regras de acesso existentes foram mantidas. Nenhum push/deploy/publicação ocorreu. Push do navegador, mensagens automáticas e execução com aplicativo fechado continuam fora da entrega.

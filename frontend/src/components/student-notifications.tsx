@@ -9,7 +9,7 @@ import { Button, Input } from "./ui";
 import { kodlandApi, manualTeachingApi, tutorPreferencesApi } from "@/lib/api";
 import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import { DEFAULT_ABSENCE_MESSAGE } from "@/lib/manual-operations";
-import { defaultNotificationSettings, evaluateStudentNotifications, needsNotificationContact, notificationMessage, notificationTarget, type NotificationCase, type NotificationSettings, type StudentNotification } from "@/lib/student-notification-rules";
+import { defaultNotificationSettings, validateNotificationSettings, evaluateStudentNotifications, needsNotificationContact, notificationMessage, notificationTarget, type NotificationCase, type NotificationSettings, type StudentNotification } from "@/lib/student-notification-rules";
 import { clearStudentNotificationSourceCache, demoStudentNotificationSource, loadStudentNotificationSource, type NotificationSource } from "@/lib/student-notification-source";
 import { createDemoStudentNotificationStore, createStudentNotificationStore, subscribeStudentNotifications } from "@/lib/student-notification-store";
 import { whatsappUrl } from "@/lib/whatsapp";
@@ -45,6 +45,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
   const generation = useRef(0);
   const refresh = useCallback(async (force = false) => {
     const run = ++generation.current;
+    const startedAt = new Date().toISOString();
     setLoading(true);
     try {
       const [value, history] = await Promise.all([store.settings(), store.cases()]);
@@ -56,7 +57,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
       const data = value.enabled ? await source(value, force) : null;
       if (run !== generation.current) return;
       const items = data ? evaluateStudentNotifications(data.lessons, data.obligations, value, new Date()) : [];
-      const rows = await store.reconcile(items, new Date().toISOString());
+      const rows = await store.reconcile(items, startedAt);
       if (run !== generation.current) return;
       setCases(rows); setWarnings(data?.warnings ?? []); setUpdated(data?.loaded_at ?? ""); setError("");
     } catch (reason) { if (run === generation.current) setError(reason instanceof Error ? reason.message : "Não foi possível atualizar os alertas. O histórico foi preservado."); }
@@ -75,7 +76,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
     settings, cases, warnings, error, loading, updated, demo, absenceTemplate,
     refresh: (force) => refresh(force),
     save: async input => { await store.saveSettings(input); await refresh(true); },
-    preview: async input => { const data = await source(input, true); return evaluateStudentNotifications(data.lessons, data.obligations, input, new Date()).length; },
+    preview: async input => { const checked = validateNotificationSettings(input); const data = await source(checked, true); return evaluateStudentNotifications(data.lessons, data.obligations, checked, new Date()).length; },
     read: item => store.markRead(item.id, item.notification.revision),
     confirm: async item => { await store.confirmContact(item.id, item.notification.revision); await refresh(); },
     contact: async (item, name, phone) => {

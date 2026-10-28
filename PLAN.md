@@ -5,8 +5,8 @@
 Plano detalhado: [notificações](docs/plans/student-notifications-implementation.md).
 
 - [x] N1 — Revisão, contratos, regras e persistência. Verificado pelo orquestrador: typecheck e 31 testes focados passaram. Aceitação: motor/fonte/persistência/backup testados e typecheck; não confundir correções com não entrega. Sem dependências.
-- [ ] N2 — Sino, configurações, navegação contextual e mensagens. Depende de N1. Aceitação: conta/demo, classificação e prazo manual, alerta abre aluno/aula e permite confirmar contato, com erros e estados vazios acessíveis.
-- [ ] N3 — Revisão integrada, E2E, documentação e novidades. Depende de N2. Aceitação: lint/typecheck/unitários/build/E2E pertinentes; inspeção 320/390/1440px; limitações e operação documentadas.
+- [x] N2 — Sino, configurações, navegação contextual e mensagens. Depende de N1. Aceitação: conta/demo, classificação e prazo manual, alerta abre aluno/aula e permite confirmar contato, com erros e estados vazios acessíveis.
+- [x] N3 — Revisão integrada, E2E, documentação e novidades. Verificação final do orquestrador: 295 testes, typecheck e diff check; E2E e capturas conferidos. Depende de N2. Aceitação: lint/typecheck/unitários/build/E2E pertinentes; inspeção 320/390/1440px; limitações e operação documentadas.
 
 ### Handoff N1
 
@@ -26,6 +26,13 @@ Plano detalhado: [notificações](docs/plans/student-notifications-implementatio
 - Verificado pelo subagente: typecheck, lint, 16 testes em regras/correções e 3 E2E em 320/390/1440px passam, incluindo configuração/prévia, alerta aula/casa, confirmação persistida após recarga, segundo caso na mesma rota, isolamento demo sem chamadas privadas e ausência de overflow. `git diff --check` passa.
 - Evidências visuais temporárias: `work/notifications-panel-{320,390,1440}.png` e `work/notifications-resolution-{320,390,1440}.png`. Não versionar capturas. Inspeção do painel 320px e resolução 390px feita; controles cabem e ações permanecem acessíveis por rolagem.
 - Próximo N3: revisão independente, testes ampliados/build e cenários conta autenticada/contato ausente, documentação e novidades somente após validação. Nenhum deploy/push foi feito nesta tarefa.
+
+### Handoff N3
+
+- Revisão corrigiu reconciliação fora de ordem sem gravar todo histórico: marcador global `_last_reconciled_at` no documento de preferências, comparação transacional e escrita somente de casos alterados. Testes verificam rejeição de resultado antigo e uma única escrita global quando não há mudança. Metadado técnico não é restaurado do backup e reset já remove o documento.
+- Reaproveitado `renderAbsenceMessage` para preservar primeiro nome do aluno, link da gravação e bloco condicional do modelo de falta; teste de compatibilidade incluído. Prévia valida as mesmas regras usadas ao salvar.
+- E2E ampliado: falta sem telefone, cadastro de responsável, confirmação e regularização preservada no histórico. Testes de configurações atualizados para a nova aba/ordem do teclado. Documentação em `docs/STUDENT_NOTIFICATIONS.md`, estado e decisão local atualizados; novidade 2026102801.
+- Validação: lint/typecheck, 295 testes unitários em 45 arquivos, 13 E2E de notificações/configurações/novidades/pendências e build de produção passam. Inspeção visual de 320/390/1440px herdada de N2 e confirmada pelo orquestrador. Auth persistência/isolamento/falha testados com mocks; sem contas reais e sem emulador de regras. Não alegar teste de produção. Aguarda verificação final do orquestrador para marcar N3.
 
 ## Refatoração operacional (execução atual)
 

@@ -1,5 +1,12 @@
 # Estado atual
 
+## Notificações de acompanhamento — 28/10/2026
+
+- Sino no cabeçalho e Configurações > Notificações: faltas, nenhuma atividade de aula entregue, mais de N pendentes e casa vencida, com prévia/data inicial/fuso/tolerância. Ativação inicia desligada. Alerta abre caso em Acompanhamento com mensagem editável, cadastro do responsável e confirmação explícita de contato; leitura/contato/regularização são estados separados.
+- Domínio/fonte/store em `student-notification-*`; UI em `student-notifications.tsx`. `notification_settings`, `notification_cases` e `kodland_task_progress` entram no backup/reset. Reconciliação usa marcador global no documento de preferências e grava somente casos alterados; confirmação é transacional por UID. Demo usa armazenamento separado.
+- Atualizar Acompanhamento popula novo progresso externo: tipo somente por IDs dos links dos materiais, estados documentados e prazo casa por política explícita. Unknown e horários insuficientes ficam fora de cobranças. Manual permite tipo/prazo/obrigatoriedade/dispensa; legados exigem classificação. Operação e limites em `docs/STUDENT_NOTIFICATIONS.md`.
+- Verificado: 295 testes unitários, lint/typecheck e 13 E2E afetados; build de produção validado. E2E inclui 320/390/1440px, contato ausente e regularização. Firestore autenticado coberto por mocks; sem conta real, emulador de regras, push/deploy ou publicação de regras. Novidade 2026102801.
+
 ## Dados e backup dentro de Configurações — 26/10/2026
 
 - SettingsContent inclui aba Dados e backup com sincronização, JSON, CSV e reset fora do formulário de preferências. Removido destino separado da navegação desktop/mobile; /data redireciona para /settings#data. Demo preserva #data como atalho compatível, com adaptador local e Configurações selecionada.

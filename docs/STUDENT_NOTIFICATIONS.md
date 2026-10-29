@@ -12,6 +12,14 @@ Abra **Configurações > Notificações**. Ative o recurso, escolha a data inici
 
 Nas atividades próprias, defina Aula ou Casa, prazo, obrigatoriedade e dispensa ao cadastrar/editar a atividade. O campo de prazo manual informa que usa o horário do dispositivo. Registros antigos sem tipo ficam como Desconhecido até classificação explícita.
 
+## Lista suspensa do sino
+
+O sino abre uma lista suspensa abaixo do cabeçalho, sem modal ou bloqueio da página.
+Os casos mais recentes aparecem primeiro, com filtros de motivo, Pendentes e Histórico.
+A lista rola internamente e se adapta ao celular. O sino, X, Escape ou clique fora
+fecham a lista; Escape devolve o foco ao sino. A engrenagem abre as configurações.
+Fechar a lista não confirma contato nem resolve pendências.
+
 ## Resolver um alerta
 
 1. Abra o sino no cabeçalho e selecione **Resolver** no caso desejado.

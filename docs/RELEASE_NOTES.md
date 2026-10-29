@@ -1,10 +1,10 @@
 # Novidades da aplicação
 
-O sino no cabeçalho abre uma lista suspensa de notificações com as novidades
+O botão Novidades (ícone de brilho) no cabeçalho abre uma lista suspensa de notificações com as novidades
 recentes, em ordem decrescente. O painel permite continuar usando a página,
-rola internamente e fecha pelo sino, X, Escape, clique fora, Entendi ou atalho.
+rola internamente e fecha pelo botão, X, Escape, clique fora, Entendi ou atalho.
 O fechamento confirma a leitura das novidades apresentadas. Escape devolve o
-foco ao sino. No celular, a largura se adapta à tela.
+foco ao botão Novidades. No celular, a largura se adapta à tela.
 
 Ao entrar, novidades não vistas abrem esse painel uma vez, aguardando outros
 modais e guias. Sem novidades, permanece fechado. A demonstração oferece

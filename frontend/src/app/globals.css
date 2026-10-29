@@ -3448,3 +3448,11 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .activity-whatsapp-button:hover { background: rgb(67 219 160 / 10%); }
 .attendance-whatsapp-form a[aria-disabled="true"] { opacity: .45; cursor: default; }
 @media (max-width: 720px) { .notifications-dropdown { position: fixed; right: 12px; top: 76px; } }
+
+.student-alerts-dropdown .notification-toolbar { flex-wrap: nowrap; gap: 4px; margin-bottom: 12px; }
+.student-alerts-dropdown .notification-toolbar .button { width: auto; font-size: .75rem; padding: 6px 8px; }
+.student-alerts-dropdown .notification-card { gap: 4px; padding: 12px 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; font-size: .78rem; }
+.student-alerts-dropdown .notification-card .button { justify-self: start; width: auto; min-height: 36px; padding: 6px 12px; font-size: .75rem; }
+.student-alerts-dropdown .field { display: grid; gap: 5px; font-size: .75rem; }
+.notification-heading-actions { display: flex; }
+.notification-heading-actions a { display: grid; place-items: center; width: 44px; height: 44px; color: var(--muted); }

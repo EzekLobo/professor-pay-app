@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Bell, RefreshCw } from "lucide-react";
-import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Modal } from "./modal";
+import { Bell, RefreshCw, Settings, X } from "lucide-react";
+import { Suspense, createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button, Input } from "./ui";
 import { kodlandApi, manualTeachingApi, tutorPreferencesApi } from "@/lib/api";
 import type { DemoSnapshot } from "@/lib/demo-snapshot";
@@ -105,13 +104,23 @@ export function StudentNotificationBell() {
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState(false);
   const [filter, setFilter] = useState("all");
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); setOpen(false); trigger.current?.focus(); } };
+    document.addEventListener("pointerdown", outside); document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [open]);
   if (!state) return null;
   const NavigationLink = state.demo ? "a" : Link;
   const pending = state.settings?.enabled ? state.cases.filter(needsNotificationContact) : [];
-  const list = (history ? state.cases.filter(item => !needsNotificationContact(item)) : pending).filter(item => filter === "all" || item.notification.category === filter);
-  return <><button type="button" className="button button-ghost notification-bell" aria-label={`Notificações: ${pending.length} pendentes`} title="Notificações" onClick={() => setOpen(true)}><Bell size={20} aria-hidden="true" />{pending.length > 0 && <span className="notification-counter" aria-hidden="true">{pending.length > 99 ? "99+" : pending.length}</span>}</button>
-    <Modal open={open} title="Notificações" onClose={() => setOpen(false)} className="notification-modal"><div className="notification-toolbar"><Button className="button-ghost" onClick={() => setHistory(false)} aria-pressed={!history}>Pendentes ({pending.length})</Button><Button className="button-ghost" onClick={() => setHistory(true)} aria-pressed={history}>Histórico</Button><button className="button button-ghost" type="button" aria-label="Atualizar notificações" disabled={state.loading} onClick={() => void state.refresh(true)}><RefreshCw size={18} /></button></div>
-      <NavigationLink className="button button-ghost" href={state.demo ? "/demo?section=notifications#settings" : "/settings#notifications"} onClick={() => { setOpen(false); window.dispatchEvent(new Event("nexusclass:open-notification-settings")); }}>Configurar notificações</NavigationLink>
+  const list = (history ? state.cases.filter(item => !needsNotificationContact(item)) : pending).filter(item => filter === "all" || item.notification.category === filter).sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
+  return <div className="notifications-anchor"><div ref={root}><button ref={trigger} aria-expanded={open} aria-controls={panelId} type="button" className="button button-ghost notification-bell" aria-label={`Notificações: ${pending.length} pendentes`} title="Notificações" onClick={() => setOpen(value => !value)}><Bell size={20} aria-hidden="true" />{pending.length > 0 && <span className="notification-counter" aria-hidden="true">{pending.length > 99 ? "99+" : pending.length}</span>}</button>
+    {open && <section id={panelId} role="region" aria-label="Notificações" className="notifications-dropdown student-alerts-dropdown"><div className="notifications-heading"><h2>Notificações</h2><div className="notification-heading-actions"><NavigationLink aria-label="Configurar notificações" title="Configurar notificações" href={state.demo ? "/demo?section=notifications#settings" : "/settings#notifications"} onClick={() => { setOpen(false); window.dispatchEvent(new Event("nexusclass:open-notification-settings")); }}><Settings size={18} aria-hidden="true" /></NavigationLink><button type="button" aria-label="Fechar notificações" title="Fechar notificações" onClick={() => setOpen(false)}><X size={18} aria-hidden="true" /></button></div></div><div className="notifications-scroll"><div className="notification-toolbar"><Button className="button-ghost" onClick={() => setHistory(false)} aria-pressed={!history}>Pendentes ({pending.length})</Button><Button className="button-ghost" onClick={() => setHistory(true)} aria-pressed={history}>Histórico</Button><button className="button button-ghost" type="button" aria-label="Atualizar notificações" disabled={state.loading} onClick={() => void state.refresh(true)}><RefreshCw size={18} /></button></div>
+
       {!state.settings?.enabled && <p>Ative e configure os alertas para começar o acompanhamento.</p>}
       {state.loading && <p role="status">Atualizando alertas…</p>}{state.error && <p className="form-error" role="alert">{state.error}</p>}
       {state.warnings.map(item => <p className="muted" key={item}>{item}</p>)}
@@ -119,7 +128,7 @@ export function StudentNotificationBell() {
       <label className="field">Motivo<select className="input" aria-label="Motivo" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">Todos</option>{Object.entries(labels).map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select></label>
       {!state.loading && !list.length && <p className="muted">{history ? "Nenhum alerta no histórico." : "Nenhum contato pendente pelas regras atuais."}</p>}
       <div className="notification-list">{list.map(item => <article className="notification-card" key={item.id}><small>{labels[item.notification.category]} · {item.notification.lesson_date.split("-").reverse().join("/")}</small><strong>{item.notification.student_name}</strong><span>{item.notification.class_name} · {item.notification.lesson_label}</span><p>{item.notification.reason}</p>{history && <small>{item.active ? "Contato confirmado" : "Fora das pendências atuais"}</small>}<NavigationLink className="button button-primary" href={notificationTarget(item.notification, state.demo)} onClick={() => { setOpen(false); void state.read(item).catch(() => undefined); }}>{history ? "Ver detalhes" : "Resolver"}</NavigationLink></article>)}</div>
-    </Modal></>;
+    </div></section>}</div></div>;
 }
 
 export function NotificationSettingsPanel() {

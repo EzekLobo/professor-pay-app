@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { Bell, X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui";
 import { latestReleaseVersion, RELEASE_NOTES, unreadReleaseNotes, type ReleaseNote, type ReleaseNotesStore } from "@/lib/release-notes";
 import { releaseNotesStore } from "@/lib/release-notes-store";
@@ -59,11 +59,11 @@ function ReleaseNotesContent({ userId, store = releaseNotesStore, notes = RELEAS
   useEffect(() => { closeRef.current = close; });
 
   return <div className="notifications-anchor" ref={root}>
-    <button ref={trigger} aria-expanded={mode !== null} aria-controls={panelId} className="button button-ghost header-news-button" type="button" disabled={seen === null} aria-label={`Abrir novidades${unseen.length ? `: ${unseen.length} não lidas` : ""}`} title="Notificações" onClick={() => { if (mode !== null) close(); else { setPresented(true); setMode("all"); } }}>
-      <Bell size={18} aria-hidden="true" /><span>Notificações</span>{unseen.length > 0 && <i className="news-unread-dot" aria-hidden="true" />}
+    <button ref={trigger} aria-expanded={mode !== null} aria-controls={panelId} className="button button-ghost header-news-button" type="button" disabled={seen === null} aria-label={`Abrir novidades${unseen.length ? `: ${unseen.length} não lidas` : ""}`} title="Novidades" onClick={() => { if (mode !== null) close(); else { setPresented(true); setMode("all"); } }}>
+      <Sparkles size={18} aria-hidden="true" /><span>Novidades</span>{unseen.length > 0 && <i className="news-unread-dot" aria-hidden="true" />}
     </button>
     {mode !== null && <section id={panelId} role="region" aria-label="Novidades do NexusClass" className="notifications-dropdown">
-      <div className="notifications-heading"><h2>Notificações</h2><button type="button" aria-label="Fechar notificações" title="Fechar notificações" onClick={close}><X size={18} aria-hidden="true" /></button></div>
+      <div className="notifications-heading"><h2>Novidades</h2><button type="button" aria-label="Fechar notificações" title="Fechar notificações" onClick={close}><X size={18} aria-hidden="true" /></button></div>
       <div className="notifications-scroll">
       <p className="muted release-notes-intro">{mode === "unread" ? "Confira as melhorias que você ainda não viu." : "Veja as últimas melhorias da aplicação."}</p>
       <ol className="release-notes-list">{visible.map((note) => <li key={note.version}>

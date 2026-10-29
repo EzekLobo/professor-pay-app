@@ -13,10 +13,12 @@
 - Cards mantêm alturas iguais e layout responsivo dentro do painel. Novidade 2026102606. Validação: lint, typecheck, 268 testes unitários e 23 E2E de dados/configurações/sincronização/interface passaram.
 ## Notificações suspensas e contato em atividades — 29/10/2026
 
-- ReleaseNotes deixa de usar Modal: sino abre região com lista recente, rolagem interna e fechamento por botão, Escape, clique fora, Entendi ou atalho; leitura por UID e abertura automática de novidades mantidas. No mobile painel adapta largura sem backdrop/trava de foco. docs/RELEASE_NOTES.md atualizado.
+- Integrado com origin/master ce592a2 (central de alertas dos alunos e Dados em Configurações). StudentNotificationBell agora abre dropdown de alertas recentes por updated_at, preservando Pendentes/Histórico, motivo, atualizar, resolver e configurações por engrenagem. Nenhum modal/foco preso; Escape/clique fora/sino/X fecham sem confirmar contato. Novidades permanece separado com ícone de brilho.
+
+- Novidades (ícone de brilho) deixa de usar Modal: botão abre região com lista recente, rolagem interna e fechamento por botão, Escape, clique fora, Entendi ou atalho; leitura por UID e abertura automática de novidades mantidas. No mobile painel adapta largura sem backdrop/trava de foco. docs/RELEASE_NOTES.md atualizado.
 - Atividades: ícone WhatsApp ao lado do nome em Compacto e Lista (agrupamento turma/aluno/aula), para Kodland e turmas próprias. Contato Kodland resolvido por turma+ID do aluno; próprio por ID. Usa somente guardian_phone para essa ação, nunca telefone do aluno como responsável.
 - Reutiliza modal de mensagem com número editável e aviso de contato ausente, sem gravar o número editado no cadastro. Link WhatsApp habilitado com 10–15 dígitos e mensagem editável. Presença conserva seu fluxo/telefone existente. Testes não enviam mensagens reais.
-- Novidade2026102901; 26 E2E passam (notificações, contatos, cursos, demo e interface), além de6 cenários anteriores de novidades/pendências. Validação visual do dropdown em390px e editor de curso em390px. 268 testes unitários, typecheck, lint e build passam.
+- Novidade2026102901; Após integrar ce592a2, 30 E2E passam (central de alertas, novidades, contatos, cursos, demo e interface). Validação visual do dropdown em390px e editor de curso em390px. 295 testes unitários, typecheck, lint e build passam.
 
 ## Editor de cursos compacto concluído — 29/10/2026
 

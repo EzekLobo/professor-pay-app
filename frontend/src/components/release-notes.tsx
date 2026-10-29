@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
-import { Modal } from "@/components/modal";
+import { useEffect, useId, useRef, useState } from "react";
+import { Bell, X } from "lucide-react";
 import { Button } from "@/components/ui";
 import { latestReleaseVersion, RELEASE_NOTES, unreadReleaseNotes, type ReleaseNote, type ReleaseNotesStore } from "@/lib/release-notes";
 import { releaseNotesStore } from "@/lib/release-notes-store";
@@ -16,6 +15,9 @@ export function ReleaseNotes(props: Props) {
 }
 
 function ReleaseNotesContent({ userId, store = releaseNotesStore, notes = RELEASE_NOTES, autoShow = true, blocked = false, routeHref = (href) => href }: Props) {
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
   const [seen, setSeen] = useState<number | null>(null);
   const [mode, setMode] = useState<"unread" | "all" | null>(null);
   const [presented, setPresented] = useState(false);
@@ -40,16 +42,29 @@ function ReleaseNotesContent({ userId, store = releaseNotesStore, notes = RELEAS
     return () => { window.clearTimeout(first); window.clearInterval(timer); };
   }, [autoShow, blocked, seen, unseen.length, presented, mode]);
 
+  const closeRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (mode === null) return;
+    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) closeRef.current(); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); closeRef.current(); trigger.current?.focus(); } };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [mode]);
+
   function close() {
     setSeen(Math.max(seen ?? 0, latest)); setMode(null); setPresented(true);
     void store.markSeen(userId, latest).catch(() => undefined);
   }
+  useEffect(() => { closeRef.current = close; });
 
-  return <>
-    <button className="button button-ghost header-news-button" type="button" disabled={seen === null} aria-label={`Abrir novidades${unseen.length ? `: ${unseen.length} não lidas` : ""}`} title="Novidades" onClick={() => { setPresented(true); setMode("all"); }}>
-      <Sparkles size={18} aria-hidden="true" /><span>Novidades</span>{unseen.length > 0 && <i className="news-unread-dot" aria-hidden="true" />}
+  return <div className="notifications-anchor" ref={root}>
+    <button ref={trigger} aria-expanded={mode !== null} aria-controls={panelId} className="button button-ghost header-news-button" type="button" disabled={seen === null} aria-label={`Abrir novidades${unseen.length ? `: ${unseen.length} não lidas` : ""}`} title="Notificações" onClick={() => { if (mode !== null) close(); else { setPresented(true); setMode("all"); } }}>
+      <Bell size={18} aria-hidden="true" /><span>Notificações</span>{unseen.length > 0 && <i className="news-unread-dot" aria-hidden="true" />}
     </button>
-    <Modal open={mode !== null} title="Novidades do NexusClass" onClose={close} className="release-notes-modal">
+    {mode !== null && <section id={panelId} role="region" aria-label="Novidades do NexusClass" className="notifications-dropdown">
+      <div className="notifications-heading"><h2>Notificações</h2><button type="button" aria-label="Fechar notificações" title="Fechar notificações" onClick={close}><X size={18} aria-hidden="true" /></button></div>
+      <div className="notifications-scroll">
       <p className="muted release-notes-intro">{mode === "unread" ? "Confira as melhorias que você ainda não viu." : "Veja as últimas melhorias da aplicação."}</p>
       <ol className="release-notes-list">{visible.map((note) => <li key={note.version}>
         <time dateTime={note.date}>{dateFormat.format(new Date(`${note.date}T12:00:00Z`))}</time>
@@ -57,7 +72,7 @@ function ReleaseNotesContent({ userId, store = releaseNotesStore, notes = RELEAS
         <Link href={routeHref(note.href)} onClick={close}>{note.action}<span aria-hidden="true"> →</span></Link>
       </li>)}</ol>
       {visible.length === 0 && <p className="muted">Nenhuma novidade publicada por enquanto.</p>}
-      <div className="release-notes-actions"><Button type="button" className="button-small" onClick={close}>Entendi</Button></div>
-    </Modal>
-  </>;
+      </div><div className="release-notes-actions"><Button type="button" className="button-small" onClick={close}>Entendi</Button></div>
+    </section>}
+  </div>;
 }

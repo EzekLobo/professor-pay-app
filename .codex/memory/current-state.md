@@ -11,6 +11,18 @@
 
 - SettingsContent inclui aba Dados e backup com sincronização, JSON, CSV e reset fora do formulário de preferências. Removido destino separado da navegação desktop/mobile; /data redireciona para /settings#data. Demo preserva #data como atalho compatível, com adaptador local e Configurações selecionada.
 - Cards mantêm alturas iguais e layout responsivo dentro do painel. Novidade 2026102606. Validação: lint, typecheck, 268 testes unitários e 23 E2E de dados/configurações/sincronização/interface passaram.
+## Notificações suspensas e contato em atividades — 29/10/2026
+
+- ReleaseNotes deixa de usar Modal: sino abre região com lista recente, rolagem interna e fechamento por botão, Escape, clique fora, Entendi ou atalho; leitura por UID e abertura automática de novidades mantidas. No mobile painel adapta largura sem backdrop/trava de foco. docs/RELEASE_NOTES.md atualizado.
+- Atividades: ícone WhatsApp ao lado do nome em Compacto e Lista (agrupamento turma/aluno/aula), para Kodland e turmas próprias. Contato Kodland resolvido por turma+ID do aluno; próprio por ID. Usa somente guardian_phone para essa ação, nunca telefone do aluno como responsável.
+- Reutiliza modal de mensagem com número editável e aviso de contato ausente, sem gravar o número editado no cadastro. Link WhatsApp habilitado com 10–15 dígitos e mensagem editável. Presença conserva seu fluxo/telefone existente. Testes não enviam mensagens reais.
+- Novidade2026102901; 26 E2E passam (notificações, contatos, cursos, demo e interface), além de6 cenários anteriores de novidades/pendências. Validação visual do dropdown em390px e editor de curso em390px. 268 testes unitários, typecheck, lint e build passam.
+
+## Editor de cursos compacto concluído — 29/10/2026
+
+- Finaliza alterações iniciadas em26/10: módulos/aulas recolhíveis com uma aula em edição; ações por ícones44px; uma área de rolagem em div (fieldset impedia rolagem adequada no Chromium mobile) e rodapé sempre acessível. Validação abre aula com URL/título inválidos. Remoção de aula/módulo confirmada; salvamento bloqueia interação/fechamento.
+- Textareas têm rótulos acessíveis explícitos para preservação correta do nome após remontagem com conteúdo. Novo E2E course-builder cobre20aulas, erro em seção recolhida, preservação de materiais, cancelamento de remoção e recarga em1440/390/320px. Novidade2026102902.
+
 
 ## Separação do preenchimento de credenciais — 26/10/2026
 

@@ -1,14 +1,14 @@
 # Novidades da aplicação
 
-Ao entrar na conta, o aplicativo apresenta as novidades que ainda não foram
-vistas. Na primeira visita ao recurso, apresenta o catálogo recente. Sem
-novidades, nenhum modal é aberto. Fechar pelo X, Escape, fundo, Entendi ou
-seguir um atalho confirma a leitura da lista apresentada.
+O sino no cabeçalho abre uma lista suspensa de notificações com as novidades
+recentes, em ordem decrescente. O painel permite continuar usando a página,
+rola internamente e fecha pelo sino, X, Escape, clique fora, Entendi ou atalho.
+O fechamento confirma a leitura das novidades apresentadas. Escape devolve o
+foco ao sino. No celular, a largura se adapta à tela.
 
-O botão **Novidades** no cabeçalho permite rever o catálogo completo. No
-celular, aparece como um ícone com o mesmo nome acessível. A abertura automática
-aguarda outros modais e guias; a demonstração oferece apenas consulta manual,
-sem usar contas reais.
+Ao entrar, novidades não vistas abrem esse painel uma vez, aguardando outros
+modais e guias. Sem novidades, permanece fechado. A demonstração oferece
+consulta manual com armazenamento local, sem usar contas reais.
 
 ## Publicar uma novidade
 
@@ -22,7 +22,7 @@ sem usar contas reais.
 4. Descreva apenas o comportamento entregue ao usuário. Não anuncie propostas,
    integrações ainda não verificadas, informações privadas ou funções de
    administração em um catálogo destinado a todas as contas.
-5. Execute os testes de `release-notes` e verifique o modal no celular.
+5. Execute os testes de `release-notes` e verifique a lista suspensa no celular.
 
 Os IDs, e não o relógio do dispositivo, determinam o que é novo. O catálogo é
 ordenado da versão mais recente para a mais antiga.

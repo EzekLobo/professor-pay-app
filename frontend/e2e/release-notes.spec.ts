@@ -9,10 +9,12 @@ for (const width of [1440, 390, 320]) {
     const trigger = page.getByRole("button", { name: /^Abrir novidades/ });
     await expect(trigger).toBeEnabled();
     await expect(page.getByRole("button", { name: "Abrir calendário de feriados", exact: true })).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "Novidades do NexusClass" })).not.toBeVisible();
+    await expect(page.getByRole("region", { name: "Novidades do NexusClass" })).not.toBeVisible();
     await trigger.click();
-    const dialog = page.getByRole("dialog", { name: "Novidades do NexusClass" });
+    const dialog = page.getByRole("region", { name: "Novidades do NexusClass" });
     await expect(dialog).toBeVisible();
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
     await expect(dialog.getByRole("heading", { name: "Entre com um nick", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const box = await dialog.boundingBox();
@@ -31,6 +33,10 @@ for (const width of [1440, 390, 320]) {
     await expect(page).toHaveURL(/demo#settings$/);
     await trigger.click();
     await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await trigger.click();
+    await expect(dialog).toBeVisible();
+    await page.mouse.click(4, 300);
     await expect(dialog).not.toBeVisible();
     expect(privateCalls).toEqual([]);
   });

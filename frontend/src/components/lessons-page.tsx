@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, BookPlus, Copy, Download, Pencil, Plus, Trash2 } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, BookPlus, ChevronRight, Copy, Download, Pencil, Plus, Trash2 } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -46,6 +46,9 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
   const [courseName, setCourseName] = useState("");
   const [moduleCount, setModuleCount] = useState(1);
   const [lessonsPerModule, setLessonsPerModule] = useState(4);
+  const [expandedModule, setExpandedModule] = useState("");
+  const [expandedLesson, setExpandedLesson] = useState("");
+  const [removingDraft, setRemovingDraft] = useState<{ moduleId: string; lessonId?: string } | null>(null);
   const [draftModules, setDraftModules] = useState<ManualCourseModule[]>([]);
   const [selectedMaterial, setSelectedMaterial] = useState<LessonMaterialDetails | null>(null);
   const [selectedManualLesson, setSelectedManualLesson] = useState<ManualLessonSelection | null>(null);
@@ -72,21 +75,29 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
   const courseCatalog = useMemo(() => kodlandEnabled ? groupKodlandLessonsByCourse(courseGroups, courseLessons) : [], [courseGroups, courseLessons, kodlandEnabled]);
   const openBuilder = (course?: ManualCourse) => {
     setError(""); setEditingCourseId(course?.id ?? ""); setCourseName(course?.name ?? ""); setModuleCount(course?.modules.length ?? 1);
-    setLessonsPerModule(course?.modules[0]?.lessons.length ?? 4); setDraftModules(course ? structuredClone(course.modules) : []); setBuilderOpen(true);
+    setLessonsPerModule(course?.modules[0]?.lessons.length ?? 4); setDraftModules(course ? structuredClone(course.modules) : []); setExpandedModule(course?.modules[0]?.id ?? ""); setExpandedLesson(course?.modules[0]?.lessons[0]?.id ?? ""); setBuilderOpen(true);
+  };
+  const replaceStructure = () => {
+    const modules = makeModules(moduleCount, lessonsPerModule);
+    setDraftModules(modules); setExpandedModule(modules[0].id); setExpandedLesson(modules[0].lessons[0].id); setError("");
   };
   const generateStructure = () => {
     if (!Number.isInteger(moduleCount) || moduleCount < 1 || moduleCount > 30 || !Number.isInteger(lessonsPerModule) || lessonsPerModule < 1 || lessonsPerModule > 30) { setError("Use entre 1 e 30 módulos e aulas por módulo."); return; }
     if (draftModules.length) { setReplacingStructure(true); return; }
-    setDraftModules(makeModules(moduleCount, lessonsPerModule));
+    replaceStructure();
   };
   const updateLesson = (moduleId: string, lessonId: string, lessonPatch: Partial<ManualCourseLesson>) => setDraftModules((modules) => modules.map((module) => module.id !== moduleId ? module : { ...module, lessons: module.lessons.map((lesson) => lesson.id === lessonId ? { ...lesson, ...lessonPatch } : lesson) }));
   const updateModule = (moduleId: string, modulePatch: Partial<ManualCourseModule>) => setDraftModules((modules) => modules.map((module) => module.id === moduleId ? { ...module, ...modulePatch } : module));
   const saveCourse = async () => {
-    if (!courseName.trim() || !draftModules.length || draftModules.some((module) => !module.title.trim() || !module.lessons.length || module.lessons.some((lesson) => !lesson.title.trim()))) {
-      setError("Informe o nome do curso, dos módulos e de todas as aulas."); return;
+    if (saving) return;
+    if (!courseName.trim() || !draftModules.length) { setError("Informe o nome do curso e gere a estrutura."); return; }
+    const invalidModule = draftModules.find((module) => !module.title.trim() || !module.lessons.length || module.lessons.some((lesson) => !lesson.title.trim()));
+    if (invalidModule) {
+      setExpandedModule(invalidModule.id); setExpandedLesson(invalidModule.lessons.find((lesson) => !lesson.title.trim())?.id ?? "");
+      setError("Informe o nome do módulo e o título de todas as aulas."); return;
     }
     const invalidSlide = draftModules.flatMap((module) => module.lessons).find((lesson) => lesson.slides.trim() && !isHttpUrl(lesson.slides.trim()));
-    if (invalidSlide) { setError(`Informe um link http(s) válido para os slides de “${invalidSlide.title}”.`); return; }
+    if (invalidSlide) { setExpandedModule(draftModules.find((module) => module.lessons.some((lesson) => lesson.id === invalidSlide.id))!.id); setExpandedLesson(invalidSlide.id); setError(`Informe um link http(s) válido para os slides de “${invalidSlide.title}”.`); return; }
     setSaving(true); setError("");
     const previous = manualCourses.find((item) => item.id === editingCourseId);
     const course: ManualCourse = { id: previous?.id ?? newId(), name: courseName.trim(), modules: draftModules, archived: previous?.archived ?? false, created_at: previous?.created_at ?? now(), updated_at: now() };
@@ -118,9 +129,56 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
 
 
 
-    <ConfirmDialog open={replacingStructure} title="Substituir estrutura" confirmLabel="Substituir estrutura" danger onClose={() => setReplacingStructure(false)} onConfirm={() => setDraftModules(makeModules(moduleCount, lessonsPerModule))}><p>A estrutura e os materiais em edição serão substituídos. Esta ação não pode ser desfeita.</p></ConfirmDialog>
+    <ConfirmDialog open={replacingStructure} title="Substituir estrutura" confirmLabel="Substituir estrutura" danger onClose={() => setReplacingStructure(false)} onConfirm={replaceStructure}><p>A estrutura e os materiais em edição serão substituídos. Esta ação não pode ser desfeita.</p></ConfirmDialog>
     <ConfirmDialog open={Boolean(deletingCourse)} title="Excluir curso" confirmLabel="Confirmar exclusão" danger onClose={() => setDeletingCourse(null)} onConfirm={() => deletingCourse ? deleteCourse(deletingCourse) : undefined}><p>Excluir o curso “{deletingCourse?.name}” e seus materiais? Esta ação não pode ser desfeita.</p></ConfirmDialog>
-    <Modal open={builderOpen} title={editingCourseId ? "Editar curso" : "Criar novo curso"} onClose={() => { if (!saving) setBuilderOpen(false); }} className="manual-course-builder-modal"><div className="manual-course-builder">{error && <p className="form-error" role="alert">{error}</p>}<div className="manual-course-builder-grid"><label className="field">Nome do curso<Input value={courseName} onChange={(event) => setCourseName(event.target.value)} placeholder="Ex.: Introdução à programação" /></label>{!editingCourseId && <><label className="field">Quantidade de módulos<input className="input" type="number" min="1" max="30" value={moduleCount} onChange={(event) => setModuleCount(Number(event.target.value))} /></label><label className="field">Aulas por módulo<input className="input" type="number" min="1" max="30" value={lessonsPerModule} onChange={(event) => setLessonsPerModule(Number(event.target.value))} /></label></>}</div>{!editingCourseId && <Button type="button" className="button-ghost" onClick={generateStructure}>Gerar estrutura</Button>}{draftModules.length > 0 && <div className="manual-course-draft">{draftModules.map((module, moduleIndex) => <fieldset className="manual-course-module" key={module.id}><legend>Módulo {moduleIndex + 1}</legend><div className="card-actions"><button type="button" className="button button-ghost button-small" disabled={moduleIndex === 0} onClick={() => setDraftModules((items) => move(items, moduleIndex, -1))}>↑</button><button type="button" className="button button-ghost button-small" disabled={moduleIndex === draftModules.length - 1} onClick={() => setDraftModules((items) => move(items, moduleIndex, 1))}>↓</button><button type="button" className="button button-ghost button-small" disabled={draftModules.length === 1} onClick={() => setDraftModules((items) => items.filter((item) => item.id !== module.id))}>Remover módulo</button></div><label className="field">Nome do módulo<Input value={module.title} onChange={(event) => updateModule(module.id, { title: event.target.value })} /></label>{module.lessons.map((lesson, lessonIndex) => <fieldset className="manual-course-lesson" key={lesson.id}><legend>{`M${moduleIndex + 1}L${lessonIndex + 1}`}</legend><div className="card-actions"><button type="button" className="button button-ghost button-small" disabled={lessonIndex === 0} onClick={() => updateModule(module.id, { lessons: move(module.lessons, lessonIndex, -1) })}>↑</button><button type="button" className="button button-ghost button-small" disabled={lessonIndex === module.lessons.length - 1} onClick={() => updateModule(module.id, { lessons: move(module.lessons, lessonIndex, 1) })}>↓</button><button type="button" className="button button-ghost button-small" disabled={module.lessons.length === 1} onClick={() => updateModule(module.id, { lessons: module.lessons.filter((item) => item.id !== lesson.id) })}>Remover</button></div><label className="field">Título<Input value={lesson.title} onChange={(event) => updateLesson(module.id, lesson.id, { title: event.target.value })} /></label><label className="field">Atividades<textarea className="input" rows={3} value={lesson.activities} onChange={(event) => updateLesson(module.id, lesson.id, { activities: event.target.value })} /></label><label className="field">Roteiro<textarea className="input" rows={3} value={lesson.guide} onChange={(event) => updateLesson(module.id, lesson.id, { guide: event.target.value })} /></label><label className="field">Slides (link)<Input type="url" value={lesson.slides} onChange={(event) => updateLesson(module.id, lesson.id, { slides: event.target.value })} placeholder="https://..." /></label><label className="field">Lição de casa<textarea className="input" rows={3} value={lesson.homework} onChange={(event) => updateLesson(module.id, lesson.id, { homework: event.target.value })} /></label></fieldset>)}<Button type="button" className="button-ghost" onClick={() => updateModule(module.id, { lessons: [...module.lessons, emptyLesson(moduleIndex + 1, module.lessons.length + 1)] })}><Plus size={15} /> Adicionar aula</Button></fieldset>)}<Button type="button" className="button-ghost" onClick={() => setDraftModules((items) => [...items, { id: newId(), title: `Módulo ${items.length + 1}`, lessons: [emptyLesson(items.length + 1, 1)] }])}><Plus size={15} /> Adicionar módulo</Button></div>}<div className="form-actions"><Button type="button" className="button-ghost" onClick={() => setBuilderOpen(false)}>Cancelar</Button><Button type="button" disabled={saving || !courseName.trim() || !draftModules.length} onClick={() => void saveCourse()}>{saving ? "Salvando…" : "Salvar curso"}</Button></div></div></Modal>
+    <ConfirmDialog open={removingDraft !== null} title={removingDraft?.lessonId ? "Remover aula" : "Remover módulo"} confirmLabel="Remover" danger onClose={() => setRemovingDraft(null)} onConfirm={() => {
+      if (!removingDraft) return;
+      if (removingDraft.lessonId) setDraftModules((modules) => modules.map((module) => module.id === removingDraft.moduleId ? { ...module, lessons: module.lessons.filter((lesson) => lesson.id !== removingDraft.lessonId) } : module));
+      else setDraftModules((modules) => modules.filter((module) => module.id !== removingDraft.moduleId));
+    }}><p>{removingDraft?.lessonId ? "A aula e seus materiais serão removidos deste rascunho." : "O módulo e todas as suas aulas serão removidos deste rascunho."} O curso só será atualizado ao salvar.</p></ConfirmDialog>
+    <Modal open={builderOpen} title={editingCourseId ? "Editar curso" : "Criar novo curso"} onClose={() => { if (!saving) setBuilderOpen(false); }} className="manual-course-builder-modal">
+      <div className="manual-course-builder">
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="manual-course-builder-body" role="group" aria-label="Estrutura do curso" aria-disabled={saving} inert={saving}>
+          <label className="field">Nome do curso<Input autoFocus value={courseName} onChange={(event) => setCourseName(event.target.value)} placeholder="Ex.: Introdução à programação" /></label>
+          {!editingCourseId && <div className="manual-course-builder-grid">
+            <label className="field">Quantidade de módulos<input className="input" type="number" min="1" max="30" value={moduleCount || ""} onChange={(event) => setModuleCount(Number(event.target.value))} /></label>
+            <label className="field">Aulas por módulo<input className="input" type="number" min="1" max="30" value={lessonsPerModule || ""} onChange={(event) => setLessonsPerModule(Number(event.target.value))} /></label>
+            <Button type="button" className="button-ghost" onClick={generateStructure}><Plus size={17} aria-hidden="true" />Gerar estrutura</Button>
+          </div>}
+          {draftModules.length > 0 ? <div className="manual-course-draft">
+            <p className="manual-course-structure-summary">{draftModules.length} módulo(s) · {draftModules.reduce((total, module) => total + module.lessons.length, 0)} aula(s)<span>Abra uma aula para editar os materiais.</span></p>
+            {draftModules.map((module, moduleIndex) => <details className="manual-course-module" key={module.id} open={expandedModule === module.id}>
+              <summary onClick={(event) => { event.preventDefault(); setExpandedModule(expandedModule === module.id ? "" : module.id); }}><ChevronRight size={17} aria-hidden="true" /><strong>{module.title || `Módulo ${moduleIndex + 1}`}</strong><small>{module.lessons.length} aulas</small></summary>
+              <div className="manual-course-module-body">
+                <div className="manual-course-name-row"><label className="field">Nome do módulo<Input value={module.title} onChange={(event) => updateModule(module.id, { title: event.target.value })} /></label><div className="manual-course-icon-actions">
+                  <button type="button" title="Subir módulo" aria-label="Subir módulo" disabled={moduleIndex === 0} onClick={() => setDraftModules((items) => move(items, moduleIndex, -1))}><ArrowUp size={17} /></button>
+                  <button type="button" title="Descer módulo" aria-label="Descer módulo" disabled={moduleIndex === draftModules.length - 1} onClick={() => setDraftModules((items) => move(items, moduleIndex, 1))}><ArrowDown size={17} /></button>
+                  <button type="button" title="Remover módulo" aria-label="Remover módulo" disabled={draftModules.length === 1} onClick={() => setRemovingDraft({ moduleId: module.id })}><Trash2 size={17} /></button>
+                </div></div>
+                {module.lessons.map((lesson, lessonIndex) => <details className="manual-course-lesson" key={lesson.id} open={expandedLesson === lesson.id}>
+                  <summary onClick={(event) => { event.preventDefault(); setExpandedLesson(expandedLesson === lesson.id ? "" : lesson.id); }}><ChevronRight size={16} aria-hidden="true" /><small>{moduleIndex + 1}.{lessonIndex + 1}</small><strong>{lesson.title || "Aula sem título"}</strong></summary>
+                  {expandedLesson === lesson.id && <div className="manual-course-lesson-body">
+                    <div className="manual-course-name-row"><label className="field">Título<Input value={lesson.title} onChange={(event) => updateLesson(module.id, lesson.id, { title: event.target.value })} /></label><div className="manual-course-icon-actions">
+                      <button type="button" title="Subir aula" aria-label="Subir aula" disabled={lessonIndex === 0} onClick={() => updateModule(module.id, { lessons: move(module.lessons, lessonIndex, -1) })}><ArrowUp size={17} /></button>
+                      <button type="button" title="Descer aula" aria-label="Descer aula" disabled={lessonIndex === module.lessons.length - 1} onClick={() => updateModule(module.id, { lessons: move(module.lessons, lessonIndex, 1) })}><ArrowDown size={17} /></button>
+                      <button type="button" title="Remover aula" aria-label="Remover aula" disabled={module.lessons.length === 1} onClick={() => setRemovingDraft({ moduleId: module.id, lessonId: lesson.id })}><Trash2 size={17} /></button>
+                    </div></div>
+                    <label className="field">Atividades<textarea aria-label="Atividades" className="input" rows={2} value={lesson.activities} onChange={(event) => updateLesson(module.id, lesson.id, { activities: event.target.value })} /></label>
+                    <label className="field">Roteiro<textarea aria-label="Roteiro" className="input" rows={2} value={lesson.guide} onChange={(event) => updateLesson(module.id, lesson.id, { guide: event.target.value })} /></label>
+                    <label className="field">Slides (link)<Input type="url" value={lesson.slides} onChange={(event) => updateLesson(module.id, lesson.id, { slides: event.target.value })} placeholder="https://…" /></label>
+                    <label className="field">Lição de casa<textarea aria-label="Lição de casa" className="input" rows={2} value={lesson.homework} onChange={(event) => updateLesson(module.id, lesson.id, { homework: event.target.value })} /></label>
+                  </div>}
+                </details>)}
+                <Button type="button" className="button-ghost button-small" onClick={() => { const lesson = emptyLesson(moduleIndex + 1, module.lessons.length + 1); updateModule(module.id, { lessons: [...module.lessons, lesson] }); setExpandedLesson(lesson.id); }}><Plus size={16} aria-hidden="true" />Adicionar aula</Button>
+              </div>
+            </details>)}
+            <Button type="button" className="button-ghost button-small" onClick={() => { const newModule = { id: newId(), title: `Módulo ${draftModules.length + 1}`, lessons: [emptyLesson(draftModules.length + 1, 1)] }; setDraftModules((items) => [...items, newModule]); setExpandedModule(newModule.id); setExpandedLesson(newModule.lessons[0].id); }}><Plus size={16} aria-hidden="true" />Adicionar módulo</Button>
+          </div> : <p className="muted manual-course-empty">Gere a estrutura e depois personalize os módulos e as aulas.</p>}
+        </div>
+        <div className="form-actions manual-course-builder-footer"><Button type="button" className="button-ghost" disabled={saving} onClick={() => setBuilderOpen(false)}>Cancelar</Button><Button type="button" disabled={saving || !courseName.trim() || !draftModules.length} onClick={() => void saveCourse()}>{saving ? "Salvando…" : "Salvar curso"}</Button></div>
+      </div>
+    </Modal>
     <Modal open={Boolean(selectedManualLesson)} title={selectedManualLesson ? `${selectedManualLesson.code} · ${selectedManualLesson.lesson.title}` : "Aula"} onClose={() => setSelectedManualLesson(null)}>{selectedManualLesson && <div className="manual-course-lesson-details"><p className="muted">{selectedManualLesson.course.name} · {selectedManualLesson.module.title}</p>{([ ["Atividades", selectedManualLesson.lesson.activities], ["Roteiro", selectedManualLesson.lesson.guide], ["Slides", selectedManualLesson.lesson.slides], ["Lição de casa", selectedManualLesson.lesson.homework] ] as Array<[string, string]>).map(([label, value]) => value && <section key={label}><h3>{label}</h3>{/^https?:\/\//.test(value) ? <a href={value} target="_blank" rel="noreferrer"><Download size={16} aria-hidden="true" /> Abrir ou baixar material</a> : <p>{value}</p>}</section>)}</div>}</Modal>
     <LessonMaterialModal demoMode={Boolean(demoData)} open={Boolean(selectedMaterial)} title={selectedMaterial ? `${selectedMaterial.source} · ${selectedMaterial.location}` : "Materiais da aula"} lesson={selectedMaterial} onClose={() => setSelectedMaterial(null)} onMaterialsLoaded={(updated) => setCourseLessons((items) => items.map((item) => item.id === updated.id ? updated : item))} />
   </div>;

@@ -2,7 +2,7 @@
 import type { StudentNotification } from "@/lib/student-notification-rules";
 import { NotificationResolution } from "./student-notifications";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type WheelEvent } from "react";
 import { MessageCircle, RefreshCw } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
@@ -67,7 +67,7 @@ export type CompactActivityClass = {
   rows: CompactActivityRow[];
 };
 export type CompactActivitiesModel = CompactActivityClass[];
-type WhatsAppDraft = { studentName: string; phone: string; message: string };
+type WhatsAppDraft = { studentName: string; phone: string; message: string; guardian?: boolean };
 const lessonLabel = (review: KodlandReview, lessons: KodlandLesson[]) =>
   `${compactKodlandLessonLabel(review, lessons)}: ${review.lesson_title || "Sem título"}`;
 const groupBy = <T,>(items: T[], keyFor: (item: T) => string) =>
@@ -441,7 +441,9 @@ export function CompactActivitiesGrid({
   demo,
   onCorrectManual,
   pendingOnly = false,
+  contactButton,
 }: {
+  contactButton?: (classKey: string, studentKey: string, name: string) => ReactNode;
   model: CompactActivitiesModel;
   demo?: CorrectionsDemoAdapter;
   onCorrectManual: (activity: ManualActivity) => void;
@@ -465,7 +467,7 @@ export function CompactActivitiesGrid({
             </div>}
             {classModel.rows.map((row) => <div className={pendingOnly ? "compact-pending-row" : "attendance-grid-row"} style={pendingOnly ? undefined : gridStyle} role={pendingOnly ? "listitem" : "row"} key={row.key}>
               <div className="attendance-student-summary" role={pendingOnly ? undefined : "rowheader"}>
-                <div className="attendance-student-copy"><h4>{row.name}</h4>{row.email && <span>{row.email}</span>}</div>
+                <div className="attendance-student-copy"><div className="activity-student-heading"><h4>{row.name}</h4>{contactButton?.(classModel.key, row.key, row.name)}</div>{row.email && <span>{row.email}</span>}</div>
               </div>
               {classModel.columns.map((column) => {
                 const cell = row.cells[column.key];
@@ -491,10 +493,12 @@ function ReviewCard({
   lessons,
   showStudent = true,
   demo,
+  contact,
 }: {
   review: KodlandReview;
   lessons: KodlandLesson[];
   showStudent?: boolean;
+  contact?: ReactNode;
   demo?: CorrectionsDemoAdapter;
 }) {
   const lesson = lessonForReview(review, lessons);
@@ -502,7 +506,7 @@ function ReviewCard({
     <article className="entity-card correction-card" key={review.id}>
       <div className="correction-card-copy">
         <div className="correction-card-top">
-          {showStudent && <h4>{review.student_name}</h4>}
+          {showStudent && <div className="activity-student-heading"><h4>{review.student_name}</h4>{contact}</div>}
           <StatusBadge tone="warning">{review.status_label}</StatusBadge>
         </div>
         <p className="correction-card-lesson">{lessonLabel(review, lessons)}</p>
@@ -741,18 +745,29 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   }, [attendance, attendanceFilter, attendanceStudents, query]);
   const attendanceByClass = useMemo(() => groupBy(attendanceHistories, (history) => history.records[0]?.external_class_name || "Turma não informada"), [attendanceHistories]);
 
+  function contactButton(classKey: string, studentKey: string, name: string) {
+    const student = classKey.startsWith("manual:")
+      ? manualStudents.find((item) => item.id === studentKey)
+      : attendanceStudents.find((item) => `kodland:${item.external_class_id}` === classKey && (item.external_id === studentKey || item.id === studentKey));
+    return <button type="button" className="activity-whatsapp-button" aria-label={`Mensagem aos responsáveis de ${name}`} title={`WhatsApp dos responsáveis de ${name}`} onClick={() => setWhatsAppDraft({ studentName: name, phone: student?.guardian_phone ?? "", guardian: true, message: `Olá! Sou o professor de ${name}. Gostaria de conversar sobre as atividades e o acompanhamento das aulas.` })}>
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M20.5 3.5A11.9 11.9 0 0 0 12 0C5.4 0 0 5.4 0 12c0 2.1.5 4.2 1.6 6L0 24l6.2-1.6A12 12 0 0 0 12 24c6.6 0 12-5.4 12-12 0-3.2-1.2-6.2-3.5-8.5ZM12 22a10 10 0 0 1-5.1-1.4l-.4-.2-3.7 1 1-3.6-.3-.4A10 10 0 1 1 12 22Zm5.5-7.5c-.3-.1-1.8-.9-2.1-1-.3-.1-.5-.1-.7.2l-1 1.2c-.2.2-.4.2-.7.1-1.8-.9-3-1.6-4.2-3.6-.3-.5.3-.5.9-1.8.1-.2 0-.4 0-.6L7.8 6.5c-.2-.5-.4-.4-.7-.4h-.6c-.2 0-.6.1-.9.4-.3.4-1.2 1.2-1.2 2.9s1.3 3.3 1.5 3.5c.2.2 2.5 3.8 6 5.3 2.2.9 3.1 1 4.2.8.7-.1 1.8-.8 2.1-1.5.2-.8.2-1.4.2-1.5-.1-.2-.3-.3-.6-.5Z" /></svg>
+    </button>;
+  }
+
   return (
     <div className="management-grid page-fill-grid">
       <NotificationResolution onContext={resolveNotificationContext} />
       <Modal open={Boolean(whatsAppDraft)} title="Mensagem pelo WhatsApp" onClose={() => setWhatsAppDraft(null)} className="attendance-whatsapp-modal">
         {whatsAppDraft && <div className="form management-form attendance-whatsapp-form">
           <p className="muted">Revise a mensagem para {whatsAppDraft.studentName} antes de enviar.</p>
+          <label className="field">{whatsAppDraft.guardian ? "WhatsApp do responsável" : "Número do WhatsApp"}<Input type="tel" inputMode="tel" autoComplete="off" placeholder="DDD e número" value={whatsAppDraft.phone} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, phone: event.target.value } : current)} /></label>
+          {!whatsAppDraft.phone.trim() && <p className="muted">{whatsAppDraft.guardian ? "Telefone do responsável não cadastrado. Informe o número para enviar." : "Informe o número para enviar."}</p>}
           <label className="field">Mensagem
-            <textarea className="input" rows={10} value={whatsAppDraft.message} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, message: event.target.value } : current)} />
+            <textarea aria-label="Mensagem" className="input" rows={10} value={whatsAppDraft.message} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, message: event.target.value } : current)} />
           </label>
           <div className="form-actions">
             <Button type="button" className="button-ghost" onClick={() => setWhatsAppDraft(null)}>Cancelar</Button>
-            <a className="button button-primary" href={whatsappUrl(whatsAppDraft.phone, whatsAppDraft.message)} target="_blank" rel="noreferrer" onClick={() => setWhatsAppDraft(null)}>
+            <a className="button button-primary" aria-disabled={!/^\d{10,15}$/.test(whatsAppDraft.phone.replace(/\D/g, ""))} href={/^\d{10,15}$/.test(whatsAppDraft.phone.replace(/\D/g, "")) ? whatsappUrl(whatsAppDraft.phone, whatsAppDraft.message) : undefined} target="_blank" rel="noreferrer" onClick={(event) => { if (!/^\d{10,15}$/.test(whatsAppDraft.phone.replace(/\D/g, ""))) event.preventDefault(); else setWhatsAppDraft(null); }}>
               <MessageCircle size={17} aria-hidden="true" /> Enviar no WhatsApp
             </a>
           </div>
@@ -855,6 +870,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
         </> : <>
         {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
+          contactButton={contactButton}
           pendingOnly={pendingOnly}
           demo={demo}
           onCorrectManual={(activity) => { setEditingManual(activity); setFeedback(activity.feedback); }}
@@ -865,7 +881,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
               : item.occurrence_id);
             const card = (item: ManualActivity, showStudent: boolean) => <article className="entity-card correction-card" key={item.id}>
               <div className="correction-card-copy"><div className="correction-card-top">
-                {showStudent && <h4>{manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno"}</h4>}
+                {showStudent && <div className="activity-student-heading"><h4>{manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno"}</h4>{contactButton(`manual:${item.class_id}`, item.student_id, manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno")}</div>}
                 <StatusBadge tone="warning">Entregue</StatusBadge>
               </div><p className="correction-card-lesson">Aula {item.occurrence_id.split(":").at(-1)}</p>
                 <p className="correction-card-task"><span>Atividade</span>{item.title}</p></div>
@@ -876,7 +892,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
               <div className="correction-class-body">{grouping === "class"
                 ? <div className="entity-list">{classActivities.map((item) => card(item, true))}</div>
                 : <div className="correction-subgroup-list">{ownGroups.map(([label, items]) => <section className={`correction-subgroup${grouping === "student" ? " correction-subgroup-student" : ""}`} key={label}>
-                  <div className="correction-subgroup-heading"><h4>{label}</h4><span>{items.length} pendência{items.length === 1 ? "" : "s"}</span></div>
+                  <div className="correction-subgroup-heading"><div className="activity-student-heading"><h4>{label}</h4>{grouping === "student" && contactButton(`manual:${items[0].class_id}`, items[0].student_id, label)}</div><span>{items.length} pendência{items.length === 1 ? "" : "s"}</span></div>
                   <div className="entity-list">{items.map((item) => card(item, grouping !== "student"))}</div>
                 </section>)}</div>}</div>
             </details>;
@@ -901,15 +917,15 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
               <div className="correction-class-body">
                 {grouping === "class" ? (
                   <div className="entity-list">
-                    {classReviews.map((review) => <ReviewCard review={review} lessons={lessons} demo={demo} key={review.id} />)}
+                    {classReviews.map((review) => <ReviewCard contact={contactButton(`kodland:${review.external_class_id}`, review.external_student_id, review.student_name)} review={review} lessons={lessons} demo={demo} key={review.id} />)}
                   </div>
                 ) : (
                   <div className="correction-subgroup-list">
                     {internalGroups.map(([label, groupedReviews]) => (
                       <section className={`correction-subgroup${grouping === "student" ? " correction-subgroup-student" : ""}`} key={label}>
-                        <div className="correction-subgroup-heading"><h4>{label}</h4><span>{groupedReviews.length} pendência{groupedReviews.length === 1 ? "" : "s"}</span></div>
+                        <div className="correction-subgroup-heading"><div className="activity-student-heading"><h4>{label}</h4>{grouping === "student" && contactButton(`kodland:${groupedReviews[0].external_class_id}`, groupedReviews[0].external_student_id, label)}</div><span>{groupedReviews.length} pendência{groupedReviews.length === 1 ? "" : "s"}</span></div>
                         <div className="entity-list">
-                          {groupedReviews.map((review) => <ReviewCard review={review} lessons={lessons} showStudent={grouping !== "student"} demo={demo} key={review.id} />)}
+                          {groupedReviews.map((review) => <ReviewCard contact={contactButton(`kodland:${review.external_class_id}`, review.external_student_id, review.student_name)} review={review} lessons={lessons} showStudent={grouping !== "student"} demo={demo} key={review.id} />)}
                         </div>
                       </section>
                     ))}

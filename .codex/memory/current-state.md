@@ -1,5 +1,13 @@
 # Estado atual
 
+## Sincronização sem espera indefinida — 31/10/2026
+
+- kodland-sync-client.requestKodlandJson limita token+fetch+body60s com AbortController/referência HTTP504; token tardio não inicia fetch. Usado em carga principal, materiais e folha. Servidor mantém orçamento45s existente.
+- DataContent usa watchKodlandSync:90s sem avanço de etapa retorna erro claro, progresso inline persistente em vez de notice que sumia após6s; interrupção de espera gera warning técnico. Guardas impedem novas fases/batches após expiração. Salvar credenciais opcional tem espera10s e não prende conclusão dos dados.
+- Lock limita aquisição/espera45s, cancela entradas expiradas sem executá-las depois; execução bruta mantém fila/lock até escrita terminar. commitWrites aguarda todos workers (allSettled) antes de liberar o lock, inclusive em falha. Não cancela nem anuncia cancelamento de commit Firestore já enviado; mensagem explica confirmação pendente/possível conclusão em segundo plano.
+- 347 unitários (token tardio, transporte/corpo travados, watchdog, avanço e fila expirada),25 E2E de dados/modal/interface, lint/typecheck/build aprovados. Sem autenticação em conta Kodland real nesta execução; mudanças tratam lacunas reproduzidas com mocks.
+
+
 ## Correção do modal e módulo das pendências — 31/10/2026
 
 - Modal WhatsApp passa a fixed/overflow-y:auto/dvh limitado, anulando overflow:visible global. Textarea5linhas/120–240px mantém formulário e ações dentro da moldura. Verificado320/390/1440px e redução a520px de altura, com clique real em Inserir/Cancelar.

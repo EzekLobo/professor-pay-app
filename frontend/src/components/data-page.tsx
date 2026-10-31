@@ -1,4 +1,6 @@
 "use client";
+import { reportOperation } from "@/lib/operation-log-client";
+import { watchKodlandSync, KodlandSyncWaitError } from "@/lib/kodland-sync-client";
 
 import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import { Database, Download, RefreshCw, Upload } from "lucide-react";
@@ -109,18 +111,12 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
     setSyncProgress("");
     try {
       let savedInBrowser = false;
-      const result = await kodlandApi.syncAll(
-        username,
-        syncPassword,
-        setSyncProgress,
-      );
+      const result = await watchKodlandSync((report, assertActive) => kodlandApi.syncAll(username, syncPassword, report, { assertActive }), setSyncProgress);
       if (saveCredentials) {
         try {
           if (!ownerId || getFirebaseAuth().currentUser?.uid !== ownerId) throw new Error("A conta conectada mudou durante a sincronização.");
-          savedInBrowser = await rememberKodlandCredentials(
-            { username, password: syncPassword },
-            form,
-          );
+          setSyncProgress("Dados sincronizados. Salvando acesso neste navegador…");
+          savedInBrowser = await watchKodlandSync(() => rememberKodlandCredentials({ username, password: syncPassword }, form), () => {}, 10_000);
         } catch {
           // Browser password storage is optional and controlled by the browser.
         }
@@ -132,8 +128,10 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
         `Sincronização concluída: ${result.group_count} turma(s), ${result.student_count} aluno(s), ${result.lesson_count} aula(s), ${result.extra_lesson_count} extra(s) e ${result.review_count} correção(ões).${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
       );
     } catch (reason) {
+      if (reason instanceof KodlandSyncWaitError) reportOperation("kodland_sync", "warning", { scope: "complete", trigger: "manual", errorCode: "timeout" });
       setSyncError(
-        reason instanceof ApiError ||
+        reason instanceof KodlandSyncWaitError ||
+          reason instanceof ApiError ||
           reason instanceof KodlandSyncResponseError ||
           reason instanceof KodlandSyncPersistenceError
           ? reason.message
@@ -324,7 +322,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
             <span>Salvar credenciais da Kodland neste navegador</span>
           </label>
           </>}
-          {syncProgress && <p className="notice" role="status">{syncProgress}</p>}
+          {syncProgress && <p className="sync-progress" role="status" aria-live="polite">{syncProgress}</p>}
           {syncError && <p className="form-error" role="alert">{syncError}</p>}
           <div className="form-actions">
             <Button type="submit" disabled={busy}>

@@ -35,3 +35,8 @@ com UID verificado e consulta exclusiva do administrador. O contrato é fechado 
 códigos, estados, contagens e UUIDs: não adicionar raw Error.message/stack, payloads,
 contatos, credenciais ou parâmetros de URL. Eventos do navegador são observações
 best effort, não confirmação independente de ações pedagógicas ou envio de WhatsApp.
+
+
+## Espera de sincronização não libera gravações em andamento (31/10/2026)
+
+Timeout de interface encerra a espera e bloqueia próximas etapas, mas não deve soltar a fila de uma gravação Firestore já enviada. Locks acompanham a execução bruta, não a Promise devolvida ao usuário por prazo. A aquisição pode expirar/cancelar sem executar tardiamente; batches aguardam todos os workers antes de liberar o lock. Consultas/token/corpo HTTP têm limite próprio e referências técnicas, sem repetir automaticamente uma carga após prazo excedido.

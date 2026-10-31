@@ -3716,3 +3716,5 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 }
 
 .activity-missing-controls { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: end; gap: 8px; }
+
+.sync-progress { position: static; margin: 0; padding: 12px; border: 1px solid var(--border-bright); border-radius: 10px; color: var(--primary); background: rgb(68 206 255 / 8%); font-size: .82rem; line-height: 1.45; overflow-wrap: anywhere; }

@@ -1,3 +1,4 @@
+import { requestKodlandJson } from "./kodland-sync-client";
 import { observeOperation } from "./operation-log-client";
 import { withKodlandSyncLock } from "./kodland-sync-lock";
 import { validateTaskCard, validateTaskLists } from "@/lib/task-board";
@@ -41,8 +42,6 @@ import {
 } from "@/lib/manual-operations";
 import {
   KodlandSyncPersistenceError,
-  kodlandSyncNetworkError,
-  readKodlandSyncResponse,
 } from "@/lib/kodland-sync-response";
 import {
   effectiveHourlyRate,
@@ -348,6 +347,7 @@ export type KodlandSyncResult = {
   group_ids?: string[];
 };
 type KodlandSyncOptions = {
+  assertActive?: () => void;
   refreshSchedule?: boolean;
   correctionGroupIds?: string[];
 };
@@ -547,33 +547,11 @@ async function requestKodlandMaterials(
   if (requests.length > KODLAND_MATERIAL_BATCH_SIZE) {
     throw new Error("A sincronizaÃ§Ã£o de materiais excedeu o tamanho seguro do lote.");
   }
-  const token = await (
-    authUser() as unknown as { getIdToken: () => Promise<string> }
-  ).getIdToken();
+  const owner = authUser();
   const syncId = crypto.randomUUID();
-  let response: Response;
-  try {
-    response = await fetch("/api/kodland/sync", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-        "x-sync-id": syncId,
-      },
-      body: JSON.stringify({
-        username,
-        password,
-        mode: "materials",
-        material_requests: requests,
-      }),
-    });
-  } catch {
-    throw kodlandSyncNetworkError(syncId);
-  }
-  const result = await readKodlandSyncResponse<KodlandSnapshot & {
-    material?: KodlandMaterial;
-    materials?: KodlandMaterial[];
-  }>(response, syncId);
+  const result = await requestKodlandJson<KodlandSnapshot & { material?: KodlandMaterial; materials?: KodlandMaterial[] }>(
+    { username, password, mode: "materials", material_requests: requests }, () => owner.getIdToken(), syncId,
+  );
   const materials = Array.isArray(result.materials)
     ? result.materials
     : result.material
@@ -636,7 +614,7 @@ const firestorePayload = <T>(value: T): T => {
   }
   return value;
 };
-const commitWrites = async (writes: Array<(batch: FirebaseWriteBatch) => void>) => {
+const commitWrites = async (writes: Array<(batch: FirebaseWriteBatch) => void>, assertActive: () => void = () => {}) => {
   // Firestore accepts at most 500 operations per batch. A pedagogical snapshot
   // can include hundreds of catalog lessons, reviews and old records. Commit a
   // few independent chunks together so a full synchronization does not pay one
@@ -654,6 +632,7 @@ const commitWrites = async (writes: Array<(batch: FirebaseWriteBatch) => void>) 
       if (!batch) return;
       for (let attempt = 0; ; attempt += 1) {
         try {
+          assertActive();
           await batch.commit();
           break;
         } catch (error) {
@@ -664,7 +643,9 @@ const commitWrites = async (writes: Array<(batch: FirebaseWriteBatch) => void>) 
     }
   };
   const concurrency = Math.min(3, batches.length);
-  await Promise.all(Array.from({ length: concurrency }, () => commitNext()));
+  const results = await Promise.allSettled(Array.from({ length: concurrency }, () => commitNext()));
+  const failed = results.find(result => result.status === "rejected");
+  if (failed?.status === "rejected") throw failed.reason;
 };
 const firestoreFailure = (error: unknown) => {
   const code = typeof error === "object" && error && "code" in error
@@ -1690,11 +1671,7 @@ export const kodlandPayrollApi = {
     const request = async (year: number, periodId?: string) => {
       assertOwner();
       const syncId = crypto.randomUUID();
-      const response = await fetch("/api/kodland/sync", {
-        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${await owner.getIdToken()}`, "x-sync-id": syncId },
-        body: JSON.stringify({ username, password, mode: "payroll", payroll_year: year, payroll_period_id: periodId }),
-      });
-      const result = await readKodlandSyncResponse<PayrollResponse>(response, syncId);
+      const result = await requestKodlandJson<PayrollResponse>({ username, password, mode: "payroll", payroll_year: year, payroll_period_id: periodId }, () => owner.getIdToken(), syncId);
       assertOwner();
       if (!result.payroll_teacher_id || !Array.isArray(result.payroll_period_ids) || !Array.isArray(result.payroll_periods)) throw new ApiError(502, "Resposta da folha incompleta.");
       return result;
@@ -2619,6 +2596,7 @@ export const kodlandApi = {
     const syncId = crypto.randomUUID();
     return withKodlandSyncLock(firebaseUserId, () => observeOperation<KodlandSyncResult>("kodland_sync", async () => {
     if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) throw new ApiError(401, "Sua conta foi alterada. Entre novamente.");
+    options.assertActive?.();
     const syncCollection = (name: string) => ref(name, firebaseUserId);
     const syncStatusRef = doc(syncCollection("sync_status"), "kodland");
     const pendingExtraStudentIds = mode === "corrections" || mode === "profiles" ? [] : [
@@ -2634,31 +2612,9 @@ export const kodlandApi = {
           .filter(Boolean),
       ),
     ];
-    const token = await (
-      firebaseUser as unknown as { getIdToken: () => Promise<string> }
-    ).getIdToken();
-    let response: Response;
-    try {
-      response = await fetch("/api/kodland/sync", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`,
-          "x-sync-id": syncId,
-        },
-        body: JSON.stringify({
-          username,
-          password,
-          mode,
-          pending_extra_student_ids: pendingExtraStudentIds,
-          correction_group_ids: options.correctionGroupIds,
-          refresh_schedule: options.refreshSchedule,
-        }),
-      });
-    } catch {
-      throw kodlandSyncNetworkError(syncId);
-    }
-    const snapshot = await readKodlandSyncResponse<KodlandSnapshot>(response, syncId);
+    options.assertActive?.();
+    const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, pending_extra_student_ids: pendingExtraStudentIds, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule }, () => firebaseUser.getIdToken(), syncId);
+    options.assertActive?.();
     if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) {
       throw new ApiError(401, "A conta conectada mudou. Inicie a sincronização novamente.");
     }
@@ -2674,6 +2630,7 @@ export const kodlandApi = {
       started_at: createdAt,
     });
     const finish = async <T,>(result: T) => {
+      options.assertActive?.();
       const completedAt = now();
       await setDoc(syncStatusRef, {
         status: "complete",
@@ -2767,6 +2724,7 @@ export const kodlandApi = {
         existingProgress.filter(item => reviewedGroupIds.has(String(item.external_class_id)) && !ids.has(String(item.id))).forEach(item => progressWrites.push(batch => batch.delete(doc(syncCollection("kodland_task_progress"), String(item.id)))));
       }
       persistencePhase = "gravação";
+      options.assertActive?.();
       await commitWrites([
         ...groupUpdates,
         ...upserts,
@@ -2776,7 +2734,7 @@ export const kodlandApi = {
         ...lessonUpserts,
         ...staleLessonDeletes,
         ...progressWrites,
-      ]);
+      ], options.assertActive);
       return finish({ group_count: 0, student_count: 0, review_count: reviews.length, progress_count: snapshot.task_progress?.length ?? 0, attendance_count: attendance.length, lesson_count: lessons.length, extra_lesson_count: 0 });
     }
     if (mode === "profiles") {
@@ -2801,7 +2759,8 @@ export const kodlandApi = {
           });
         });
       persistencePhase = "gravação";
-      await commitWrites(writes);
+      options.assertActive?.();
+      await commitWrites(writes, options.assertActive);
       return finish({ group_count: 0, student_count: writes.length, review_count: 0, lesson_count: 0, extra_lesson_count: 0 });
     }
     const oldGroups = await rows("kodland_groups");
@@ -2939,7 +2898,8 @@ export const kodlandApi = {
       );
     }
     persistencePhase = "gravação";
-    await commitWrites([...upserts, ...deletes]);
+    options.assertActive?.();
+    await commitWrites([...upserts, ...deletes], options.assertActive);
     return finish({
       group_count: groups.length,
       student_count: students.length,
@@ -2982,6 +2942,7 @@ export const kodlandApi = {
     return observeOperation<KodlandSyncResult>("kodland_sync", async () => {
     const ownerId = authUser().uid;
     const assertSyncOwner = () => {
+      options.assertActive?.();
       if (getFirebaseAuth().currentUser?.uid !== ownerId) throw new ApiError(401, "A conta conectada mudou. Inicie a sincronização novamente.");
     };
     onProgress?.("Atualizando turmas, alunos, agenda e aulas…");
@@ -2993,7 +2954,7 @@ export const kodlandApi = {
       assertSyncOwner();
       onProgress?.(`Atualizando correções: ${index + 1} de ${groupIds.length} turma(s)…`);
       const result = await kodlandApi.sync(username, password, "corrections", {
-        correctionGroupIds: [groupIds[index]],
+        ...options, correctionGroupIds: [groupIds[index]],
       });
       reviewCount += result.review_count;
     }
@@ -3025,7 +2986,7 @@ export const kodlandApi = {
       assertSyncOwner();
       const batch = materialLessons.slice(index, index + KODLAND_MATERIAL_BATCH_SIZE);
       const end = Math.min(index + batch.length, materialLessons.length);
-      onProgress?.(`Atualizando materiais: ${index + 1}â€“${end} de ${materialLessons.length} aula(s)â€¦`);
+      onProgress?.(`Atualizando materiais: ${index + 1}–${end} de ${materialLessons.length} aula(s)…`);
       const materials = await requestKodlandMaterials(
         username,
         password,
@@ -3045,7 +3006,7 @@ export const kodlandApi = {
           firestorePayload({ ...updates, updated_at: now() }),
         ));
       });
-      await commitWrites(writes);
+      await commitWrites(writes, options.assertActive);
       materialCount += writes.length;
     }
     let payrollWarning: string | undefined;

@@ -5,7 +5,7 @@ import { subscribeStudentNotifications } from "@/lib/student-notification-store"
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type WheelEvent } from "react";
-import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Group, ClipboardCheck, Users } from "lucide-react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -557,6 +557,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
   const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
   const [activitiesView, setActivitiesView] = useState<"list" | "compact">("list");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(true);
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
   const [openAttendanceClasses, setOpenAttendanceClasses] = useState<Set<string>>(() => new Set());
@@ -825,33 +827,25 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
             Presença
           </button>
         </nav>
-        <div className={`correction-heading-actions${viewMode === "activities" ? " correction-heading-actions-activities" : ""}${viewMode === "activities" && activitiesView === "compact" ? " correction-heading-actions-compact" : ""}`} data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
-            {viewMode === "attendance" ? (
-              <label className="correction-toolbar-control"><span className="correction-control-symbol" title="Filtrar"><Filter size={17} aria-hidden="true" /><span className="sr-only">Mostrar</span></span><select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>
-                <option value="ABSENT">Faltas</option>
-                <option value="ALL">Todos</option>
-                <option value="PRESENT">Presentes</option>
-              </select></label>
-            ) : (
-              <>
-              <div className="correction-toolbar-control"><span className="correction-control-symbol" title="Visualização"><LayoutGrid size={17} aria-hidden="true" /><span className="sr-only">Visualização</span></span><div className="correction-view-switch correction-activity-view-switch" role="group" aria-label="Formato de visualização das atividades">
-                <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>
-                <button type="button" aria-label="Compacto" title="Visualização compacta" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}><LayoutGrid size={18} aria-hidden="true" /></button>
-              </div></div>
-              {activitiesView === "compact" && <label className="correction-toolbar-control"><span className="correction-control-symbol" title="Filtrar"><Filter size={17} aria-hidden="true" /><span className="sr-only">Mostrar</span></span><select className="input correction-header-select" aria-label="Filtrar atividades" value={pendingOnly ? "pending" : "all"} onChange={event => setPendingOnly(event.target.value === "pending")}><option value="pending">Somente pendências</option><option value="all">Todos os alunos</option></select></label>}
-              {activitiesView === "list" && <label className="correction-toolbar-control"><span className="correction-control-symbol" title="Agrupar por"><Group size={17} aria-hidden="true" /><span className="sr-only">Agrupar por</span></span><select className="input correction-header-select" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}>
-                <option value="class">Turma</option>
-                <option value="student">Aluno</option>
-                <option value="lesson">Aula</option>
-              </select></label>}
-              </>
-            )}
-            <Input className="correction-search" aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
-            {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}>
-              <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
-            </Button>}
+        <div className="correction-icon-toolbar" data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
+          {viewMode === "activities" && <div className="correction-view-switch" role="group" aria-label="Formato de visualização das atividades">
+            <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>
+            <button type="button" aria-label="Compacto" title="Visualização compacta" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}><LayoutGrid size={18} aria-hidden="true" /></button>
+          </div>}
+          <Button type="button" className="button-ghost symbol-action" aria-label="Abrir filtros" title="Filtros do acompanhamento" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}><Filter size={18} aria-hidden="true" /></Button>
+          <Button type="button" className="button-ghost symbol-action" aria-label={searchOpen ? "Fechar busca" : "Abrir busca"} title={searchOpen ? "Fechar e limpar busca" : "Buscar aluno, turma ou atividade"} aria-expanded={searchOpen} aria-controls="correction-search-field" onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
+          {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}
         </div>
       </div>
+      {searchOpen && <Input id="correction-search-field" className="correction-revealed-search" autoFocus aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setQuery(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-label="Fechar busca"]')?.focus(); } }} />}
+      <Modal open={filtersOpen} title="Filtros do acompanhamento" onClose={() => setFiltersOpen(false)} className="correction-filters-modal">
+        <div className="form">
+          {viewMode === "attendance" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}><option value="ABSENT">Faltas</option><option value="ALL">Todos</option><option value="PRESENT">Presentes</option></select></label>
+            : activitiesView === "compact" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar atividades" value={pendingOnly ? "pending" : "all"} onChange={event => setPendingOnly(event.target.value === "pending")}><option value="pending">Somente pendências</option><option value="all">Todos os alunos</option></select></label>
+              : <label className="field">Agrupar por<select className="input" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}><option value="class">Turma</option><option value="student">Aluno</option><option value="lesson">Aula</option></select></label>}
+          <div className="form-actions"><Button type="button" onClick={() => setFiltersOpen(false)}>Concluir</Button></div>
+        </div>
+      </Modal>
       <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
         {viewMode === "attendance" ? <>
         <div className="attendance-legend" aria-label="Legenda das cores de presença">

@@ -29,7 +29,9 @@ for (const width of [1440, 390, 320]) test(`WhatsApp dos responsáveis funciona 
   const list = page.locator("[data-tour='corrections-cards'] > details").filter({ hasText: "DEMO_PY_SEG-19" });
   await list.locator(":scope > summary").click();
   for (const grouping of ["class", "student", "lesson"]) {
+    await page.getByRole("button", { name: "Abrir filtros" }).click();
     await page.getByRole("combobox", { name: "Organizar atividades", exact: true }).selectOption(grouping);
+    await page.getByRole("button", { name: "Concluir", exact: true }).click();
     await list.getByRole("button", { name: /^Mensagem aos responsáveis de/ }).first().click();
     await expect(modal).toBeVisible();
     await expect(modal.getByLabel("WhatsApp do responsável", { exact: true })).toHaveValue("551100000000");

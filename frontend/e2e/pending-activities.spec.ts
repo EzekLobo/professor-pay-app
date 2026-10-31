@@ -12,11 +12,10 @@ for (const width of [320, 390, 1440]) {
     if (width <= 720) await page.getByRole("button", { name: "Mais opções", exact: true }).click();
     await page.getByRole("link", { name: "Acompanhamento", exact: true }).click();
     await page.getByRole("button", { name: "Compacto", exact: true }).click();
+    await page.getByRole("button", { name: "Abrir filtros" }).click();
     const filter = page.getByRole("combobox", { name: "Filtrar atividades", exact: true });
     await expect(filter).toHaveValue("pending");
-    const filterBox = await filter.boundingBox();
-    const switchBox = await page.getByRole("button", { name: "Compacto", exact: true }).boundingBox();
-    expect(filterBox!.y - switchBox!.y).toBeLessThan(100);
+    await page.getByRole("button", { name: "Concluir", exact: true }).click();
     const group = page.locator("details.compact-activities-class").first();
     await group.locator("summary").click();
     const pendingRows = await group.locator(".compact-pending-row").count();
@@ -33,13 +32,17 @@ for (const width of [320, 390, 1440]) {
     const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }));
     expect(dimensions.content).toBeLessThanOrEqual(dimensions.width + 1);
     await page.screenshot({ path: `test-results/pending-activities-${width}.png`, fullPage: true });
+    await page.getByRole("button", { name: "Abrir filtros" }).click();
     await filter.selectOption("all");
+    await page.getByRole("button", { name: "Concluir", exact: true }).click();
     await expect.poll(() => group.locator(".attendance-grid-row").count()).toBeGreaterThan(pendingRows);
     await expect.poll(() => group.locator(".compact-activity-empty").count()).toBeGreaterThan(0);
     await page.reload();
+    await page.getByRole("button", { name: "Abrir filtros" }).click();
     await expect(filter).toHaveValue("all");
     await filter.selectOption("pending");
     await page.reload();
+    await page.getByRole("button", { name: "Abrir filtros" }).click();
     await expect(filter).toHaveValue("pending");
   });
 }

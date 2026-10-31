@@ -3637,3 +3637,12 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .correction-heading-actions .correction-activity-view-switch { justify-self: start; }
   .correction-view-switch button { flex: 0 0 44px; }
 }
+
+.correction-icon-toolbar { display: flex; align-items: center; flex-wrap: nowrap; gap: 8px; padding: 0 0 12px; }
+.correction-icon-toolbar .button, .correction-icon-toolbar .sync-icon-button { width: 44px; min-width: 44px; max-width: 44px; height: 44px; min-height: 44px; padding: 8px; }
+.correction-icon-toolbar .correction-view-switch { display: inline-flex; padding: 2px; gap: 2px; }
+.correction-icon-toolbar .correction-view-switch button { width: 44px; flex: 0 0 44px; }
+.correction-revealed-search { width: 100%; margin: 0 0 14px; min-height: 44px; }
+.correction-filters-modal { width: min(420px, calc(100vw - 24px)); }
+.correction-filters-modal .field { display: grid; gap: 8px; }
+@media (max-width: 760px) { .correction-icon-toolbar { width: 100%; gap: 6px; } }

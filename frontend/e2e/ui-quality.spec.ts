@@ -57,17 +57,24 @@ for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/demo#corrections");
     const compact = page.getByRole("button", { name: "Compacto", exact: true });
-    const grouping = page.getByRole("combobox", { name: "Organizar atividades" });
     await expect(compact).toBeVisible();
-    await expect(grouping).toBeVisible();
+    await expect(page.getByLabel("Buscar correção")).not.toBeVisible();
+    const filter = page.getByRole("button", { name: "Abrir filtros" });
     const switchBox = await compact.boundingBox();
-    const groupingBox = await grouping.boundingBox();
-    expect(switchBox).not.toBeNull();
-    expect(groupingBox).not.toBeNull();
-    expect(switchBox!.y + switchBox!.height).toBeLessThanOrEqual(groupingBox!.y);
+    const filterBox = await filter.boundingBox();
+    expect(Math.abs(switchBox!.y - filterBox!.y)).toBeLessThan(5);
+    await filter.click();
+    await expect(page.getByRole("combobox", { name: "Organizar atividades" })).toBeVisible();
+    await page.getByRole("button", { name: "Concluir", exact: true }).click();
     await compact.click();
     await expect(compact).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByLabel("Buscar correção")).toBeVisible();
+    await page.getByRole("button", { name: "Abrir busca" }).click();
+    await expect(page.getByLabel("Buscar correção")).toBeFocused();
+    await page.getByLabel("Buscar correção").fill("nenhum-aluno");
+    await page.getByLabel("Buscar correção").press("Escape");
+    await expect(page.getByLabel("Buscar correção")).not.toBeVisible();
+    await page.getByRole("button", { name: "Abrir busca" }).click();
+    await expect(page.getByLabel("Buscar correção")).toHaveValue("");
   });
 }
 
@@ -257,7 +264,7 @@ for (const width of [320, 390, 520, 768]) {
     if (width <= 720) await page.getByRole("button", { name: "Mais opções", exact: true }).click();
     await page.getByRole("link", { name: "Acompanhamento", exact: true }).click();
     await page.getByRole("tab", { name: "Presença", exact: true }).click();
-    const controls = [page.getByRole("combobox", { name: "Filtrar presença" }), page.getByLabel("Buscar correção"), page.getByRole("button", { name: "Atualizar correções", exact: true })];
+    const controls = [page.getByRole("button", { name: "Abrir filtros" }), page.getByRole("button", { name: "Abrir busca" }), page.getByRole("button", { name: "Atualizar correções", exact: true })];
     const boxes = [];
     for (const control of controls) {
       await expect(control).toBeVisible();

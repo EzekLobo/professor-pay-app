@@ -1,5 +1,11 @@
 # Estado atual
 
+## Barra única de acompanhamento — 31/10/2026
+
+- CorrectionsContent reúne Lista/Compacto, filtro, lupa e atualização numa linha em desktop/mobile. Modal compartilhado contém filtro de presença, pendências ou agrupamento conforme modo; opções continuam persistidas. Busca surge ao clicar, recebe foco e limpa ao fechar/X/Escape; sem filtro textual oculto. Mantidos rótulos acessíveis, toque44px e tour. Novidade2026103104.
+- 28 cenários E2E afetados aprovados (27 na rodada+demo manual desktop/mobile repetidos após apontar mouse para o cabeçalho da grade, fora da navegação fixa). 336 testes unitários, lint/typecheck/build aprovados. Inspeção de320px sem cortes; testes cobrem foco/limpeza da busca, modal, preferências, contato e presença.
+
+
 ## Controles com símbolos — 31/10/2026
 
 - Acompanhamento usa ícones com aria-label/title para Lista/Compacto, filtro/agrupamento e correção (lista e grade); contagem compacta usa Users+número. Pagamentos usa ícone de gráfico para Ver detalhes. Valores selecionados dos filtros, destinos/abas e confirmações mantêm texto. Ações com mínimo44px; rótulos visuais do toolbar viraram símbolos sem perder nomes acessíveis.

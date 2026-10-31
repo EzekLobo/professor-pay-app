@@ -56,7 +56,9 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await page.getByRole("tab", { name: "Presença" }).click();
   await expect(page.getByRole("tab", { name: "Presença" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByLabel("Filtrar presença")).toHaveValue("ABSENT");
+  await page.getByRole("button", { name: "Abrir filtros" }).click();
   await page.getByLabel("Filtrar presença").selectOption("ALL");
+  await page.getByRole("button", { name: "Concluir", exact: true }).click();
   const attendanceClass = page.locator("details.attendance-class-group").first();
   await expect(attendanceClass).not.toHaveAttribute("open", "");
   await attendanceClass.locator("summary").click();
@@ -64,7 +66,7 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
   const scroll = await attendanceGrid.evaluate((element) => ({ current: element.scrollLeft, max: element.scrollWidth - element.clientWidth }));
   const scrollLeft = scroll.current >= scroll.max - 1;
-  await attendanceGrid.hover();
+  await attendanceGrid.hover({ position: { x: 20, y: 10 } });
   await page.mouse.wheel(0, scrollLeft ? -300 : 300);
   if (scrollLeft) await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeLessThan(scroll.current);
   else await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(scroll.current);
@@ -81,7 +83,9 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await whatsAppDialog.getByRole("button", { name: "Cancelar" }).click();
   await page.getByRole("tab", { name: "Atividades" }).click();
   await expect(page.getByRole("tab", { name: "Atividades" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "Abrir filtros" }).click();
   await page.getByLabel("Organizar atividades").selectOption("student");
+  await page.getByRole("button", { name: "Concluir", exact: true }).click();
   const compactView = page.getByRole("button", { name: "Compacto" });
   await expect(compactView).toHaveAttribute("aria-pressed", "false");
   await compactView.click();

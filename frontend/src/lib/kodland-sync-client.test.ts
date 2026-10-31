@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { requestKodlandJson, watchKodlandSync } from "./kodland-sync-client";
+import { requestKodlandJson, watchKodlandSync, readKodlandLocal } from "./kodland-sync-client";
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 const id = "6619087b-bcaa-42e8-b34b-cee7eaf985cb";
@@ -36,4 +36,16 @@ it("encerra espera sem progresso e impede novas etapas tardias", async () => {
 it("reinicia prazo por etapa em sincronização longa com progresso", async () => {
  const pending=watchKodlandSync(async report=>{await new Promise(resolve=>setTimeout(resolve,15));report("Segunda etapa");await new Promise(resolve=>setTimeout(resolve,15));return 42;},()=>{},20);
  await vi.advanceTimersByTimeAsync(31);await expect(pending).resolves.toBe(42);
+});
+
+it("leitura Firebase parada informa etapa/referência e descarta continuação tardia", async () => {
+ let resume!: (value:number)=>void;const write=vi.fn();
+ const pending=readKodlandLocal(()=>new Promise<number>(resolve=>{resume=resolve;}),id,"Leitura de extras",20).then(write);
+ const rejected=expect(pending).rejects.toMatchObject({syncId:id,code:"deadline-exceeded",message:expect.stringContaining("Leitura de extras")});
+ await vi.advanceTimersByTimeAsync(21);await rejected;
+ resume(42);await vi.advanceTimersByTimeAsync(0);expect(write).not.toHaveBeenCalled();
+});
+
+it("erro de leitura preserva referência e permissão sem vazar mensagem interna", async () => {
+ await expect(readKodlandLocal(async()=>{throw {code:"permission-denied",message:"sensitive-internal-payload"};},id,"Leitura de alunos",20)).rejects.toMatchObject({syncId:id,code:"permission-denied",message:expect.stringContaining("recusou o acesso")});
 });

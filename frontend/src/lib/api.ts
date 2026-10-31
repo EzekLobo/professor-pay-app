@@ -1,4 +1,4 @@
-import { requestKodlandJson } from "./kodland-sync-client";
+import { requestKodlandJson, readKodlandLocal, KodlandSyncReadTimeout } from "./kodland-sync-client";
 import { observeOperation } from "./operation-log-client";
 import { withKodlandSyncLock } from "./kodland-sync-lock";
 import { validateTaskCard, validateTaskLists } from "@/lib/task-board";
@@ -348,6 +348,7 @@ export type KodlandSyncResult = {
 };
 type KodlandSyncOptions = {
   assertActive?: () => void;
+  onProgress?: (message: string, reference?: string) => void;
   refreshSchedule?: boolean;
   correctionGroupIds?: string[];
 };
@@ -2536,7 +2537,7 @@ export const kodlandApi = {
   reviews: async () => ({
     items: (await rows("kodland_reviews")) as unknown as KodlandReview[],
   }),
-  taskProgress: async () => ({ items: (await rows("kodland_task_progress")).map(validateKodlandTaskProgress) }),
+  taskProgress: async () => ({ items: (await allRows("kodland_task_progress")).map(validateKodlandTaskProgress) }),
   notificationSyncStatus: async () => {
     const [snapshot, followup] = await Promise.all([getDoc(doc(ref("sync_status"), "kodland")), getDoc(doc(ref("sync_status"), "corrections"))]);
     if (!snapshot.exists()) return null;
@@ -2598,10 +2599,13 @@ export const kodlandApi = {
     if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) throw new ApiError(401, "Sua conta foi alterada. Entre novamente.");
     options.assertActive?.();
     const syncCollection = (name: string) => ref(name, firebaseUserId);
+    const progress = (message: string) => { options.assertActive?.(); options.onProgress?.(message, syncId); };
+    const readLocal = (name: string) => readKodlandLocal(() => allRows(name, firebaseUserId), syncId, `Leitura de ${name}`);
+    progress("Lendo extras salvos no Firebase…");
     const syncStatusRef = doc(syncCollection("sync_status"), "kodland");
     const pendingExtraStudentIds = mode === "corrections" || mode === "profiles" ? [] : [
       ...new Set(
-        (await rows("kodland_extra_lessons"))
+        (await readLocal("kodland_extra_lessons"))
           .filter(
             (lesson) =>
               lesson.completed !== true &&
@@ -2613,6 +2617,7 @@ export const kodlandApi = {
       ),
     ];
     options.assertActive?.();
+    progress("Consultando a Kodland…");
     const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, pending_extra_student_ids: pendingExtraStudentIds, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule }, () => firebaseUser.getIdToken(), syncId);
     options.assertActive?.();
     if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) {
@@ -2621,6 +2626,7 @@ export const kodlandApi = {
     const followupGroups = [...new Set([...(snapshot.review_group_ids ?? []), ...snapshot.groups.filter(group => group.archived).map(group => group.external_id)])];
     let persistencePhase: "leitura" | "gravação" = "leitura";
     try {
+    progress("Registrando início da gravação no Firebase…");
     const createdAt = now();
     if (mode === "corrections") await setDoc(doc(syncCollection("sync_status"), "corrections"), { status: "running", sync_id: syncId, group_status: Object.fromEntries(followupGroups.map(id => [id, "running"])) }, { merge: true });
     await setDoc(syncStatusRef, {
@@ -2631,6 +2637,7 @@ export const kodlandApi = {
     });
     const finish = async <T,>(result: T) => {
       options.assertActive?.();
+      progress("Confirmando conclusão no Firebase…");
       const completedAt = now();
       await setDoc(syncStatusRef, {
         status: "complete",
@@ -2651,14 +2658,15 @@ export const kodlandApi = {
       return result;
     };
     if (mode === "corrections") {
-      const previousGroups = await rows("kodland_groups");
+      progress("Lendo presença, atividades e aulas salvas…");
+      const previousGroups = await readLocal("kodland_groups");
       const groupUpdates: Array<(batch: FirebaseWriteBatch) => void> = snapshot.groups.flatMap(group => {
         const previous = previousGroups.find(item => String(item.external_id) === group.external_id);
         return previous && Boolean(previous.archived) !== group.archived ? [(batch: FirebaseWriteBatch) => batch.update(doc(syncCollection("kodland_groups"), String(previous.id)), { archived: group.archived })] : [];
       });
-      const previousReviews = await rows("kodland_reviews");
-      const previousAttendance = await rows("kodland_attendance");
-      const previousLessons = options.refreshSchedule === false ? [] : await rows("kodland_lessons");
+      const previousReviews = await readLocal("kodland_reviews");
+      const previousAttendance = await readLocal("kodland_attendance");
+      const previousLessons = options.refreshSchedule === false ? [] : await readLocal("kodland_lessons");
       const reviews = uniqueBy(snapshot.reviews, (item) => item.id);
       const attendance = uniqueBy(snapshot.attendance ?? [], (item) => item.id);
       const lessons = uniqueBy(snapshot.lessons ?? [], (item) => kodlandLessonDocumentId(item));
@@ -2718,13 +2726,14 @@ export const kodlandApi = {
       const progressWrites: Array<(batch: FirebaseWriteBatch) => void> = [];
       if (snapshot.task_progress) {
         const progress = uniqueBy(snapshot.task_progress.map(validateKodlandTaskProgress), item => item.id);
-        const existingProgress = await rows("kodland_task_progress");
+        const existingProgress = await readLocal("kodland_task_progress");
         const ids = new Set(progress.map(item => item.id));
         progress.forEach(item => progressWrites.push(batch => batch.set(doc(syncCollection("kodland_task_progress"), item.id), item)));
         existingProgress.filter(item => reviewedGroupIds.has(String(item.external_class_id)) && !ids.has(String(item.id))).forEach(item => progressWrites.push(batch => batch.delete(doc(syncCollection("kodland_task_progress"), String(item.id)))));
       }
       persistencePhase = "gravação";
       options.assertActive?.();
+      progress("Salvando presença e atividades no Firebase…");
       await commitWrites([
         ...groupUpdates,
         ...upserts,
@@ -2738,7 +2747,7 @@ export const kodlandApi = {
       return finish({ group_count: 0, student_count: 0, review_count: reviews.length, progress_count: snapshot.task_progress?.length ?? 0, attendance_count: attendance.length, lesson_count: lessons.length, extra_lesson_count: 0 });
     }
     if (mode === "profiles") {
-      const previousStudents = await rows("kodland_students");
+      const previousStudents = await readLocal("kodland_students");
       const students = uniqueBy(snapshot.students, (item) => item.id);
       const previousById = new Map(
         previousStudents.map((student) => [String(student.id), student]),
@@ -2760,20 +2769,20 @@ export const kodlandApi = {
         });
       persistencePhase = "gravação";
       options.assertActive?.();
+      progress("Salvando alunos no Firebase…");
       await commitWrites(writes, options.assertActive);
       return finish({ group_count: 0, student_count: writes.length, review_count: 0, lesson_count: 0, extra_lesson_count: 0 });
     }
-    const oldGroups = await rows("kodland_groups");
+    progress("Lendo turmas, alunos, aulas e agenda salvos…");
+    const [oldGroups, oldStudents, oldLessons, oldExtraLessons, oldAvailability] = await Promise.all([
+      readLocal("kodland_groups"), readLocal("kodland_students"), readLocal("kodland_lessons"), readLocal("kodland_extra_lessons"), readLocal("kodland_availability"),
+    ]);
     const links = new Map(
       oldGroups.map((item) => [
         String(item.external_id),
         item.local_class_id ?? null,
       ]),
     );
-    const oldStudents = await rows("kodland_students");
-    const oldLessons = await rows("kodland_lessons");
-    const oldExtraLessons = await rows("kodland_extra_lessons");
-    const oldAvailability = await rows("kodland_availability");
     const groups = uniqueBy(snapshot.groups, (item) => item.external_id);
     const students = uniqueBy(snapshot.students, (item) => item.id);
     const lessons = uniqueBy(
@@ -2899,6 +2908,7 @@ export const kodlandApi = {
     }
     persistencePhase = "gravação";
     options.assertActive?.();
+    progress("Salvando turmas, alunos, aulas e agenda no Firebase…");
     await commitWrites([...upserts, ...deletes], options.assertActive);
     return finish({
       group_count: groups.length,
@@ -2911,6 +2921,7 @@ export const kodlandApi = {
         .map((group) => group.external_id),
     });
     } catch (error) {
+      if (error instanceof KodlandSyncReadTimeout) throw error;
       const failure = firestoreFailure(error);
       console.error("[kodland-sync-persistence]", JSON.stringify({
         syncId,
@@ -2936,7 +2947,7 @@ export const kodlandApi = {
   syncAll: async (
     username: string,
     password: string,
-    onProgress?: (message: string) => void,
+    onProgress?: (message: string, reference?: string) => void,
     options: KodlandSyncOptions = {},
   ): Promise<KodlandSyncResult> => {
     return observeOperation<KodlandSyncResult>("kodland_sync", async () => {
@@ -2946,7 +2957,8 @@ export const kodlandApi = {
       if (getFirebaseAuth().currentUser?.uid !== ownerId) throw new ApiError(401, "A conta conectada mudou. Inicie a sincronização novamente.");
     };
     onProgress?.("Atualizando turmas, alunos, agenda e aulas…");
-    const core = await kodlandApi.sync(username, password, "essential", options);
+    const syncOptions = onProgress ? { ...options, onProgress } : options;
+    const core = await kodlandApi.sync(username, password, "essential", syncOptions);
     const groupIds = core.group_ids ?? [];
     const authorizedGroupIds = new Set(groupIds);
     let reviewCount = 0;
@@ -2954,7 +2966,7 @@ export const kodlandApi = {
       assertSyncOwner();
       onProgress?.(`Atualizando correções: ${index + 1} de ${groupIds.length} turma(s)…`);
       const result = await kodlandApi.sync(username, password, "corrections", {
-        ...options, correctionGroupIds: [groupIds[index]],
+        ...syncOptions, correctionGroupIds: [groupIds[index]],
       });
       reviewCount += result.review_count;
     }

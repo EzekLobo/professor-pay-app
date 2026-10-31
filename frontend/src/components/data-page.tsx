@@ -128,7 +128,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
         `Sincronização concluída: ${result.group_count} turma(s), ${result.student_count} aluno(s), ${result.lesson_count} aula(s), ${result.extra_lesson_count} extra(s) e ${result.review_count} correção(ões).${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
       );
     } catch (reason) {
-      if (reason instanceof KodlandSyncWaitError) reportOperation("kodland_sync", "warning", { scope: "complete", trigger: "manual", errorCode: "timeout" });
+      if (reason instanceof KodlandSyncWaitError) reportOperation("kodland_sync", "warning", { scope: "complete", trigger: "manual", errorCode: "timeout", reference: reason.syncId });
       setSyncError(
         reason instanceof KodlandSyncWaitError ||
           reason instanceof ApiError ||

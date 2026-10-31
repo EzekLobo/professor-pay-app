@@ -40,3 +40,8 @@ best effort, não confirmação independente de ações pedagógicas ou envio de
 ## Espera de sincronização não libera gravações em andamento (31/10/2026)
 
 Timeout de interface encerra a espera e bloqueia próximas etapas, mas não deve soltar a fila de uma gravação Firestore já enviada. Locks acompanham a execução bruta, não a Promise devolvida ao usuário por prazo. A aquisição pode expirar/cancelar sem executar tardiamente; batches aguardam todos os workers antes de liberar o lock. Consultas/token/corpo HTTP têm limite próprio e referências técnicas, sem repetir automaticamente uma carga após prazo excedido.
+
+
+## Transporte Firestore móvel e coleções sem created_at (31/10/2026)
+
+Firestore do browser passa a long-polling forçado com respostas15s para evitar WebChannel retido por proxies; usa mais requisições em troca de previsibilidade. Não aplicar opções de navegador no runtime Node. A troca só vale ao inicializar uma nova página. Leituras de progresso/snapshots de sincronização usam allRows, pois orderBy(created_at) exclui documentos em que o campo não existe (como kodland_task_progress). Ordenação visual deve ocorrer depois da leitura quando o campo não faz parte do contrato persistido.

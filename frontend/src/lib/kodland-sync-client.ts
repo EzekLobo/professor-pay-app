@@ -1,5 +1,5 @@
-import { KodlandSyncResponseError, kodlandSyncNetworkError, readKodlandSyncResponse } from "./kodland-sync-response";
-export class KodlandSyncWaitError extends Error { readonly code = "deadline-exceeded"; }
+import { KodlandSyncPersistenceError, KodlandSyncResponseError, kodlandSyncNetworkError, readKodlandSyncResponse } from "./kodland-sync-response";
+export class KodlandSyncWaitError extends Error { readonly code = "deadline-exceeded"; syncId?: string; }
 /** Bounds authentication, transport and response body together; a late token cannot start a request. */
 export async function requestKodlandJson<T>(body: object, getToken: () => Promise<string>, syncId: string, timeoutMs = 60_000): Promise<T> {
   const controller = new AbortController();
@@ -19,19 +19,38 @@ export async function requestKodlandJson<T>(body: object, getToken: () => Promis
   finally { clearTimeout(timer); }
 }
 /** Stop waiting in the UI, but never release a lock or pretend an in-flight Firestore write was cancelled. */
-export async function watchKodlandSync<T>(run: (report: (stage: string) => void, assertActive: () => void) => Promise<T>, onProgress: (stage: string) => void, idleMs = 90_000): Promise<T> {
+export async function watchKodlandSync<T>(run: (report: (stage: string, reference?: string) => void, assertActive: () => void) => Promise<T>, onProgress: (stage: string) => void, idleMs = 90_000): Promise<T> {
   let expired = false;
   let stage = "Iniciando sincronização";
+  let reference: string | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let rejectDeadline!: (error: Error) => void;
-  const failure = () => new KodlandSyncWaitError(`A etapa “${stage}” ficou sem confirmação. Verifique a conexão. Se a gravação já começou, ela pode terminar em segundo plano; uma nova sincronização aguardará essa gravação.`);
+  const failure = () => Object.assign(new KodlandSyncWaitError(`A etapa “${stage}” ficou sem confirmação. Verifique a conexão. Se a gravação já começou, ela pode terminar em segundo plano; uma nova sincronização aguardará essa gravação.${reference ? ` Referência ${reference}.` : ""}`), { syncId: reference });
   const assertActive = () => { if (expired) throw failure(); };
   const deadline = new Promise<never>((_, reject) => { rejectDeadline = reject; });
-  const report = (value: string) => {
-    assertActive(); stage = value; onProgress(value); clearTimeout(timer);
+  const report = (value: string, syncId?: string) => {
+    assertActive(); stage = value; reference = syncId ?? reference; onProgress(value); clearTimeout(timer);
     timer = setTimeout(() => { expired = true; rejectDeadline(failure()); }, idleMs);
   };
   report(stage);
   try { return await Promise.race([Promise.resolve().then(() => run(report, assertActive)), deadline]); }
+  finally { clearTimeout(timer); }
+}
+
+export class KodlandSyncReadTimeout extends KodlandSyncPersistenceError {
+  readonly code = "deadline-exceeded";
+  constructor(syncId: string, label: string) { super(syncId, "leitura", `${label}: o Firebase não respondeu no prazo. Verifique o acesso ao banco e tente novamente.`); }
+}
+/** Reads are safe to stop awaiting: a late result cannot continue the sync. */
+export async function readKodlandLocal<T>(read: () => Promise<T>, syncId: string, label: string, timeoutMs = 20_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new KodlandSyncReadTimeout(syncId, label)), timeoutMs); });
+  try { return await Promise.race([Promise.resolve().then(read), timeout]); }
+  catch (error) {
+    if (error instanceof KodlandSyncReadTimeout) throw error;
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unknown";
+    const detail = code === "permission-denied" ? "O Firebase recusou o acesso aos dados." : code === "unauthenticated" ? "A sessão do Firebase expirou. Entre novamente." : "Não foi possível ler os dados no Firebase.";
+    throw Object.assign(new KodlandSyncPersistenceError(syncId, "leitura", `${label}: ${detail}`), { code: ["permission-denied", "unauthenticated", "unavailable"].includes(code) ? code : "unavailable" });
+  }
   finally { clearTimeout(timer); }
 }

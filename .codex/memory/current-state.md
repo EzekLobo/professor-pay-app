@@ -1,5 +1,13 @@
 # Estado atual
 
+## Firebase mobile e dados de atividades — 31/10/2026
+
+- firebase.ts inicializa Firestore no browser com long-polling forçado/timeout15s, sem streaming autodetect; servidor preserva getFirestore padrão. Mitiga buffers WebChannel em redes/proxies móveis; requer recarga porque a configuração é de inicialização. Não há evidência de logs da conta real para atribuir definitivamente o travamento ao transporte.
+- Sync fornece fases reais (leitura extras/consulta Kodland/marcador/leitura salvos/gravação/confirmação) e syncId para o watchdog. Leituras Firestore têm limite20s, erro seguro de etapa/permissão/referência, UID explícito e nenhuma continuação tardia. Leituras independentes da carga essential rodam em paralelo. Timeout de leitura não aguarda marcador de falha que poderia travar na mesma rede; estado running permanece conservador até nova sync. Locks/gravações mantêm regras anteriores.
+- taskProgress usava rows/orderBy(created_at), mas documentos kodland_task_progress não têm created_at; Firebase excluía esses documentos. Alterado para allRows sem ordenação e regressão cobre documentos sem timestamp, resolvendo consulta vazia de não entregas já importadas. Sync também lê snapshots salvos sem exigir timestamp.
+- 352 unitários,9 E2E afetados em320/390/1440px (modal, dados e mensagens), lint/typecheck aprovados. Novos testes cobrem configuração browser/servidor, leitura sem timestamp e timeout de leitura que descarta continuação. Sem Firebase/Kodland real nesta execução.
+
+
 ## Sincronização sem espera indefinida — 31/10/2026
 
 - kodland-sync-client.requestKodlandJson limita token+fetch+body60s com AbortController/referência HTTP504; token tardio não inicia fetch. Usado em carga principal, materiais e folha. Servidor mantém orçamento45s existente.

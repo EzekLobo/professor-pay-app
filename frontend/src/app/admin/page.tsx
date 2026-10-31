@@ -6,6 +6,7 @@ import { Modal } from "@/components/modal";
 import { Button, Input } from "@/components/ui";
 import { Shell } from "@/components/shell";
 import { Plus, RefreshCw } from "lucide-react";
+import { OperationLogsPanel } from "@/components/operation-logs-panel";
 import { getFirebaseAuth } from "@/lib/firebase";
 
 type Analytics = {
@@ -33,6 +34,7 @@ const duration = (seconds: number) => {
 
 function AdminContent() {
   const requestRef = useRef<AbortController | null>(null);
+  const [view, setView] = useState<"users" | "operations">("users");
   const [search, setSearch] = useState("");
   const [days, setDays] = useState(30);
   const [data, setData] = useState<Analytics | null>(null);
@@ -185,6 +187,7 @@ function AdminContent() {
 
   return (
     <div className="management-grid admin-dashboard page-fill-grid">
+      <div className="admin-section-switch" role="group" aria-label="Área da administração"><Button type="button" className="button-ghost" aria-pressed={view === "users"} onClick={() => setView("users")}>Usuários</Button><Button type="button" className="button-ghost" aria-pressed={view === "operations"} onClick={() => setView("operations")}>Diagnóstico</Button></div>
       <Modal
         open={createOpen}
         title="Cadastrar usuário"
@@ -247,6 +250,7 @@ function AdminContent() {
           {logUser.pageVisits.length ? <div className="admin-table-wrap"><table className="admin-table admin-log-table"><thead><tr><th scope="col">Página</th><th scope="col">Entrada</th><th scope="col">Última atividade</th><th scope="col">Tempo ativo</th></tr></thead><tbody>{logUser.pageVisits.map((visit, index) => <tr key={`${visit.pathname}-${visit.startedAt}-${index}`}><td><strong>{visit.feature}</strong></td><td>{visit.startedAt ? dateTime.format(new Date(visit.startedAt)) : "—"}</td><td>{visit.lastSeenAt ? dateTime.format(new Date(visit.lastSeenAt)) : "—"}</td><td>{duration(visit.activeSeconds)}</td></tr>)}</tbody></table></div> : <p className="muted">Ainda não há visitas de páginas detalhadas neste período.</p>}
         </>}
       </Modal>
+      {view === "operations" ? <OperationLogsPanel users={data?.users} /> : <div className="admin-users-view">
       <div className="admin-toolbar">
         <label className="admin-period-select">Período<select className="input" value={days} onChange={(event) => changePeriod(Number(event.target.value))}>{[7, 30, 90].map((value) => <option key={value} value={value}>Últimos {value} dias</option>)}</select></label>
         <div className="admin-toolbar-actions"><Button type="button" className="button-ghost button-small" disabled={loading} onClick={() => void load()}><RefreshCw size={16} aria-hidden="true" />{loading ? "Atualizando…" : "Atualizar"}</Button><Button type="button" className="button-small" onClick={() => { setCreateError(""); setCreateOpen(true); }}><Plus size={16} aria-hidden="true" />Cadastrar usuário</Button></div>
@@ -263,10 +267,11 @@ function AdminContent() {
         </section>
         <p className="admin-updated">Atualizado {dateTime.format(new Date(data.generatedAt))} · Atividade nos últimos {data.periodDays} dias</p>
       </>}
+      </div>}
     </div>
   );
 }
 
 export default function AdminPage() {
-  return <AuthGuard>{(user) => <Shell user={user}><AdminContent /></Shell>}</AuthGuard>;
+  return <AuthGuard>{(user) => <Shell key={user.id} user={user}><AdminContent /></Shell>}</AuthGuard>;
 }

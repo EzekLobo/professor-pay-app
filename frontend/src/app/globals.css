@@ -3481,3 +3481,50 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .notification-fields .form-actions { display: flex; flex-direction: row; flex-wrap: wrap; }
   .notification-fields .form-actions .button { flex: 1 1 120px; width: auto; }
 }
+
+.admin-section-switch { display: flex; gap: 8px; }
+.admin-section-switch .button { width: auto; }
+.admin-section-switch button[aria-pressed="true"] { border-color: var(--primary); color: var(--text); background: rgb(124 107 230 / 16%); }
+.admin-users-view { display: grid; gap: 14px; min-width: 0; }
+.operation-logs-panel { display: grid; gap: 14px; min-width: 0; }
+.operation-logs-heading, .operation-logs-actions { display: flex; align-items: center; gap: 8px; }
+.operation-logs-heading { justify-content: space-between; }
+.operation-logs-heading h2 { margin: 0; font-size: 1rem; }
+.operation-logs-heading p { font-size: .8rem; margin: 5px 0 0; }
+.operation-logs-actions { flex-shrink: 0; }
+.operation-logs-actions .button { width: 44px; min-height: 44px; padding: 0; display: grid; place-items: center; }
+.operation-log-filters { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
+.operation-log-filters label { display: grid; min-width: 0; gap: 5px; font-size: .78rem; color: var(--muted); }
+.operation-log-filters .input { width: 100%; min-width: 0; }
+.operation-log-caption { font-size: .74rem; margin: 0; line-height: 1.5; }
+.operation-log-summary { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: .78rem; color: var(--muted); }
+.operation-log-summary b { color: var(--text); }
+.operation-log-list { display: grid; gap: 8px; }
+.operation-log-card { min-width: 0; border: 1px solid var(--border); border-radius: 10px; }
+.operation-log-card summary { display: flex; align-items: center; gap: 10px; padding: 12px; min-height: 44px; cursor: pointer; list-style: none; font-size: .8rem; }
+.operation-log-card summary::-webkit-details-marker { display: none; }
+.operation-log-card summary strong { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.operation-log-card time { font-size: .72rem; color: var(--muted); }
+.operation-log-status { font-size: .7rem; color: #81cfff; flex-shrink: 0; }
+.operation-log-card.is-error .operation-log-status { color: #ff9cae; }
+.operation-log-card.is-warning .operation-log-status { color: #ffd38a; }
+.operation-log-card.is-success .operation-log-status { color: #43dba0; }
+.operation-log-details { display: grid; gap: 10px; padding: 0 12px 12px; min-width: 0; font-size: .78rem; }
+.operation-log-details dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 0; }
+.operation-log-details dt { color: var(--muted); font-size: .72rem; margin-bottom: 4px; }
+.operation-log-details dd { margin: 0; overflow-wrap: anywhere; }
+.operation-log-reference { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; }
+.operation-log-reference code { overflow-wrap: anywhere; font-size: .7rem; }
+.operation-log-reference .button { width: auto; }
+.operation-log-counts { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .operation-logs-panel { padding: 14px; }
+  .operation-log-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .operation-log-card summary { flex-wrap: wrap; }
+  .operation-log-card summary strong { flex-basis: 65%; }
+  .operation-log-card time { margin-left: auto; }
+  .operation-log-details dl { grid-template-columns: minmax(0,1fr); }
+}
+
+.operation-log-disclosure { flex-shrink: 0; color: var(--muted); }
+.operation-log-card[open] > summary .operation-log-disclosure { transform: rotate(180deg); }

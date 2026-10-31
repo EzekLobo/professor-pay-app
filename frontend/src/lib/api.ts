@@ -1,3 +1,4 @@
+import { observeOperation } from "./operation-log-client";
 import { withKodlandSyncLock } from "./kodland-sync-lock";
 import { validateTaskCard, validateTaskLists } from "@/lib/task-board";
 import { assertTaskBoardReadyForDataChange, clearTaskBoardLocalState, withTaskBoardDataChange } from "@/lib/task-board-store";
@@ -341,6 +342,8 @@ export type KodlandSyncResult = {
   lesson_count: number;
   extra_lesson_count: number;
   material_count?: number;
+  attendance_count?: number;
+  progress_count?: number;
   payroll_warning?: string;
   group_ids?: string[];
 };
@@ -2613,7 +2616,8 @@ export const kodlandApi = {
   ): Promise<KodlandSyncResult> => {
     const firebaseUser = authUser();
     const firebaseUserId = firebaseUser.uid;
-    return withKodlandSyncLock(firebaseUserId, async () => {
+    const syncId = crypto.randomUUID();
+    return withKodlandSyncLock(firebaseUserId, () => observeOperation<KodlandSyncResult>("kodland_sync", async () => {
     if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) throw new ApiError(401, "Sua conta foi alterada. Entre novamente.");
     const syncCollection = (name: string) => ref(name, firebaseUserId);
     const syncStatusRef = doc(syncCollection("sync_status"), "kodland");
@@ -2633,7 +2637,6 @@ export const kodlandApi = {
     const token = await (
       firebaseUser as unknown as { getIdToken: () => Promise<string> }
     ).getIdToken();
-    const syncId = crypto.randomUUID();
     let response: Response;
     try {
       response = await fetch("/api/kodland/sync", {
@@ -2774,7 +2777,7 @@ export const kodlandApi = {
         ...staleLessonDeletes,
         ...progressWrites,
       ]);
-      return finish({ group_count: 0, student_count: 0, review_count: reviews.length, attendance_count: attendance.length, lesson_count: lessons.length, extra_lesson_count: 0 });
+      return finish({ group_count: 0, student_count: 0, review_count: reviews.length, progress_count: snapshot.task_progress?.length ?? 0, attendance_count: attendance.length, lesson_count: lessons.length, extra_lesson_count: 0 });
     }
     if (mode === "profiles") {
       const previousStudents = await rows("kodland_students");
@@ -2968,7 +2971,7 @@ export const kodlandApi = {
       }
       throw new KodlandSyncPersistenceError(syncId, persistencePhase, failure.detail);
     }
-    });
+    }, { scope: mode, trigger: options.refreshSchedule === false ? "automatic" : "manual", reference: syncId }, result => ({ groups: result.group_count, students: result.student_count, activities: result.review_count, progress: result.progress_count ?? 0, attendance: result.attendance_count ?? 0, lessons: result.lesson_count })));
   },
   syncAll: async (
     username: string,
@@ -2976,6 +2979,7 @@ export const kodlandApi = {
     onProgress?: (message: string) => void,
     options: KodlandSyncOptions = {},
   ): Promise<KodlandSyncResult> => {
+    return observeOperation<KodlandSyncResult>("kodland_sync", async () => {
     const ownerId = authUser().uid;
     const assertSyncOwner = () => {
       if (getFirebaseAuth().currentUser?.uid !== ownerId) throw new ApiError(401, "A conta conectada mudou. Inicie a sincronização novamente.");
@@ -3060,6 +3064,7 @@ export const kodlandApi = {
       material_count: materialCount,
       payroll_warning: payrollWarning,
     };
+    }, { scope: "complete", trigger: "manual" }, result => ({ groups: result.group_count, students: result.student_count, activities: result.review_count, lessons: result.lesson_count }), result => result.payroll_warning ? "warning" : "success");
   },
   loadLessonMaterials: async (
     lesson: Pick<KodlandLesson, "id" | "external_class_id" | "source_lesson_id">,

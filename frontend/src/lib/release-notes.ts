@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026103102, date: "2026-10-31", title: "Recuperação de telas em caso de falha",
+    description: "Se uma tela apresentar uma falha inesperada, você pode tentar novamente ou continuar pelo menu. Registros técnicos ajudam na investigação sem incluir senhas ou conteúdo das mensagens.",
+    href: "/dashboard", action: "Abrir resumo",
+  },
+  {
     version: 2026103101, date: "2026-10-31", title: "Acompanhamento automático da Kodland",
     description: "Com o acesso salvo e a aplicação ativa, presença e atividades são atualizadas automaticamente. O sino reavalia os alertas conforme suas regras, e a mensagem de atividades tem variáveis e prévia.",
     href: "/settings#notifications", action: "Configurar alertas e mensagem",

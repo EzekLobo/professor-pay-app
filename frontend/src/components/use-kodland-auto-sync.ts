@@ -1,4 +1,6 @@
 "use client";
+import { classifyOperationError } from "@/lib/operation-log";
+import { reportOperation } from "@/lib/operation-log-client";
 import { useEffect, useState } from "react";
 import { kodlandApi, tutorPreferencesApi } from "@/lib/api";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
@@ -24,7 +26,11 @@ export function useKodlandAutoSync(uid: string, demo: boolean) {
       },
       credentials: restoreKodlandCredentials,
       sync: (groupId, credentials) => kodlandApi.sync(credentials.username, credentials.password, "corrections", { correctionGroupIds: [groupId], refreshSchedule: false }),
-      status: value => { if (owner()) setStatus(value); },
+      status: value => { if (owner()) {
+        setStatus(value);
+        if (value.phase === "credentials" || value.phase === "empty") reportOperation("kodland_auto_sync", "warning", { trigger: "automatic", errorCode: value.phase === "credentials" ? "credentials_missing" : "groups_missing" }, 15 * 60000);
+        if (value.phase === "error") reportOperation("kodland_auto_sync", "error", { trigger: "automatic", errorCode: classifyOperationError({ message: value.message }) });
+      } },
     });
     const tick = async () => {
       if (ticking || disposed || document.visibilityState !== "visible" || !navigator.onLine) return;

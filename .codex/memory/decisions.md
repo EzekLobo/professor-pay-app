@@ -26,3 +26,12 @@
 - A sequência pedagógica é materializada em `manual_occurrences`; códigos de aula
   são derivados da posição real no módulo, sem assumir quatro aulas por módulo.
 - Backup atual é 3.0, com compatibilidade de importação para 1.0 e 2.0.
+
+
+## 31/10/2026 — Diagnóstico operacional sem conteúdo livre
+
+Logs operacionais ficam em coleção global acessível apenas pelo servidor/Admin SDK,
+com UID verificado e consulta exclusiva do administrador. O contrato é fechado a
+códigos, estados, contagens e UUIDs: não adicionar raw Error.message/stack, payloads,
+contatos, credenciais ou parâmetros de URL. Eventos do navegador são observações
+best effort, não confirmação independente de ações pedagógicas ou envio de WhatsApp.

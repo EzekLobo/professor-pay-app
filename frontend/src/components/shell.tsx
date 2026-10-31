@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { OperationalErrorBoundary, OperationTelemetry } from "./operation-telemetry";
 import { StudentNotificationsProvider, StudentNotificationBell } from "./student-notifications";
 import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import Image from "next/image";
@@ -52,6 +53,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
   return (
     <StudentNotificationsProvider uid={user.id} snapshot={notificationSnapshot} onDemoChange={onNotificationDemoChange}>
     <div className="app-shell">
+      <OperationTelemetry uid={user.id} />
       <a className="skip-link" href="#main-content">Pular para o conteúdo</a>
       <aside className="sidebar">
         <Link className="brand" href={routeHref("/dashboard")} aria-label="Ir para o resumo" onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate("/dashboard"); } : undefined}>
@@ -85,7 +87,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
         </header>
         <main className="page-content" id="main-content" tabIndex={-1}>
           {banner}
-          <div className="page-stage">{children}</div>
+          <div className="page-stage"><OperationalErrorBoundary key={pathname}>{children}</OperationalErrorBoundary></div>
         </main>
       </section>
       <Modal open={moreOpen} title="Mais opções" onClose={() => setMoreOpen(false)} className="mobile-more-modal"><nav id="mobile-more-options" className="mobile-more-options" aria-label="Outras áreas">{secondaryRoutes.map((item) => renderNavLink(item, true))}</nav></Modal>

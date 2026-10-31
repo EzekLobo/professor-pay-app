@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { observeOperation, reportOperation } from "@/lib/operation-log-client";
+import { classifyOperationError } from "@/lib/operation-log";
 import { HeaderDropdown } from "./header-dropdown";
 import { ActivityMessageEditor } from "./activity-message-editor";
 import { useKodlandAutoSync } from "./use-kodland-auto-sync";
@@ -48,6 +50,8 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
     return demoStudentNotificationSource(snapshot, value);
   }, [demo, uid, snapshot]);
   const generation = useRef(0);
+  const lastLogged = useRef("");
+  const lastLoggedAt = useRef(0);
   const refresh = useCallback(async (force = false) => {
     const run = ++generation.current;
     const startedAt = new Date().toISOString();
@@ -65,7 +69,16 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
       const rows = await store.reconcile(items, startedAt);
       if (run !== generation.current) return;
       setCases(rows); setWarnings(data?.warnings ?? []); setUpdated(data?.loaded_at ?? ""); setError("");
-    } catch (reason) { if (run === generation.current) setError(reason instanceof Error ? reason.message : "Não foi possível atualizar os alertas. O histórico foi preservado."); }
+      const summary = { alerts: rows.filter(item => item.active).length, pending: rows.filter(needsNotificationContact).length, warnings: data?.warnings.length ?? 0 };
+      const signature = JSON.stringify(summary);
+      if (!demo && (signature !== lastLogged.current || Date.now() - lastLoggedAt.current >= 10 * 60000)) {
+        lastLogged.current = signature; lastLoggedAt.current = Date.now();
+        reportOperation("notifications_refresh", summary.warnings ? "warning" : "success", { counts: summary, durationMs: Math.min(3600000, Math.max(0, Date.now() - Date.parse(startedAt))) }, 0);
+      }
+    } catch (reason) { if (run === generation.current) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível atualizar os alertas. O histórico foi preservado.");
+      if (!demo) { lastLogged.current = ""; const errorCode = classifyOperationError(reason); reportOperation("notifications_refresh", errorCode === "sync_incomplete" ? "warning" : "error", { errorCode }); }
+    } }
     finally { if (run === generation.current) setLoading(false); }
   }, [demo, snapshot, store, source]);
   useEffect(() => {
@@ -80,10 +93,10 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
   const value: NotificationContext = {
     settings, cases, warnings, error, loading, updated, demo, absenceTemplate, autoSync,
     refresh: (force) => refresh(force),
-    save: async input => { await store.saveSettings(input); await refresh(true); },
+    save: async input => { await observeOperation("notifications_settings", () => store.saveSettings(input)); await refresh(true); },
     preview: async input => { const checked = validateNotificationSettings(input); const data = await source(checked, true); return evaluateStudentNotifications(data.lessons, data.obligations, checked, new Date()).length; },
     read: item => store.markRead(item.id, item.notification.revision),
-    confirm: async item => { await store.confirmContact(item.id, item.notification.revision); await refresh(); },
+    confirm: async item => { await observeOperation("notifications_contact", () => store.confirmContact(item.id, item.notification.revision)); await refresh(); },
     contact: async (item, name, phone) => {
       if (!name.trim() || !phone.trim() || phone.replace(/\D/g, "").length < 10) throw new Error("Informe nome e telefone válido do responsável.");
       if (demo) {

@@ -1,3 +1,4 @@
+import { observeOperation } from "./operation-log-client";
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { defaultTaskLists, validateTaskLists, sortTaskCards, validateTaskCard, type TaskList, type TaskBoardStore, type TaskCard } from "@/lib/task-board";
@@ -50,6 +51,8 @@ async function mutate(uid: string, change: (cache: Cache) => Cache) {
 async function sync(uid = owner()): Promise<void> {
   if (locks.has(uid)) return locks.get(uid);
   const work = exclusive(`tasks-sync-${uid}`, async () => {
+    if (!read(uid).pending.length) return;
+    return observeOperation("task_sync", async () => {
     try {
       while (true) {
         owner(uid);
@@ -73,6 +76,7 @@ async function sync(uid = owner()): Promise<void> {
       errors.set(uid, error instanceof Error ? error.message : "Não foi possível sincronizar as tarefas.");
       throw error;
     } finally { listeners.forEach((listener) => listener()); }
+    });
   });
   locks.set(uid, work);
   try { await work; } finally { if (locks.get(uid) === work) locks.delete(uid); }

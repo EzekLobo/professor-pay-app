@@ -1,5 +1,15 @@
 # Estado atual
 
+## Diagnóstico operacional — 31/10/2026
+
+- Administração > Diagnóstico tem período1/7/30dias, filtros de operação/resultado/UID, detalhes, duração, versão/tipo técnico, referência e exportação JSON. Limite de200 operações recentes explicitado; atualização30s na seção visível. Relatos de cliente autenticado, não prova/auditoria independente.
+- operation-log.ts define allowlist sem texto livre/stack/URL/PII/credenciais. POST /api/operation-logs verifica UID/revogação e lote20/24KiB; limite transacional120eventos/min/UID. GET /api/admin/operation-logs é só admin e no-store. Coleções globais operation_logs/operation_log_limits somente Admin SDK, sem novas regras/índices. TTL expiresAt preparado30dias/1dia, política NÃO habilitada nesta tarefa; docs/OPERATION_LOGS.md detalha.
+- Coletor habilitado pelo Shell privado, desativado na demo. Fila em memória60, coalesce por UUID, reenvio com espera, preserva resultado em navegação e isola troca de UID. Não bloqueia negócio se log falhar. Observa sync Kodland (manual/auto/completa e aviso parcial), alertas/config/contato, tarefas locais e envio remoto separado, erro JS/rejeição e ErrorBoundary da área de conteúdo. Sem conclusão é exibido após10min.
+- Operações de notificação sem mudança são amostradas10min; recuperação após erro é registrada. Runtime/pré-requisitos são deduplicados. Eventos não armazenam mensagens ou dados dos alunos. O catálogo geral anuncia só recuperação de tela (2026103102), não funções administrativas.
+- Validado: 336 testes unitários e 60 E2E completos, incluindo diagnóstico em1440/390/320px, exportação/filtros/recuperação. Typecheck/lint/build passam; build final tem26 rotas e não inclui a fixture QA.
+- Teste UI usa rota QA temporária com loader fictício, removida em afterAll; projeto diagnostic-ui depende de chromium para evitar HMR durante outros testes. APIs/persistência exercitadas com mocks, sem Firebase real/TTL nesta execução.
+
+
 ## Atualização automática Kodland, alertas e mobile — 31/10/2026
 
 - use-kodland-auto-sync + kodland-auto-sync: presença/progresso por turma a cada5min em Acompanhamento/15min nas outras telas, somente conta autenticada com integração ativa, grupos importados, acesso no cofre, aba visível e rede. Não roda na demo nem fechado; não importa perfis, cursos/materiais, folha ou extras. Rotina mostra pré-requisitos/falhas no sino e usa espera2–30min. Locks por UID serializam sync manual/auto; Web Locks coordena abas compatíveis.

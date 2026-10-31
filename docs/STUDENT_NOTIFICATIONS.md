@@ -81,3 +81,12 @@ Preferências: `users/{uid}/notification_settings/default`. Histórico: `users/{
 Reconciliação transacional preserva confirmações concorrentes e impede que uma leitura anterior sobrescreva uma reconciliação mais recente. Um marcador técnico `_last_reconciled_at` no documento de preferências é atualizado uma vez por leitura; somente casos alterados são gravados. Esse marcador não é dado pedagógico e é descartado na validação de backup, sendo recriado após restauração. Backup/importação/reset incluem preferências, casos e progresso, mantendo a compatibilidade com backups anteriores sem essas coleções. O acesso segue as regras existentes de dados do próprio UID; nenhuma regra foi publicada nesta entrega.
 
 Código principal: `student-notification-rules.ts` (motor puro), `student-notification-source.ts` (fontes/cache), `student-notification-store.ts` (persistência) e `student-notifications.tsx` (interface). O evento `nexusclass:notifications-changed` invalida o cache e atualiza a central após alterações relevantes.
+
+
+## Lista de não entregas na mensagem
+
+O modal de WhatsApp em Atividades e a resolução de alertas de atividades oferecem **Listar atividades não feitas**. Ao ativar, a prévia começa no módulo da última aula realizada do aluno naquela turma; o usuário pode escolher um módulo ou todos. Sem código de módulo confiável, a interface informa a ausência de identificação em vez de adivinhar. A consulta reutiliza a fonte sincronizada e o cache por UID, mesmo com alertas desativados, sem consultar a Kodland diretamente nem enviar mensagem automaticamente.
+
+Somente obrigações explicitamente `missing`, obrigatórias e não dispensadas, de aulas já realizadas, entram na lista. Entregues, desconhecidas, outros alunos/turmas, aulas canceladas e futuras ficam fora. A fila de correções não demonstra falta de entrega. Ausência de registros não comprova conclusão de todas as atividades. Os módulos dependem dos códigos presentes nas aulas sincronizadas; o padrão usa a última aula encerrada, não um indicador independente de progresso da plataforma.
+
+**Inserir lista na mensagem** preserva o texto editado e substitui a lista anteriormente inserida enquanto esse bloco não tiver sido alterado manualmente. O WhatsApp continua exigindo abertura e envio pelo usuário. O filtro não grava preferências nem registra dados dos alunos em logs.

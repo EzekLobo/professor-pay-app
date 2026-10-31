@@ -1,5 +1,12 @@
 # Estado atual
 
+## Não entregas por módulo na mensagem — 31/10/2026
+
+- ActivityMissingList no modal WhatsApp de Atividades e resolução de alertas de atividades: checkbox opcional, prévia, módulo específico/todos, inserção preservando texto e substituindo bloco anterior intacto. Default módulo da última aula encerrada daquele aluno/turma; unknown explícito se não houver código. Não presume módulo de pendência antiga nem aulas futuras. Novidade2026103106.
+- activity-missing-list.ts filtra fonte normalizada por origem/turma/aluno, somente missing obrigatório/não dispensado em aulas realizadas, deduplica e ordena. Exclui delivered/unknown/fila de correções/futuras/canceladas. NotificationContext.activitySource reutiliza cache/autorização da fonte existente, inclusive alertas desligados. Sem nova chamada Kodland, escrita ou envio automático. docs/STUDENT_NOTIFICATIONS.md descreve os limites.
+- 340 unitários e10 E2E de mensagens/notificações aprovados;3 novos repetidos após impedir módulo de aula futura no mesmo dia. Fixtures manuais fictícias, sem credenciais/serviços externos. Lint/typecheck aprovados; UI inspecionada320px.
+
+
 ## Gesto nas competências e grade compacta — 31/10/2026
 
 - Resumo/PaymentCarousel não bloqueiam pointerdown nos cartões. Drag reconhece eixo horizontal/limiar36px, captura explícita só para mouse (touch usa captura implícita), cancela sem navegar e suprime abertura após arraste. Toque simples abre extrato. Resumo avança diretamente em mobile/reduced-motion, pois CSS remove animação e animationend não ocorria; Pagamentos já tinha esse tratamento. Pan-y/pinch preserva rolagem vertical e zoom.

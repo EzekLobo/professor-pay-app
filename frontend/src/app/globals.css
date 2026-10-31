@@ -3688,3 +3688,11 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .weekly-schedule > .section-heading { flex-wrap: wrap; gap: 10px; }
   .week-actions { gap: 6px; }
 }
+
+.activity-missing-picker { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
+.activity-missing-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: .82rem; font-weight: 700; }
+.activity-missing-toggle input { width: 20px; height: 20px; flex-shrink: 0; }
+.activity-missing-picker p { margin: 0; font-size: .75rem; }
+.activity-missing-preview { max-height: 180px; overflow-y: auto; padding-left: 20px; margin: 0; }
+.activity-missing-preview li { padding: 5px 0; overflow-wrap: anywhere; font-size: .78rem; }
+.activity-missing-preview li strong, .activity-missing-preview li span { display: block; }

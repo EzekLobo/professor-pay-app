@@ -4,6 +4,7 @@ import Link from "next/link";
 import { observeOperation, reportOperation } from "@/lib/operation-log-client";
 import { classifyOperationError } from "@/lib/operation-log";
 import { HeaderDropdown } from "./header-dropdown";
+import { ActivityMissingList } from "./activity-missing-list";
 import { ActivityMessageEditor } from "./activity-message-editor";
 import { useKodlandAutoSync } from "./use-kodland-auto-sync";
 import type { AutoSyncStatus } from "@/lib/kodland-auto-sync";
@@ -27,6 +28,7 @@ type NotificationContext = {
   confirm: (item: NotificationCase) => Promise<void>;
   read: (item: NotificationCase) => Promise<void>;
   contact: (item: StudentNotification, name: string, phone: string) => Promise<void>;
+  activitySource: () => Promise<NotificationSource>;
   absenceTemplate: string;
   autoSync: AutoSyncStatus;
 };
@@ -94,6 +96,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
     settings, cases, warnings, error, loading, updated, demo, absenceTemplate, autoSync,
     refresh: (force) => refresh(force),
     save: async input => { await observeOperation("notifications_settings", () => store.saveSettings(input)); await refresh(true); },
+    activitySource: () => source(settings ?? defaultNotificationSettings()),
     preview: async input => { const checked = validateNotificationSettings(input); const data = await source(checked, true); return evaluateStudentNotifications(data.lessons, data.obligations, checked, new Date()).length; },
     read: item => store.markRead(item.id, item.notification.revision),
     confirm: async item => { await observeOperation("notifications_contact", () => store.confirmContact(item.id, item.notification.revision)); await refresh(); },
@@ -200,6 +203,7 @@ function NotificationResolutionCard({ item }: { item: NotificationCase }) {
     {notification.activities.length > 0 && <ul>{notification.activities.map(activity => <li key={activity.id}>{activity.title}{activity.due_at ? ` · Prazo: ${new Date(activity.due_at).toLocaleString("pt-BR")}` : ""}</li>)}</ul>}
     <p>Responsável: {notification.guardian_name || "Não cadastrado"} · {notification.guardian_phone || "Telefone não cadastrado"}</p><Button type="button" className="button-ghost" onClick={() => setEditingContact(!editingContact)}>Cadastrar ou editar contato</Button>
     {editingContact && <form onSubmit={event => { event.preventDefault(); void run(async () => { await state.contact(notification, name, phone); setEditingContact(false); }); }}><fieldset disabled={busy} className="settings-fieldset notification-fields"><label className="field">Nome do responsável<Input value={name} required onChange={event => setName(event.target.value)} /></label><label className="field">Telefone do responsável<Input type="tel" value={phone} required onChange={event => setPhone(event.target.value)} /></label><Button type="submit">Salvar contato</Button></fieldset></form>}
+    {notification.category !== "absence" && <ActivityMissingList target={{ source: notification.source, class_id: notification.class_id, student_id: notification.student_id }} loadSource={state.activitySource} onInsert={(block, previous) => setMessage(current => previous && current.includes(previous) ? current.replace(previous, block) : `${current.trimEnd()}\n\n${block}`)} />}
     <label className="field">Mensagem para o responsável<textarea aria-label="Mensagem para o responsável" className="input" rows={6} value={message} onChange={event => setMessage(event.target.value)} /></label>
     <div className="form-actions">{notification.guardian_phone && message.trim() && <a className="button button-primary" href={whatsappUrl(notification.guardian_phone, message)} target="_blank" rel="noreferrer" onClick={() => setOpened(true)}>Abrir WhatsApp</a>}<Button type="button" className="button-ghost" disabled={busy || !item.active || !needsNotificationContact(item)} onClick={() => void run(() => state.confirm(item))}>Confirmar contato realizado</Button></div>
     {opened && <p className="muted">WhatsApp aberto. Após enviar a mensagem, confirme que realizou o contato.</p>}{!needsNotificationContact(item) && item.active && <p role="status">Contato confirmado para esta pendência.</p>}{error && <p className="form-error" role="alert">{error}</p>}

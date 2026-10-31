@@ -21,6 +21,14 @@ for (const width of [320, 390, 1440]) {
     await group.locator("summary").click();
     const pendingRows = await group.locator(".compact-pending-row").count();
     expect(pendingRows).toBeGreaterThan(0);
+    if (width <= 760) {
+      const list = group.locator(".compact-pending-list");
+      expect(await list.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+      const student = await group.locator(".attendance-student-summary").first().boundingBox();
+      const action = await group.locator(".compact-activity-action").first().boundingBox();
+      expect(action!.y).toBeGreaterThanOrEqual(student!.y + student!.height);
+      expect(action!.height).toBeGreaterThanOrEqual(44);
+    }
     await expect(group.locator(".compact-activity-empty")).toHaveCount(0);
     const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }));
     expect(dimensions.content).toBeLessThanOrEqual(dimensions.width + 1);

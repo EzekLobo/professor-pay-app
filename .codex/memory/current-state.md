@@ -1,5 +1,12 @@
 # Estado atual
 
+## Padronização mobile — 31/10/2026
+
+- Acompanhamento em até760px tem filtros em linhas próprias, busca+atualizar lateral, abas/cabeçalhos/legenda compactos. Pendências usam lista responsiva por aluno, sem sticky/rolagem horizontal; modo Todos mantém grade com coluna fixa124px e aulas64px, ações44px. Desktop preservado.
+- Turmas Kodland mantém menu lateral com44px e curso com quebra; turmas próprias têm ações na lateral. Competências mobile reorganiza data/valor/status sem sobreposição, setas44px. Agenda semanal usa button-ghost (remove branco nativo); Mais recebe fundo transparente ao ficar inativo. Contagem de alunos próprios concorda singular/plural. Novidade2026103103.
+- Validado em demo compartilhada:336 testes unitários,30 cenários Playwright afetados (29 em conjunto+1 repetido após corrigir configuração da fixture), filtros em320/390/520/768px, varredura das8 áreas em320/390/1440px; inspeção visual de pendências/presença/turmas/resumo. Sem uso de contas reais. Lint/typecheck/build aprovados (26 rotas).
+
+
 ## Diagnóstico operacional — 31/10/2026
 
 - Administração > Diagnóstico tem período1/7/30dias, filtros de operação/resultado/UID, detalhes, duração, versão/tipo técnico, referência e exportação JSON. Limite de200 operações recentes explicitado; atualização30s na seção visível. Relatos de cliente autenticado, não prova/auditoria independente.

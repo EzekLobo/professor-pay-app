@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026103103, date: "2026-10-31", title: "Telas mais organizadas no celular",
+    description: "Acompanhamento tem filtros alinhados e pendências agrupadas abaixo de cada aluno. Presença, turmas e competências têm itens mais compactos e botões com espaço adequado para toque.",
+    href: "/corrections", action: "Abrir acompanhamento",
+  },
+  {
     version: 2026103102, date: "2026-10-31", title: "Recuperação de telas em caso de falha",
     description: "Se uma tela apresentar uma falha inesperada, você pode tentar novamente ou continuar pelo menu. Registros técnicos ajudam na investigação sem incluir senhas ou conteúdo das mensagens.",
     href: "/dashboard", action: "Abrir resumo",

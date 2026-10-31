@@ -3395,7 +3395,7 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .settings-content .settings-save-bar > span { font-size: .72rem; }
 }
 
-.mobile-more-trigger { display: none; }
+.mobile-more-trigger { display: none; background: transparent; }
 .mobile-more-modal { width: min(460px, calc(100vw - 28px)); }
 .mobile-more-options { display: grid; gap: 8px; }
 .mobile-more-options .nav-link { min-height: 48px; flex-direction: row; justify-content: flex-start; padding: 12px; text-align: left; font-size: .9rem; }
@@ -3528,3 +3528,100 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 
 .operation-log-disclosure { flex-shrink: 0; color: var(--muted); }
 .operation-log-card[open] > summary .operation-log-disclosure { transform: rotate(180deg); }
+
+/* Responsive follow-up: fixed labels must never compete with the search field. */
+.correction-class-group { min-width: 0; }
+.correction-class-heading h3 { min-width: 0; overflow-wrap: anywhere; }
+.correction-class-heading > div > span { flex-shrink: 0; white-space: nowrap; }
+@media (max-width: 760px) {
+  .corrections-topbar .correction-heading-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 8px;
+    margin: 0 0 12px;
+    width: 100%;
+    max-width: none;
+  }
+  .correction-heading-actions > .correction-toolbar-control {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  .correction-toolbar-control > span { font-size: .65rem; }
+  .correction-heading-actions .correction-header-select { grid-column: auto; width: 100%; min-height: 44px; }
+  .correction-heading-actions .correction-activity-view-switch {
+    grid-column: auto;
+    display: flex;
+    justify-self: stretch;
+    padding: 2px;
+  }
+  .correction-view-switch button { flex: 1; min-width: 0; min-height: 44px; padding: 6px; font-size: .78rem; }
+  .correction-heading-actions > .correction-search { grid-column: 1; min-height: 44px; font-size: .8rem; padding: 10px; }
+  .correction-heading-actions > .sync-icon-button { grid-column: 2; width: 44px; min-width: 44px; max-width: 44px; height: 44px; min-height: 44px; }
+  .corrections-panel { padding: 12px; border-radius: 14px; }
+  .corrections-page-tabs button { min-height: 44px; padding: 10px; font-size: .9rem; }
+  .correction-class-list { gap: 10px; margin-top: 12px; }
+  .correction-class-heading { gap: 8px; padding: 12px; min-height: 56px; }
+  .correction-class-heading > div { flex-wrap: wrap; gap: 5px 8px; }
+  .correction-class-heading h3 { font-size: .83rem; }
+  .correction-class-heading > div > span { padding: 3px 7px; font-size: .65rem; }
+  .attendance-legend { gap: 6px 10px; margin-top: 0; font-size: .65rem; }
+  .attendance-legend-swatch { width: 10px; height: 10px; flex-basis: 10px; border-radius: 3px; }
+  .attendance-grid-header, .attendance-grid-row { grid-template-columns: 124px repeat(var(--attendance-columns), 64px); column-gap: 4px; }
+  .attendance-student-summary { padding: 5px 8px; }
+  .attendance-student-copy h4 { font-size: .76rem; }
+  .attendance-student-copy span { font-size: .62rem; }
+  .attendance-grid-status, .compact-activity-action { min-height: 44px; }
+  /* Pending-only mode is a list: every pupil and all their actions stay together. */
+  .compact-pending-list { overflow-x: hidden; }
+  .compact-pending-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+    padding: 10px;
+  }
+  .compact-pending-row > .attendance-student-summary {
+    position: static;
+    grid-column: 1 / -1;
+    width: auto;
+    border: 0;
+    background: transparent;
+    padding: 0;
+  }
+  .compact-pending-row .attendance-student-copy { width: 100%; }
+  .compact-pending-row .activity-student-heading { justify-content: space-between; }
+  .compact-pending-row .attendance-student-copy h4 { white-space: normal; }
+  .compact-pending-row > .compact-activity-cell { width: auto; gap: 4px; align-self: stretch; align-content: start; }
+  .compact-pending-task { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+  .compact-pending-lesson { font-size: .7rem; }
+  .group-has-actions .group-accordion-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+  }
+  .group-has-actions .group-summary-meta { width: auto; }
+  .group-course-name { font-size: .72rem; overflow-wrap: anywhere; line-height: 1.4; }
+  .group-summary-copy strong { font-size: .88rem; }
+  .group-menu-button, .group-settings-button, .group-delete-button { width: 44px; height: 44px; }
+  .manual-class-card { grid-template-columns: minmax(0, 1fr) auto; padding: 12px; gap: 8px; }
+  .manual-class-card > .group-summary-copy { grid-column: 1; }
+  .manual-class-card > .group-student-count { grid-column: 1; grid-row: 2; }
+  .manual-class-card > .manual-class-actions { grid-column: 2; grid-row: 1 / 3; }
+  .payment-carousel { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 10px 6px; margin-top: 12px; }
+  .payment-carousel-nav { width: 44px; min-width: 44px; height: 44px; }
+  .payment-carousel-month { grid-column: 1 / -1; font-size: .88rem; }
+  .payment-carousel-card.is-focus { min-height: 160px; padding: 12px 8px; gap: 8px; transform: none; }
+  .payment-carousel-card > .status-badge { position: static; justify-self: center; grid-row: 3; font-size: .65rem; }
+  .payment-carousel-card { grid-template-rows: auto 1fr auto auto; }
+  .payment-carousel-card > span:first-child { justify-self: center; font-size: .72rem; text-align: center; }
+  .payment-carousel-details { grid-row: 2; gap: 4px; }
+  .payment-carousel-card em, .payment-carousel-card small { font-size: .7rem; }
+  .week-navigation .button.compact { width: 44px; min-width: 44px; min-height: 44px; padding: 6px; }
+  .payment-visibility-toggle { width: 44px; min-width: 44px; height: 44px; }
+}

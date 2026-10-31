@@ -316,7 +316,7 @@ export function WeekSchedule({
           </button>}
           <div className="week-navigation" aria-label="Navegação semanal">
             <button
-              className="button secondary compact"
+              className="button button-ghost compact"
               type="button"
               onClick={() => setWeekOffset((value) => value - 1)}
               aria-label="Semana anterior"
@@ -325,7 +325,7 @@ export function WeekSchedule({
             </button>
             <span className="week-state">{weekState}</span>
             <button
-              className="button secondary compact"
+              className="button button-ghost compact"
               type="button"
               onClick={() => setWeekOffset((value) => value + 1)}
               aria-label="Próxima semana"

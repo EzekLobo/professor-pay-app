@@ -245,3 +245,58 @@ test("pagamentos aproveitam a largura e mantêm navegação de competências", a
     await expect(month).toHaveText(initial!);
   }
 });
+
+for (const width of [320, 390, 520, 768]) {
+  test(`presença mantém filtro, busca e atualização separados (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/demo#settings");
+    await page.getByRole("tab", { name: "Integrações", exact: true }).click();
+    await page.getByText("Kodland", { exact: true }).click();
+    await page.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible();
+    if (width <= 720) await page.getByRole("button", { name: "Mais opções", exact: true }).click();
+    await page.getByRole("link", { name: "Acompanhamento", exact: true }).click();
+    await page.getByRole("tab", { name: "Presença", exact: true }).click();
+    const controls = [page.getByRole("combobox", { name: "Filtrar presença" }), page.getByLabel("Buscar correção"), page.getByRole("button", { name: "Atualizar correções", exact: true })];
+    const boxes = [];
+    for (const control of controls) {
+      await expect(control).toBeVisible();
+      const box = await control.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
+      boxes.push(box!);
+    }
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      const overlap = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) > 1 && Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) > 1;
+      expect(overlap).toBe(false);
+    }
+    await page.screenshot({ path: `/tmp/nexus-presenca-${width}.png`, fullPage: true });
+  });
+}
+
+test("controles do resumo e Mais preservam o tema escuro", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/demo#dashboard");
+  const more = page.getByRole("button", { name: "Mais opções", exact: true });
+  await expect(more).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  for (const label of ["Semana anterior", "Próxima semana"]) {
+    const button = page.getByRole("button", { name: label, exact: true });
+    await expect(button).toHaveClass(/button-ghost/);
+    const box = await button.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+  }
+  await page.screenshot({ path: "/tmp/nexus-resumo-390.png", fullPage: true });
+  await page.goto("/demo#settings");
+  await page.getByRole("tab", { name: "Integrações", exact: true }).click();
+  await page.getByText("Kodland", { exact: true }).click();
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Turmas", exact: true }).click();
+  const summary = page.locator(".group-has-actions .group-accordion-summary").first();
+  const copy = await summary.locator(".group-summary-copy").boundingBox();
+  const menu = await summary.getByRole("button", { name: /Ações da turma/ }).boundingBox();
+  expect(menu!.x).toBeGreaterThanOrEqual(copy!.x + copy!.width);
+  await page.screenshot({ path: "/tmp/nexus-turmas-390.png", fullPage: true });
+});

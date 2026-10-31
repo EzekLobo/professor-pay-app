@@ -1498,6 +1498,7 @@ summary:focus-visible {
 }
 .payment-highlight-value strong { font-size: 1.08rem; }
 .payment-carousel {
+  touch-action: pan-y pinch-zoom;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
   grid-template-rows: auto auto;
@@ -3681,3 +3682,9 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   text-overflow: ellipsis;
 }
 .compact-pending-task { line-height: 1.35; }
+.schedule-info-modal { width: min(440px, calc(100vw - 24px)); }
+.week-actions .symbol-action { width: 44px; min-width: 44px; height: 44px; padding: 8px; }
+@media (max-width: 760px) {
+  .weekly-schedule > .section-heading { flex-wrap: wrap; gap: 10px; }
+  .week-actions { gap: 6px; }
+}

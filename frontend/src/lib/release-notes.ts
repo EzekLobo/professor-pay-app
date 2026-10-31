@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026103105, date: "2026-10-31", title: "Competências com gesto no celular",
+    description: "Arraste o cartão para trocar de competência no Resumo e em Pagamentos. Na grade, atualizar usa um ícone; a data de atualização e a legenda ficam no botão de informações.",
+    href: "/dashboard", action: "Abrir resumo",
+  },
+  {
     version: 2026103104, date: "2026-10-31", title: "Barra compacta de acompanhamento",
     description: "Lista, grade, filtros, busca e atualização ficam na mesma linha. O filtro abre em um modal e a lupa revela o campo de busca quando precisar.",
     href: "/corrections", action: "Abrir acompanhamento",

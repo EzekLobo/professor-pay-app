@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Info, RefreshCw } from "lucide-react";
 import { type MouseEvent, useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { DashboardContent } from "@/components/dashboard-content";
@@ -139,6 +140,7 @@ export function WeekSchedule({
   demoMode?: boolean;
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [scheduleInfoOpen, setScheduleInfoOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
   const [selectedCatalogLessonId, setSelectedCatalogLessonId] = useState("");
   const [modalTab, setModalTab] = useState<"lesson" | "students">("lesson");
@@ -293,26 +295,18 @@ export function WeekSchedule({
       <div className="section-heading">
         <div className="week-heading-copy">
           <h2>Grade de horários</h2>
-          <p className="muted week-last-updated">
-            {manualClasses.length > 0 && groups.length === 0 ? "Turmas próprias atualizadas ao salvar" : <>Última atualização: {scheduleLastUpdatedAt ? (
-              <time dateTime={scheduleLastUpdatedAt}>
-                {new Intl.DateTimeFormat("pt-BR", {
-                  timeZone: "America/Sao_Paulo",
-                  dateStyle: "short",
-                  timeStyle: "short",
-                }).format(new Date(scheduleLastUpdatedAt))}
-              </time>
-            ) : "não registrada"}</>}
-          </p>
+
         </div>
         <div className="week-actions">
+          <button type="button" className="button button-ghost symbol-action" aria-label="Informações da grade" title="Atualização e legenda da grade" onClick={() => setScheduleInfoOpen(true)}><Info size={18} aria-hidden="true" /></button>
           {externalSyncEnabled && (groups.length > 0 || manualClasses.length === 0) && <button
-            className="button button-ghost button-small"
+            className="button button-ghost symbol-action"
             type="button"
+            aria-label="Atualizar grade" title={refreshing ? "Atualizando grade" : "Atualizar grade"} aria-busy={refreshing}
             onClick={onRefresh}
             disabled={refreshing}
           >
-            {refreshing ? "Atualizando…" : "Atualizar grade"}
+            <RefreshCw size={18} aria-hidden="true" className={refreshing ? "sync-icon-spinning" : undefined} />
           </button>}
           <div className="week-navigation" aria-label="Navegação semanal">
             <button
@@ -335,6 +329,18 @@ export function WeekSchedule({
           </div>
         </div>
       </div>
+      <Modal open={scheduleInfoOpen} title="Informações da grade" onClose={() => setScheduleInfoOpen(false)} className="schedule-info-modal">
+          <p className="muted week-last-updated">
+            {manualClasses.length > 0 && groups.length === 0 ? "Turmas próprias atualizadas ao salvar" : <>Última atualização: {scheduleLastUpdatedAt ? (
+              <time dateTime={scheduleLastUpdatedAt}>
+                {new Intl.DateTimeFormat("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }).format(new Date(scheduleLastUpdatedAt))}
+              </time>
+            ) : "não registrada"}</>}
+          </p>
       <div className="week-schedule-legend" aria-label="Legenda da grade">
         <span className="week-legend-class">Turma</span>
         <span className="week-legend-extra">Extra pendente</span>
@@ -342,6 +348,7 @@ export function WeekSchedule({
         <span className="week-legend-availability">Disponível</span>
         <span className="week-legend-holiday">Feriado</span>
       </div>
+      </Modal>
       <div
         className="week-grid"
         data-tour="dashboard-lesson-details"

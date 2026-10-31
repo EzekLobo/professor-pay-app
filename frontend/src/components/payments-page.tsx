@@ -102,6 +102,8 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
   }, []);
   const carouselDragStart = useRef<number | null>(null);
   const carouselDragDistance = useRef(0);
+  const carouselDragStartY = useRef(0);
+  const carouselSwiped = useRef(false);
   const carouselWheelLocked = useRef(false);
   const estimatedCents = items
     .filter((item) => item.status !== "RECEIVED")
@@ -179,11 +181,18 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
     if (event.pointerType === "mouse" && event.button !== 0) return;
     carouselDragStart.current = event.clientX;
     carouselDragDistance.current = 0;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    carouselDragStartY.current = event.clientY;
+    carouselSwiped.current = false;
   }
   function trackCarouselDrag(event: PointerEvent<HTMLDivElement>) {
     if (carouselDragStart.current === null) return;
-    carouselDragDistance.current = event.clientX - carouselDragStart.current;
+    const distance = event.clientX - carouselDragStart.current;
+    if (Math.abs(distance) <= Math.abs(event.clientY - carouselDragStartY.current)) return;
+    carouselDragDistance.current = distance;
+    if (Math.abs(distance) >= 36) {
+      carouselSwiped.current = true;
+      if (event.pointerType === "mouse") event.currentTarget.setPointerCapture(event.pointerId);
+    }
   }
   function finishCarouselDrag() {
     const distance = carouselDragDistance.current;
@@ -402,7 +411,8 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
               onPointerDown={beginCarouselDrag}
               onPointerMove={trackCarouselDrag}
               onPointerUp={finishCarouselDrag}
-              onPointerCancel={finishCarouselDrag}
+              onPointerCancel={() => { carouselDragStart.current = null; carouselDragDistance.current = 0; }}
+        onClickCapture={(event) => { if (carouselSwiped.current) { event.preventDefault(); event.stopPropagation(); carouselSwiped.current = false; } }}
             >
               <div
                 className={`payment-carousel-rail${
@@ -435,7 +445,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
                     aria-label={
                       `Abrir extrato de ${paymentLabel(payment.payment_date)}`
                     }
-                    onPointerDown={(event) => event.stopPropagation()}
+
                     onClick={() => openFromCarousel(payment.payment_date)}
                   >
                     <span>{paymentLabel(payment.payment_date)}</span>

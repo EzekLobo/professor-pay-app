@@ -1,5 +1,12 @@
 # Estado atual
 
+## Gesto nas competências e grade compacta — 31/10/2026
+
+- Resumo/PaymentCarousel não bloqueiam pointerdown nos cartões. Drag reconhece eixo horizontal/limiar36px, captura explícita só para mouse (touch usa captura implícita), cancela sem navegar e suprime abertura após arraste. Toque simples abre extrato. Resumo avança diretamente em mobile/reduced-motion, pois CSS remove animação e animationend não ocorria; Pagamentos já tinha esse tratamento. Pan-y/pinch preserva rolagem vertical e zoom.
+- WeekSchedule usa RefreshCw acessível44px, animação ao sincronizar; Info abre modal com última atualização e legenda, sem ocupar altura permanente. Atual/Passada/Próxima continuam indicando semana visível. Novidade2026103105.
+- 336 testes unitários aprovados;25 E2E anteriores de pagamentos/interface passam e5 testes novos de toque/Info passam após ajustes finais. CDP dispara toques em320/390px em ambas telas, com passos30ms/intervalo350ms entre gestos para aguardar fim da sequência nativa no Chromium; inclui arraste ida/volta, seta e toque no extrato.
+
+
 ## Títulos em uma linha — 31/10/2026
 
 - Compacto e lista de atividades limitam títulos de aula/atividade a uma linha com reticências, evitando desnível entre botões vizinhos. Title e nomes acessíveis preservam conteúdo completo.6 E2E afetados em320/390/1440px, lint e typecheck aprovados.

@@ -20,6 +20,7 @@ for (const width of [320, 390, 1440]) {
     await group.locator("summary").click();
     const pendingRows = await group.locator(".compact-pending-row").count();
     expect(pendingRows).toBeGreaterThan(0);
+    expect(await group.locator(".attendance-student-summary").allTextContents()).not.toEqual(expect.arrayContaining([expect.stringContaining("@")]));
     if (width <= 760) {
       const list = group.locator(".compact-pending-list");
       expect(await list.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);

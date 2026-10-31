@@ -5,7 +5,7 @@ import { subscribeStudentNotifications } from "@/lib/student-notification-store"
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type WheelEvent } from "react";
-import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users } from "lucide-react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -286,8 +286,8 @@ function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo
   const hasMaterial = links.length > 0;
   return (
     <>
-      {links.map(([label, href]) => demo ? <button type="button" className="button button-ghost button-small" onClick={() => demo.onMaterial?.(lesson)} key={label}>{label}</button> : <a className="button button-ghost button-small" href={absoluteUrl(href)} target="_blank" rel="noreferrer" key={label}>{label}</a>)}
-      {!hasMaterial && (demo ? <button type="button" className="button button-ghost button-small" onClick={() => demo.onMaterial?.(lesson)}>Abrir aula</button> : <a className="button button-ghost button-small" href={absoluteUrl(lesson.external_url)} target="_blank" rel="noreferrer">Abrir aula</a>)}
+      {links.map(([label, href]) => demo ? <button type="button" className="button button-ghost button-small" onClick={() => demo.onMaterial?.(lesson)} aria-label={label} title={label} key={label}>{label === "Slides" ? <Presentation size={18} aria-hidden="true" /> : <FileText size={18} aria-hidden="true" />}</button> : <a className="button button-ghost button-small" href={absoluteUrl(href)} target="_blank" rel="noreferrer" aria-label={label} title={label} key={label}>{label === "Slides" ? <Presentation size={18} aria-hidden="true" /> : <FileText size={18} aria-hidden="true" />}</a>)}
+      {!hasMaterial && (demo ? <button type="button" className="button button-ghost button-small" aria-label="Abrir aula" title="Abrir aula" onClick={() => demo.onMaterial?.(lesson)}><BookOpen size={18} aria-hidden="true" /></button> : <a className="button button-ghost button-small" href={absoluteUrl(lesson.external_url)} target="_blank" rel="noreferrer" aria-label="Abrir aula" title="Abrir aula"><BookOpen size={18} aria-hidden="true" /></a>)}
     </>
   );
 }
@@ -412,7 +412,7 @@ function AttendanceClassGrid({
         const recordsByColumn = new Map(history.records.map((item) => [attendanceColumnKey(item, lessons), item]));
         return <div className="attendance-grid-row" style={gridStyle} role="row" key={history.id}>
           <div className="attendance-student-summary" role="rowheader">
-            <div className="attendance-student-copy"><h4>{history.name}</h4>{history.student?.email && <span>{history.student.email}</span>}</div>
+            <div className="attendance-student-copy"><h4>{history.name}</h4></div>
           </div>
           {columns.map((column) => {
             const item = recordsByColumn.get(column.key);
@@ -469,7 +469,7 @@ export function CompactActivitiesGrid({
             </div>}
             {classModel.rows.map((row) => <div className={pendingOnly ? "compact-pending-row" : "attendance-grid-row"} style={pendingOnly ? undefined : gridStyle} role={pendingOnly ? "listitem" : "row"} key={row.key}>
               <div className="attendance-student-summary" role={pendingOnly ? undefined : "rowheader"}>
-                <div className="attendance-student-copy"><div className="activity-student-heading"><h4>{row.name}</h4>{contactButton?.(classModel.key, row.key, row.name)}</div>{row.email && <span>{row.email}</span>}</div>
+                <div className="attendance-student-copy"><div className="activity-student-heading"><h4>{row.name}</h4>{contactButton?.(classModel.key, row.key, row.name)}</div></div>
               </div>
               {classModel.columns.map((column) => {
                 const cell = row.cells[column.key];
@@ -513,7 +513,7 @@ function ReviewCard({
         </div>
         <p className="correction-card-lesson">{lessonLabel(review, lessons)}</p>
         <p className="correction-card-task">
-          <span>Atividade</span>
+          <span className="sr-only">Atividade</span>
           {review.task_number ? `${review.task_number}. ` : ""}{review.task_title || "Sem título"}
         </p>
       </div>
@@ -893,7 +893,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
                 {showStudent && <div className="activity-student-heading"><h4>{manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno"}</h4>{contactButton(`manual:${item.class_id}`, item.student_id, manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno")}</div>}
                 <StatusBadge tone="warning">Entregue</StatusBadge>
               </div><p className="correction-card-lesson">Aula {item.occurrence_id.split(":").at(-1)}</p>
-                <p className="correction-card-task"><span>Atividade</span>{item.title}</p></div>
+                <p className="correction-card-task"><span className="sr-only">Atividade</span>{item.title}</p></div>
               <div className="card-actions"><Button type="button" className="correction-action" aria-label="Corrigir" title="Corrigir atividade" onClick={() => { setEditingManual(item); setFeedback(item.feedback); }}><ClipboardCheck size={18} aria-hidden="true" /></Button></div>
             </article>;
             return <details className="correction-class-group" key={`manual:${className}`}>

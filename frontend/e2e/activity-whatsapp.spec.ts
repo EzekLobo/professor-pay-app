@@ -37,5 +37,14 @@ for (const width of [1440, 390, 320]) test(`WhatsApp dos responsáveis funciona 
     await expect(modal.getByLabel("WhatsApp do responsável", { exact: true })).toHaveValue("551100000000");
     await modal.getByRole("button", { name: "Cancelar", exact: true }).click();
   }
+  const card = list.locator(".correction-card").first();
+  const copy = await card.locator(".correction-card-copy").boundingBox();
+  const actions = await card.locator(".card-actions").boundingBox();
+  if (width <= 760) {
+    expect(actions!.y).toBeGreaterThanOrEqual(copy!.y + copy!.height);
+    expect(Math.abs(actions!.x + actions!.width - copy!.x - copy!.width)).toBeLessThanOrEqual(1);
+  }
+  else expect(actions!.x).toBeGreaterThanOrEqual(copy!.x + copy!.width);
+  await page.screenshot({ path: `/tmp/nexus-activity-list-${width}.png`, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

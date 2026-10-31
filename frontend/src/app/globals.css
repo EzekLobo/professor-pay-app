@@ -3646,3 +3646,27 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .correction-filters-modal { width: min(420px, calc(100vw - 24px)); }
 .correction-filters-modal .field { display: grid; gap: 8px; }
 @media (max-width: 760px) { .correction-icon-toolbar { width: 100%; gap: 6px; } }
+
+/* Follow-up rows show identity once and align content/actions consistently. */
+.correction-card.entity-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 16px; padding: 12px; }
+.correction-card-copy { min-width: 0; gap: 6px; }
+.correction-card-top { flex-wrap: wrap; gap: 4px 10px; }
+.correction-card-top .activity-student-heading { flex: 1 1 160px; }
+.correction-card-top h4 { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+.correction-card-lesson, .correction-card-task { overflow-wrap: anywhere; line-height: 1.4; }
+.correction-card.entity-card > .card-actions { width: auto; display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.correction-card.entity-card > .card-actions .button { width: 44px; min-width: 44px; min-height: 44px; padding: 8px; }
+.correction-subgroup-heading { flex-wrap: wrap; gap: 6px 12px; }
+.correction-subgroup-heading .activity-student-heading { min-width: 0; flex: 1 1 160px; }
+.correction-subgroup-heading > span { flex-shrink: 0; }
+.attendance-student-copy { width: 100%; }
+@media (max-width: 760px) {
+  .correction-class-body:not(.attendance-class-body) { padding: 10px; }
+  .correction-card.entity-card { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .correction-card.entity-card > .card-actions { justify-self: end; }
+  .correction-card h4 { font-size: .82rem; }
+  .correction-card-lesson { font-size: .73rem; }
+  .correction-card-task { font-size: .76rem; }
+  .correction-card-top .status-badge { font-size: .62rem; }
+  .correction-subgroup { padding: 10px; }
+}

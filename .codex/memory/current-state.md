@@ -1,5 +1,11 @@
 # Estado atual
 
+## Identidade e lista de acompanhamento — 31/10/2026
+
+- Removida exibição de email nas células de alunos de Atividades compactas e Presença Kodland/própria. Cadastro/busca preservados. Lista de atividades usa grid conteúdo+ações no desktop e ações à direita abaixo do conteúdo no mobile, nomes/títulos com quebra, espaçamento e botões44px consistentes. Materiais Slides/Roteiro/Abrir aula usam símbolos com nomes acessíveis/title; rótulo repetido Atividade fica só para leitores de tela.
+- 28 E2E afetados passam;3 de contatos/agrupamentos repetidos após corrigir especificidade do alinhamento mobile, com assert explícito da borda direita. Inspeção visual320px. Lint/typecheck aprovados.
+
+
 ## Barra única de acompanhamento — 31/10/2026
 
 - CorrectionsContent reúne Lista/Compacto, filtro, lupa e atualização numa linha em desktop/mobile. Modal compartilhado contém filtro de presença, pendências ou agrupamento conforme modo; opções continuam persistidas. Busca surge ao clicar, recebe foco e limpa ao fechar/X/Escape; sem filtro textual oculto. Mantidos rótulos acessíveis, toque44px e tour. Novidade2026103104.

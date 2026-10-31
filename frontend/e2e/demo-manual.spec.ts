@@ -62,6 +62,7 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   const attendanceClass = page.locator("details.attendance-class-group").first();
   await expect(attendanceClass).not.toHaveAttribute("open", "");
   await attendanceClass.locator("summary").click();
+  await expect(attendanceClass.locator(".attendance-student-summary").first()).not.toContainText("@");
   const attendanceGrid = attendanceClass.getByLabel(/Presença da turma/);
   await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
   const scroll = await attendanceGrid.evaluate((element) => ({ current: element.scrollLeft, max: element.scrollWidth - element.clientWidth }));

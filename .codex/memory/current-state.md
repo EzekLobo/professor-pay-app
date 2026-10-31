@@ -1,5 +1,12 @@
 # Estado atual
 
+## Plano de cache local Kodland — 31/10/2026
+
+- Usuário pediu planejamento e diagramas antes/depois, sem implementação desta migração nesta etapa. docs/plans/kodland-local-cache-refactor.md detalha IndexedDB como cache descartável por UID, fonte Kodland via backend autenticado, Firebase para identidade/admin/config e dados próprios; preservar ajustes, tarefas e comprovantes.
+- Propostos TTLs por conjunto/escopo, atualização pós-aula, acompanhamento da turma aberta/pendências, alertas locais sem releitura remota de1min, cobertura de respostas/transações locais e deduplicação entre abas. Sem promessa de dedup entre aparelhos com Vercel stateless, push Kodland não validado, job com app fechado ou PWA offline automática.
+- Plano tem7fases, overlays/backup versionado, piloto/featureflag/rollback, critérios de quota/latência e diagrama Mermaid atual/proposto. Coleções atuais não removidas; novas políticas ainda são proposta e não substituem os tempos atualmente implementados.
+
+
 ## Redução de escritas e quota Spark — 31/10/2026
 
 - Usuário confirmou plano gratuito; foto localiza espera em commit de dados, ref d0d459f8-346f-4654-9d1c-0b1be67d0220. Uso/quota real ainda NÃO consultados; pergunta sobre total diário de gravações está pendente. Não atribuir definitivamente a quota à captura.

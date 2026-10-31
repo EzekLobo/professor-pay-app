@@ -15,16 +15,36 @@ Nas atividades próprias, defina Aula ou Casa, prazo, obrigatoriedade e dispensa
 ## Atualização automática da Kodland
 
 Com integração ativa, turmas já importadas e acesso salvo em Configurações > Dados e backup,
-a aplicação atualiza presença e progresso de atividades automaticamente: a cada 5 minutos
-em Acompanhamento e 15 minutos nas outras telas. Funciona com a aplicação aberta, aba
-visível e conexão disponível; retoma ao voltar à aba ou à rede. Sem credenciais, o sino
-orienta o usuário. A primeira tentativa ocorre após 30 s; foco/rede antes disso não antecipam a inicialização. O agendador verifica a cada 30 s e consulta o estado no máximo uma vez por minuto (salvo entrada em Acompanhamento). Não existe job com a aplicação fechada.
+a aplicação usa estas políticas:
 
-A consulta automática usa o modo de correções por turma com `refresh_schedule:false`:
-não busca perfis de responsáveis, catálogo de cursos, materiais, pagamentos ou extras.
-Requer uma importação inicial completa para conhecer agenda, alunos e classificação
-dos materiais. A consulta autorizada de turmas também atualiza a condição de arquivo
-das turmas já conhecidas, retirando turmas arquivadas dos alertas.
+| Informação | Atualização automática |
+| --- | --- |
+| Turmas, alunos e grade | Uma vez por dia civil em America/Sao_Paulo; a carga diária compartilha os dados de agenda/cronograma, sem folha oficial. |
+| Link disponível da próxima aula | Consulta leve dos metadados de turmas na janela dos 15 minutos anteriores ao início; não baixa novamente atividades, presença ou materiais. |
+| Presença | Por ocorrência datada da turma, 30 minutos após o término. Se incompleta, uma segunda tentativa a partir de uma hora após o término, mantendo pelo menos 30 minutos entre tentativas. |
+| Atividades/progresso | A cada seis horas por turma, independente da tela aberta; sem consultar presença ou cronograma. |
+| Pagamentos | Permanecem manuais nesta etapa, inclusive na sincronização total solicitada pelo usuário; não foi ativada rotina mensal ou de cinco dias antes do pagamento. |
+| Contatos detalhados e materiais | Sob demanda/manual, sem nova rotina periódica. |
+
+Presença para após confirmação conhecida de todos os alunos ativos da ocorrência ou duas tentativas,
+incluindo falhas de transporte. UNKNOWN não significa falta. Consulta atrasada pode recuperar a aula
+por até 24 horas após seu término; após esse prazo, usar atualização manual. Aulas canceladas,
+turmas arquivadas e ocorrências sem horários confiáveis não geram consulta pós-aula. Aula que
+atravessa meia-noite usa o término no dia seguinte. As tentativas ficam no documento por usuário
+`sync_status/automatic`, com retenção de sete dias e limite de 400 registros anteriores. A carga
+diária e a consulta pré-aula também limitam falhas a duas tentativas no seu respectivo período.
+
+Funciona com a aplicação aberta, aba visível e conexão disponível; retoma ao voltar à aba ou à
+rede. A primeira tentativa ocorre após 30 s; o tick de 30 s e a avaliação local de um minuto não
+significam consulta Kodland/Firebase nesses intervalos. Contexto e fontes de notificações são
+reaproveitados em memória por até seis horas, invalidados por alterações relevantes. Uma sinalização local de sucesso invalida também o contexto das outras abas da mesma conta, quando o armazenamento do navegador está disponível. Ler um alerta
+não invalida toda a fonte pedagógica. Não existe job com a aplicação fechada nem novo suporte
+offline persistente nesta etapa. É necessária uma importação inicial para conhecer agenda e materiais.
+
+A consulta automática de acompanhamento usa `followup_scope:activities` ou `attendance`,
+`refresh_schedule:false` e uma única turma autorizada. Uma consulta de presença não altera o
+horário de conclusão das atividades. A sincronização total manual também reaproveita o cronograma
+já importado, sem reconsultá-lo em cada turma de acompanhamento.
 
 A automática só executa se conseguir o lock imediatamente (`ifAvailable`): não entra na fila manual. Abrir o modal de sincronização pausa novas atualizações automáticas nessa aba; a carga completa reserva prioridade durante todas as etapas, também entre abas com Web Locks. Ocupação da fila mostra Pausada, sem contar como falha nem marcar turma como atualizada. Uma escrita que já começou termina antes de liberar o lock; não é interrompida à força.
 
@@ -69,7 +89,7 @@ Se os dados forem regularizados, a condição deixa de estar ativa, preservando 
 
 ## Cobertura e limites
 
-- A central é interna à aplicação web. Reavalia ao carregar, focar a janela, voltar à rede, alterar dados e a cada minuto na aba visível. Não envia push e não executa cobranças com o aplicativo fechado.
+- A central é interna à aplicação web. Reavalia ao carregar, focar a janela, voltar à rede, alterar dados e a cada minuto na aba visível usando a fonte já carregada. A leitura remota periódica ocorre em seis horas; só reconcilia alterações na avaliação local. Eventos de alteração e atualização manual renovam o necessário. Não envia push e não executa cobranças com o aplicativo fechado.
 - Turmas próprias usam atribuições e estados de entrega explícitos. Entrega aguardando correção não conta como não entregue. Alunos inativos, aulas canceladas, tarefas dispensadas/opcionais e dados desconhecidos não viram cobranças automáticas.
 - A sincronização de Acompanhamento preserva o progresso externo em `kodland_task_progress`. Classifica Aula/Casa somente quando o ID da tarefa corresponde aos links de materiais da aula. Estados não documentados ou classificação desconhecida ficam fora da cobrança; a regra Nenhuma entregue aguarda classificação completa.
 - Não há prazo individual importado da plataforma externa. Para dever de casa dessa origem, defina a política de dias após a aula. Presenças sem horário final confiável ficam fora dos alertas de falta.

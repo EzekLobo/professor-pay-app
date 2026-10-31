@@ -27,7 +27,7 @@ describe("full sync account isolation", () => {
       extra_lesson_count: 0, group_ids: ["current-group"],
     });
     const result = await kodlandApi.syncAll("colleague", "password");
-    expect(sync).toHaveBeenCalledWith("colleague", "password", "corrections", { correctionGroupIds: ["current-group"] });
+    expect(sync).toHaveBeenCalledWith("colleague", "password", "corrections", { correctionGroupIds: ["current-group"], refreshSchedule: false, automatic: false });
     expect(fetch).not.toHaveBeenCalled();
     expect(result.material_count).toBe(0);
   });

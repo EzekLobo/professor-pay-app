@@ -10,6 +10,22 @@ Na automática por turma, os registros anteriores de presença, correções e pr
 
 Marcadores de controle, horários de conclusão e o fluxo separado da folha oficial continuam tendo suas próprias gravações. Esta alteração não significa que uma sincronização completa custará zero operações Firebase.
 
+## Cadências e controle local
+
+A rotina antiga de 5/15 minutos foi substituída: atividades a cada seis horas por turma;
+presença por aula em +30/+60 minutos, até duas tentativas; turmas e grade diariamente;
+consulta leve do link antes da aula. Pagamentos continuam manuais. Ver políticas e limitações
+em [STUDENT_NOTIFICATIONS.md](STUDENT_NOTIFICATIONS.md).
+
+A avaliação local do agendador não relê coleções a cada minuto: o contexto é reutilizado por
+até seis horas ou até uma alteração relevante. A central também reutiliza fontes e configurações,
+reavalia prazos localmente e evita transações de reconciliação quando os alertas não mudaram.
+Não é uma migração para IndexedDB. Os controles de tentativas ainda geram poucas operações
+remotas por aula; isso não torna as consultas/gravações gratuitas.
+
+`resource-exhausted` pausa novas tentativas automáticas por seis horas. A atualização manual
+permanece disponível. Esse intervalo não assegura que a quota diária já tenha sido renovada.
+
 ## Quota e confirmações pendentes
 
 O usuário informou plano gratuito Spark. O uso real do projeto não foi consultado nesta execução. Regravações repetidas podem consumir a quota diária; o fato de estar no Spark não prova que ela foi atingida. Conferir Firestore Database → Uso e os erros da referência antes de atribuir o bloqueio à quota.

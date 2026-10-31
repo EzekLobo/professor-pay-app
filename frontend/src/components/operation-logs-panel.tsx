@@ -9,7 +9,7 @@ import { Button } from "./ui";
 type Result = { logs: OperationLogRow[]; generatedAt: string; truncated: boolean; days: number };
 type Loader = (days: number, signal: AbortSignal) => Promise<Result>;
 const countLabels: Record<string, string> = { groups: "turmas", students: "alunos", lessons: "aulas", activities: "correções pendentes", progress: "registros de entrega", attendance: "presenças", alerts: "alertas", pending: "pendências", warnings: "avisos" };
-const scopeLabels: Record<string, string> = { complete: "Sincronização completa", essential: "Turmas e agenda", schedule: "Agenda", profiles: "Contatos", corrections: "Presença e atividades" };
+const scopeLabels: Record<string, string> = { classroom: "Link da próxima aula", complete: "Sincronização completa", essential: "Turmas e agenda", schedule: "Agenda", profiles: "Contatos", corrections: "Presença e atividades" };
 const date = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
 const loadLogs: Loader = async (days, signal) => {
   const user = getFirebaseAuth().currentUser;

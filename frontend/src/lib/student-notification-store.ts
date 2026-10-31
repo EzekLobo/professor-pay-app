@@ -33,11 +33,12 @@ export function reconcileNotificationCases(previous: NotificationCase[], items: 
   return [...merged, ...items.filter(item => !existing.has(item.id)).map(notification => ({ id: notification.id, notification, active: true, read_revision: null, confirmed_revisions: [], first_seen_at: timestamp, updated_at: timestamp, reconciled_at: timestamp, contact_confirmed_at: null }))];
 }
 const EVENT = "nexusclass:notifications-changed";
-export function notifyStudentNotificationsChanged() { if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new Event(EVENT)); }
-export function subscribeStudentNotifications(listener: () => void) {
+export function notifyStudentNotificationsChanged(change: "source" | "history" = "source") { if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new CustomEvent(EVENT, { detail: change })); }
+export function subscribeStudentNotifications(listener: (change: "source" | "history") => void) {
   if (typeof window === "undefined") return () => undefined;
-  window.addEventListener(EVENT, listener);
-  return () => window.removeEventListener(EVENT, listener);
+  const handle = (event: Event) => listener((event as CustomEvent).detail === "history" ? "history" : "source");
+  window.addEventListener(EVENT, handle);
+  return () => window.removeEventListener(EVENT, handle);
 }
 const owner = (expected: string) => { if (getFirebaseAuth().currentUser?.uid !== expected) throw new Error("Sua conta foi alterada. Entre novamente."); };
 /** No optimistic acknowledgement: the UI removes a contact only after the server commits. */
@@ -59,11 +60,11 @@ export function createStudentNotificationStore(uid: string): StudentNotification
       const current = validateNotificationCase({ ...snapshot.data(), id });
       if (current.notification.revision !== revision) throw new Error("A pendência foi atualizada. Revise os detalhes antes de confirmar.");
       transaction.set(target, { ...current, read_revision: revision, ...(confirm ? { confirmed_revisions: [...new Set([...current.confirmed_revisions, revision])], contact_confirmed_at: new Date().toISOString() } : {}), updated_at: new Date().toISOString() });
-    }); owner(uid); notifyStudentNotificationsChanged();
+    }); owner(uid); notifyStudentNotificationsChanged("history");
   };
   return {
     settings, cases,
-    saveSettings: async input => { const value = validateNotificationSettings(input); await setDoc(reference("notification_settings", "default"), { ...value, _last_reconciled_at: new Date().toISOString() }); owner(uid); notifyStudentNotificationsChanged(); return value; },
+    saveSettings: async input => { const value = validateNotificationSettings(input); await setDoc(reference("notification_settings", "default"), { ...value, _last_reconciled_at: new Date().toISOString() }); owner(uid); notifyStudentNotificationsChanged("history"); return value; },
     reconcile: async (items, timestamp) => {
       const watermark = reference("notification_settings", "default");
       const accepted = await runTransaction(getFirebaseDb(), async transaction => {

@@ -80,7 +80,7 @@ export function normalizeNotificationSource(snapshot: NotificationSourceSnapshot
   }
   return { lessons, obligations, lessonCodes, warnings: [...warnings], loaded_at: new Date().toISOString() };
 }
-const cache = new Map<string, { expires: number; promise: Promise<NotificationSourceSnapshot> }>();
+const cache = new Map<string, { expires: number; loadedAt: string; promise: Promise<NotificationSourceSnapshot> }>();
 export function clearStudentNotificationSourceCache() { cache.clear(); }
 /** Shared source cache: callers must supply the authenticated UID; a failed refresh never becomes an empty successful snapshot. */
 export async function loadStudentNotificationSource(uid: string, settings: NotificationSettings, force = false): Promise<NotificationSource> {
@@ -105,10 +105,10 @@ export async function loadStudentNotificationSource(uid: string, settings: Notif
       if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error("Os dados foram atualizados durante a leitura. Atualize as notificações novamente.");
       return { manualClasses, manualStudents, manualOccurrences, manualAttendance, manualActivities, groups, students, attendance, lessons, taskProgress };
     })();
-    current = { promise, expires: Date.now() + 30000 }; cache.set(uid, current);
+    current = { promise, loadedAt: new Date().toISOString(), expires: Date.now() + 6 * 3600000 }; cache.set(uid, current);
     promise.catch(() => { if (cache.get(uid)?.promise === promise) cache.delete(uid); });
   }
   const snapshot = await current.promise; owner();
-  return normalizeNotificationSource(snapshot, settings);
+  return { ...normalizeNotificationSource(snapshot, settings), loaded_at: current.loadedAt };
 }
 export const demoStudentNotificationSource = (snapshot: DemoSnapshot, settings: NotificationSettings) => normalizeNotificationSource(snapshot.tutorPreferences.kodland_enabled ? snapshot : { ...snapshot, groups: [], students: [], attendance: [], lessons: [] }, settings);

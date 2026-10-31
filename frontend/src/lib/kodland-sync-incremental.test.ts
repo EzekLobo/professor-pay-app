@@ -68,3 +68,21 @@ it("automática lê só a turma de destino e não regrava histórico sem mudanç
  await kodlandApi.sync("teacher","not-real","corrections",options);
  expect(mocks.commits).toEqual([1]);
 });
+
+it("atualização só de presença preserva atividades e não adia sua próxima consulta",async()=>{
+ await kodlandApi.sync("teacher","not-real","essential");
+ const progressPath="users/incremental/kodland_task_progress/p";mocks.db.set(progressPath,{id:"p",external_class_id:"g",state:"missing"});
+ mocks.reads.length=0;
+ vi.stubGlobal("fetch",vi.fn(async()=>Response.json({...snapshot(),lessons:[],review_group_ids:[],attendance_group_ids:["g"],attendance:[{id:"a",external_class_id:"g",external_student_id:"s",status:"PRESENT"}]})));
+ await kodlandApi.sync("teacher","not-real","corrections",{refreshSchedule:false,correctionGroupIds:["g"],followupScope:"attendance"});
+ expect(mocks.db.get(progressPath)).toMatchObject({state:"missing"});
+ expect(mocks.reads.some(read=>/kodland_(reviews|task_progress|lessons)$/.test(read.path))).toBe(false);
+ expect(mocks.db.get("users/incremental/sync_status/corrections")).not.toHaveProperty("group_completed_at");
+});
+it("atualização só de atividades não lê nem remove presenças",async()=>{
+ await kodlandApi.sync("teacher","not-real","essential");
+ const path="users/incremental/kodland_attendance/a";mocks.db.set(path,{id:"a",external_class_id:"g",status:"ABSENT"});mocks.reads.length=0;
+ vi.stubGlobal("fetch",vi.fn(async()=>Response.json({...snapshot(),lessons:[],review_group_ids:["g"],attendance_group_ids:[],task_progress:[]})));
+ await kodlandApi.sync("teacher","not-real","corrections",{refreshSchedule:false,correctionGroupIds:["g"],followupScope:"activities"});
+ expect(mocks.db.get(path)).toMatchObject({status:"ABSENT"});expect(mocks.reads.some(read=>read.path.endsWith("kodland_attendance"))).toBe(false);
+});

@@ -22,7 +22,7 @@ export const errorLabels = {
 export type OperationErrorCode = keyof typeof errorLabels;
 export type OperationLogInput = {
   id: string; operation: OperationName; status: OperationStatus;
-  scope?: "essential" | "schedule" | "corrections" | "profiles" | "complete";
+  scope?: "essential" | "schedule" | "corrections" | "profiles" | "classroom" | "complete";
   trigger?: "manual" | "automatic"; errorCode?: OperationErrorCode; reference?: string;
   pathname?: string; durationMs?: number; version?: number; errorType?: "Error" | "TypeError" | "ReferenceError" | "RangeError" | "SyntaxError" | "FirebaseError"; counts?: Partial<Record<"groups" | "students" | "lessons" | "activities" | "progress" | "attendance" | "alerts" | "pending" | "warnings", number>>;
 };
@@ -38,7 +38,7 @@ export function validateOperationLog(input: unknown): OperationLogInput {
     || typeof value.id !== "string" || !uuid.test(value.id)
     || typeof value.operation !== "string" || !Object.hasOwn(operationLabels, value.operation)
     || typeof value.status !== "string" || !Object.hasOwn(statusLabels, value.status)) throw new Error("Registro inválido.");
-  if (value.scope !== undefined && !["essential", "schedule", "corrections", "profiles", "complete"].includes(String(value.scope))) throw new Error("Escopo inválido.");
+  if (value.scope !== undefined && !["essential", "schedule", "corrections", "profiles", "classroom", "complete"].includes(String(value.scope))) throw new Error("Escopo inválido.");
   if (value.trigger !== undefined && !["manual", "automatic"].includes(String(value.trigger))) throw new Error("Origem inválida.");
   if (value.errorCode !== undefined && (typeof value.errorCode !== "string" || !Object.hasOwn(errorLabels, value.errorCode))) throw new Error("Código inválido.");
   if (value.reference !== undefined && (typeof value.reference !== "string" || !uuid.test(value.reference))) throw new Error("Referência inválida.");

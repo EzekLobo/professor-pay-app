@@ -267,7 +267,8 @@ describe("persistência e atualização dos alertas Kodland", () => {
   };
   it("sinaliza notificações somente após persistir presença/progresso e concluir os marcadores", async () => {
     install();
-    const event = vi.fn(() => {
+    const event = vi.fn((dispatched: Event) => {
+      expect(["nexusclass:notifications-changed", "nexusclass:kodland-synced"]).toContain(dispatched.type);
       expect(fake.docs.get(key("sync_status", "kodland"))?.status).toBe("complete");
       expect(fake.docs.get(key("sync_status", "corrections"))?.status).toBe("complete");
       expect(fake.docs.get(key("kodland_attendance", "a"))?.status).toBe("ABSENT");
@@ -276,7 +277,7 @@ describe("persistência e atualização dos alertas Kodland", () => {
     });
     vi.stubGlobal("window", { dispatchEvent: event });
     await kodlandApi.sync("fixture", "fixture", "corrections", { correctionGroupIds: ["g"], refreshSchedule: false });
-    expect(event).toHaveBeenCalledOnce();
+    expect(event.mock.calls.map(([event]) => event.type)).toEqual(["nexusclass:notifications-changed", "nexusclass:kodland-synced"]);
     expect(fake.docs.get(key("kodland_students", "s"))?.guardian_phone).toBe("5511999990000");
     expect(fake.docs.get(key("kodland_lessons", "l"))?.materials_status).toBe("ready");
     expect((await kodlandApi.followupState()).updatedAt.g).toBeTruthy();

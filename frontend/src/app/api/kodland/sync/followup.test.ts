@@ -19,7 +19,7 @@ function mockProvider({ attendanceFails = false } = {}) {
   });
   vi.stubGlobal("fetch", fetch); return calls;
 }
-const request = () => new NextRequest("https://example.test/api/kodland/sync", { method: "POST", headers: { authorization: "Bearer token", "content-type": "application/json" }, body: JSON.stringify({ username: "fixture", password: "fixture", mode: "corrections", refresh_schedule: false, correction_group_ids: ["g"] }) });
+const request = (extra: Record<string, unknown> = {}) => new NextRequest("https://example.test/api/kodland/sync", { method: "POST", headers: { authorization: "Bearer token", "content-type": "application/json" }, body: JSON.stringify({ username: "fixture", password: "fixture", mode: "corrections", refresh_schedule: false, correction_group_ids: ["g"], ...extra }) });
 describe("consulta automática de acompanhamento", () => {
   it("traz progresso não entregue e falta sem consultar perfis, cursos ou materiais", async () => {
     const calls = mockProvider(); const response = await POST(request());
@@ -33,4 +33,21 @@ describe("consulta automática de acompanhamento", () => {
     mockProvider({ attendanceFails: true }); const response = await POST(request());
     expect(response.status).toBeGreaterThanOrEqual(500); expect(await response.json()).not.toHaveProperty("attendance");
   });
+});
+
+it("consulta somente presença após a aula, sem progresso, cronograma ou materiais", async () => {
+ const calls=mockProvider();const response=await POST(request({followup_scope:"attendance"}));
+ expect(response.status).toBe(200);const data=await response.json();
+ expect(data.attendance).toHaveLength(1);expect(data.review_group_ids).toEqual([]);expect(data).not.toHaveProperty("task_progress");
+ expect(calls.some(url=>/get_group_progress|\/lessons\/|schedule_view|teacher_timetables/.test(url))).toBe(false);
+});
+it("atualiza atividades sem buscar presença", async () => {
+ const calls=mockProvider({attendanceFails:true});const response=await POST(request({followup_scope:"activities"}));
+ expect(response.status).toBe(200);const data=await response.json();expect(data.task_progress).toHaveLength(1);
+ expect(data.attendance_group_ids).toEqual([]);expect(calls.some(url=>/attendance|get_students_main_data/.test(url))).toBe(false);
+});
+it("atualiza link da aula sem baixar cronograma, alunos, grade ou financeiro", async () => {
+ const calls=mockProvider();const response=await POST(request({mode:"classroom"}));
+ expect(response.status).toBe(200);expect((await response.json()).groups).toHaveLength(1);
+ expect(calls.some(url=>/get_students_main_data|get_group_progress|teacher_timetables|payroll|\/lessons\//.test(url))).toBe(false);
 });

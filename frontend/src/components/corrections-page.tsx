@@ -706,7 +706,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   useEffect(() => {
     if (demo) return;
     let timer: ReturnType<typeof setTimeout>;
-    const unsubscribe = subscribeStudentNotifications(() => { clearTimeout(timer); timer = setTimeout(() => { void load(true); }, 150); });
+    const unsubscribe = subscribeStudentNotifications(change => { if (change !== "source") return; clearTimeout(timer); timer = setTimeout(() => { void load(true); }, 150); });
     return () => { clearTimeout(timer); unsubscribe(); };
   }, [demo, load]);
 

@@ -1,3 +1,8 @@
+> Atualização de 31/10/2026: a migração ampla para IndexedDB foi adiada pelo usuário.
+> A etapa entregue mantém Firebase e reduz as consultas usando cadências e cache de sessão
+> descritos em [STUDENT_NOTIFICATIONS.md](../STUDENT_NOTIFICATIONS.md). As políticas de cache
+> persistente e migração abaixo continuam sendo propostas, não comportamento atual.
+
 # Plano de refatoração: Kodland como fonte, IndexedDB como cache
 
 Status: proposta de implementação, ainda não aplicada ao funcionamento da aplicação. Base: arquitetura atual em 31/10/2026, após a gravação incremental. Plano do projeto informado pelo usuário: Spark. O consumo real do Firestore e a causa definitiva da indisponibilidade ainda dependem do painel de uso.

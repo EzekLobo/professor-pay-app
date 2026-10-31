@@ -17,7 +17,7 @@ import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import { DEFAULT_ABSENCE_MESSAGE } from "@/lib/manual-operations";
 import { defaultNotificationSettings, validateActivityMessageTemplate, validateNotificationSettings, evaluateStudentNotifications, needsNotificationContact, notificationMessage, notificationTarget, type NotificationCase, type NotificationSettings, type StudentNotification } from "@/lib/student-notification-rules";
 import { clearStudentNotificationSourceCache, demoStudentNotificationSource, loadStudentNotificationSource, type NotificationSource } from "@/lib/student-notification-source";
-import { createDemoStudentNotificationStore, createStudentNotificationStore, subscribeStudentNotifications } from "@/lib/student-notification-store";
+import { createDemoStudentNotificationStore, createStudentNotificationStore, subscribeStudentNotifications, notifyStudentNotificationsChanged } from "@/lib/student-notification-store";
 import { whatsappUrl } from "@/lib/whatsapp";
 
 type NotificationContext = {
@@ -52,28 +52,37 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
     return demoStudentNotificationSource(snapshot, value);
   }, [demo, uid, snapshot]);
   const generation = useRef(0);
+  const cached = useRef<{ at: number; settings: NotificationSettings; history: NotificationCase[]; signature: string } | null>(null);
+  const refreshing = useRef(false);
+  const refreshPending = useRef(false);
   const lastLogged = useRef("");
   const lastLoggedAt = useRef(0);
   const refresh = useCallback(async (force = false) => {
+    if (refreshing.current) { refreshPending.current = true; return; }
+    refreshing.current = true;
     const run = ++generation.current;
     const startedAt = new Date().toISOString();
     setLoading(true);
     try {
-      const [value, history] = await Promise.all([store.settings(), store.cases()]);
+      const previous = cached.current;
+      const remote = force || !previous || Date.now() - previous.at >= 6 * 3600000;
+      const [value, history] = remote ? await Promise.all([store.settings(), store.cases()]) : [previous.settings, previous.history];
       if (run !== generation.current) return;
       setSettings(value); setCases(history);
-      const prefs = demo ? snapshot?.tutorPreferences : await tutorPreferencesApi.get();
+      const prefs = demo ? snapshot?.tutorPreferences : remote ? await tutorPreferencesApi.get() : null;
       if (run !== generation.current) return;
-      setAbsenceTemplate(prefs?.absence_message_template || DEFAULT_ABSENCE_MESSAGE);
+      if (remote || demo) setAbsenceTemplate(prefs?.absence_message_template || DEFAULT_ABSENCE_MESSAGE);
       const data = value.enabled ? await source(value, force) : null;
       if (run !== generation.current) return;
       const items = data ? evaluateStudentNotifications(data.lessons, data.obligations, value, new Date()) : [];
-      const rows = await store.reconcile(items, startedAt);
+      const itemSignature = JSON.stringify(items);
+      const rows = remote || previous?.signature !== itemSignature ? await store.reconcile(items, startedAt) : history;
+      cached.current = { at: remote ? Date.now() : previous.at, settings: value, history: rows, signature: itemSignature };
       if (run !== generation.current) return;
       setCases(rows); setWarnings(data?.warnings ?? []); setUpdated(data?.loaded_at ?? ""); setError("");
       const summary = { alerts: rows.filter(item => item.active).length, pending: rows.filter(needsNotificationContact).length, warnings: data?.warnings.length ?? 0 };
       const signature = JSON.stringify(summary);
-      if (!demo && (signature !== lastLogged.current || Date.now() - lastLoggedAt.current >= 10 * 60000)) {
+      if (!demo && (signature !== lastLogged.current || Date.now() - lastLoggedAt.current >= 6 * 3600000)) {
         lastLogged.current = signature; lastLoggedAt.current = Date.now();
         reportOperation("notifications_refresh", summary.warnings ? "warning" : "success", { counts: summary, durationMs: Math.min(3600000, Math.max(0, Date.now() - Date.parse(startedAt))) }, 0);
       }
@@ -81,17 +90,28 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
       setError(reason instanceof Error ? reason.message : "Não foi possível atualizar os alertas. O histórico foi preservado.");
       if (!demo) { lastLogged.current = ""; const errorCode = classifyOperationError(reason); reportOperation("notifications_refresh", errorCode === "sync_incomplete" ? "warning" : "error", { errorCode }); }
     } }
-    finally { if (run === generation.current) setLoading(false); }
+    finally {
+      refreshing.current = false;
+      if (run === generation.current) {
+        setLoading(false);
+        if (refreshPending.current) { refreshPending.current = false; window.setTimeout(() => notifyStudentNotificationsChanged("history"), 0); }
+      }
+    }
   }, [demo, snapshot, store, source]);
   useEffect(() => {
-    const reload = () => { if (document.visibilityState !== "hidden") void refresh(); };
+    cached.current = null;
+    const reload = () => { if (document.visibilityState !== "hidden" && navigator.onLine) void refresh(); };
     const timer = window.setTimeout(reload, 0);
     const interval = window.setInterval(reload, 60000);
-    const unsubscribe = subscribeStudentNotifications(() => { clearStudentNotificationSourceCache(); reload(); });
-    window.addEventListener("focus", reload); window.addEventListener("online", reload); window.addEventListener("storage", reload); document.addEventListener("visibilitychange", reload);
+    const unsubscribe = subscribeStudentNotifications(change => { if (change === "source") clearStudentNotificationSourceCache(); cached.current = null; reload(); });
+    const storageChanged = (event: StorageEvent) => {
+      if (event.key === `nexusclass:kodland-change:${uid}`) { clearStudentNotificationSourceCache(); cached.current = null; }
+      reload();
+    };
+    window.addEventListener("focus", reload); window.addEventListener("online", reload); window.addEventListener("storage", storageChanged); document.addEventListener("visibilitychange", reload);
     const runGeneration = generation;
-    return () => { runGeneration.current++; clearTimeout(timer); clearInterval(interval); unsubscribe(); window.removeEventListener("focus", reload); window.removeEventListener("online", reload); window.removeEventListener("storage", reload); document.removeEventListener("visibilitychange", reload); };
-  }, [refresh]);
+    return () => { runGeneration.current++; clearTimeout(timer); clearInterval(interval); unsubscribe(); window.removeEventListener("focus", reload); window.removeEventListener("online", reload); window.removeEventListener("storage", storageChanged); document.removeEventListener("visibilitychange", reload); };
+  }, [refresh, uid]);
   const value: NotificationContext = {
     settings, cases, warnings, error, loading, updated, demo, absenceTemplate, autoSync,
     refresh: (force) => refresh(force),

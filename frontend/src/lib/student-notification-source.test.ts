@@ -1,5 +1,6 @@
+import { kodlandApi } from "./api";
 import { missingActivityList } from "./activity-missing-list";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mock = vi.hoisted(() => ({ uid: "a", status: { status: "complete", sync_id: "1" }, failProgress: false }));
 vi.mock("./firebase", () => ({ getFirebaseAuth: () => ({ currentUser: { uid: mock.uid } }) }));
 vi.mock("./api", () => ({
@@ -68,4 +69,14 @@ describe("fontes de alertas", () => {
     await expect(loadStudentNotificationSource("a", settings)).rejects.toThrow("alterada");
     expect((await loadStudentNotificationSource("b", settings)).lessons).toEqual([]);
   });
+});
+
+afterEach(()=>vi.restoreAllMocks());
+it("reutiliza fontes por seis horas e permite atualização manual antes do prazo",async()=>{
+ let now=Date.parse("2026-10-31T10:00:00Z");vi.spyOn(Date,"now").mockImplementation(()=>now);
+ const reads=vi.spyOn(kodlandApi,"groups");
+ await loadStudentNotificationSource("a",settings);expect(reads).toHaveBeenCalledTimes(1);
+ now+=359*60000;await loadStudentNotificationSource("a",settings);expect(reads).toHaveBeenCalledTimes(1);
+ now+=60000;await loadStudentNotificationSource("a",settings);expect(reads).toHaveBeenCalledTimes(2);
+ await loadStudentNotificationSource("a",settings,true);expect(reads).toHaveBeenCalledTimes(3);
 });

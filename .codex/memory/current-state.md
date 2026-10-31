@@ -1,5 +1,14 @@
 # Estado atual
 
+## Cadências Kodland por necessidade — 31/10/2026
+
+- Usuário adiou IndexedDB: manter Firebase e reduzir consultas. kodland-sync-policy define atividades6h/turma; presença30min após fim, segunda a partir de60min e espaçamento30min, máximo2incluindo falhas, recuperaçãoaté24h; diária turmas/alunos/grade+cronograma compartilhado; metadados do link na janela pré-aula15min. Pagamentos permanecem manuais (nenhum agendamento mensal/janela5dias ativado). Só app aberto/visível/online+credenciais; horários SãoPaulo e ocorrência real; não presume falta de UNKNOWN nem pagamento por data.
+- Backend corrections usa followup_scope activities/attendance; fontes e persistência separadas, presença não atualiza group_completed_at das atividades. classroom consulta só grupos autorizados e atualiza campos next_lesson dos já importados. syncAll manual usa refreshSchedule:false/automatic:false para não repetir cronograma e preservar lockmanual.
+- Hook mantém contexto em memória6h/invalidação relevante, sem Firestore por tick; sync_status/automatic retém tentativas7dias/400anteriores, reserva antes da requisição e libera tentativa se fila ocupada. Novas leituras/controle têm espera20s; resource-exhausted pausaauto6h. Firebase continua fonte persistida; não existe novo offline/PWA ou migração de coleções.
+- Notificações reaproveitam fontes/config/history6h e reavaliam prazos localmente1min; sem reconciliação se alertas iguais. Eventos distinguem source/history, ler/confirmar alerta não recarrega toda a pedagogia; data exibida de atualização corresponde à carga da fonte. Resumo atualiza dados afetados após sucessoauto, sem carregar financeiro. Novidade2026103109; políticas em docs/STUDENT_NOTIFICATIONS.md e docs/KODLAND_SYNC_WRITES.md.
+- Validação:382unitários,12E2E distintos de notificações/novidades/mobile/modal/pagamentos, lint/typecheck/build aprovados; testes de fontes simuladas, sem acesso Firebase/Kodland real nem confirmação de quota/implantação Vercel. IndexedDB segue proposta em docs/plans/kodland-local-cache-refactor.md.
+
+
 ## Planejamento por fontes compartilhadas — 31/10/2026
 
 - Discussão de refatoração ampliou docs/plans/kodland-local-cache-refactor.md com inventário de redundâncias: timeline lessons repetida por cronograma/reviews, grade alunos/presença reutilizável, fallbacks de presença antes da fonte conhecida e carga financeira de2anos/lista por detalhe. Sem alteração de execução nesta etapa.

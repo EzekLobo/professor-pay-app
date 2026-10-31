@@ -15,12 +15,12 @@ function setup() {
   return { context, sync, status, credentials, tick, advance: (minutes: number) => { time += minutes * 60000; }, owner: (value: boolean) => { owner = value; } };
 }
 describe("atualização automática da Kodland", () => {
-  it("atualiza por turma e respeita 5 minutos em acompanhamento e 15 fora dele", async () => {
+  it("atualiza atividades por turma a cada seis horas, independente da tela", async () => {
     const app = setup(); await app.tick(); expect(app.sync.mock.calls.map(call => call[0])).toEqual(["a", "b"]);
-    app.advance(4); await app.tick(); expect(app.sync).toHaveBeenCalledTimes(2);
+    app.advance(359); await app.tick(); expect(app.sync).toHaveBeenCalledTimes(2);
     app.advance(1); await app.tick(); expect(app.sync).toHaveBeenCalledTimes(4);
-    app.advance(6); await app.tick({ following: false }); expect(app.sync).toHaveBeenCalledTimes(4);
-    app.advance(9); await app.tick({ following: false }); expect(app.sync).toHaveBeenCalledTimes(6);
+    app.advance(359); await app.tick({ following: false }); expect(app.sync).toHaveBeenCalledTimes(4);
+    app.advance(1); await app.tick({ following: false }); expect(app.sync).toHaveBeenCalledTimes(6);
   });
   it("não consulta sem conexão, na aba oculta, conta trocada ou integração desativada", async () => {
     const app = setup(); await app.tick({ online: false }); await app.tick({ active: false }); app.owner(false); await app.tick();
@@ -88,4 +88,10 @@ it("pausa antes de ler contexto ou credenciais quando uma operação manual est�
  await app.tick({active:true,online:true,following:true});
  expect(context).not.toHaveBeenCalled();expect(credentials).not.toHaveBeenCalled();expect(sync).not.toHaveBeenCalled();
  expect(status).toHaveBeenCalledWith(expect.objectContaining({phase:"paused"}));
+});
+
+it("não insiste contra quota esgotada antes de seis horas",async()=>{
+ const app=setup();app.sync.mockRejectedValueOnce(Object.assign(new Error("quota"),{code:"resource-exhausted"}));
+ await app.tick();app.advance(359);await app.tick();expect(app.sync).toHaveBeenCalledTimes(1);
+ app.advance(1);await app.tick();expect(app.sync).toHaveBeenCalledTimes(3);
 });

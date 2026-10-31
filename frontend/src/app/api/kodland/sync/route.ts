@@ -1821,7 +1821,7 @@ export async function POST(request: NextRequest) {
     let body: {
       username?: string;
       password?: string;
-      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles" | "payroll";
+      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles" | "payroll" | "classroom";
       payroll_year?: number;
       payroll_period_id?: string;
       group_id?: string;
@@ -1833,6 +1833,7 @@ export async function POST(request: NextRequest) {
       pending_extra_student_ids?: string[];
       correction_group_ids?: string[];
       refresh_schedule?: boolean;
+      followup_scope?: "activities" | "attendance";
     };
     try {
       body = (await request.json()) as typeof body;
@@ -1851,10 +1852,11 @@ export async function POST(request: NextRequest) {
       return syncResponse(syncId, { code: "missing_credentials" }, 400);
     }
     const mode = body.mode ?? "essential";
-    if (!["essential", "schedule", "corrections", "materials", "profiles", "payroll"].includes(mode)) {
+    if (!["essential", "schedule", "corrections", "materials", "profiles", "payroll", "classroom"].includes(mode)) {
       trace("invalid_request");
       return syncResponse(syncId, { code: "invalid_request" }, 400);
     }
+    if (body.followup_scope !== undefined && !["activities", "attendance"].includes(body.followup_scope)) return syncResponse(syncId, { code: "invalid_request" }, 400);
     const token = await runStage("kodland_auth", () => kodlandLogin(username, password));
     if (mode === "payroll") {
       const teacherId = userId(token);
@@ -2034,6 +2036,7 @@ export async function POST(request: NextRequest) {
         materials: materialResults,
       });
     }
+    if (mode === "classroom") return syncResponse(syncId, { ...emptyCollections(), groups });
     if (mode === "corrections") {
       const requestedGroupIds = new Set(
         Array.isArray(body.correction_group_ids)
@@ -2051,8 +2054,8 @@ export async function POST(request: NextRequest) {
         async (group) => {
           const taskProgress: KodlandTaskProgress[] = [];
           const [reviews, attendance, lessons] = await Promise.all([
-            reviewsForGroup(group, token, taskProgress),
-            attendanceForGroup(group, token),
+            body.followup_scope === "attendance" ? Promise.resolve([]) : reviewsForGroup(group, token, taskProgress),
+            body.followup_scope === "activities" ? Promise.resolve([]) : attendanceForGroup(group, token),
             body.refresh_schedule === false ? Promise.resolve([]) : lessonsForGroup(group, token, courseLessonCache),
           ]);
           return { reviews, taskProgress, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
@@ -2070,11 +2073,11 @@ export async function POST(request: NextRequest) {
         ...emptyCollections(),
         groups,
         reviews: items,
-        task_progress: snapshots.flatMap(item => item.taskProgress),
+        ...(body.followup_scope === "attendance" ? {} : { task_progress: snapshots.flatMap(item => item.taskProgress) }),
         attendance: attendanceItems,
         lessons,
-        review_group_ids: correctionGroups.map((group) => group.external_id),
-        attendance_group_ids: correctionGroups.map((group) => group.external_id),
+        review_group_ids: body.followup_scope === "attendance" ? [] : correctionGroups.map((group) => group.external_id),
+        attendance_group_ids: body.followup_scope === "activities" ? [] : correctionGroups.map((group) => group.external_id),
       });
     }
     const profileCache = new Map<

@@ -904,6 +904,27 @@ function DashboardPageContent() {
     window.addEventListener("nexusclass:manual-teaching-changed", reload);
     return () => window.removeEventListener("nexusclass:manual-teaching-changed", reload);
   }, [load]);
+  useEffect(() => {
+    let alive = true;
+    const updated = async (event: Event) => {
+      const { mode, scope } = (event as CustomEvent<{ mode: string; scope?: string }>).detail;
+      try {
+        if (mode === "classroom") {
+          const result = await kodlandApi.groups();
+          if (alive) setGroups(result.items);
+        } else if (mode === "schedule" || mode === "essential") {
+          const [groups, lessons, extras, availability, stamp] = await Promise.all([kodlandApi.groups(), kodlandApi.lessons(), kodlandApi.extraLessons(), kodlandApi.availability(), kodlandApi.scheduleLastUpdatedAt()]);
+          if (alive) { setGroups(groups.items); setLessons(lessons.items); setExtraLessons(extras.items); setAvailability(availability.items); setScheduleLastUpdatedAt(stamp); }
+        } else if (mode === "corrections" && scope !== "attendance") {
+          const result = await kodlandApi.reviews();
+          if (alive) setReviews(result.items);
+        }
+      } catch { /* Preserve the currently displayed data; manual reload remains available. */ }
+    };
+    const listener = (event: Event) => { void updated(event); };
+    window.addEventListener("nexusclass:kodland-synced", listener);
+    return () => { alive = false; window.removeEventListener("nexusclass:kodland-synced", listener); };
+  }, []);
   const refreshSchedule = useCallback(async () => {
     if (refreshingSchedule) return;
     const credentials = await restoreKodlandCredentials();

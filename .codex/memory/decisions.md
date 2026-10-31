@@ -55,3 +55,8 @@ Automática só pode adquirir locks imediatamente. Operação manual ganha prior
 ## Diferenças antes dos commits Kodland (31/10/2026)
 
 Comparar conteúdo antes de gerar escritas, com timestamps técnicos fora da igualdade; criação ausente é preenchida uma vez e campos locais continuam sendo mesclados antes da comparação. Sincronização principal/seguimento usa100docs por lote e1worker com confirmações reais. Um WriteBatch é de uso único: recriar para uma repetição transitória, nunca chamar commit novamente no mesmo objeto. Não tentar marker de falha adicional quando o banco já recusou por quota/permissão/conexão; manter estado sem confirmação e preservar guardas/locks.
+
+## 31/10/2026 — Sincronização orientada à ocorrência antes da migração local
+
+- Adiar IndexedDB conforme usuário; aplicar cadências na arquitetura existente. Presença deve seguir fim real de cada aula (+30min, retry>=+60min/30min entre tentativas, máximo2), não ciclo de6h. Progresso de atividades segue6h/turma, cadastros/grade diária e metadados de link pré-aula. Pagamentos continuam manuais nesta etapa.
+- Separar consultas e marcadores de atividades/presença: atualizar presença não adia a atualização de atividades. Cache de sessão reduz leituras periódicas Firebase; reavaliação de alertas pelo relógio é local, sem transação se nada mudou. Login/admin/config/coleções persistidas não migrados.

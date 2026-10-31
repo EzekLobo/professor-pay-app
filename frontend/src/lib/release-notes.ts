@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026103108, date: "2026-10-31", title: "Menos regravações na sincronização",
+    description: "Turmas, alunos, aulas, presença e atividades já atualizados deixam de ser regravados. O andamento mostra alterações confirmadas por lote, e a automática consulta os registros da turma em atualização.",
+    href: "/settings#data", action: "Abrir sincronização",
+  },
+  {
     version: 2026103107, date: "2026-10-31", title: "Sincronização manual com prioridade",
     description: "Novas atualizações automáticas aguardam enquanto você usa a sincronização manual e não entram em uma fila ocupada. A primeira tentativa automática começa após 30 segundos; os intervalos de 5 e 15 minutos foram mantidos.",
     href: "/settings#data", action: "Abrir sincronização",

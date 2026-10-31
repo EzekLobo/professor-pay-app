@@ -50,3 +50,8 @@ Firestore do browser passa a long-polling forçado com respostas15s para evitar 
 ## Automática cede sem enfileirar (31/10/2026)
 
 Automática só pode adquirir locks imediatamente. Operação manual ganha prioridade por intenção em todo o fluxo, usando gate distinto do write lock para não provocar aquisição recursiva; uma escrita automática já em andamento precisa terminar. Pausa por ocupação é estado normal, sem backoff de falha ou timestamp de conclusão. Sem Web Locks, coordenação é limitada à aba/sessão.
+
+
+## Diferenças antes dos commits Kodland (31/10/2026)
+
+Comparar conteúdo antes de gerar escritas, com timestamps técnicos fora da igualdade; criação ausente é preenchida uma vez e campos locais continuam sendo mesclados antes da comparação. Sincronização principal/seguimento usa100docs por lote e1worker com confirmações reais. Um WriteBatch é de uso único: recriar para uma repetição transitória, nunca chamar commit novamente no mesmo objeto. Não tentar marker de falha adicional quando o banco já recusou por quota/permissão/conexão; manter estado sem confirmação e preservar guardas/locks.

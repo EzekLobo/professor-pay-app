@@ -1,5 +1,14 @@
 # Estado atual
 
+## Redução de escritas e quota Spark — 31/10/2026
+
+- Usuário confirmou plano gratuito; foto localiza espera em commit de dados, ref d0d459f8-346f-4654-9d1c-0b1be67d0220. Uso/quota real ainda NÃO consultados; pergunta sobre total diário de gravações está pendente. Não atribuir definitivamente a quota à captura.
+- kodland-write-diff compara payloads normalizados, ignora timestamps técnicos e preenche created_at ausente uma vez. Core compara turmas/alunos/aulas/extras/disponibilidade; corrections compara reviews/presença/progresso/aulas. Mantidas regras de preservação e exclusão; timestamps de criação de grupos/agenda/reviews/presença deixam de ser recriados. Controles e folha oficial continuam seus fluxos próprios.
+- Essas escritas usam até100docs/1worker, com progresso confirmado/total e registros sem mudanças. Batch de Firestore não é reutilizado após rejeição: repetição transitória reconstrói lote, no máximo1 vez. resource-exhausted tem erro claro/código/ref; quota/permissão/conexão não aguardam nova gravação de marcador de falha. Marker running fica conservador até sucesso.
+- Automática de1turma lê reviews/presença/progresso por external_class_id, sem varrer outras turmas. Índice simples padrão, sem novas regras. Novidade2026103108, docs/KODLAND_SYNC_WRITES.md registra limites/semântica.
+- 367 unitários,12 E2E afetados aprovados,19 casos focados de diff/importação/catálogo e8 após código de quota; lint/typecheck/build aprovados. Integração mockada prova3escritas iniciais/0na repetição,1por aluno alterado,0em auto repetida/1progresso alterado, lotes100/100/7, campos locais preservados e falha quota sem marcador adicional. Sem dados/serviços reais; nova versão não restaura quota diária consumida.
+
+
 ## Prioridade manual sobre automática — 31/10/2026
 
 - Mantidos5min por turma em Acompanhamento/15min fora, tick30s/scan60s e backoff2/4/8/16/30min. Primeira tentativa agora30s (antes1,5s); eventos de foco/rede respeitam o aquecimento. Só app visível/online, integração ativa, turmas e credenciais salvas.

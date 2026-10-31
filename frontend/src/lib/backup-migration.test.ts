@@ -30,6 +30,7 @@ vi.mock("firebase/firestore", () => {
     doc: (collection: unknown, id: string) => `${path(collection)}/${id}`,
     query: (collection: unknown) => collection,
     orderBy: () => ({}),
+    where: () => ({}),
     getDocs: async (collection: unknown) => ({ docs: [...fake.docs]
       .filter(([key]) => key.startsWith(`${path(collection)}/`) && key.slice(path(collection).length + 1).indexOf("/") < 0)
       .map(([key]) => ({ id: key.split("/").at(-1)!, data: () => fake.docs.get(key)! })) }),

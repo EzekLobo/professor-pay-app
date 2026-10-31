@@ -96,13 +96,48 @@ Estes são parâmetros iniciais a validar com o volume e os endpoints reais, nã
 | Atividades antigas concluídas | TTL de 7 dias ou atualização manual | Não participam de cada rodada recente |
 | Extras pendentes | Ao abrir agenda/extras; TTL de 30 min | Pendentes e período relevante |
 | Disponibilidade importada | Ao abrir com cache vencido; TTL de 6 h | Período relevante |
-| Pagamentos oficiais em aberto | Ao abrir com cache vencido; TTL inicial de 6 h ou atualização manual | Competência escolhida |
+| Pagamentos oficiais em aberto | Ao abrir com cache vencido; TTL inicial de 24 h; 6–12 h na janela financeira se justificado; atualização manual | Competência escolhida |
 | Competências antigas | TTL de 7 dias ou atualização manual | Competência escolhida; comprovantes próprios permanecem remotos |
 | Notificações | Ao atualizar dados locais ou vencer uma tolerância/prazo | Avaliação local; relógio de 1 min não faz consultas Firebase/Kodland |
 
 Voltar da correção de uma atividade pode revalidar a turma pertinente, com espaçamento mínimo e reaproveitamento de consulta em andamento. Abrir WhatsApp não confirma que uma mensagem foi enviada nem que a atividade foi entregue.
 
 Para recuperar alterações antigas fora da janela recente, reservar uma revisão mais ampla diária enquanto a aplicação estiver ativa, em lotes e com orçamento. A atualização manual pode ampliar o escopo sem apagar o cache durante a consulta.
+
+## Reaproveitamento por fonte e requisições redundantes
+
+A unidade de consulta deve ser a fonte/escopo, não a tela. Agenda, Aulas, Resumo e projeção de pagamentos leem o mesmo snapshot normalizado de aulas; não disparam consultas independentes para obter a mesma data, horário ou indicador de realização.
+
+Revisão estática do código atual identifica oportunidades concretas:
+
+- `reviewsForGroup` consulta `student_groups/{id}/lessons/` para descobrir aulas passadas. `lessonsForGroup` consulta o mesmo caminho para construir o cronograma; no modo corrections com agenda, isso pode ocorrer dentro da mesma requisição, e na carga completa ocorre novamente entre etapas.
+- O cadastro básico consulta `get_students_main_data/`; presença também usa `get_students_main_data`. A mesma resposta pode abastecer lista de alunos e grade de presença se os campos/cobertura exigidos estiverem presentes.
+- `attendanceForGroup` tenta caminhos alternativos de presença antes da grade de alunos já conhecida. Planejar a fonte canônica como primeira opção, com fallback somente quando os dados necessários não estiverem disponíveis, sem confundir resposta vazia válida com erro.
+- `get_group_progress` já oferece base comum para não entregas e fila de correção. Buscar uma vez por aula necessária e produzir as duas visualizações localmente; não percorrer todas as aulas passadas em cada atualização recente.
+- `kodlandPayrollApi.sync` percorre anos anterior/atual e detalhes de períodos; a rota de detalhe também consulta a lista de períodos para autorização. Reduzir a carga aos períodos necessários e reaproveitar listas verificadas dentro de um lote, preservando a autorização de cada período.
+- O cache de catálogo por curso já existe dentro de algumas requisições; é uma proteção parcial, não um cache durável de todas essas fontes entre acessos.
+
+| Fonte | Dados aproveitados | Consumos compartilhados |
+|---|---|---|
+| Cronograma, aulas e gravações da turma | Datas, horários, identificação da aula, estado informado e gravação disponível | Agenda, Aulas, Resumo e projeção; juntar fontes somente quando trouxerem campos complementares |
+| Grade principal de alunos | Cadastro básico e presença disponível | Alunos, Presença e alertas |
+| Progresso da aula por aluno | Entregas explícitas, tarefas e situação para correção | Atividades, fila de correção, mensagem aos responsáveis e alertas |
+| Catálogo e materiais do curso | Módulo/aula e links/conteúdo permitido | Aulas, resolução de códigos e materiais sob demanda |
+| Calendário do professor | Disponibilidade e extras fornecidos | Grade semanal e extras; complementar com fontes auxiliares só quando necessário |
+| Perfil individual | Contatos que não vieram na fonte principal | Cadastro e mensagens, com validade longa |
+| Folha oficial | Período e valores/reconhecimento financeiros | Pagamentos e extrato; detalhes carregados conforme a competência consultada |
+
+Criar um registro de fontes com chave de UID, recurso, escopo, parâmetros/página e versão. Consultas idênticas em andamento compartilham uma Promise; respostas alimentam entidades e metadados locais usados por várias telas. Normalizar somente aliases confirmados, sem presumir que URLs diferentes sejam sempre equivalentes. Falhas não entram como cache vazio de sucesso. Não compartilhar respostas autenticadas entre professores.
+
+Não eliminar `schedule_view`, `lessons` ou gravações apenas porque os nomes parecem sobrepostos: hoje há uma mesclagem porque podem fornecer campos diferentes. Mapear campo → fonte canônica, validar respostas autorizadas e testes de cobertura, então deixar de consultar as fontes que não acrescentam dados naquele escopo.
+
+### Aula realizada não equivale a receita confirmada
+
+Manter separados: estado pedagógico informado pela Kodland, projeção calculada na aplicação, contabilização/valores do extrato oficial e recebimento confirmado pelo usuário. Não promover automaticamente um desses estados ao outro por passagem de tempo.
+
+Não foi validado que cancelamento, ausência do professor ou aula não realizada atualizem automaticamente o extrato em determinado prazo. Antes de automatizar essa conclusão, observar os campos e o ciclo reais da Kodland. Agenda sozinha não confirma receita nem pagamento.
+
+Política financeira refinada: consultar a competência aberta ao acessar Pagamentos se o cache tiver mais de 24 h; usar 6–12 h na janela de fechamento/pagamento apenas se a regra/ciclo observado justificar. Competências antigas só são revalidadas quando consultadas com cache vencido ou por solicitação explícita, não todas por temporizador. Disponibilizar atualização manual da competência selecionada.
 
 ## Repositório e esquema local
 

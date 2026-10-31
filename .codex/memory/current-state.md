@@ -1,5 +1,11 @@
 # Estado atual
 
+## Planejamento por fontes compartilhadas — 31/10/2026
+
+- Discussão de refatoração ampliou docs/plans/kodland-local-cache-refactor.md com inventário de redundâncias: timeline lessons repetida por cronograma/reviews, grade alunos/presença reutilizável, fallbacks de presença antes da fonte conhecida e carga financeira de2anos/lista por detalhe. Sem alteração de execução nesta etapa.
+- Proposta: registro de fontes por UID/escopo/parâmetros, dedup de Promise, cache compartilhado entre telas e dependências por campo; não remover fontes complementares sem validar cobertura. Política financeira proposta24h ao abrir competência/6–12h na janela financeira se justificado; nunca inferir contabilização/pagamento só de lesson_passed. Regra Kodland para ausência/cancelamento no extrato continua não validada.
+
+
 ## Plano de cache local Kodland — 31/10/2026
 
 - Usuário pediu planejamento e diagramas antes/depois, sem implementação desta migração nesta etapa. docs/plans/kodland-local-cache-refactor.md detalha IndexedDB como cache descartável por UID, fonte Kodland via backend autenticado, Firebase para identidade/admin/config e dados próprios; preservar ajustes, tarefas e comprovantes.

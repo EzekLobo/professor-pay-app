@@ -3670,3 +3670,14 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .correction-card-top .status-badge { font-size: .62rem; }
   .correction-subgroup { padding: 10px; }
 }
+
+/* Keep adjacent activity actions level even when their titles are long. */
+.compact-pending-task, .compact-pending-lesson,
+.correction-card-lesson, .correction-card-task {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.compact-pending-task { line-height: 1.35; }

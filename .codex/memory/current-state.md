@@ -1,5 +1,10 @@
 # Estado atual
 
+## Títulos em uma linha — 31/10/2026
+
+- Compacto e lista de atividades limitam títulos de aula/atividade a uma linha com reticências, evitando desnível entre botões vizinhos. Title e nomes acessíveis preservam conteúdo completo.6 E2E afetados em320/390/1440px, lint e typecheck aprovados.
+
+
 ## Identidade e lista de acompanhamento — 31/10/2026
 
 - Removida exibição de email nas células de alunos de Atividades compactas e Presença Kodland/própria. Cadastro/busca preservados. Lista de atividades usa grid conteúdo+ações no desktop e ações à direita abaixo do conteúdo no mobile, nomes/títulos com quebra, espaçamento e botões44px consistentes. Materiais Slides/Roteiro/Abrir aula usam símbolos com nomes acessíveis/title; rótulo repetido Atividade fica só para leitores de tela.

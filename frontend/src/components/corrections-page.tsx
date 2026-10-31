@@ -476,7 +476,7 @@ export function CompactActivitiesGrid({
                 if (!cell) return pendingOnly ? null : <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
                 return <div className="compact-activity-cell" role={pendingOnly ? "group" : "gridcell"} key={column.key}>
-                  {pendingOnly && <><strong className="compact-pending-lesson">{column.lessonLabel}</strong><small className="compact-pending-task" title={column.taskLabel}>{column.taskLabel}</small></>}
+                  {pendingOnly && <><strong className="compact-pending-lesson" title={column.lessonLabel}>{column.lessonLabel}</strong><small className="compact-pending-task" title={column.taskLabel}>{column.taskLabel}</small></>}
                   {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} data-tooltip={column.taskLabel} onClick={() => onCorrectManual(cell.activity)}><ClipboardCheck size={18} aria-hidden="true" /></button>
                     : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} data-tooltip={column.taskLabel} onClick={() => demo.onCorrect(cell.review)}><ClipboardCheck size={18} aria-hidden="true" /></button>
                       : <a className="compact-activity-action" aria-label={label} title={label} data-tooltip={column.taskLabel} href={cell.review.correction_url} target="_blank" rel="noreferrer"><ClipboardCheck size={18} aria-hidden="true" /></a>}
@@ -511,8 +511,8 @@ function ReviewCard({
           {showStudent && <div className="activity-student-heading"><h4>{review.student_name}</h4>{contact}</div>}
           <StatusBadge tone="warning">{review.status_label}</StatusBadge>
         </div>
-        <p className="correction-card-lesson">{lessonLabel(review, lessons)}</p>
-        <p className="correction-card-task">
+        <p className="correction-card-lesson" title={lessonLabel(review, lessons)}>{lessonLabel(review, lessons)}</p>
+        <p className="correction-card-task" title={`${review.task_number ? `${review.task_number}. ` : ""}${review.task_title || "Sem título"}`}>
           <span className="sr-only">Atividade</span>
           {review.task_number ? `${review.task_number}. ` : ""}{review.task_title || "Sem título"}
         </p>
@@ -893,7 +893,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
                 {showStudent && <div className="activity-student-heading"><h4>{manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno"}</h4>{contactButton(`manual:${item.class_id}`, item.student_id, manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno")}</div>}
                 <StatusBadge tone="warning">Entregue</StatusBadge>
               </div><p className="correction-card-lesson">Aula {item.occurrence_id.split(":").at(-1)}</p>
-                <p className="correction-card-task"><span className="sr-only">Atividade</span>{item.title}</p></div>
+                <p className="correction-card-task" title={item.title}><span className="sr-only">Atividade</span>{item.title}</p></div>
               <div className="card-actions"><Button type="button" className="correction-action" aria-label="Corrigir" title="Corrigir atividade" onClick={() => { setEditingManual(item); setFeedback(item.feedback); }}><ClipboardCheck size={18} aria-hidden="true" /></Button></div>
             </article>;
             return <details className="correction-class-group" key={`manual:${className}`}>

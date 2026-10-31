@@ -1,6 +1,6 @@
 import { requestKodlandJson, readKodlandLocal, KodlandSyncReadTimeout } from "./kodland-sync-client";
 import { observeOperation } from "./operation-log-client";
-import { withKodlandSyncLock } from "./kodland-sync-lock";
+import { withKodlandSyncLock, withKodlandAutoSyncLock, withKodlandManualPriority } from "./kodland-sync-lock";
 import { validateTaskCard, validateTaskLists } from "@/lib/task-board";
 import { assertTaskBoardReadyForDataChange, clearTaskBoardLocalState, withTaskBoardDataChange } from "@/lib/task-board-store";
 import {
@@ -2595,7 +2595,8 @@ export const kodlandApi = {
     const firebaseUser = authUser();
     const firebaseUserId = firebaseUser.uid;
     const syncId = crypto.randomUUID();
-    return withKodlandSyncLock(firebaseUserId, () => observeOperation<KodlandSyncResult>("kodland_sync", async () => {
+    const acquire = options.refreshSchedule === false ? withKodlandAutoSyncLock : withKodlandSyncLock;
+    return acquire(firebaseUserId, () => observeOperation<KodlandSyncResult>("kodland_sync", async () => {
     if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) throw new ApiError(401, "Sua conta foi alterada. Entre novamente.");
     options.assertActive?.();
     const syncCollection = (name: string) => ref(name, firebaseUserId);
@@ -2950,12 +2951,15 @@ export const kodlandApi = {
     onProgress?: (message: string, reference?: string) => void,
     options: KodlandSyncOptions = {},
   ): Promise<KodlandSyncResult> => {
-    return observeOperation<KodlandSyncResult>("kodland_sync", async () => {
-    const ownerId = authUser().uid;
+    const requestedOwnerId = authUser().uid;
+    onProgress?.("Preparando sincronização manual; aguardando operação em andamento, se houver…");
+    return withKodlandManualPriority(requestedOwnerId, () => observeOperation<KodlandSyncResult>("kodland_sync", async () => {
+    const ownerId = requestedOwnerId;
     const assertSyncOwner = () => {
       options.assertActive?.();
       if (getFirebaseAuth().currentUser?.uid !== ownerId) throw new ApiError(401, "A conta conectada mudou. Inicie a sincronização novamente.");
     };
+    assertSyncOwner();
     onProgress?.("Atualizando turmas, alunos, agenda e aulas…");
     const syncOptions = onProgress ? { ...options, onProgress } : options;
     const core = await kodlandApi.sync(username, password, "essential", syncOptions);
@@ -3037,7 +3041,7 @@ export const kodlandApi = {
       material_count: materialCount,
       payroll_warning: payrollWarning,
     };
-    }, { scope: "complete", trigger: "manual" }, result => ({ groups: result.group_count, students: result.student_count, activities: result.review_count, lessons: result.lesson_count }), result => result.payroll_warning ? "warning" : "success");
+    }, { scope: "complete", trigger: "manual" }, result => ({ groups: result.group_count, students: result.student_count, activities: result.review_count, lessons: result.lesson_count }), result => result.payroll_warning ? "warning" : "success"));
   },
   loadLessonMaterials: async (
     lesson: Pick<KodlandLesson, "id" | "external_class_id" | "source_lesson_id">,

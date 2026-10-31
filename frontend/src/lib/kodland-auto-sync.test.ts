@@ -74,3 +74,18 @@ describe("atualização automática da Kodland", () => {
     expect(cases.filter(needsNotificationContact)).toHaveLength(0); expect(cases).toHaveLength(2);
   });
 });
+
+it("ocupação da fila pausa automática sem erro nem marcar turma como atualizada",async()=>{
+ const {KodlandAutoSyncBusyError}=await import("./kodland-sync-lock");
+ const app=setup();app.sync.mockRejectedValueOnce(new KodlandAutoSyncBusyError("pausada"));
+ await app.tick();expect(app.status.mock.lastCall?.[0].phase).toBe("paused");
+ app.advance(1);await app.tick();expect(app.sync.mock.calls.map(call=>call[0])).toEqual(["a","a","b"]);
+ expect(app.status.mock.calls.some(call=>call[0].phase==="error")).toBe(false);
+});
+it("pausa antes de ler contexto ou credenciais quando uma operação manual está ativa",async()=>{
+ const context=vi.fn();const credentials=vi.fn();const sync=vi.fn();const status=vi.fn();
+ const app=createKodlandAutoSync({owner:()=>true,available:()=>false,context,credentials,sync,status});
+ await app.tick({active:true,online:true,following:true});
+ expect(context).not.toHaveBeenCalled();expect(credentials).not.toHaveBeenCalled();expect(sync).not.toHaveBeenCalled();
+ expect(status).toHaveBeenCalledWith(expect.objectContaining({phase:"paused"}));
+});

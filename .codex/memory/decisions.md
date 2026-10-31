@@ -45,3 +45,8 @@ Timeout de interface encerra a espera e bloqueia próximas etapas, mas não deve
 ## Transporte Firestore móvel e coleções sem created_at (31/10/2026)
 
 Firestore do browser passa a long-polling forçado com respostas15s para evitar WebChannel retido por proxies; usa mais requisições em troca de previsibilidade. Não aplicar opções de navegador no runtime Node. A troca só vale ao inicializar uma nova página. Leituras de progresso/snapshots de sincronização usam allRows, pois orderBy(created_at) exclui documentos em que o campo não existe (como kodland_task_progress). Ordenação visual deve ocorrer depois da leitura quando o campo não faz parte do contrato persistido.
+
+
+## Automática cede sem enfileirar (31/10/2026)
+
+Automática só pode adquirir locks imediatamente. Operação manual ganha prioridade por intenção em todo o fluxo, usando gate distinto do write lock para não provocar aquisição recursiva; uma escrita automática já em andamento precisa terminar. Pausa por ocupação é estado normal, sem backoff de falha ou timestamp de conclusão. Sem Web Locks, coordenação é limitada à aba/sessão.

@@ -1,4 +1,5 @@
 "use client";
+import { pauseKodlandAutoSync } from "@/lib/kodland-sync-lock";
 import { reportOperation } from "@/lib/operation-log-client";
 import { watchKodlandSync, KodlandSyncWaitError } from "@/lib/kodland-sync-client";
 
@@ -59,6 +60,11 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
   const [saveCredentials, setSaveCredentials] = useState(true);
   const [storedKodlandEnabled, setStoredKodlandEnabled] = useState(false);
   const kodlandEnabled = demo ? demo.kodlandEnabled === true : storedKodlandEnabled;
+  useEffect(() => {
+    if (demo || !syncOpen) return;
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (uid) return pauseKodlandAutoSync(uid);
+  }, [demo, syncOpen]);
 
   useEffect(() => {
     if (demo) return;
@@ -322,6 +328,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
             <span>Salvar credenciais da Kodland neste navegador</span>
           </label>
           </>}
+          {!demo && <p className="muted sync-auto-pause">A atualização automática aguarda enquanto você usa esta janela.</p>}
           {syncProgress && <p className="sync-progress" role="status" aria-live="polite">{syncProgress}</p>}
           {syncError && <p className="form-error" role="alert">{syncError}</p>}
           <div className="form-actions">

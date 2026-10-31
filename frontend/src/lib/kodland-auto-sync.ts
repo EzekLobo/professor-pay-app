@@ -1,4 +1,5 @@
-export type AutoSyncStatus = { phase: "idle" | "disabled" | "credentials" | "empty" | "syncing" | "ready" | "error"; updatedAt?: string; message?: string };
+import { KodlandAutoSyncBusyError } from "./kodland-sync-lock";
+export type AutoSyncStatus = { phase: "idle" | "paused" | "disabled" | "credentials" | "empty" | "syncing" | "ready" | "error"; updatedAt?: string; message?: string };
 export type AutoSyncContext = { enabled: boolean; groups: string[]; updatedAt: Record<string, string>; blockedGroups?: string[] };
 export type AutoSyncDependencies = {
   owner: () => boolean;
@@ -21,6 +22,7 @@ export function createKodlandAutoSync(deps: AutoSyncDependencies) {
     async tick({ active, online, following }: { active: boolean; online: boolean; following: boolean }) {
       const now = deps.now ?? Date.now;
       if (!active || !online || !deps.owner() || running || now() < retryAt) return;
+      if (deps.available?.() === false) { deps.status({ phase: "paused", message: "Atualização automática pausada durante a sincronização manual ou gravação em andamento." }); return; }
       const enteringFollowup = following && !wasFollowing;
       wasFollowing = following;
       if (!enteringFollowup && lastScan && now() - lastScan < 60000) return;
@@ -41,7 +43,8 @@ export function createKodlandAutoSync(deps: AutoSyncDependencies) {
         if (!deps.owner()) return;
         if (!credentials) { deps.status({ phase: "credentials", message: "Salve o acesso à Kodland em Configurações > Dados e backup para atualizar presença e atividades automaticamente." }); return; }
         for (let index = 0; index < due.length; index++) {
-          if (!deps.owner() || deps.available?.() === false) return;
+          if (!deps.owner()) return;
+          if (deps.available?.() === false) { deps.status({ phase: "paused", message: "Atualização automática pausada durante a sincronização manual ou gravação em andamento." }); return; }
           deps.status({ phase: "syncing", message: `Atualizando presença e atividades: turma ${index + 1} de ${due.length}…` });
           await deps.sync(due[index], credentials);
           if (!deps.owner()) return;
@@ -51,6 +54,7 @@ export function createKodlandAutoSync(deps: AutoSyncDependencies) {
         deps.status({ phase: "ready", updatedAt: new Date(now()).toISOString() });
       } catch (reason) {
         if (!deps.owner()) return;
+        if (reason instanceof KodlandAutoSyncBusyError) { deps.status({ phase: "paused", message: reason.message }); return; }
         failures++;
         retryAt = now() + Math.min(30, 2 ** failures) * 60000;
         deps.status({ phase: "error", message: `${reason instanceof Error ? reason.message : "Não foi possível atualizar a Kodland."} Os dados anteriores foram preservados; uma nova tentativa será feita automaticamente.` });

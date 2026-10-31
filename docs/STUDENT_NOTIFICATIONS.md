@@ -18,13 +18,15 @@ Com integração ativa, turmas já importadas e acesso salvo em Configurações 
 a aplicação atualiza presença e progresso de atividades automaticamente: a cada 5 minutos
 em Acompanhamento e 15 minutos nas outras telas. Funciona com a aplicação aberta, aba
 visível e conexão disponível; retoma ao voltar à aba ou à rede. Sem credenciais, o sino
-orienta o usuário. Não existe job com a aplicação fechada.
+orienta o usuário. A primeira tentativa ocorre após 30 s; foco/rede antes disso não antecipam a inicialização. O agendador verifica a cada 30 s e consulta o estado no máximo uma vez por minuto (salvo entrada em Acompanhamento). Não existe job com a aplicação fechada.
 
 A consulta automática usa o modo de correções por turma com `refresh_schedule:false`:
 não busca perfis de responsáveis, catálogo de cursos, materiais, pagamentos ou extras.
 Requer uma importação inicial completa para conhecer agenda, alunos e classificação
 dos materiais. A consulta autorizada de turmas também atualiza a condição de arquivo
 das turmas já conhecidas, retirando turmas arquivadas dos alertas.
+
+A automática só executa se conseguir o lock imediatamente (`ifAvailable`): não entra na fila manual. Abrir o modal de sincronização pausa novas atualizações automáticas nessa aba; a carga completa reserva prioridade durante todas as etapas, também entre abas com Web Locks. Ocupação da fila mostra Pausada, sem contar como falha nem marcar turma como atualizada. Uma escrita que já começou termina antes de liberar o lock; não é interrompida à força.
 
 Operações manuais/automáticas são serializadas por UID e por Web Locks entre abas
 compatíveis. Sem Web Locks, a coordenação é local à sessão. A última conclusão por turma

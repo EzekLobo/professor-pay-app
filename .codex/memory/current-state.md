@@ -1,5 +1,14 @@
 # Estado atual
 
+## Prioridade manual sobre automática — 31/10/2026
+
+- Mantidos5min por turma em Acompanhamento/15min fora, tick30s/scan60s e backoff2/4/8/16/30min. Primeira tentativa agora30s (antes1,5s); eventos de foco/rede respeitam o aquecimento. Só app visível/online, integração ativa, turmas e credenciais salvas.
+- withKodlandAutoSyncLock usa ifAvailable nos gates de intenção manual e escrita, nunca enfileira automática. Estado Paused não é erro/backoff nem conclui turma. Corrida simultânea manual antes da execução automática dá vez à manual; callbacks async de Web Locks evitam falhas de rejeição síncrona.
+- Modal DataContent pausa novas automáticas na aba (contador por UID); syncAll reserva gate exclusivo de intenção manual em todas as etapas, coordenado entre abas com Web Locks. Gate distinto do write evita aquisição recursiva. Captura UID antes de esperar e valida antes de iniciar. Escrita já enviada é aguardada, sem force-unlock/cancelamento fictício.
+- Auto também usa watchdog90s/progresso/guardas; se gravação não se resolver, raw lock continua protegendo dados e próximos ticks pausam sem acumular novas requisições. Foto de lock ocupado não identifica sozinha se origem é automática ou manual anterior. Novidade2026103107.
+- 359 unitários aprovados,18 de coordenação repetidos após ajuste de declaração,9 E2E de modal/dados/notificações, lint/typecheck/build aprovados. Sem produção autenticada real.
+
+
 ## Firebase mobile e dados de atividades — 31/10/2026
 
 - firebase.ts inicializa Firestore no browser com long-polling forçado/timeout15s, sem streaming autodetect; servidor preserva getFirestore padrão. Mitiga buffers WebChannel em redes/proxies móveis; requer recarga porque a configuração é de inicialização. Não há evidência de logs da conta real para atribuir definitivamente o travamento ao transporte.

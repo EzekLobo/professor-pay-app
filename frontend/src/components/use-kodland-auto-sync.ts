@@ -1,4 +1,6 @@
 "use client";
+import { kodlandAutoSyncAvailable } from "@/lib/kodland-sync-lock";
+import { watchKodlandSync } from "@/lib/kodland-sync-client";
 import { classifyOperationError } from "@/lib/operation-log";
 import { reportOperation } from "@/lib/operation-log-client";
 import { useEffect, useState } from "react";
@@ -17,7 +19,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean) {
     const owner = () => !disposed && getFirebaseAuth().currentUser?.uid === uid;
     const controller = createKodlandAutoSync({
       owner,
-      available: () => document.visibilityState === "visible" && navigator.onLine,
+      available: () => document.visibilityState === "visible" && navigator.onLine && kodlandAutoSyncAvailable(uid),
       context: async () => {
         const preferences = await tutorPreferencesApi.get();
         if (!owner() || !preferences.kodland_enabled) return { enabled: false, groups: [], updatedAt: {} };
@@ -25,15 +27,16 @@ export function useKodlandAutoSync(uid: string, demo: boolean) {
         return { enabled: true, groups: groups.items.filter(group => !group.archived).map(group => group.external_id), ...state };
       },
       credentials: restoreKodlandCredentials,
-      sync: (groupId, credentials) => kodlandApi.sync(credentials.username, credentials.password, "corrections", { correctionGroupIds: [groupId], refreshSchedule: false }),
+      sync: (groupId, credentials) => watchKodlandSync((report, assertActive) => kodlandApi.sync(credentials.username, credentials.password, "corrections", { correctionGroupIds: [groupId], refreshSchedule: false, onProgress: report, assertActive }), message => { if (owner()) setStatus({ phase: "syncing", message }); }),
       status: value => { if (owner()) {
         setStatus(value);
         if (value.phase === "credentials" || value.phase === "empty") reportOperation("kodland_auto_sync", "warning", { trigger: "automatic", errorCode: value.phase === "credentials" ? "credentials_missing" : "groups_missing" }, 15 * 60000);
         if (value.phase === "error") reportOperation("kodland_auto_sync", "error", { trigger: "automatic", errorCode: classifyOperationError({ message: value.message }) });
       } },
     });
+    const readyAt = Date.now() + 30000;
     const tick = async () => {
-      if (ticking || disposed || document.visibilityState !== "visible" || !navigator.onLine) return;
+      if (Date.now() < readyAt || ticking || disposed || document.visibilityState !== "visible" || !navigator.onLine) return;
       ticking = true;
       const run = async () => {
         if (disposed) return;
@@ -45,7 +48,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean) {
       } finally { ticking = false; }
     };
     const run = () => { void tick().catch(() => undefined); };
-    const first = window.setTimeout(run, 1500);
+    const first = window.setTimeout(run, 30000);
     const interval = window.setInterval(run, 30000);
     window.addEventListener("focus", run); window.addEventListener("online", run); document.addEventListener("visibilitychange", run);
     return () => { disposed = true; clearTimeout(first); clearInterval(interval); window.removeEventListener("focus", run); window.removeEventListener("online", run); document.removeEventListener("visibilitychange", run); };

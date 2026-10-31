@@ -3696,3 +3696,23 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .activity-missing-preview { max-height: 180px; overflow-y: auto; padding-left: 20px; margin: 0; }
 .activity-missing-preview li { padding: 5px 0; overflow-wrap: anywhere; font-size: .78rem; }
 .activity-missing-preview li strong, .activity-missing-preview li span { display: block; }
+
+/* Keep all WhatsApp content inside the dialog, including with the mobile keyboard. */
+.modal-dialog.attendance-whatsapp-modal {
+  position: fixed;
+  inset: 12px;
+  margin: auto;
+  max-height: min(900px, calc(100dvh - 24px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.attendance-whatsapp-modal .attendance-whatsapp-form { min-width: 0; gap: 12px; }
+.attendance-whatsapp-modal textarea.input { min-height: 120px; max-height: 240px; }
+.activity-missing-empty { display: grid; gap: 8px; }
+@media (max-width: 760px) {
+  .attendance-whatsapp-modal .form-actions { gap: 8px; }
+  .attendance-whatsapp-modal .form-actions .button { min-height: 44px; font-size: .8rem; }
+}
+
+.activity-missing-controls { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: end; gap: 8px; }

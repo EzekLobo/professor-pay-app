@@ -1,5 +1,13 @@
 # Estado atual
 
+## Correção do modal e módulo das pendências — 31/10/2026
+
+- Modal WhatsApp passa a fixed/overflow-y:auto/dvh limitado, anulando overflow:visible global. Textarea5linhas/120–240px mantém formulário e ações dentro da moldura. Verificado320/390/1440px e redução a520px de altura, com clique real em Inserir/Cancelar.
+- Fonte normalizada adiciona lessonCodes local (não entra em notificações persistidas), via attendanceLessonParts/catálogo. Módulo e código da listagem usam esse mapa, corrigindo aulas com module_number e título sem MxLy. Teste de regressão usa título Adicionando moedas/módulo7.
+- ActivityMissingList reconsulta Firestore sem cache ao abrir/atualizar, preservando autorização/marcadores. Zero itens não mostra Inserir desativado: explica ausência, orienta atualizar Acompanhamento quando faltam registros e oferece Ver todos os módulos quando há pendências fora do filtro. Reconsultar usa ícone ao lado do seletor, sem chamar Kodland automaticamente.
+- 340 unitários, lint/typecheck e11 E2E afetados aprovados; inclui módulo vazio com pendências em outro módulo, trocar para todos/inserir, modal contido e altura520px. Inspeção visual320px.
+
+
 ## Não entregas por módulo na mensagem — 31/10/2026
 
 - ActivityMissingList no modal WhatsApp de Atividades e resolução de alertas de atividades: checkbox opcional, prévia, módulo específico/todos, inserção preservando texto e substituindo bloco anterior intacto. Default módulo da última aula encerrada daquele aluno/turma; unknown explícito se não houver código. Não presume módulo de pendência antiga nem aulas futuras. Novidade2026103106.

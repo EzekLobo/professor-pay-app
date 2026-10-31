@@ -783,7 +783,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
           {!whatsAppDraft.phone.trim() && <p className="muted">{whatsAppDraft.guardian ? "Telefone do responsável não cadastrado. Informe o número para enviar." : "Informe o número para enviar."}</p>}
           {whatsAppDraft.activityTarget && notifications && <ActivityMissingList key={`${whatsAppDraft.activityTarget.source}:${whatsAppDraft.activityTarget.class_id}:${whatsAppDraft.activityTarget.student_id}`} target={whatsAppDraft.activityTarget} loadSource={notifications.activitySource} onInsert={(block, previous) => setWhatsAppDraft(current => current ? { ...current, message: previous && current.message.includes(previous) ? current.message.replace(previous, block) : `${current.message.trimEnd()}\n\n${block}` } : current)} />}
           <label className="field">Mensagem
-            <textarea aria-label="Mensagem" className="input" rows={10} value={whatsAppDraft.message} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, message: event.target.value } : current)} />
+            <textarea aria-label="Mensagem" className="input" rows={5} value={whatsAppDraft.message} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, message: event.target.value } : current)} />
           </label>
           <div className="form-actions">
             <Button type="button" className="button-ghost" onClick={() => setWhatsAppDraft(null)}>Cancelar</Button>

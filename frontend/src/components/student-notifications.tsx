@@ -28,7 +28,7 @@ type NotificationContext = {
   confirm: (item: NotificationCase) => Promise<void>;
   read: (item: NotificationCase) => Promise<void>;
   contact: (item: StudentNotification, name: string, phone: string) => Promise<void>;
-  activitySource: () => Promise<NotificationSource>;
+  activitySource: (force?: boolean) => Promise<NotificationSource>;
   absenceTemplate: string;
   autoSync: AutoSyncStatus;
 };
@@ -96,7 +96,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
     settings, cases, warnings, error, loading, updated, demo, absenceTemplate, autoSync,
     refresh: (force) => refresh(force),
     save: async input => { await observeOperation("notifications_settings", () => store.saveSettings(input)); await refresh(true); },
-    activitySource: () => source(settings ?? defaultNotificationSettings()),
+    activitySource: (force = false) => source(settings ?? defaultNotificationSettings(), force),
     preview: async input => { const checked = validateNotificationSettings(input); const data = await source(checked, true); return evaluateStudentNotifications(data.lessons, data.obligations, checked, new Date()).length; },
     read: item => store.markRead(item.id, item.notification.revision),
     confirm: async item => { await observeOperation("notifications_contact", () => store.confirmContact(item.id, item.notification.revision)); await refresh(); },

@@ -1,5 +1,5 @@
 import { kodlandApi, manualOperationsApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandStudent } from "./api";
-import { attendanceDateFromSchedule, lessonForAttendance } from "./attendance-schedule";
+import { attendanceDateFromSchedule, attendanceLessonParts, lessonForAttendance } from "./attendance-schedule";
 import type { DemoSnapshot } from "./demo-snapshot";
 import type { KodlandLesson } from "./kodland-lessons";
 import type { ManualActivity } from "./manual-pedagogy";
@@ -16,7 +16,7 @@ export type NotificationSourceSnapshot = {
   groups: KodlandGroup[]; students: KodlandStudent[]; attendance: KodlandAttendance[]; lessons: KodlandLesson[];
   taskProgress?: KodlandTaskProgress[];
 };
-export type NotificationSource = { lessons: NotificationLesson[]; obligations: NotificationObligation[]; warnings: string[]; loaded_at: string };
+export type NotificationSource = { lessonCodes?: Record<string, string>; lessons: NotificationLesson[]; obligations: NotificationObligation[]; warnings: string[]; loaded_at: string };
 export function normalizeNotificationSource(snapshot: NotificationSourceSnapshot, settings: NotificationSettings): NotificationSource {
   const lessons: NotificationLesson[] = [];
   const obligations: NotificationObligation[] = [];
@@ -73,7 +73,12 @@ export function normalizeNotificationSource(snapshot: NotificationSourceSnapshot
     obligations.push({ id: progress.id, source: "kodland", class_id: group.external_id, student_id: student.external_id, occurrence_id: progress.lesson_id, title: progress.task_title, kind, due_at: null, state: progress.state, required: true, exempt: false });
   }
   if (snapshot.groups.some(item => !item.archived) && !(snapshot.taskProgress?.length)) warnings.add("Sincronize Acompanhamento para carregar o progresso das atividades Kodland. A fila de correções sozinha não identifica quem deixou de entregar.");
-  return { lessons, obligations, warnings: [...warnings], loaded_at: new Date().toISOString() };
+  const lessonCodes: Record<string, string> = {};
+  for (const item of lessons.filter(item => item.source === "kodland")) {
+    const parts = attendanceLessonParts({ external_class_id: item.class_id, lesson_id: item.occurrence_id, lesson_title: item.lesson_label } as KodlandAttendance, snapshot.lessons);
+    if (parts.module) lessonCodes[`${item.class_id}:${item.occurrence_id}`] = `${parts.module}${parts.lesson}`;
+  }
+  return { lessons, obligations, lessonCodes, warnings: [...warnings], loaded_at: new Date().toISOString() };
 }
 const cache = new Map<string, { expires: number; promise: Promise<NotificationSourceSnapshot> }>();
 export function clearStudentNotificationSourceCache() { cache.clear(); }

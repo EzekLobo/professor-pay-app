@@ -5,7 +5,7 @@ import { subscribeStudentNotifications } from "@/lib/student-notification-store"
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type WheelEvent } from "react";
-import { MessageCircle, RefreshCw } from "lucide-react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Group, ClipboardCheck, Users } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -456,7 +456,7 @@ export function CompactActivitiesGrid({
       const gridStyle = { "--attendance-columns": classModel.columns.length } as CSSProperties;
       return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
         <summary className="correction-class-heading">
-          <div><h3>{classModel.name}</h3><span>{classModel.rows.length} aluno{classModel.rows.length === 1 ? "" : "s"}</span></div>
+          <div><h3>{classModel.name}</h3><span aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={13} aria-hidden="true" />{classModel.rows.length}</span></div>
           <span className="correction-disclosure" aria-hidden="true">⌄</span>
         </summary>
         <div className="correction-class-body attendance-class-body">
@@ -477,9 +477,9 @@ export function CompactActivitiesGrid({
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
                 return <div className="compact-activity-cell" role={pendingOnly ? "group" : "gridcell"} key={column.key}>
                   {pendingOnly && <><strong className="compact-pending-lesson">{column.lessonLabel}</strong><small className="compact-pending-task" title={column.taskLabel}>{column.taskLabel}</small></>}
-                  {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} data-tooltip={column.taskLabel} onClick={() => onCorrectManual(cell.activity)}>Corrigir</button>
-                    : demo ? <button type="button" className="compact-activity-action" aria-label={label} data-tooltip={column.taskLabel} onClick={() => demo.onCorrect(cell.review)}>Corrigir</button>
-                      : <a className="compact-activity-action" aria-label={label} data-tooltip={column.taskLabel} href={cell.review.correction_url} target="_blank" rel="noreferrer">Corrigir</a>}
+                  {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} data-tooltip={column.taskLabel} onClick={() => onCorrectManual(cell.activity)}><ClipboardCheck size={18} aria-hidden="true" /></button>
+                    : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} data-tooltip={column.taskLabel} onClick={() => demo.onCorrect(cell.review)}><ClipboardCheck size={18} aria-hidden="true" /></button>
+                      : <a className="compact-activity-action" aria-label={label} title={label} data-tooltip={column.taskLabel} href={cell.review.correction_url} target="_blank" rel="noreferrer"><ClipboardCheck size={18} aria-hidden="true" /></a>}
                 </div>;
               })}
             </div>)}
@@ -519,13 +519,14 @@ function ReviewCard({
       </div>
       <div className="card-actions">
         <LessonLinks lesson={lesson} demo={demo} />
-        {demo ? <button type="button" className="button button-primary correction-action" onClick={() => demo.onCorrect(review)}>Corrigir</button> : <a
+        {demo ? <button type="button" className="button button-primary correction-action" aria-label="Corrigir" title="Corrigir atividade" onClick={() => demo.onCorrect(review)}><ClipboardCheck size={18} aria-hidden="true" /></button> : <a
           className="button button-primary correction-action"
+          aria-label="Corrigir" title="Corrigir atividade"
           target="_blank"
           rel="noreferrer"
           href={review.correction_url}
         >
-          Corrigir
+          <ClipboardCheck size={18} aria-hidden="true" />
         </a>}
       </div>
     </article>
@@ -826,19 +827,19 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
         </nav>
         <div className={`correction-heading-actions${viewMode === "activities" ? " correction-heading-actions-activities" : ""}${viewMode === "activities" && activitiesView === "compact" ? " correction-heading-actions-compact" : ""}`} data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
             {viewMode === "attendance" ? (
-              <label className="correction-toolbar-control"><span>Mostrar</span><select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>
+              <label className="correction-toolbar-control"><span className="correction-control-symbol" title="Filtrar"><Filter size={17} aria-hidden="true" /><span className="sr-only">Mostrar</span></span><select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>
                 <option value="ABSENT">Faltas</option>
                 <option value="ALL">Todos</option>
                 <option value="PRESENT">Presentes</option>
               </select></label>
             ) : (
               <>
-              <div className="correction-toolbar-control"><span>Visualização</span><div className="correction-view-switch correction-activity-view-switch" role="group" aria-label="Formato de visualização das atividades">
-                <button type="button" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}>Lista</button>
-                <button type="button" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}>Compacto</button>
+              <div className="correction-toolbar-control"><span className="correction-control-symbol" title="Visualização"><LayoutGrid size={17} aria-hidden="true" /><span className="sr-only">Visualização</span></span><div className="correction-view-switch correction-activity-view-switch" role="group" aria-label="Formato de visualização das atividades">
+                <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>
+                <button type="button" aria-label="Compacto" title="Visualização compacta" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}><LayoutGrid size={18} aria-hidden="true" /></button>
               </div></div>
-              {activitiesView === "compact" && <label className="correction-toolbar-control"><span>Mostrar</span><select className="input correction-header-select" aria-label="Filtrar atividades" value={pendingOnly ? "pending" : "all"} onChange={event => setPendingOnly(event.target.value === "pending")}><option value="pending">Somente pendências</option><option value="all">Todos os alunos</option></select></label>}
-              {activitiesView === "list" && <label className="correction-toolbar-control"><span>Agrupar por</span><select className="input correction-header-select" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}>
+              {activitiesView === "compact" && <label className="correction-toolbar-control"><span className="correction-control-symbol" title="Filtrar"><Filter size={17} aria-hidden="true" /><span className="sr-only">Mostrar</span></span><select className="input correction-header-select" aria-label="Filtrar atividades" value={pendingOnly ? "pending" : "all"} onChange={event => setPendingOnly(event.target.value === "pending")}><option value="pending">Somente pendências</option><option value="all">Todos os alunos</option></select></label>}
+              {activitiesView === "list" && <label className="correction-toolbar-control"><span className="correction-control-symbol" title="Agrupar por"><Group size={17} aria-hidden="true" /><span className="sr-only">Agrupar por</span></span><select className="input correction-header-select" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}>
                 <option value="class">Turma</option>
                 <option value="student">Aluno</option>
                 <option value="lesson">Aula</option>
@@ -899,7 +900,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
                 <StatusBadge tone="warning">Entregue</StatusBadge>
               </div><p className="correction-card-lesson">Aula {item.occurrence_id.split(":").at(-1)}</p>
                 <p className="correction-card-task"><span>Atividade</span>{item.title}</p></div>
-              <div className="card-actions"><Button type="button" className="correction-action" onClick={() => { setEditingManual(item); setFeedback(item.feedback); }}>Corrigir</Button></div>
+              <div className="card-actions"><Button type="button" className="correction-action" aria-label="Corrigir" title="Corrigir atividade" onClick={() => { setEditingManual(item); setFeedback(item.feedback); }}><ClipboardCheck size={18} aria-hidden="true" /></Button></div>
             </article>;
             return <details className="correction-class-group" key={`manual:${className}`}>
               <summary className="correction-class-heading"><div><h3>{className}</h3><span>{classActivities.length} pendência{classActivities.length === 1 ? "" : "s"}</span></div><span className="correction-disclosure" aria-hidden="true">⌄</span></summary>

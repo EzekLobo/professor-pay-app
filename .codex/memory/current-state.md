@@ -1,5 +1,11 @@
 # Estado atual
 
+## Controles com símbolos — 31/10/2026
+
+- Acompanhamento usa ícones com aria-label/title para Lista/Compacto, filtro/agrupamento e correção (lista e grade); contagem compacta usa Users+número. Pagamentos usa ícone de gráfico para Ver detalhes. Valores selecionados dos filtros, destinos/abas e confirmações mantêm texto. Ações com mínimo44px; rótulos visuais do toolbar viraram símbolos sem perder nomes acessíveis.
+- 26 E2E de interface/pendências/WhatsApp passam em320/390/520/768/1440px; lint/typecheck aprovados. Screenshot compacto320px inspecionado.
+
+
 ## Padronização mobile — 31/10/2026
 
 - Acompanhamento em até760px tem filtros em linhas próprias, busca+atualizar lateral, abas/cabeçalhos/legenda compactos. Pendências usam lista responsiva por aluno, sem sticky/rolagem horizontal; modo Todos mantém grade com coluna fixa124px e aulas64px, ações44px. Desktop preservado.

@@ -3625,3 +3625,15 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .week-navigation .button.compact { width: 44px; min-width: 44px; min-height: 44px; padding: 6px; }
   .payment-visibility-toggle { width: 44px; min-width: 44px; height: 44px; }
 }
+
+/* Symbol controls retain their accessible labels and a comfortable touch target. */
+.correction-control-symbol { display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+.correction-view-switch button { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 8px; }
+.correction-class-heading > div > span { display: inline-flex; align-items: center; gap: 5px; }
+.compact-activity-action, .correction-action, .symbol-action { min-width: 44px; min-height: 44px; }
+.correction-action, .symbol-action { width: 44px; padding: 8px; flex-shrink: 0; }
+@media (max-width: 760px) {
+  .correction-heading-actions > .correction-toolbar-control { grid-template-columns: 24px minmax(0, 1fr); }
+  .correction-heading-actions .correction-activity-view-switch { justify-self: start; }
+  .correction-view-switch button { flex: 0 0 44px; }
+}

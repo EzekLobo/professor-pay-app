@@ -16,7 +16,7 @@ import { kodlandApi, manualTeachingApi, tutorPreferencesApi } from "@/lib/api";
 import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import { DEFAULT_ABSENCE_MESSAGE } from "@/lib/manual-operations";
 import { defaultNotificationSettings, validateActivityMessageTemplate, validateNotificationSettings, evaluateStudentNotifications, needsNotificationContact, notificationMessage, notificationTarget, type NotificationCase, type NotificationSettings, type StudentNotification } from "@/lib/student-notification-rules";
-import { clearStudentNotificationSourceCache, demoStudentNotificationSource, loadStudentNotificationSource, type NotificationSource } from "@/lib/student-notification-source";
+import { clearStudentNotificationSourceCache, demoStudentNotificationSource, loadStudentNotificationSource, loadBrowserKodlandNotificationSource, type NotificationSource } from "@/lib/student-notification-source";
 import { createDemoStudentNotificationStore, createStudentNotificationStore, subscribeStudentNotifications, notifyStudentNotificationsChanged } from "@/lib/student-notification-store";
 import { whatsappUrl } from "@/lib/whatsapp";
 
@@ -116,7 +116,11 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
     settings, cases, warnings, error, loading, updated, demo, absenceTemplate, autoSync,
     refresh: (force) => refresh(force),
     save: async input => { await observeOperation("notifications_settings", () => store.saveSettings(input)); await refresh(true); },
-    activitySource: (force = false) => source(settings ?? defaultNotificationSettings(), force),
+    activitySource: async (force = false) => {
+      const value = settings ?? defaultNotificationSettings();
+      if (!demo && (await kodlandApi.browserState())?.active) return loadBrowserKodlandNotificationSource(uid, value);
+      return source(value, force);
+    },
     preview: async input => { const checked = validateNotificationSettings(input); const data = await source(checked, true); return evaluateStudentNotifications(data.lessons, data.obligations, checked, new Date()).length; },
     read: item => store.markRead(item.id, item.notification.revision),
     confirm: async item => { await observeOperation("notifications_contact", () => store.confirmContact(item.id, item.notification.revision)); await refresh(); },

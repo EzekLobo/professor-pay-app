@@ -60,3 +60,9 @@ Comparar conteúdo antes de gerar escritas, com timestamps técnicos fora da igu
 
 - Adiar IndexedDB conforme usuário; aplicar cadências na arquitetura existente. Presença deve seguir fim real de cada aula (+30min, retry>=+60min/30min entre tentativas, máximo2), não ciclo de6h. Progresso de atividades segue6h/turma, cadastros/grade diária e metadados de link pré-aula. Pagamentos continuam manuais nesta etapa.
 - Separar consultas e marcadores de atividades/presença: atualizar presença não adia a atualização de atividades. Cache de sessão reduz leituras periódicas Firebase; reavaliação de alertas pelo relógio é local, sem transação se nada mudou. Login/admin/config/coleções persistidas não migrados.
+
+## 31/10/2026 — Cache persistente de recuperação com escolha explícita
+
+- Entregar modo opt-in IndexedDB para dados recuperáveis Kodland durante indisponibilidade Firestore; manter autenticação e dados próprios remotos. A cópia local pode ser a fonte sem participar da fila de gravação Firebase. Nenhum dado próprio é movido ou conciliado como vazio.
+- Snapshot por UID confirmado atomicamente; modo e controles locais persistidos. Operações de backup/restauração/reset continuam lendo base remota, nunca uma sobreposição de cache. Retorno a Firebase é uma nova consulta autorizada/confirmada, não upload cego de overlays locais.
+- Não usar fonte parcial Kodland de mensagem para reconciliar alertas globais. Não sinalizar carga local inicial completa sem cobrir presença e atividades das turmas ativas.

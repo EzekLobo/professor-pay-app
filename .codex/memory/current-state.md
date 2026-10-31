@@ -1,5 +1,15 @@
 # Estado atual
 
+## Modo local emergencial Kodland — 31/10/2026
+
+- Usuário relatou quota Firestore esgotada e pediu atualização sem gravação remota. Opção Salvar somente neste navegador no modal usa IndexedDB nexusclass-kodland-v1/accounts por UID, sem credenciais/tokens, confirmado em transaction.oncomplete. Fonte ativa persiste após recarga; falha aborta e preserva snapshot anterior.
+- sync/syncAll locais consultam backend autorizado e não usam filas/leituras/gravações de dados Firestore. Web Lock local independente evita aguardar commit Firebase travado. Core+corrections por turma; materiais apenas ao abrir, URLs/metadados no cache; sem importação de folha no modo local. Cadências anteriores reutilizam controle e dados locais.
+- API getters Kodland leem cópia ativa; Resumo mostra agenda sem inventar financeiro, Turmas/Aulas/Acompanhamento não aguardam dados próprios indisponíveis. Configurações/data tem recuperação mesmo com preferências Firebase pendentes/falhas; cartão sync real não depende de preferências carregadas. Banner global informa dados só neste navegador.
+- Config/admin/login/tarefas/notas/confirmações seguem Firebase. Preferências reais não são substituídas por defaults. Fonte individual de mensagem pode usar dados Kodland locais; reconciliação global não recebe fonte parcial e exige cobertura de atividade+presença por turma. Alertas próprios ficam preservados na indisponibilidade.
+- allRows permanece remoto por padrão (export/import/reset/reconciliação), taskProgress usa cache explicitamente. Retorno selecionando Firebase compara base remota, só desativa cópia após core/acompanhamento concluídos; import remoto confirmado desativa cache, reset confirmado limpa. Sem flush diário/cópia automática de dados próprios, PWA/offline do shell ou download de slides. docs/KODLAND_BROWSER_CACHE.md; novidade2026103110.
+- Validação:390unitários/61arquivos,11E2E de IndexedDB real/recarga/UID/aborto/modal/notificações/dados, lint/typecheck/build. Fluxos mockados provam que Firestore e fila remota recusados não bloqueiam local; retorno remoto não confunde cache com documento gravado. Quota/deploy real não verificados.
+
+
 ## Cadências Kodland por necessidade — 31/10/2026
 
 - Usuário adiou IndexedDB: manter Firebase e reduzir consultas. kodland-sync-policy define atividades6h/turma; presença30min após fim, segunda a partir de60min e espaçamento30min, máximo2incluindo falhas, recuperaçãoaté24h; diária turmas/alunos/grade+cronograma compartilhado; metadados do link na janela pré-aula15min. Pagamentos permanecem manuais (nenhum agendamento mensal/janela5dias ativado). Só app aberto/visível/online+credenciais; horários SãoPaulo e ocorrência real; não presume falta de UNKNOWN nem pagamento por data.

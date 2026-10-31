@@ -35,7 +35,8 @@ export function useKodlandAutoSync(uid: string, demo: boolean) {
       context: async () => {
         if (disabledUntil > Date.now()) return { enabled: false, groups: [], updatedAt: {} };
         if (!cache || cache.until <= Date.now()) {
-          const preferences = await readKodlandLocal(() => tutorPreferencesApi.get(), crypto.randomUUID(), "Preferências da atualização automática");
+          const browserOnly = Boolean((await kodlandApi.browserState())?.active);
+          const preferences = browserOnly ? { kodland_enabled: true } : await readKodlandLocal(() => tutorPreferencesApi.get(), crypto.randomUUID(), "Preferências da atualização automática");
           if (!owner() || !preferences.kodland_enabled) { disabledUntil = Date.now() + 6 * 3600000; return { enabled: false, groups: [], updatedAt: {} }; }
           const [groups, state, lessons, students, states, schedule] = await readKodlandLocal(() => Promise.all([kodlandApi.groups(), kodlandApi.followupState(), kodlandApi.lessons(), kodlandApi.students(), kodlandApi.automaticState(), kodlandApi.scheduleLastUpdatedAt()]), crypto.randomUUID(), "Contexto da atualização automática");
           if (!owner()) return { enabled: false, groups: [], updatedAt: {} };

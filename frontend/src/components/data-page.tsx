@@ -1,4 +1,5 @@
 "use client";
+import { KodlandBrowserStorageError } from "@/lib/kodland-browser-cache";
 import { pauseKodlandAutoSync } from "@/lib/kodland-sync-lock";
 import { reportOperation } from "@/lib/operation-log-client";
 import { watchKodlandSync, KodlandSyncWaitError } from "@/lib/kodland-sync-client";
@@ -42,7 +43,7 @@ export interface DataDemoAdapter {
   kodlandEnabled?: boolean;
 }
 
-export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
+export function DataContent({ demo, initialBrowserOnly = false }: { demo?: DataDemoAdapter; initialBrowserOnly?: boolean }) {
   const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
   const [preview, setPreview] = useState<ImportReport | null>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
@@ -57,6 +58,8 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
   const [syncProgress, setSyncProgress] = useState("");
   const [syncUsername, setSyncUsername] = useState("");
   const [syncPassword, setSyncPassword] = useState("");
+  const [browserOnly, setBrowserOnly] = useState(initialBrowserOnly);
+  const [integrationUnavailable, setIntegrationUnavailable] = useState(false);
   const [saveCredentials, setSaveCredentials] = useState(true);
   const [storedKodlandEnabled, setStoredKodlandEnabled] = useState(false);
   const kodlandEnabled = demo ? demo.kodlandEnabled === true : storedKodlandEnabled;
@@ -68,7 +71,11 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
 
   useEffect(() => {
     if (demo) return;
-    void tutorPreferencesApi.get().then((preferences) => setStoredKodlandEnabled(preferences.kodland_enabled)).catch(() => setStoredKodlandEnabled(false));
+    void kodlandApi.browserState().then(async state => {
+      if (state?.active) { setStoredKodlandEnabled(true); setBrowserOnly(true); return; }
+      const preferences = await tutorPreferencesApi.get();
+      setStoredKodlandEnabled(preferences.kodland_enabled);
+    }).catch(() => { setIntegrationUnavailable(true); setBrowserOnly(true); });
   }, [demo]);
 
   const message = (reason: unknown) =>
@@ -84,6 +91,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
     setSyncProgress("");
     setSyncOpen(true);
     if (demo) return;
+    void kodlandApi.browserState().then(state => { if (state?.active) setBrowserOnly(true); }).catch(() => undefined);
     void restoreKodlandCredentials().then((credentials) => {
       if (!credentials) return;
       setSyncUsername((current) => current || credentials.username);
@@ -117,7 +125,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
     setSyncProgress("");
     try {
       let savedInBrowser = false;
-      const result = await watchKodlandSync((report, assertActive) => kodlandApi.syncAll(username, syncPassword, report, { assertActive }), setSyncProgress);
+      const result = await watchKodlandSync((report, assertActive) => kodlandApi.syncAll(username, syncPassword, report, { assertActive, storage: browserOnly ? "browser" : "firebase" }), setSyncProgress);
       if (saveCredentials) {
         try {
           if (!ownerId || getFirebaseAuth().currentUser?.uid !== ownerId) throw new Error("A conta conectada mudou durante a sincronização.");
@@ -129,9 +137,10 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       }
       setSyncPassword("");
       setSyncOpen(false);
+      if (result.storage === "browser") setStoredKodlandEnabled(true);
       if (result.payroll_warning) setError(`Aulas e turmas sincronizadas. Folha oficial: ${result.payroll_warning}`);
       setNotice(
-        `Sincronização concluída: ${result.group_count} turma(s), ${result.student_count} aluno(s), ${result.lesson_count} aula(s), ${result.extra_lesson_count} extra(s) e ${result.review_count} correção(ões).${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
+        `Sincronização concluída${result.storage === "browser" ? " somente neste navegador (sem enviar ao Firebase; pagamentos não atualizados)" : ""}: ${result.group_count} turma(s), ${result.student_count} aluno(s), ${result.lesson_count} aula(s), ${result.extra_lesson_count} extra(s) e ${result.review_count} correção(ões).${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
       );
     } catch (reason) {
       if (reason instanceof KodlandSyncWaitError) reportOperation("kodland_sync", "warning", { scope: "complete", trigger: "manual", errorCode: "timeout", reference: reason.syncId });
@@ -139,7 +148,8 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
         reason instanceof KodlandSyncWaitError ||
           reason instanceof ApiError ||
           reason instanceof KodlandSyncResponseError ||
-          reason instanceof KodlandSyncPersistenceError
+          reason instanceof KodlandSyncPersistenceError ||
+          reason instanceof KodlandBrowserStorageError
           ? reason.message
           : "Não foi possível sincronizar os dados da Kodland.",
       );
@@ -281,7 +291,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       >
         <form id="kodland-sync" name="kodland-sync" className="form management-form" autoComplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" onSubmit={synchronize}>
           <p className="muted">
-            Atualiza turmas, alunos, aulas, presença, materiais e pagamentos.
+            {browserOnly ? "Atualiza turmas, alunos, agenda, presença e atividades neste aparelho. Materiais são carregados ao abrir; pagamentos e dados próprios continuam no Firebase." : "Atualiza turmas, alunos, aulas, presença, materiais e pagamentos."}
           </p>
           {demo ? <p className="notice">Na demonstração, esta operação utiliza apenas dados fictícios e não solicita credenciais.</p> : <><label className="field">
             Usuário ou e-mail
@@ -318,6 +328,10 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
             />
           </label>
           <label className="sync-remember">
+            <input type="checkbox" name="browser_only" checked={browserOnly} disabled={busy} onChange={event => setBrowserOnly(event.target.checked)} />
+            <span>Salvar somente neste navegador (sem Firebase)</span>
+          </label>
+          <label className="sync-remember">
             <input
               name="save_credentials"
               type="checkbox"
@@ -346,7 +360,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
 
-      {kodlandEnabled && <section className="panel data-sync-card" data-tour="data-sync">
+      {(kodlandEnabled || integrationUnavailable || !demo) && <section className="panel data-sync-card" data-tour="data-sync">
         <div className="data-section-copy">
           <h2><RefreshCw size={19} aria-hidden="true" /> Sincronização Kodland</h2>
         </div>

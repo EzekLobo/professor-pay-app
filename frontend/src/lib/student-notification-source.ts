@@ -1,3 +1,4 @@
+import { readKodlandBrowser } from "./kodland-browser-cache";
 import { kodlandApi, manualOperationsApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandStudent } from "./api";
 import { attendanceDateFromSchedule, attendanceLessonParts, lessonForAttendance } from "./attendance-schedule";
 import type { DemoSnapshot } from "./demo-snapshot";
@@ -89,7 +90,8 @@ export async function loadStudentNotificationSource(uid: string, settings: Notif
   let current = cache.get(uid);
   if (force || !current || current.expires <= Date.now()) {
     const promise = (async (): Promise<NotificationSourceSnapshot> => {
-      const preferences = await tutorPreferencesApi.get();
+      const browserOnly = Boolean((await readKodlandBrowser(uid))?.active);
+      const preferences = browserOnly ? { kodland_enabled: true } : await tutorPreferencesApi.get();
       const before = preferences.kodland_enabled ? await kodlandApi.notificationSyncStatus() : null;
       if (before && before.status !== "complete") throw new Error("A sincronização Kodland está incompleta. Os alertas anteriores serão preservados; conclua uma sincronização para atualizar.");
       const [manualClasses, manualStudents, manualOccurrences, manualAttendance, manualActivities, groups, students, attendance, lessons, taskProgress] = await Promise.all([
@@ -112,3 +114,14 @@ export async function loadStudentNotificationSource(uid: string, settings: Notif
   return { ...normalizeNotificationSource(snapshot, settings), loaded_at: current.loadedAt };
 }
 export const demoStudentNotificationSource = (snapshot: DemoSnapshot, settings: NotificationSettings) => normalizeNotificationSource(snapshot.tutorPreferences.kodland_enabled ? snapshot : { ...snapshot, groups: [], students: [], attendance: [], lessons: [] }, settings);
+
+/** Individual Kodland message preview only; never use this partial source to reconcile global alerts. */
+export async function loadBrowserKodlandNotificationSource(uid: string, settings: NotificationSettings): Promise<NotificationSource> {
+  const owner = () => { if (getFirebaseAuth().currentUser?.uid !== uid) throw new Error("Sua conta foi alterada."); };
+  owner();
+  const state = await readKodlandBrowser(uid);
+  if (!state?.active) return loadStudentNotificationSource(uid, settings);
+  const [groups, students, attendance, lessons, taskProgress] = await Promise.all([kodlandApi.groups(), kodlandApi.students(), kodlandApi.attendance(), kodlandApi.lessons(), kodlandApi.taskProgress()]);
+  owner();
+  return normalizeNotificationSource({ manualClasses: [], manualStudents: [], manualOccurrences: [], manualAttendance: [], manualActivities: [], groups: groups.items, students: students.items, attendance: attendance.items, lessons: lessons.items, taskProgress: taskProgress.items }, settings);
+}

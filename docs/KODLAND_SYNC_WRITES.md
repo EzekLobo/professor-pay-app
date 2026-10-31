@@ -33,3 +33,7 @@ O usuário informou plano gratuito Spark. O uso real do projeto não foi consult
 Se o SDK devolver `resource-exhausted`, a interface informa limite de uso/capacidade com referência, sem repetir o lote ou aguardar outro marcador de falha no mesmo banco. Falhas de permissão/conexão também não aguardam esse marcador adicional. O estado remoto pode permanecer `running` como indicação conservadora de sincronização sem confirmação; isso não comprova uma operação ativa. Alertas continuam preservados até uma conclusão válida.
 
 A redução de escritas evita desperdício futuro; não restaura quota já consumida e não cancela commits pendentes. SDK pode continuar aguardando/repetindo internamente sem devolver um erro de quota; nesse caso a interface só pode informar o último lote confirmado e a referência. Referência oficial de limites: https://firebase.google.com/docs/firestore/quotas.
+
+## Alternativa quando o Firestore está indisponível
+
+A opção **Salvar somente neste navegador** mantém o snapshot Kodland no IndexedDB e não depende da fila/gravação de documentos Firestore. O restante da aplicação mantém suas dependências próprias. Ver [KODLAND_BROWSER_CACHE.md](KODLAND_BROWSER_CACHE.md) para escopo, ativação e retorno à base remota.

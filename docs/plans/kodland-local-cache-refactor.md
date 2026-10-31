@@ -1,3 +1,7 @@
+> Atualização adicional: foi entregue um modo emergencial opt-in de sincronização Kodland
+> em IndexedDB, descrito em [KODLAND_BROWSER_CACHE.md](../KODLAND_BROWSER_CACHE.md).
+> Não representa a conclusão da migração completa ou do offline/PWA propostos neste plano.
+
 > Atualização de 31/10/2026: a migração ampla para IndexedDB foi adiada pelo usuário.
 > A etapa entregue mantém Firebase e reduz as consultas usando cadências e cache de sessão
 > descritos em [STUDENT_NOTIFICATIONS.md](../STUDENT_NOTIFICATIONS.md). As políticas de cache

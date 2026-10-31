@@ -246,24 +246,25 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     setError("");
     const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
     const preferencesApi = demo?.manualAdapter?.preferences ?? tutorPreferencesApi;
-    const preferences = await preferencesApi.get().catch(() => ({ kodland_enabled: false }));
+    const localOnly = !demo && Boolean((await kodlandApi.browserState())?.active);
+    const preferences = localOnly ? { kodland_enabled: true } : await preferencesApi.get().catch(() => ({ kodland_enabled: false }));
     setKodlandEnabled(preferences.kodland_enabled);
     if (!preferences.kodland_enabled) { setGroups([]); setStudents([]); setLoading(false); return; }
     if (demo) {
       const currentSettings = await settingsApi.list();
       setGroups(demo.groups.filter((group) => !hiddenKodlandGroups.includes(group.external_id)).map((group) => ({ ...group, title: kodlandGroupNames[group.external_id] || group.title }))); setStudents(demo.students);
-      setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
+      if (currentSettings) setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
       setLoading(false); return;
     }
     try {
       const [groupResult, studentResult, currentSettings] = await Promise.all([
         kodlandApi.groups(),
         kodlandApi.students(),
-        settingsApi.list(),
+        localOnly ? Promise.resolve(null) : settingsApi.list(),
       ]);
       setGroups(groupResult.items.filter((group) => !hiddenKodlandGroups.includes(group.external_id)).map((group) => ({ ...group, title: kodlandGroupNames[group.external_id] || group.title })));
       setStudents(studentResult.items);
-      setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
+      if (currentSettings) setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
     } catch (reason) {
       setError(
         reason instanceof Error

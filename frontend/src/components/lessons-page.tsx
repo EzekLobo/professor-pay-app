@@ -58,15 +58,16 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const preferences = await preferencesApi.get();
+      const localOnly = !demoData && Boolean((await kodlandApi.browserState())?.active);
+      const preferences = localOnly ? { kodland_enabled: true } : await preferencesApi.get();
       setKodlandEnabled(preferences.kodland_enabled);
       if (demoData && preferences.kodland_enabled) {
         setCourseGroups(demoData.groups); setCourseLessons(demoData.lessons); setManualCourses(await coursesApi.list());
       } else if (demoData || !preferences.kodland_enabled) {
         setCourseGroups([]); setCourseLessons([]); setManualCourses(await coursesApi.list());
       } else {
-        const [groups, lessons, courses] = await Promise.all([kodlandApi.groups(), kodlandApi.lessons(), coursesApi.list()]);
-        setCourseGroups(groups.items.filter((group) => !group.archived)); setCourseLessons(lessons.items); setManualCourses(courses);
+        const [groups, lessons, courses] = await Promise.all([kodlandApi.groups(), kodlandApi.lessons(), localOnly ? Promise.resolve(null) : coursesApi.list()]);
+        setCourseGroups(groups.items.filter((group) => !group.archived)); setCourseLessons(lessons.items); if (courses) setManualCourses(courses);
       }
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível carregar os cursos."); }
     finally { setLoading(false); }

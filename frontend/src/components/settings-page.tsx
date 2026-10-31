@@ -114,7 +114,10 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
     finally { setAvailabilityBusy(false); }
   }
 
-  if (!preferences) return error ? <div><p className="form-error" role="alert">{error}</p><Button type="button" className="button-ghost" onClick={() => { setError(""); setLoadAttempt((value) => value + 1); }}>Tentar novamente</Button></div> : <p className="muted" role="status">Carregando configurações…</p>;
+  if (!preferences) {
+    if (section === "data") return <div>{error && <p className="form-error" role="alert">{error}</p>}{dataContent ?? <DataContent initialBrowserOnly />}</div>;
+    return <div>{error ? <><p className="form-error" role="alert">{error}</p><Button type="button" className="button-ghost" onClick={() => { setError(""); setLoadAttempt(value => value + 1); }}>Tentar novamente</Button></> : <p className="muted" role="status">Carregando configurações…</p>}<Button type="button" className="button-ghost" onClick={() => selectSection("data")}>Dados e backup</Button></div>;
+  }
   return <div className="settings-page settings-layout">
     <div className="settings-menu" role="tablist" aria-label="Seções das configurações">{sections.map((item, index) => {
       const Icon = item.icon;

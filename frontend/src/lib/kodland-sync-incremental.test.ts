@@ -1,3 +1,4 @@
+import * as browserCache from "./kodland-browser-cache";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const mocks=vi.hoisted(()=>({db:new Map<string,Record<string,unknown>>(),commits:[] as number[],fail:"",reads:[] as Array<{path:string;group?:string}>,token:vi.fn(async()=>"token")}));
 vi.mock("./firebase",()=>({getFirebaseAuth:()=>({currentUser:{uid:"incremental",getIdToken:mocks.token}}),getFirebaseDb:()=>({})}));
@@ -85,4 +86,16 @@ it("atualização só de atividades não lê nem remove presenças",async()=>{
  vi.stubGlobal("fetch",vi.fn(async()=>Response.json({...snapshot(),lessons:[],review_group_ids:["g"],attendance_group_ids:[],task_progress:[]})));
  await kodlandApi.sync("teacher","not-real","corrections",{refreshSchedule:false,correctionGroupIds:["g"],followupScope:"activities"});
  expect(mocks.db.get(path)).toMatchObject({status:"ABSENT"});expect(mocks.reads.some(read=>read.path.endsWith("kodland_attendance"))).toBe(false);
+});
+
+it("retorno explícito ao Firebase compara a base remota, sem confundir cache atualizado com gravação concluída",async()=>{
+ await kodlandApi.sync("teacher","fixture","essential");
+ mocks.db.get("users/incremental/kodland_students/s")!.name="Nome antigo remoto";
+ mocks.commits.length=0;
+ const cache=vi.spyOn(browserCache,"readKodlandBrowser").mockResolvedValue({version:1,active:true,updatedAt:"2026-10-31",coreAt:"2026-10-31",collections:{},groupCompletedAt:{},automatic:{}});
+ const reads=vi.spyOn(browserCache,"readKodlandBrowserRows").mockResolvedValue(snapshot().students);
+ try {
+  await kodlandApi.sync("teacher","fixture","essential",{storage:"firebase"});
+  expect(mocks.commits).toEqual([1]);expect(mocks.db.get("users/incremental/kodland_students/s")?.name).toBe("Ana");
+ } finally {cache.mockRestore();reads.mockRestore();}
 });

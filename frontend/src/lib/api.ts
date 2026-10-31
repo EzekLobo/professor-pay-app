@@ -1,7 +1,8 @@
+import { readKodlandBrowser, readKodlandBrowserRows, updateKodlandBrowser, type BrowserRow } from "./kodland-browser-cache";
 import { kodlandDocumentChanged } from "./kodland-write-diff";
 import { requestKodlandJson, readKodlandLocal, KodlandSyncReadTimeout } from "./kodland-sync-client";
 import { observeOperation } from "./operation-log-client";
-import { withKodlandSyncLock, withKodlandAutoSyncLock, withKodlandManualPriority } from "./kodland-sync-lock";
+import { KodlandAutoSyncBusyError, withKodlandSyncLock, withKodlandAutoSyncLock, withKodlandManualPriority } from "./kodland-sync-lock";
 import { validateTaskCard, validateTaskLists } from "@/lib/task-board";
 import { assertTaskBoardReadyForDataChange, clearTaskBoardLocalState, withTaskBoardDataChange } from "@/lib/task-board-store";
 import {
@@ -347,6 +348,7 @@ export type KodlandSyncResult = {
   attendance_count?: number;
   progress_count?: number;
   payroll_warning?: string;
+  storage?: "browser" | "firebase";
   group_ids?: string[];
 };
 type KodlandSyncOptions = {
@@ -356,6 +358,7 @@ type KodlandSyncOptions = {
   correctionGroupIds?: string[];
   followupScope?: "activities" | "attendance";
   automatic?: boolean;
+  storage?: "browser" | "firebase";
 };
 export type KodlandAvailability = {
   id: string;
@@ -590,16 +593,17 @@ const authUser = () => {
 };
 const ref = (name: string, userId = authUser().uid) =>
   collection(getFirebaseDb(), `users/${userId}/${name}`);
-const rows = async (name: string): Promise<Row[]> =>
-  (await getDocs(query(ref(name), orderBy("created_at")))).docs.map((item) => ({
-    ...(item.data() as Row),
-    id: item.id,
-  }));
-const allRows = async (name: string, userId = authUser().uid): Promise<Row[]> =>
-  (await getDocs(ref(name, userId))).docs.map((item) => ({
-    ...(item.data() as Row),
-    id: item.id,
-  }));
+const rows = async (name: string, remote = false): Promise<Row[]> => {
+  const uid = authUser().uid;
+  const cached = remote ? null : await readKodlandBrowserRows(uid, name);
+  if (authUser().uid !== uid) throw new ApiError(401, "A conta conectada mudou.");
+  return cached ?? (await getDocs(query(ref(name, uid), orderBy("created_at")))).docs.map(item => ({ ...(item.data() as Row), id: item.id }));
+};
+const allRows = async (name: string, userId = authUser().uid, remote = true): Promise<Row[]> => {
+  const cached = remote ? null : await readKodlandBrowserRows(userId, name);
+  if (authUser().uid !== userId) throw new ApiError(401, "A conta conectada mudou.");
+  return cached ?? (await getDocs(ref(name, userId))).docs.map(item => ({ ...(item.data() as Row), id: item.id }));
+};
 type FirebaseWriteBatch = ReturnType<typeof writeBatch>;
 const uniqueBy = <T>(items: T[], key: (item: T) => string) => {
   const unique = new Map<string, T>();
@@ -1746,8 +1750,8 @@ export const dashboardApi = {
       getDoc(doc(ref("teaching_settings"), "finance")),
       rows("kodland_class_settings"),
       rows("manual_occurrences"),
-      rows("lessons"), rows("payments"), rows("kodland_groups"),
-      rows("kodland_lessons"), rows("kodland_extra_lessons"),
+      rows("lessons"), rows("payments"), rows("kodland_groups", true),
+      rows("kodland_lessons", true), rows("kodland_extra_lessons", true),
       rows("kodland_financial_overrides"), rows("holidays"),
       kodlandPayrollApi.get(),
     ]);
@@ -2529,13 +2533,102 @@ export const paymentsApi = {
     });
   },
 };
+function announceKodlandBrowser(uid: string, mode: string, scope?: string) {
+  notifyStudentNotificationsChanged();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-synced", { detail: { mode, scope } }));
+    try { window.localStorage.setItem(`nexusclass:kodland-change:${uid}`, crypto.randomUUID()); } catch {}
+  }
+}
+async function syncKodlandBrowser(username: string, password: string, mode: KodlandSyncMode, options: KodlandSyncOptions): Promise<KodlandSyncResult> {
+  const user = authUser();
+  const owner = () => getFirebaseAuth().currentUser?.uid === user.uid;
+  const assert = () => { options.assertActive?.(); if (!owner()) throw new ApiError(401, "A conta conectada mudou."); };
+  const syncId = crypto.randomUUID();
+  // Load the last confirmed local snapshot; no Firestore preflight is needed.
+  const previous = await readKodlandBrowser(user.uid);
+  assert();
+  options.onProgress?.("Consultando a Kodland para salvar neste navegador…", syncId);
+  const pending = (previous?.collections.kodland_extra_lessons ?? []).filter(item => !item.completed && !["DONE", "ACCOUNTED"].includes(String(item.manual_status))).map(item => String(item.external_student_id));
+  const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope, pending_extra_student_ids: pending }, () => user.getIdToken(), syncId);
+  assert();
+  const stamp = now();
+  options.onProgress?.("Salvando dados no navegador, sem gravar no Firebase…", syncId);
+  await updateKodlandBrowser(user.uid, state => {
+    assert();
+    const collection = (name: string) => state.collections[name] ?? [];
+    const merge = (name: string, incoming: BrowserRow[]) => {
+      const map = new Map(collection(name).map(item => [item.id, item]));
+      incoming.forEach(item => {
+        const previous = map.get(item.id);
+        const value = { ...previous, ...item };
+        if (name === "kodland_students" && previous) for (const field of ["guardian_name", "guardian_phone", "guardian_email", "guardian_relationship"]) if (!item[field] && previous[field]) value[field] = previous[field];
+        map.set(item.id, value);
+      });
+      state.collections[name] = [...map.values()];
+    };
+    const replaceGroups = (name: string, incoming: BrowserRow[], groups: string[]) => {
+      const selected = new Set(groups);
+      state.collections[name] = [...collection(name).filter(item => !selected.has(String(item.external_class_id))), ...incoming];
+    };
+    if (mode === "essential" || mode === "schedule") {
+      const oldGroups = new Map(collection("kodland_groups").map(item => [String(item.external_id), item]));
+      state.collections.kodland_groups = snapshot.groups.map(item => ({ ...oldGroups.get(item.external_id), ...item, id: item.external_id, created_at: oldGroups.get(item.external_id)?.created_at ?? stamp, local_class_id: oldGroups.get(item.external_id)?.local_class_id ?? null }));
+      merge("kodland_students", snapshot.students.map(item => ({ ...item, created_at: stamp })));
+      state.coreAt = stamp;
+      if (snapshot.extra_lessons_synced) merge("kodland_extra_lessons", snapshot.extra_lessons.map(item => ({ ...item, created_at: stamp })));
+      if (snapshot.availability_synced) state.collections.kodland_availability = snapshot.availability.map(item => ({ ...item, created_at: stamp }));
+    }
+    if (mode === "profiles") merge("kodland_students", snapshot.students.map(item => ({ ...item, created_at: stamp })));
+    if (mode === "classroom") {
+      const known = new Map(snapshot.groups.map(item => [item.external_id, item]));
+      state.collections.kodland_groups = collection("kodland_groups").map(item => {
+        const incoming = known.get(String(item.external_id));
+        return incoming ? { ...item, next_lesson_date: incoming.next_lesson_date, next_lesson_id: incoming.next_lesson_id, next_lesson_number: incoming.next_lesson_number, next_lesson_title: incoming.next_lesson_title, next_lesson_url: incoming.next_lesson_url } : item;
+      });
+    }
+    if (mode === "corrections") {
+      if (options.followupScope !== "attendance") {
+        const ids = snapshot.review_group_ids ?? [];
+        replaceGroups("kodland_reviews", snapshot.reviews.map(item => ({ ...item, created_at: stamp })), ids);
+        if (snapshot.task_progress) replaceGroups("kodland_task_progress", snapshot.task_progress.map(validateKodlandTaskProgress), ids);
+        ids.forEach(id => { state.groupCompletedAt[id] = stamp; });
+      }
+      if (options.followupScope !== "activities") {
+        replaceGroups("kodland_attendance", (snapshot.attendance ?? []).map(item => ({ ...item, created_at: stamp })), snapshot.attendance_group_ids ?? []);
+        state.attendanceCompletedAt ??= {};
+        for (const id of snapshot.attendance_group_ids ?? []) state.attendanceCompletedAt[id] = stamp;
+      }
+    }
+    const oldLessons = new Map(collection("kodland_lessons").map(item => [item.id, item]));
+    const incomingLessons = snapshot.lessons ?? [];
+    const obsolete = new Set(staleScheduledKodlandLessonIds(collection("kodland_lessons"), incomingLessons));
+    state.collections.kodland_lessons = collection("kodland_lessons").filter(item => !obsolete.has(item.id));
+    merge("kodland_lessons", incomingLessons.map(item => {
+      const id = kodlandLessonDocumentId(item);
+      return { ...mergeSyncedKodlandLesson(item, oldLessons.get(id) as Partial<KodlandLesson> | undefined, stamp), id } as BrowserRow;
+    }));
+    state.active = true; state.updatedAt = stamp;
+  }, owner);
+  assert();
+  announceKodlandBrowser(user.uid, mode, options.followupScope);
+  return { storage: "browser", group_count: snapshot.groups.length, student_count: snapshot.students.length, lesson_count: snapshot.lessons.length, extra_lesson_count: snapshot.extra_lessons.length, review_count: snapshot.reviews.length, attendance_count: snapshot.attendance?.length ?? 0, progress_count: snapshot.task_progress?.length ?? 0, group_ids: snapshot.groups.filter(item => !item.archived).map(item => item.external_id) };
+}
+
 export const kodlandApi = {
+  browserState: async () => readKodlandBrowser(authUser().uid),
   automaticState: async (): Promise<Record<string, { attempts: number; at: string; complete: boolean }>> => {
+    const local = await readKodlandBrowser(authUser().uid);
+    if (local?.active) return local.automatic;
     const snapshot = await getDoc(doc(ref("sync_status"), "automatic"));
     return (snapshot.data()?.tasks ?? {}) as Record<string, { attempts: number; at: string; complete: boolean }>;
   },
   saveAutomaticTask: async (id: string, value: { attempts: number; at: string; complete: boolean }) => {
     const uid = authUser().uid;
+    if ((await readKodlandBrowser(uid))?.active) {
+      await updateKodlandBrowser(uid, state => { state.automatic[id] = value; }, () => getFirebaseAuth().currentUser?.uid === uid);
+      return;
+    }
     const target = doc(ref("sync_status", uid), "automatic");
     let active = true;
     try { await readKodlandLocal(() => runTransaction(getFirebaseDb(), async transaction => {
@@ -2546,8 +2639,13 @@ export const kodlandApi = {
       transaction.set(target, { tasks: { ...Object.fromEntries(retained), [id]: value } });
     }), crypto.randomUUID(), "Controle da atualização automática"); } finally { active = false; }
   },
-  attendanceForGroup: async (groupId: string): Promise<KodlandAttendance[]> => (await getDocs(query(ref("kodland_attendance"), where("external_class_id", "==", groupId)))).docs.map(item => ({ ...item.data(), id: item.id }) as KodlandAttendance),
+  attendanceForGroup: async (groupId: string): Promise<KodlandAttendance[]> => {
+    const local = await readKodlandBrowserRows(authUser().uid, "kodland_attendance");
+    return local ? local.filter(item => item.external_class_id === groupId) as KodlandAttendance[] : (await getDocs(query(ref("kodland_attendance"), where("external_class_id", "==", groupId)))).docs.map(item => ({ ...item.data(), id: item.id }) as KodlandAttendance);
+  },
   followupState: async (): Promise<{ updatedAt: Record<string, string>; blockedGroups: string[] }> => {
+    const local = await readKodlandBrowser(authUser().uid);
+    if (local?.active) return { updatedAt: local.groupCompletedAt, blockedGroups: [] };
     const status = await getDoc(doc(ref("sync_status"), "corrections"));
     const data = status.data();
     const values = data?.group_completed_at;
@@ -2557,6 +2655,8 @@ export const kodlandApi = {
     return { updatedAt, blockedGroups: data?.status === "failed" && !states.length ? Object.keys(updatedAt) : blockedGroups };
   },
   scheduleLastUpdatedAt: async (): Promise<string | null> => {
+    const local = await readKodlandBrowser(authUser().uid);
+    if (local?.active) return local.coreAt || null;
     const status = await getDoc(doc(ref("sync_status"), "schedule"));
     const completedAt = status.data()?.completed_at;
     return typeof completedAt === "string" && !Number.isNaN(Date.parse(completedAt))
@@ -2574,8 +2674,13 @@ export const kodlandApi = {
   reviews: async () => ({
     items: (await rows("kodland_reviews")) as unknown as KodlandReview[],
   }),
-  taskProgress: async () => ({ items: (await allRows("kodland_task_progress")).map(validateKodlandTaskProgress) }),
+  taskProgress: async () => ({ items: (await allRows("kodland_task_progress", authUser().uid, false)).map(validateKodlandTaskProgress) }),
   notificationSyncStatus: async () => {
+    const local = await readKodlandBrowser(authUser().uid);
+    if (local?.active) {
+      const ready = (local.collections.kodland_groups ?? []).filter(group => !group.archived).every(group => Boolean(local.groupCompletedAt[String(group.external_id)] && local.attendanceCompletedAt?.[String(group.external_id)]));
+      return { status: ready ? "complete" : "running", completed_at: local.updatedAt, sync_id: local.updatedAt, followup_status: ready ? "complete" : "running", followup_sync_id: local.updatedAt };
+    }
     const [snapshot, followup] = await Promise.all([getDoc(doc(ref("sync_status"), "kodland")), getDoc(doc(ref("sync_status"), "corrections"))]);
     if (!snapshot.exists()) return null;
     const main = snapshot.data() as { status?: string; sync_id?: string; completed_at?: string };
@@ -2632,6 +2737,15 @@ export const kodlandApi = {
     const firebaseUser = authUser();
     const firebaseUserId = firebaseUser.uid;
     const syncId = crypto.randomUUID();
+    const browser = await readKodlandBrowser(firebaseUserId);
+    if (options.storage === "browser" || (options.storage !== "firebase" && browser?.active)) {
+      const run = () => observeOperation<KodlandSyncResult>("kodland_sync", () => syncKodlandBrowser(username, password, mode, options), { scope: mode, trigger: options.automatic ? "automatic" : "manual", reference: syncId });
+      if (typeof navigator !== "undefined" && navigator.locks) return navigator.locks.request(`nexusclass:kodland-browser:${firebaseUserId}`, { ifAvailable: options.automatic === true }, async lock => {
+        if (!lock) throw new KodlandAutoSyncBusyError("Outra atualização local está em andamento.");
+        return run();
+      });
+      return run();
+    }
     const acquire = (options.automatic ?? options.refreshSchedule === false) ? withKodlandAutoSyncLock : withKodlandSyncLock;
     return acquire(firebaseUserId, () => observeOperation<KodlandSyncResult>("kodland_sync", async () => {
     if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) throw new ApiError(401, "Sua conta foi alterada. Entre novamente.");
@@ -2650,7 +2764,7 @@ export const kodlandApi = {
         ? `Firebase: ${confirmed}/${total} alterações confirmadas; ${unchanged} registros sem mudanças.`
         : `Dados já atualizados; ${unchanged} registros sem mudanças. Confirmando sincronização…`),
     };
-    const readLocal = (name: string) => readKodlandLocal(() => allRows(name, firebaseUserId), syncId, `Leitura de ${name}`);
+    const readLocal = (name: string) => readKodlandLocal(() => allRows(name, firebaseUserId, true), syncId, `Leitura de ${name}`);
     progress("Lendo extras salvos no Firebase…");
     const syncStatusRef = doc(syncCollection("sync_status"), "kodland");
     const pendingExtraStudentIds = mode === "corrections" || mode === "profiles" || mode === "classroom" ? [] : [
@@ -3020,8 +3134,10 @@ export const kodlandApi = {
     options: KodlandSyncOptions = {},
   ): Promise<KodlandSyncResult> => {
     const requestedOwnerId = authUser().uid;
-    onProgress?.("Preparando sincronização manual; aguardando operação em andamento, se houver…");
-    return withKodlandManualPriority(requestedOwnerId, () => observeOperation<KodlandSyncResult>("kodland_sync", async () => {
+    const local = options.storage === "browser" || (options.storage !== "firebase" && (await readKodlandBrowser(requestedOwnerId))?.active);
+    onProgress?.(local ? "Preparando sincronização neste navegador…" : "Preparando sincronização manual; aguardando operação em andamento, se houver…");
+    const priority = local ? async <T,>(_uid: string, run: () => Promise<T>) => run() : withKodlandManualPriority;
+    return priority(requestedOwnerId, () => observeOperation<KodlandSyncResult>("kodland_sync", async () => {
     const ownerId = requestedOwnerId;
     const assertSyncOwner = () => {
       options.assertActive?.();
@@ -3043,7 +3159,8 @@ export const kodlandApi = {
       reviewCount += result.review_count;
     }
     assertSyncOwner();
-    const lessons = (await rows("kodland_lessons")) as unknown as KodlandLesson[];
+    if (core.storage === "browser") return { ...core, review_count: reviewCount, storage: "browser" };
+    const lessons = (await allRows("kodland_lessons", ownerId, true)) as unknown as KodlandLesson[];
     const pendingLessons = lessons
       .filter((lesson): lesson is KodlandLesson & { source_lesson_id: string } =>
         authorizedGroupIds.has(lesson.external_class_id) && Boolean(lesson.source_lesson_id) &&
@@ -3103,8 +3220,13 @@ export const kodlandApi = {
       assertSyncOwner();
       payrollWarning = reason instanceof Error ? reason.message : "A folha oficial não pôde ser atualizada.";
     }
+    if ((await readKodlandBrowser(ownerId))?.active) {
+      await updateKodlandBrowser(ownerId, state => { state.active = false; }, () => getFirebaseAuth().currentUser?.uid === ownerId);
+      announceKodlandBrowser(ownerId, "essential");
+    }
     return {
       ...core,
+      storage: "firebase",
       review_count: reviewCount,
       material_count: materialCount,
       payroll_warning: payrollWarning,
@@ -3118,6 +3240,17 @@ export const kodlandApi = {
   ) => {
     if (!lesson.source_lesson_id || !lesson.external_class_id) {
       throw new ApiError(409, "Sincronize as turmas novamente para identificar esta aula na Kodland.");
+    }
+    const uid = authUser().uid;
+    const local = await readKodlandBrowser(uid);
+    if (local?.active) {
+      const current = local.collections.kodland_lessons?.find(item => item.id === lesson.id) as KodlandLesson | undefined;
+      if (!current || current.external_class_id !== lesson.external_class_id || current.source_lesson_id !== lesson.source_lesson_id) throw new ApiError(409, "Atualize a lista de aulas antes de abrir o material.");
+      const [material] = await requestKodlandMaterials(username, password, [{ group_id: lesson.external_class_id, source_lesson_id: lesson.source_lesson_id }]);
+      const updated = { ...current, ...mergeLoadedKodlandMaterials(current, material) };
+      await updateKodlandBrowser(uid, state => { state.collections.kodland_lessons = state.collections.kodland_lessons.map(item => item.id === updated.id ? updated as unknown as BrowserRow : item); }, () => getFirebaseAuth().currentUser?.uid === uid);
+      announceKodlandBrowser(uid, "materials");
+      return updated;
     }
     const lessonRef = doc(ref("kodland_lessons"), lesson.id);
     const currentSnapshot = await getDoc(lessonRef);
@@ -3406,6 +3539,7 @@ export const dataApi = {
       created_at: importedAt,
       schema_version: value.schema_version,
     });
+    if (await readKodlandBrowser(ownerId)) await updateKodlandBrowser(ownerId, state => { state.active = false; }, () => getFirebaseAuth().currentUser?.uid === ownerId);
     notifyStudentNotificationsChanged();
     return { ...preview, imported_at: importedAt };
     });
@@ -3426,6 +3560,7 @@ export const dataApi = {
     )));
     assertDataOwner(ownerId);
     clearTaskBoardLocalState(ownerId);
+    if (await readKodlandBrowser(ownerId)) await updateKodlandBrowser(ownerId, state => { state.active = false; state.collections = {}; state.automatic = {}; state.groupCompletedAt = {}; state.attendanceCompletedAt = {}; state.coreAt = ""; state.updatedAt = ""; }, () => getFirebaseAuth().currentUser?.uid === ownerId);
     notifyStudentNotificationsChanged();
     });
   },

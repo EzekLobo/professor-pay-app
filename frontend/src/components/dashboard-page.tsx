@@ -831,6 +831,7 @@ function DashboardPageContent() {
   const [manualClasses, setManualClasses] = useState<ManualClass[]>([]);
   const [manualStudents, setManualStudents] = useState<ManualStudent[]>([]);
   const [manualPendingCount, setManualPendingCount] = useState(0);
+  const [localOnly, setLocalOnly] = useState(false);
   const [failed, setFailed] = useState(false);
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
   const [refreshNotice, setRefreshNotice] = useState("");
@@ -846,6 +847,13 @@ function DashboardPageContent() {
     setFailed(false);
     if (!keepContent) setDashboard(null);
     try {
+      const browser = await kodlandApi.browserState();
+      setLocalOnly(Boolean(browser?.active));
+      if (browser?.active) {
+        const [groups, students, lessons, reviews, extras, availability] = await Promise.all([kodlandApi.groups(), kodlandApi.students(), kodlandApi.lessons(), kodlandApi.reviews(), kodlandApi.extraLessons(), kodlandApi.availability()]);
+        setKodlandEnabled(true); setGroups(groups.items); setStudents(students.items); setLessons(lessons.items); setReviews(reviews.items); setExtraLessons(extras.items); setAvailability(availability.items); setScheduleLastUpdatedAt(browser.coreAt);
+        return true;
+      }
       const preferences = await tutorPreferencesApi.get();
       setKodlandEnabled(preferences.kodland_enabled);
       const empty = Promise.resolve({ items: [] });
@@ -983,6 +991,7 @@ function DashboardPageContent() {
     return () => window.clearTimeout(timer);
   }, [load]);
   if (failed) return <DashboardContent state="error" onRetry={load} />;
+  if (localOnly) return <KodlandSummary groups={groups} students={students} reviews={reviews} lessons={lessons} extraLessons={extraLessons} availability={availability} onRefresh={() => void refreshSchedule()} refreshing={refreshingSchedule} refreshNotice={refreshNotice} scheduleLastUpdatedAt={scheduleLastUpdatedAt} onUpdateExtraStatus={updateExtraStatus} onMaterialsLoaded={updated => setLessons(items => items.map(item => item.id === updated.id ? updated : item))} customHolidays={[]} manualClasses={[]} manualStudents={[]} manualPendingCount={0} />;
   if (!dashboard) return <DashboardContent state="loading" />;
   return (
     <>

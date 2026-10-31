@@ -632,21 +632,22 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
     if (!background) setLoading(true);
     setError("");
     try {
-      const preferences = await tutorPreferencesApi.get();
+      const localOnly = Boolean((await kodlandApi.browserState())?.active);
+      const preferences = localOnly ? { kodland_enabled: true } : await tutorPreferencesApi.get();
       setKodlandEnabled(preferences.kodland_enabled);
       const empty = Promise.resolve({ items: [] });
       const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents] = await Promise.all([
         preferences.kodland_enabled ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled ? kodlandApi.attendance() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty,
-        manualPedagogyApi.activities(), manualTeachingApi.classes(), manualTeachingApi.students(),
+        localOnly ? Promise.resolve(null) : manualPedagogyApi.activities(), localOnly ? Promise.resolve(null) : manualTeachingApi.classes(), localOnly ? Promise.resolve(null) : manualTeachingApi.students(),
       ]);
       setReviews(reviewResult.items);
       setLessons(lessonResult.items);
       setAttendance(attendanceResult.items);
       setGroups(groupResult.items);
       setHasKodlandGroups(groupResult.items.length > 0);
-      setManualActivities(ownActivities);
-      setManualClasses(ownClasses);
-      setManualStudents(ownStudents);
+      if (ownActivities) setManualActivities(ownActivities);
+      if (ownClasses) setManualClasses(ownClasses);
+      if (ownStudents) setManualStudents(ownStudents);
       setStudents(studentResult.items);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");

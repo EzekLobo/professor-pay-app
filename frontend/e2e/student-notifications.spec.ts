@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 for (const width of [320, 390, 1440]) {
   test(`notificações levam ao caso e confirmam contato sem presumir envio (${width}px)`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     const privateCalls: string[] = [];
     page.on("request", request => { if (/firestore.googleapis|identitytoolkit|\/api\/kodland/.test(request.url())) privateCalls.push(request.url()); });
     await page.goto("/demo#settings");
@@ -21,6 +22,10 @@ for (const width of [320, 390, 1440]) {
     await page.getByRole("tab", { name: "Notificações", exact: true }).click();
     await page.getByRole("checkbox", { name: "Ativar notificações", exact: true }).check();
     await page.getByLabel("Acompanhar aulas a partir de").fill("2020-01-01");
+    const template = page.getByRole("textbox", { name: "Mensagem de atividades", exact: true });
+    await template.fill("Olá, {responsavel}! {aluno}: {atividades} — {aula}.");
+    await page.getByText("Prévia da mensagem", { exact: true }).click();
+    await expect(page.locator(".activity-message-tools")).toContainText("Olá, Maria! Ana:");
     await page.getByRole("button", { name: "Ver prévia", exact: true }).click();
     await expect(page.getByText(/Prévia: [1-9]/)).toBeVisible();
     await page.getByRole("button", { name: "Salvar notificações", exact: true }).click();
@@ -28,6 +33,11 @@ for (const width of [320, 390, 1440]) {
     await page.getByRole("button", { name: /Notificações: \d+ pendentes/ }).click();
     const dialog = page.getByRole("region", { name: "Notificações", exact: true });
     await expect(page.locator("dialog[open]")).toHaveCount(0);
+    const bounds = await dialog.boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    await page.setViewportSize({ width, height: 520 });
+    await expect.poll(async () => { const box = await dialog.boundingBox(); return box!.y + box!.height; }).toBeLessThanOrEqual(520);
+    await page.setViewportSize({ width, height: 900 });
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
     await page.getByRole("button", { name: /Notificações: \d+ pendentes/ }).click();
@@ -37,6 +47,7 @@ for (const width of [320, 390, 1440]) {
     await dialog.getByRole("link", { name: "Resolver", exact: true }).click();
     const resolution = page.getByRole("region", { name: "Resolver notificação" });
     await expect(resolution).toContainText("Exercício da aula");
+    await expect(resolution.getByRole("textbox", { name: "Mensagem para o responsável", exact: true })).toHaveValue(/Olá, .*Exercício da aula/);
     await expect(resolution.getByRole("button", { name: "Confirmar contato realizado" })).toBeEnabled();
     expect(await resolution.getByRole("link", { name: "Abrir WhatsApp" }).getAttribute("href")).toContain("wa.me/");
     await page.screenshot({ path: `/tmp/notifications-resolution-${width}.png`, fullPage: true });

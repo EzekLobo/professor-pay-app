@@ -1,5 +1,15 @@
 # Estado atual
 
+## Atualização automática Kodland, alertas e mobile — 31/10/2026
+
+- use-kodland-auto-sync + kodland-auto-sync: presença/progresso por turma a cada5min em Acompanhamento/15min nas outras telas, somente conta autenticada com integração ativa, grupos importados, acesso no cofre, aba visível e rede. Não roda na demo nem fechado; não importa perfis, cursos/materiais, folha ou extras. Rotina mostra pré-requisitos/falhas no sino e usa espera2–30min. Locks por UID serializam sync manual/auto; Web Locks coordena abas compatíveis.
+- API corrections suporta refresh_schedule:false; sincroniza progresso/presença sem catálogo, preserva materiais e contatos. Progresso percorre aulas paginadas; falha de todas as fontes de presença não vira lista vazia. Arquivo das turmas já conhecidas acompanha a lista autorizada. sync_status/corrections guarda horários/estado por turma, e notificationSyncStatus impede reconciliação após falha parcial mesmo se outra sincronização concluir. Evento só dispara após persistir e finalizar marcadores; Acompanhamento escuta e recarrega em segundo plano.
+- Mensagem de atividades com variáveis inseridas no cursor, prévia fictícia, restauração e validação; atalho em Mensagens. Modelos legados continuam editáveis. Mensagem configurada é usada ao resolver e no ícone de WhatsApp quando há alerta de não entrega; entrega esperando correção mantém mensagem neutra. Salvar preferências também atualiza notificações.
+- HeaderDropdown compartilha posicionamento em portal no body, acompanha rolagem/redimensionamento/visualViewport, evitando corte por cabeçalhos e teclado mobile. Configuração adaptada a320px; atalho de novidades para notificações na demo corrigido. Novidade2026103101. docs/STUDENT_NOTIFICATIONS.md registra operação/limites.
+- Corrigida a data inicial padrão no fuso brasileiro (UTC à noite avançava indevidamente o dia). 313 testes unitários passam; 56 E2E completos + novo caso de atalho totalizam57 cenários validados, incluindo320/390/1440px e redimensionamento para520px de altura. Lint/typecheck/build verificados.
+- Consulta real a bo.kodland.org devolveu403 no ambiente; testes usam contratos/mocks e demonstração, sem mensagens reais. Publicação de regras Firebase de tarefas continua pendente conforme histórico.
+
+
 ## Notificações de acompanhamento — 28/10/2026
 
 - Sino no cabeçalho e Configurações > Notificações: faltas, nenhuma atividade de aula entregue, mais de N pendentes e casa vencida, com prévia/data inicial/fuso/tolerância. Ativação inicia desligada. Alerta abre caso em Acompanhamento com mensagem editável, cadastro do responsável e confirmação explícita de contato; leitura/contato/regularização são estados separados.

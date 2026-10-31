@@ -1381,9 +1381,9 @@ async function reviewsForGroup(
   token: string,
   taskProgress: KodlandTaskProgress[],
 ): Promise<Review[]> {
-    const lessons = list(
-      await get(`student_groups/${group.external_id}/lessons/`, token),
-    ).filter((value) => record(value).lesson_passed === true);
+    const timeline = await completeGroupTimeline(`student_groups/${group.external_id}/lessons/`, token);
+    if (timeline === null) throw new SyncFailure("kodland_unavailable", 502);
+    const lessons = timeline.filter((value) => record(value).lesson_passed === true);
     const results = await mapWithConcurrency(
       lessons,
       KODLAND_CONCURRENCY,
@@ -1557,6 +1557,7 @@ async function attendanceForGroup(group: Group, token: string): Promise<Attendan
     if (payload !== null) break;
   }
   const studentsPayload = await getOptional(`student_groups/${group.external_id}/get_students_main_data`, token);
+  if (payload === null && studentsPayload === null) throw new SyncFailure("kodland_unavailable", 502);
   const fromStudentGrid = studentsPayload ? attendanceFromStudentsPayload(studentsPayload, group) : [];
   const fromAttendanceEndpoint = payload === null ? [] : list(payload).flatMap((value) => {
     const container = record(value);
@@ -1831,6 +1832,7 @@ export async function POST(request: NextRequest) {
       }>;
       pending_extra_student_ids?: string[];
       correction_group_ids?: string[];
+      refresh_schedule?: boolean;
     };
     try {
       body = (await request.json()) as typeof body;
@@ -2051,7 +2053,7 @@ export async function POST(request: NextRequest) {
           const [reviews, attendance, lessons] = await Promise.all([
             reviewsForGroup(group, token, taskProgress),
             attendanceForGroup(group, token),
-            lessonsForGroup(group, token, courseLessonCache),
+            body.refresh_schedule === false ? Promise.resolve([]) : lessonsForGroup(group, token, courseLessonCache),
           ]);
           return { reviews, taskProgress, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
         },
@@ -2066,6 +2068,7 @@ export async function POST(request: NextRequest) {
       trace("completed", { groupCount: correctionGroups.length, reviewCount: items.length, attendanceCount: attendanceItems.length, lessonCount: lessons.length });
       return syncResponse(syncId, {
         ...emptyCollections(),
+        groups,
         reviews: items,
         task_progress: snapshots.flatMap(item => item.taskProgress),
         attendance: attendanceItems,

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { validateActivityMessageTemplate } from "./student-notification-rules";
+import { describe, expect, it, vi } from "vitest";
 import { defaultNotificationSettings, evaluateStudentNotifications, notificationLocalInstant, notificationMessage, notificationTarget, validateNotificationSettings, type NotificationLesson, type NotificationObligation } from "./student-notification-rules";
 import { manualActivityNotificationFields } from "./manual-pedagogy";
 import { kodlandDeliveryState } from "./kodland-task-progress";
@@ -83,4 +84,18 @@ describe("regras de acompanhamento", () => {
     for (const status of ["TASK_SUBMITTED", "TASK_SUBMITTED_LATE", "TASK_CHECKED"]) expect(kodlandDeliveryState(status)).toBe("delivered");
     for (const status of ["TASK_NOT_GRADED", "new_status", null]) expect(kodlandDeliveryState(status)).toBe("unknown");
   });
+});
+
+it("modelos antigos continuam editáveis e variáveis desconhecidas são rejeitadas antes de salvar", () => {
+  expect(() => validateActivityMessageTemplate("{responsavel}, {aluno}: {atividades} — {prazo}")).not.toThrow();
+  expect(() => validateActivityMessageTemplate("{alunoo}")).toThrow("Variável desconhecida");
+  expect(validateNotificationSettings({ ...settings, activity_message_template: "Modelo antigo {alunoo}" }).activity_message_template).toContain("{alunoo}");
+});
+
+it("inicia o acompanhamento na data brasileira, sem avançar o dia à noite por causa do UTC", () => {
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(new Date("2026-11-01T01:00:00Z"));
+    expect(defaultNotificationSettings().start_date).toBe("2026-10-31");
+  } finally { vi.useRealTimers(); }
 });

@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026103101, date: "2026-10-31", title: "Acompanhamento automático da Kodland",
+    description: "Com o acesso salvo e a aplicação ativa, presença e atividades são atualizadas automaticamente. O sino reavalia os alertas conforme suas regras, e a mensagem de atividades tem variáveis e prévia.",
+    href: "/settings#notifications", action: "Configurar alertas e mensagem",
+  },
+  {
     version: 2026102902, date: "2026-10-29", title: "Criação de cursos mais compacta",
     description: "Organize módulos e aulas em seções recolhíveis, edite uma aula por vez e mantenha as ações de salvar sempre acessíveis, inclusive no celular.",
     href: "/lessons", action: "Organizar meus cursos",

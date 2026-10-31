@@ -41,3 +41,14 @@ for (const width of [1440, 390, 320]) {
     expect(privateCalls).toEqual([]);
   });
 }
+
+test("atalho de novidades abre notificações na demonstração mesmo estando nas configurações", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto("/demo#settings");
+  await expect(page.getByRole("tab", { name: "Aulas e pagamentos", exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: /^Abrir novidades/ }).click();
+  await page.getByRole("region", { name: "Novidades do NexusClass" }).getByRole("link", { name: "Configurar alertas e mensagem", exact: true }).click();
+  await expect(page).toHaveURL(/section=notifications#settings$/);
+  await expect(page.getByRole("tab", { name: "Notificações", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("textbox", { name: "Mensagem de atividades", exact: true })).toBeVisible();
+});

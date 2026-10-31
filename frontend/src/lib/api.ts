@@ -1,3 +1,4 @@
+import { withKodlandSyncLock } from "./kodland-sync-lock";
 import { validateTaskCard, validateTaskLists } from "@/lib/task-board";
 import { assertTaskBoardReadyForDataChange, clearTaskBoardLocalState, withTaskBoardDataChange } from "@/lib/task-board-store";
 import {
@@ -344,6 +345,7 @@ export type KodlandSyncResult = {
   group_ids?: string[];
 };
 type KodlandSyncOptions = {
+  refreshSchedule?: boolean;
   correctionGroupIds?: string[];
 };
 export type KodlandAvailability = {
@@ -2252,6 +2254,7 @@ export const tutorPreferencesApi = {
     }
     if (!next.absence_message_template.trim()) throw new ApiError(400, "Informe o modelo da mensagem de ausência.");
     await setDoc(doc(ref("teaching_settings"), "preferences"), next);
+    notifyStudentNotificationsChanged();
     return next;
   },
 };
@@ -2526,6 +2529,15 @@ export const paymentsApi = {
   },
 };
 export const kodlandApi = {
+  followupState: async (): Promise<{ updatedAt: Record<string, string>; blockedGroups: string[] }> => {
+    const status = await getDoc(doc(ref("sync_status"), "corrections"));
+    const data = status.data();
+    const values = data?.group_completed_at;
+    const updatedAt = values && typeof values === "object" ? Object.fromEntries(Object.entries(values).filter((entry): entry is [string, string] => typeof entry[1] === "string" && Number.isFinite(Date.parse(entry[1])))) : {};
+    const states = data?.group_status && typeof data.group_status === "object" ? Object.entries(data.group_status) : [];
+    const blockedGroups = states.filter(([, value]) => value === "failed" || value === "running").map(([id]) => id);
+    return { updatedAt, blockedGroups: data?.status === "failed" && !states.length ? Object.keys(updatedAt) : blockedGroups };
+  },
   scheduleLastUpdatedAt: async (): Promise<string | null> => {
     const status = await getDoc(doc(ref("sync_status"), "schedule"));
     const completedAt = status.data()?.completed_at;
@@ -2546,8 +2558,13 @@ export const kodlandApi = {
   }),
   taskProgress: async () => ({ items: (await rows("kodland_task_progress")).map(validateKodlandTaskProgress) }),
   notificationSyncStatus: async () => {
-    const snapshot = await getDoc(doc(ref("sync_status"), "kodland"));
-    return snapshot.exists() ? snapshot.data() as { status?: string; sync_id?: string; completed_at?: string } : null;
+    const [snapshot, followup] = await Promise.all([getDoc(doc(ref("sync_status"), "kodland")), getDoc(doc(ref("sync_status"), "corrections"))]);
+    if (!snapshot.exists()) return null;
+    const main = snapshot.data() as { status?: string; sync_id?: string; completed_at?: string };
+    const detail = followup.data();
+    const groupStates = detail?.group_status && typeof detail.group_status === "object" ? Object.values(detail.group_status) : [];
+    const followupStatus = groupStates.includes("failed") ? "failed" : groupStates.includes("running") ? "running" : typeof detail?.status === "string" ? detail.status : undefined;
+    return { ...main, followup_status: followupStatus ?? null, followup_sync_id: detail?.sync_id ?? null, status: main.status !== "complete" ? main.status : followupStatus === "running" || followupStatus === "failed" ? followupStatus : main.status };
   },
   attendance: async () => ({
     items: (await rows("kodland_attendance")) as unknown as KodlandAttendance[],
@@ -2596,9 +2613,11 @@ export const kodlandApi = {
   ): Promise<KodlandSyncResult> => {
     const firebaseUser = authUser();
     const firebaseUserId = firebaseUser.uid;
+    return withKodlandSyncLock(firebaseUserId, async () => {
+    if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) throw new ApiError(401, "Sua conta foi alterada. Entre novamente.");
     const syncCollection = (name: string) => ref(name, firebaseUserId);
     const syncStatusRef = doc(syncCollection("sync_status"), "kodland");
-    const pendingExtraStudentIds = [
+    const pendingExtraStudentIds = mode === "corrections" || mode === "profiles" ? [] : [
       ...new Set(
         (await rows("kodland_extra_lessons"))
           .filter(
@@ -2630,6 +2649,7 @@ export const kodlandApi = {
           mode,
           pending_extra_student_ids: pendingExtraStudentIds,
           correction_group_ids: options.correctionGroupIds,
+          refresh_schedule: options.refreshSchedule,
         }),
       });
     } catch {
@@ -2639,9 +2659,11 @@ export const kodlandApi = {
     if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) {
       throw new ApiError(401, "A conta conectada mudou. Inicie a sincronização novamente.");
     }
+    const followupGroups = [...new Set([...(snapshot.review_group_ids ?? []), ...snapshot.groups.filter(group => group.archived).map(group => group.external_id)])];
     let persistencePhase: "leitura" | "gravação" = "leitura";
     try {
     const createdAt = now();
+    if (mode === "corrections") await setDoc(doc(syncCollection("sync_status"), "corrections"), { status: "running", sync_id: syncId, group_status: Object.fromEntries(followupGroups.map(id => [id, "running"])) }, { merge: true });
     await setDoc(syncStatusRef, {
       status: "running",
       sync_id: syncId,
@@ -2661,13 +2683,22 @@ export const kodlandApi = {
           completed_at: completedAt,
         });
       }
+      if (mode === "corrections") {
+        const ids = followupGroups;
+        await setDoc(doc(syncCollection("sync_status"), "corrections"), { status: "complete", sync_id: syncId, group_status: Object.fromEntries(ids.map(id => [id, "complete"])), group_completed_at: Object.fromEntries(ids.map(id => [id, completedAt])) }, { merge: true });
+      }
       notifyStudentNotificationsChanged();
       return result;
     };
     if (mode === "corrections") {
+      const previousGroups = await rows("kodland_groups");
+      const groupUpdates: Array<(batch: FirebaseWriteBatch) => void> = snapshot.groups.flatMap(group => {
+        const previous = previousGroups.find(item => String(item.external_id) === group.external_id);
+        return previous && Boolean(previous.archived) !== group.archived ? [(batch: FirebaseWriteBatch) => batch.update(doc(syncCollection("kodland_groups"), String(previous.id)), { archived: group.archived })] : [];
+      });
       const previousReviews = await rows("kodland_reviews");
       const previousAttendance = await rows("kodland_attendance");
-      const previousLessons = await rows("kodland_lessons");
+      const previousLessons = options.refreshSchedule === false ? [] : await rows("kodland_lessons");
       const reviews = uniqueBy(snapshot.reviews, (item) => item.id);
       const attendance = uniqueBy(snapshot.attendance ?? [], (item) => item.id);
       const lessons = uniqueBy(snapshot.lessons ?? [], (item) => kodlandLessonDocumentId(item));
@@ -2734,6 +2765,7 @@ export const kodlandApi = {
       }
       persistencePhase = "gravação";
       await commitWrites([
+        ...groupUpdates,
         ...upserts,
         ...deletes,
         ...attendanceUpserts,
@@ -2923,6 +2955,7 @@ export const kodlandApi = {
         code: failure.code,
       }));
       try {
+        if (mode === "corrections") await setDoc(doc(syncCollection("sync_status"), "corrections"), { status: "failed", sync_id: syncId, group_status: Object.fromEntries(followupGroups.map(id => [id, "failed"])) }, { merge: true });
         await setDoc(syncStatusRef, {
           status: "failed",
           sync_id: syncId,
@@ -2935,6 +2968,7 @@ export const kodlandApi = {
       }
       throw new KodlandSyncPersistenceError(syncId, persistencePhase, failure.detail);
     }
+    });
   },
   syncAll: async (
     username: string,

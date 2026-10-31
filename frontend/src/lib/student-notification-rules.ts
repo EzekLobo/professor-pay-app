@@ -16,8 +16,13 @@ export type NotificationSettings = {
   activity_message_template: string;
 };
 export const DEFAULT_ACTIVITY_MESSAGE = "Olá, {responsavel}! Gostaria de conversar sobre {aluno}, da turma {turma}. Há atividades não entregues da aula {aula} ({data}): {atividades}. Como podemos ajudar?";
-export function defaultNotificationSettings(today = new Date().toISOString().slice(0, 10)): NotificationSettings {
+export function defaultNotificationSettings(today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())): NotificationSettings {
   return { id: "default", enabled: false, attendance_enabled: true, classroom_rule: "none_submitted", classroom_threshold: 2, homework_enabled: true, tolerance_minutes: 0, homework_days_after_lesson: null, start_date: today, time_zone: "America/Sao_Paulo", activity_message_template: DEFAULT_ACTIVITY_MESSAGE };
+}
+export function validateActivityMessageTemplate(template: string) {
+  const supported = new Set(["responsavel", "aluno", "turma", "aula", "data", "atividades", "prazo"]);
+  const unknown = [...template.matchAll(/\{([^{}]+)\}/g)].map(match => match[1]).find(key => !supported.has(key));
+  if (unknown) throw new Error(`Variável desconhecida na mensagem: {${unknown}}. Use os botões de variáveis disponíveis.`);
 }
 export function validateNotificationSettings(input: unknown): NotificationSettings {
   if (!input || typeof input !== "object") throw new Error("Configuração de notificações inválida.");

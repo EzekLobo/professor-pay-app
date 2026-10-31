@@ -1,6 +1,8 @@
 "use client";
 import type { StudentNotification } from "@/lib/student-notification-rules";
-import { NotificationResolution } from "./student-notifications";
+import { NotificationResolution, useStudentNotifications } from "./student-notifications";
+import { subscribeStudentNotifications } from "@/lib/student-notification-store";
+import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type WheelEvent } from "react";
 import { MessageCircle, RefreshCw } from "lucide-react";
@@ -539,6 +541,7 @@ type CorrectionsViewPreferences = {
 };
 
 export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string }) {
+  const notifications = useStudentNotifications();
   const [storedReviews, setReviews] = useState<KodlandReview[]>([]);
   const [storedLessons, setLessons] = useState<KodlandLesson[]>([]);
   const [storedAttendance, setAttendance] = useState<KodlandAttendance[]>([]);
@@ -616,12 +619,12 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     if (demo) {
       const enabled = (await demo.manualAdapter?.preferences.get())?.kodland_enabled === true;
       setKodlandEnabled(enabled); setHasKodlandGroups(enabled && (demo.groups?.length ?? 0) > 0); return;
     }
-    setLoading(true);
+    if (!background) setLoading(true);
     setError("");
     try {
       const preferences = await tutorPreferencesApi.get();
@@ -695,6 +698,13 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
     return () => window.clearTimeout(timer);
   }, [load, demo]);
 
+  useEffect(() => {
+    if (demo) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const unsubscribe = subscribeStudentNotifications(() => { clearTimeout(timer); timer = setTimeout(() => { void load(true); }, 150); });
+    return () => { clearTimeout(timer); unsubscribe(); };
+  }, [demo, load]);
+
   const visibleReviews = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const enabledReviews = kodlandEnabled ? reviews : [];
@@ -749,7 +759,11 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
     const student = classKey.startsWith("manual:")
       ? manualStudents.find((item) => item.id === studentKey)
       : attendanceStudents.find((item) => `kodland:${item.external_class_id}` === classKey && (item.external_id === studentKey || item.id === studentKey));
-    return <button type="button" className="activity-whatsapp-button" aria-label={`Mensagem aos responsáveis de ${name}`} title={`WhatsApp dos responsáveis de ${name}`} onClick={() => setWhatsAppDraft({ studentName: name, phone: student?.guardian_phone ?? "", guardian: true, message: `Olá! Sou o professor de ${name}. Gostaria de conversar sobre as atividades e o acompanhamento das aulas.` })}>
+    const source = classKey.startsWith("manual:") ? "manual" : "kodland";
+    const classId = classKey.slice(classKey.indexOf(":") + 1);
+    const alert = notifications?.cases.find(item => needsNotificationContact(item) && item.notification.source === source && item.notification.class_id === classId && item.notification.student_id === studentKey && item.notification.category !== "absence");
+    const message = alert ? notificationMessage(alert.notification, notifications?.settings?.activity_message_template ?? DEFAULT_ACTIVITY_MESSAGE) : `Olá! Sou o professor de ${name}. Gostaria de conversar sobre as atividades e o acompanhamento das aulas.`;
+    return <button type="button" className="activity-whatsapp-button" aria-label={`Mensagem aos responsáveis de ${name}`} title={`WhatsApp dos responsáveis de ${name}`} onClick={() => setWhatsAppDraft({ studentName: name, phone: student?.guardian_phone ?? "", guardian: true, message })}>
       <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M20.5 3.5A11.9 11.9 0 0 0 12 0C5.4 0 0 5.4 0 12c0 2.1.5 4.2 1.6 6L0 24l6.2-1.6A12 12 0 0 0 12 24c6.6 0 12-5.4 12-12 0-3.2-1.2-6.2-3.5-8.5ZM12 22a10 10 0 0 1-5.1-1.4l-.4-.2-3.7 1 1-3.6-.3-.4A10 10 0 1 1 12 22Zm5.5-7.5c-.3-.1-1.8-.9-2.1-1-.3-.1-.5-.1-.7.2l-1 1.2c-.2.2-.4.2-.7.1-1.8-.9-3-1.6-4.2-3.6-.3-.5.3-.5.9-1.8.1-.2 0-.4 0-.6L7.8 6.5c-.2-.5-.4-.4-.7-.4h-.6c-.2 0-.6.1-.9.4-.3.4-1.2 1.2-1.2 2.9s1.3 3.3 1.5 3.5c.2.2 2.5 3.8 6 5.3 2.2.9 3.1 1 4.2.8.7-.1 1.8-.8 2.1-1.5.2-.8.2-1.4.2-1.5-.1-.2-.3-.3-.6-.5Z" /></svg>
     </button>;
   }

@@ -3456,3 +3456,28 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .student-alerts-dropdown .field { display: grid; gap: 5px; font-size: .75rem; }
 .notification-heading-actions { display: flex; }
 .notification-heading-actions a { display: grid; place-items: center; width: 44px; height: 44px; color: var(--muted); }
+
+/* Notification controls stay inside narrow viewports and the visible keyboard area. */
+.notification-settings, .notification-resolution, .notification-fields, .activity-message-editor { min-width: 0; }
+.notification-fields > label { min-width: 0; }
+.notification-fields > label:not(.field) { display: flex; align-items: start; gap: 8px; font-size: .82rem; line-height: 1.5; }
+.notification-fields > label:not(.field) input { flex-shrink: 0; margin-top: 4px; }
+.notification-fields .field { display: grid; gap: 6px; font-size: .8rem; }
+.notification-fields textarea { resize: vertical; }
+.notification-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.notification-fields > small { font-size: .75rem; line-height: 1.5; }
+.activity-message-editor { display: grid; gap: 10px; }
+.activity-message-variables { display: flex; flex-wrap: wrap; gap: 6px; }
+.activity-message-variables button { min-height: 44px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+.activity-message-tools { display: flex; align-items: start; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.activity-message-tools details { min-width: 0; flex: 1 1 220px; font-size: .78rem; }
+.activity-message-tools summary { cursor: pointer; min-height: 36px; padding-top: 8px; color: var(--primary); }
+.activity-message-tools p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+.activity-message-tools .button { width: auto; }
+.notifications-heading, .notifications-dropdown > .release-notes-actions { flex-shrink: 0; }
+@media (max-width: 600px) {
+  .notification-form-grid { grid-template-columns: minmax(0,1fr); }
+  .notification-settings { padding: 14px; }
+  .notification-fields .form-actions { display: flex; flex-direction: row; flex-wrap: wrap; }
+  .notification-fields .form-actions .button { flex: 1 1 120px; width: auto; }
+}

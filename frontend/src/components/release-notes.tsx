@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { HeaderDropdown } from "./header-dropdown";
 import { useEffect, useId, useRef, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui";
@@ -15,7 +16,6 @@ export function ReleaseNotes(props: Props) {
 }
 
 function ReleaseNotesContent({ userId, store = releaseNotesStore, notes = RELEASE_NOTES, autoShow = true, blocked = false, routeHref = (href) => href }: Props) {
-  const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const [seen, setSeen] = useState<number | null>(null);
@@ -34,7 +34,7 @@ function ReleaseNotesContent({ userId, store = releaseNotesStore, notes = RELEAS
   useEffect(() => {
     if (!autoShow || blocked || seen === null || unseen.length === 0 || presented || mode !== null) return;
     const showWhenReady = () => {
-      if (document.visibilityState === "hidden" || document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) return;
+      if (document.visibilityState === "hidden" || document.querySelector('dialog[open], [role="dialog"][aria-modal="true"], .notifications-dropdown')) return;
       setPresented(true); setMode("unread");
     };
     const first = window.setTimeout(showWhenReady, 0);
@@ -42,37 +42,27 @@ function ReleaseNotesContent({ userId, store = releaseNotesStore, notes = RELEAS
     return () => { window.clearTimeout(first); window.clearInterval(timer); };
   }, [autoShow, blocked, seen, unseen.length, presented, mode]);
 
-  const closeRef = useRef<() => void>(() => undefined);
-  useEffect(() => {
-    if (mode === null) return;
-    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) closeRef.current(); };
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); closeRef.current(); trigger.current?.focus(); } };
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
-    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
-  }, [mode]);
 
   function close() {
     setSeen(Math.max(seen ?? 0, latest)); setMode(null); setPresented(true);
     void store.markSeen(userId, latest).catch(() => undefined);
   }
-  useEffect(() => { closeRef.current = close; });
 
-  return <div className="notifications-anchor" ref={root}>
+  return <div className="notifications-anchor">
     <button ref={trigger} aria-expanded={mode !== null} aria-controls={panelId} className="button button-ghost header-news-button" type="button" disabled={seen === null} aria-label={`Abrir novidades${unseen.length ? `: ${unseen.length} não lidas` : ""}`} title="Novidades" onClick={() => { if (mode !== null) close(); else { setPresented(true); setMode("all"); } }}>
       <Sparkles size={18} aria-hidden="true" /><span>Novidades</span>{unseen.length > 0 && <i className="news-unread-dot" aria-hidden="true" />}
     </button>
-    {mode !== null && <section id={panelId} role="region" aria-label="Novidades do NexusClass" className="notifications-dropdown">
+    <HeaderDropdown open={mode !== null} id={panelId} label="Novidades do NexusClass" trigger={trigger} onClose={close}>
       <div className="notifications-heading"><h2>Novidades</h2><button type="button" aria-label="Fechar notificações" title="Fechar notificações" onClick={close}><X size={18} aria-hidden="true" /></button></div>
       <div className="notifications-scroll">
       <p className="muted release-notes-intro">{mode === "unread" ? "Confira as melhorias que você ainda não viu." : "Veja as últimas melhorias da aplicação."}</p>
       <ol className="release-notes-list">{visible.map((note) => <li key={note.version}>
         <time dateTime={note.date}>{dateFormat.format(new Date(`${note.date}T12:00:00Z`))}</time>
         <h3>{note.title}</h3><p>{note.description}</p>
-        <Link href={routeHref(note.href)} onClick={close}>{note.action}<span aria-hidden="true"> →</span></Link>
+        <Link href={routeHref(note.href)} onClick={() => { close(); if (note.href === "/settings#notifications") window.dispatchEvent(new Event("nexusclass:open-notification-settings")); }}>{note.action}<span aria-hidden="true"> →</span></Link>
       </li>)}</ol>
       {visible.length === 0 && <p className="muted">Nenhuma novidade publicada por enquanto.</p>}
       </div><div className="release-notes-actions"><Button type="button" className="button-small" onClick={close}>Entendi</Button></div>
-    </section>}
+    </HeaderDropdown>
   </div>;
 }

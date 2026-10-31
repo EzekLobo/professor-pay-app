@@ -12,6 +12,39 @@ Abra **Configurações > Notificações**. Ative o recurso, escolha a data inici
 
 Nas atividades próprias, defina Aula ou Casa, prazo, obrigatoriedade e dispensa ao cadastrar/editar a atividade. O campo de prazo manual informa que usa o horário do dispositivo. Registros antigos sem tipo ficam como Desconhecido até classificação explícita.
 
+## Atualização automática da Kodland
+
+Com integração ativa, turmas já importadas e acesso salvo em Configurações > Dados e backup,
+a aplicação atualiza presença e progresso de atividades automaticamente: a cada 5 minutos
+em Acompanhamento e 15 minutos nas outras telas. Funciona com a aplicação aberta, aba
+visível e conexão disponível; retoma ao voltar à aba ou à rede. Sem credenciais, o sino
+orienta o usuário. Não existe job com a aplicação fechada.
+
+A consulta automática usa o modo de correções por turma com `refresh_schedule:false`:
+não busca perfis de responsáveis, catálogo de cursos, materiais, pagamentos ou extras.
+Requer uma importação inicial completa para conhecer agenda, alunos e classificação
+dos materiais. A consulta autorizada de turmas também atualiza a condição de arquivo
+das turmas já conhecidas, retirando turmas arquivadas dos alertas.
+
+Operações manuais/automáticas são serializadas por UID e por Web Locks entre abas
+compatíveis. Sem Web Locks, a coordenação é local à sessão. A última conclusão por turma
+fica em `sync_status/corrections`; as marcações globais e por turma impedem recalcular
+alertas sobre gravações incompletas. Falhas mantêm os dados/casos anteriores e usam
+novas tentativas com espera progressiva de 2 a 30 minutos. Sincronização completa continua manual.
+
+Só após gravar presença/progresso e concluir os marcadores é emitido o evento que
+atualiza o sino e a tela Acompanhamento. Dados entregues/presenças regularizadas saem
+das pendências sem apagar o histórico ou presumir que houve contato.
+
+## Mensagem de atividades
+
+O modelo fica em Configurações > Notificações, com atalho em Mensagens. Botões inserem
+as variáveis no cursor; há prévia fictícia e restauração do padrão. Salvar notificações
+salva o modelo. Variáveis desconhecidas são apontadas antes de salvar sem bloquear a
+edição de modelos legados. Resolver um alerta usa esse modelo; no WhatsApp da lista,
+ele só é usado quando existe um alerta de atividade não entregue para aquele aluno.
+Uma entrega esperando correção não é tratada automaticamente como não entregue.
+
 ## Lista suspensa do sino
 
 O sino abre uma lista suspensa abaixo do cabeçalho, sem modal ou bloqueio da página.
@@ -34,11 +67,11 @@ Se os dados forem regularizados, a condição deixa de estar ativa, preservando 
 
 ## Cobertura e limites
 
-- A central é interna à aplicação web. Reavalia ao carregar, focar a janela, voltar à rede, alterar dados e a cada minuto enquanto aberta. Não envia push e não executa cobranças com o aplicativo fechado.
+- A central é interna à aplicação web. Reavalia ao carregar, focar a janela, voltar à rede, alterar dados e a cada minuto na aba visível. Não envia push e não executa cobranças com o aplicativo fechado.
 - Turmas próprias usam atribuições e estados de entrega explícitos. Entrega aguardando correção não conta como não entregue. Alunos inativos, aulas canceladas, tarefas dispensadas/opcionais e dados desconhecidos não viram cobranças automáticas.
 - A sincronização de Acompanhamento preserva o progresso externo em `kodland_task_progress`. Classifica Aula/Casa somente quando o ID da tarefa corresponde aos links de materiais da aula. Estados não documentados ou classificação desconhecida ficam fora da cobrança; a regra Nenhuma entregue aguarda classificação completa.
 - Não há prazo individual importado da plataforma externa. Para dever de casa dessa origem, defina a política de dias após a aula. Presenças sem horário final confiável ficam fora dos alertas de falta.
-- A cobertura externa foi verificada com contratos/documentação e fixtures locais; não houve operação em conta real nessa implementação. Os avisos da central indicam dados insuficientes. Faça uma nova sincronização de Acompanhamento para popular o progresso; uma fila de correções antiga não substitui esse inventário.
+- A cobertura externa foi verificada com contratos/documentação e fixtures locais; não houve operação em conta real nessa implementação (acesso externo bloqueado com HTTP 403 no ambiente). Os avisos da central indicam dados insuficientes. Faça uma nova sincronização de Acompanhamento para popular o progresso; uma fila de correções antiga não substitui esse inventário.
 - Conta autenticada usa Firestore e requer rede para confirmar contato. O estado é isolado por UID; a demonstração usa armazenamento local separado. Não há nova promessa de funcionamento offline entre recargas.
 
 ## Dados e manutenção

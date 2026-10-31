@@ -149,6 +149,7 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
           <div className="settings-message-help"><span>Variáveis disponíveis</span><code>{'{primeiro_nome}'}</code><code>{'{codigo_aula}'}</code><code>{'{data}'}</code><code>{'{link_gravacao}'}</code><small>Use <code>{'{gravacao}'}</code> para ocultar o bloco quando não houver link.</small></div>
           <Button type="button" className="button-ghost settings-restore-button" onClick={() => setPreferences({ ...preferences, absence_message_template: DEFAULT_ABSENCE_MESSAGE })}>Restaurar padrão</Button>
         </div>
+        <button type="button" className="button button-ghost" onClick={() => setSection("notifications")}>Configurar mensagem de atividades</button>
       </section>
       </fieldset></div>
       <div id="settings-panel-integration" role="tabpanel" aria-labelledby="settings-tab-integration" hidden={section !== "integration"} tabIndex={0}><fieldset className="settings-fieldset" disabled={section !== "integration" || busy}>

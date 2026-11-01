@@ -1,14 +1,14 @@
 # Novidades da aplicação
 
-O botão Novidades (ícone de brilho) no cabeçalho abre uma lista suspensa de notificações com as novidades
-recentes, em ordem decrescente. O painel permite continuar usando a página,
-rola internamente e fecha pelo botão, X, Escape, clique fora, Entendi ou atalho.
-O fechamento confirma a leitura das novidades apresentadas. Escape devolve o
-foco ao botão Novidades. No celular, a largura se adapta à tela.
+As novidades aparecem como uma entrada **Novidades da aplicação** no sino de notificações.
+Não existe botão próprio no cabeçalho nem abertura automática ao entrar. Quando há versões
+não lidas, essa entrada soma uma pendência ao contador do sino, mesmo com alertas de alunos
+desativados. Após a leitura, pode ser consultada em Histórico.
 
-Ao entrar, novidades não vistas abrem esse painel uma vez, aguardando outros
-modais e guias. Sem novidades, permanece fechado. A demonstração oferece
-consulta manual com armazenamento local, sem usar contas reais.
+Tocar na entrada fecha a lista suspensa e abre o modal **Novidades do NexusClass**, com as
+melhorias em ordem decrescente e seus atalhos. Entendi, X, Escape, clique no fundo ou um
+atalho fecham o modal e confirmam a leitura. O foco retorna ao sino. A demonstração usa o
+mesmo fluxo com progresso local, sem acessar contas reais.
 
 ## Publicar uma novidade
 
@@ -22,7 +22,7 @@ consulta manual com armazenamento local, sem usar contas reais.
 4. Descreva apenas o comportamento entregue ao usuário. Não anuncie propostas,
    integrações ainda não verificadas, informações privadas ou funções de
    administração em um catálogo destinado a todas as contas.
-5. Execute os testes de `release-notes` e verifique a lista suspensa no celular.
+5. Execute os testes de `release-notes` e verifique o sino e o modal no celular.
 
 Os IDs, e não o relógio do dispositivo, determinam o que é novo. O catálogo é
 ordenado da versão mais recente para a mais antiga.
@@ -51,5 +51,4 @@ entradas é parte da entrega de funcionalidades, sem precisar editar cada conta.
 - `frontend/e2e/release-notes.spec.ts`: consulta, fechamento, confirmação,
   persistência local e atalhos na demo em 1440, 390 e 320 px, sem chamadas
   privadas.
-- A abertura automática autenticada é exercitada em desenvolvimento com o mesmo
-  componente e um adaptador de progresso simulado; não exige alterar contas reais.
+- A abertura depende de clique; fechar e reabrir via Histórico preserva a leitura e o foco.

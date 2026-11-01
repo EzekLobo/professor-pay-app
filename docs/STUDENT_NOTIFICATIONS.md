@@ -69,7 +69,7 @@ Uma entrega esperando correção não é tratada automaticamente como não entre
 
 ## Lista suspensa do sino
 
-O sino abre uma lista suspensa abaixo do cabeçalho, sem modal ou bloqueio da página.
+O sino abre uma lista suspensa abaixo do cabeçalho, sem bloquear a página. A entrada Novidades da aplicação compartilha essa lista e abre seu próprio modal somente ao clicar; leitura e histórico de novidades são independentes das confirmações de contato. O contador soma os contatos pendentes e uma entrada se houver novidades não lidas.
 Os casos mais recentes aparecem primeiro, com filtros de motivo, Pendentes e Histórico.
 A lista rola internamente e se adapta ao celular. O sino, X, Escape ou clique fora
 fecham a lista; Escape devolve o foco ao sino. A engrenagem abre as configurações.

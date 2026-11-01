@@ -71,3 +71,8 @@ Comparar conteúdo antes de gerar escritas, com timestamps técnicos fora da igu
 
 - Remover escolha e avisos técnicos de armazenamento para usuários finais. Administração determina Navegador/Firebase globalmente; padrão Navegador mantém operação durante quota indisponível sem exigir escrita para ativação.
 - Política em documento global protegido, endpoint autenticado e alteração exclusiva administrativa. Última configuração válida por UID mantém comportamento em indisponibilidade; sem histórico usar navegador. Leituras não criam documentos; confirmações administrativas só após persistência.
+
+## 01/11/2026 — Barra deslizante e caixa única de notificações
+
+- Substituir Mais móvel por navegação horizontal nativa com todas as áreas operacionais. Configurações fica no cabeçalho; Administração apenas dentro de Configurações, com permissões existentes.
+- Novidades passam a ser entrada agregada no sino, com modal somente por clique e consulta posterior no Histórico. Não abrir automaticamente ou exibir ícone separado. Manter cursor porUID e separar leitura de novidades de confirmação de contato com responsáveis.

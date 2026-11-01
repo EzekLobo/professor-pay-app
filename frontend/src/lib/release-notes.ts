@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110101, date: "2026-11-01", title: "Navegação mais compacta",
+    description: "No celular, arraste a barra inferior para acessar todas as áreas. Configurações fica no topo, e as novidades agora aparecem no sino de notificações e abrem ao tocar.",
+    href: "/settings", action: "Abrir configurações",
+  },
+  {
     version: 2026103109, date: "2026-10-31", title: "Sincronização conforme a necessidade",
     description: "Presença é consultada após a aula, com até duas tentativas. Atividades atualizam a cada seis horas; turmas e grade, diariamente. As notificações reaproveitam os dados carregados, reduzindo consultas repetidas.",
     href: "/settings#data", action: "Abrir sincronização",

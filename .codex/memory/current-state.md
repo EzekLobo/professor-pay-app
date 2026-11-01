@@ -1,5 +1,14 @@
 # Estado atual
 
+## Navegação móvel e novidades no sino — 01/11/2026
+
+- ShellFrame remove Mais/modal e inclui as6rotas principais na barra móvel horizontal nativa (pan-x/overflow), com sugestão visual parcial da próxima opção. useLayoutEffect revela itemativo antes de pintar, inclusive entrada direta/recarga de Tarefas; desktop mantém menu vertical. Configurações agora é engrenagem44px no cabeçalho, sem duplicação lateral.
+- Administração removida do cabeçalho e inserida no menu de Configurações para a mesma conta principal já autorizada na interface; link continua acessível no fallback sem preferências. Guardas de autorização dos endpoints administrativos preservadas. .settings-tabs separa tablist do link, mantendo grade mobile.
+- ReleaseNotesProvider monta no ShellFrame porUID, inclusive demo; sem Sparkles/botão separado e sem autoabrir ao entrar. Uma entrada agregada de novidades aparece no sino, soma1pendência se houver versõesnão lidas e pode ser consultada no Histórico após leitura. Clique fecha dropdown e abre Modal; fechar/atalho marca cursor existente e devolve foco ao sino, sem alterar confirmações pedagógicas.
+- Nota2026110101, docs/RELEASE_NOTES.md e docs/STUDENT_NOTIFICATIONS.md atualizados. Testes antigos migrados da ação Mais para links reais; mobile-navigation.spec envia touchStart/Move/End nativos viaCDP em320/390px e valida itemativo inteiro após recarga. FullPage screenshot pode alterar posição horizontal de elementos fixos; screenshot viewport e DOM bounds confirmam posição real.
+- Validação:401unitários/63arquivos;35E2E distintos de swipe/novidades/notificações/layout/turmas/cursos/presença, lint/typecheck/build. Rodar Playwright com servidor gerenciado127.0.0.1; servidor manual localhost reutilizado deixou HMR/hidratação parada nos testes, resolvido encerrando somente processos de teste/servidor próprios e retomando configuração original. Serviços reais e deploy não verificados.
+
+
 ## Política de armazenamento administrativa — 01/11/2026
 
 - Usuário removeu escolha/avisos de armazenamento do fluxo comum. DataContent sincroniza sem checkbox, sucesso técnico ou banner; componente KodlandBrowserNotice removido. Nota2026103110 removida porque instruía opção que deixou de existir; sem nova novidade global para configuração administrativa.

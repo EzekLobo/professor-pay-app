@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { NotificationSettingsPanel } from "./student-notifications";
 import { DataContent } from "@/components/data-page";
@@ -7,7 +8,7 @@ import { AccountUsernameSettings } from "@/components/account-username-settings"
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input } from "@/components/ui";
-import { AtSign, Bell, CalendarClock, Clock3, DatabaseBackup, MessageCircle, Plus, Plug } from "lucide-react";
+import { AtSign, Bell, CalendarClock, Clock3, DatabaseBackup, MessageCircle, Plus, Plug, ShieldCheck } from "lucide-react";
 import { manualAdapter as productionAdapter } from "@/lib/manual-adapters-runtime";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 import { DEFAULT_ABSENCE_MESSAGE, type ManualAvailability, type ManualOccurrence, type TutorPreferences } from "@/lib/manual-operations";
@@ -29,7 +30,7 @@ const settingsSections = [
 ] as const;
 type SettingsSection = (typeof settingsSections)[number]["id"];
 
-export function SettingsContent({ adapter = productionAdapter, accountAccess = false, dataContent, initialSection }: { adapter?: ManualAdapters; accountAccess?: boolean; dataContent?: ReactNode; initialSection?: SettingsSection }) {
+export function SettingsContent({ adapter = productionAdapter, accountAccess = false, dataContent, initialSection, administrator = false }: { adapter?: ManualAdapters; accountAccess?: boolean; dataContent?: ReactNode; initialSection?: SettingsSection; administrator?: boolean }) {
   const sections = settingsSections.filter((section) => accountAccess || section.id !== "account");
   const [section, setSection] = useState<SettingsSection>(initialSection ?? (accountAccess ? "account" : "defaults"));
   useEffect(() => {
@@ -114,12 +115,13 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
     finally { setAvailabilityBusy(false); }
   }
 
+  const adminLink = administrator ? <Link href="/admin" className="settings-admin-link"><ShieldCheck size={18} aria-hidden="true" /><span>Administração</span></Link> : null;
   if (!preferences) {
-    if (section === "data") return <div>{error && <p className="form-error" role="alert">{error}</p>}{dataContent ?? <DataContent />}</div>;
-    return <div>{error ? <><p className="form-error" role="alert">{error}</p><Button type="button" className="button-ghost" onClick={() => { setError(""); setLoadAttempt(value => value + 1); }}>Tentar novamente</Button></> : <p className="muted" role="status">Carregando configurações…</p>}<Button type="button" className="button-ghost" onClick={() => selectSection("data")}>Dados e backup</Button></div>;
+    if (section === "data") return <div>{adminLink}{error && <p className="form-error" role="alert">{error}</p>}{dataContent ?? <DataContent />}</div>;
+    return <div>{error ? <><p className="form-error" role="alert">{error}</p><Button type="button" className="button-ghost" onClick={() => { setError(""); setLoadAttempt(value => value + 1); }}>Tentar novamente</Button></> : <p className="muted" role="status">Carregando configurações…</p>}<Button type="button" className="button-ghost" onClick={() => selectSection("data")}>Dados e backup</Button>{adminLink}</div>;
   }
   return <div className="settings-page settings-layout">
-    <div className="settings-menu" role="tablist" aria-label="Seções das configurações">{sections.map((item, index) => {
+    <div className="settings-menu"><div className="settings-tabs" role="tablist" aria-label="Seções das configurações">{sections.map((item, index) => {
       const Icon = item.icon;
       return <button key={item.id} id={`settings-tab-${item.id}`} type="button" role="tab" aria-selected={section === item.id} aria-controls={`settings-panel-${item.id}`} tabIndex={section === item.id ? 0 : -1} disabled={busy || availabilityBusy} onClick={() => selectSection(item.id)} onKeyDown={(event) => {
         const offset = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
@@ -128,7 +130,7 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
         event.preventDefault(); selectSection(sections[target].id);
         document.getElementById(`settings-tab-${sections[target].id}`)?.focus();
       }}><Icon size={18} aria-hidden="true" /><span>{item.label}</span></button>;
-    })}</div>
+    })}</div>{adminLink}</div>
     <div className="settings-content">
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     {accountAccess && <div id="settings-panel-account" role="tabpanel" aria-labelledby="settings-tab-account" hidden={section !== "account"} tabIndex={0}><AccountUsernameSettings /></div>}
@@ -173,4 +175,4 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
   </div>;
 }
 
-export default function SettingsPage() { return <AuthGuard>{(user) => <Shell user={user}><SettingsContent accountAccess /></Shell>}</AuthGuard>; }
+export default function SettingsPage() { return <AuthGuard>{(user) => <Shell user={user}><SettingsContent accountAccess administrator={user.email.trim().toLowerCase() === "ezeklobo.dev@gmail.com"} /></Shell>}</AuthGuard>; }

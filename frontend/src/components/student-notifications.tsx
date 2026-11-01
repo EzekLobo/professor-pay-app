@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useReleaseNotes } from "./release-notes";
 import { observeOperation, reportOperation } from "@/lib/operation-log-client";
 import { classifyOperationError } from "@/lib/operation-log";
 import { HeaderDropdown } from "./header-dropdown";
@@ -9,7 +10,7 @@ import { ActivityMessageEditor } from "./activity-message-editor";
 import { useKodlandAutoSync } from "./use-kodland-auto-sync";
 import type { AutoSyncStatus } from "@/lib/kodland-auto-sync";
 import { useSearchParams } from "next/navigation";
-import { Bell, RefreshCw, Settings, X } from "lucide-react";
+import { Bell, ChevronRight, RefreshCw, Settings, X } from "lucide-react";
 import { Suspense, createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button, Input } from "./ui";
 import { kodlandApi, manualTeachingApi, tutorPreferencesApi } from "@/lib/api";
@@ -147,6 +148,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
 const labels = { absence: "Falta", classroom: "Atividade de aula", homework: "Dever de casa" };
 export function StudentNotificationBell() {
   const state = useStudentNotifications();
+  const news = useReleaseNotes();
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState(false);
   const [filter, setFilter] = useState("all");
@@ -155,10 +157,13 @@ export function StudentNotificationBell() {
   if (!state) return null;
   const NavigationLink = state.demo ? "a" : Link;
   const pending = state.settings?.enabled ? state.cases.filter(needsNotificationContact) : [];
+  const newsUnread = (news?.unread ?? 0) > 0;
+  const count = pending.length + (newsUnread ? 1 : 0);
   const list = (history ? state.cases.filter(item => !needsNotificationContact(item)) : pending).filter(item => filter === "all" || item.notification.category === filter).sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
-  return <div className="notifications-anchor"><div><button ref={trigger} aria-expanded={open} aria-controls={panelId} type="button" className="button button-ghost notification-bell" aria-label={`Notificações: ${pending.length} pendentes`} title="Notificações" onClick={() => setOpen(value => !value)}><Bell size={20} aria-hidden="true" />{pending.length > 0 && <span className="notification-counter" aria-hidden="true">{pending.length > 99 ? "99+" : pending.length}</span>}</button>
-    <HeaderDropdown open={open} id={panelId} label="Notificações" trigger={trigger} onClose={() => setOpen(false)} className="student-alerts-dropdown"><div className="notifications-heading"><h2>Notificações</h2><div className="notification-heading-actions"><NavigationLink aria-label="Configurar notificações" title="Configurar notificações" href={state.demo ? "/demo?section=notifications#settings" : "/settings#notifications"} onClick={() => { setOpen(false); window.dispatchEvent(new Event("nexusclass:open-notification-settings")); }}><Settings size={18} aria-hidden="true" /></NavigationLink><button type="button" aria-label="Fechar notificações" title="Fechar notificações" onClick={() => setOpen(false)}><X size={18} aria-hidden="true" /></button></div></div><div className="notifications-scroll"><div className="notification-toolbar"><Button className="button-ghost" onClick={() => setHistory(false)} aria-pressed={!history}>Pendentes ({pending.length})</Button><Button className="button-ghost" onClick={() => setHistory(true)} aria-pressed={history}>Histórico</Button><button className="button button-ghost" type="button" aria-label="Atualizar notificações" disabled={state.loading} onClick={() => void state.refresh(true)}><RefreshCw size={18} /></button></div>
+  return <div className="notifications-anchor"><div><button ref={trigger} aria-expanded={open} aria-controls={panelId} type="button" className="button button-ghost notification-bell" aria-label={`Notificações: ${count} pendentes`} title="Notificações" onClick={() => setOpen(value => !value)}><Bell size={20} aria-hidden="true" />{count > 0 && <span className="notification-counter" aria-hidden="true">{count > 99 ? "99+" : count}</span>}</button>
+    <HeaderDropdown open={open} id={panelId} label="Notificações" trigger={trigger} onClose={() => setOpen(false)} className="student-alerts-dropdown"><div className="notifications-heading"><h2>Notificações</h2><div className="notification-heading-actions"><NavigationLink aria-label="Configurar notificações" title="Configurar notificações" href={state.demo ? "/demo?section=notifications#settings" : "/settings#notifications"} onClick={() => { setOpen(false); window.dispatchEvent(new Event("nexusclass:open-notification-settings")); }}><Settings size={18} aria-hidden="true" /></NavigationLink><button type="button" aria-label="Fechar notificações" title="Fechar notificações" onClick={() => setOpen(false)}><X size={18} aria-hidden="true" /></button></div></div><div className="notifications-scroll"><div className="notification-toolbar"><Button className="button-ghost" onClick={() => setHistory(false)} aria-pressed={!history}>Pendentes ({count})</Button><Button className="button-ghost" onClick={() => setHistory(true)} aria-pressed={history}>Histórico</Button><button className="button button-ghost" type="button" aria-label="Atualizar notificações" disabled={state.loading} onClick={() => void state.refresh(true)}><RefreshCw size={18} /></button></div>
 
+      {news && (newsUnread || history) && <button className="notification-news-row" type="button" onClick={() => { setOpen(false); news.open(() => trigger.current?.focus()); }}><span><strong>Novidades da aplicação</strong><small>{newsUnread ? `${news.unread} melhorias para conferir` : "Consultar novidades anteriores"}</small></span><ChevronRight size={18} aria-hidden="true" /></button>}
       {!state.demo && state.autoSync.message && <p className={state.autoSync.phase === "error" ? "form-error" : "muted"} role="status">{state.autoSync.message}</p>}
       {!state.demo && state.autoSync.phase === "ready" && state.autoSync.updatedAt && <small className="muted">Kodland atualizada: {new Date(state.autoSync.updatedAt).toLocaleString("pt-BR")}</small>}
       {!state.settings?.enabled && <p>Ative e configure os alertas para começar o acompanhamento.</p>}
@@ -166,7 +171,7 @@ export function StudentNotificationBell() {
       {state.warnings.map(item => <p className="muted" key={item}>{item}</p>)}
       {state.updated && <small className="muted">Alertas verificados: {new Date(state.updated).toLocaleString("pt-BR")}</small>}
       <label className="field">Motivo<select className="input" aria-label="Motivo" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">Todos</option>{Object.entries(labels).map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select></label>
-      {!state.loading && !list.length && <p className="muted">{history ? "Nenhum alerta no histórico." : "Nenhum contato pendente pelas regras atuais."}</p>}
+      {!state.loading && !list.length && !(news && (newsUnread || history)) && <p className="muted">{history ? "Nenhum alerta no histórico." : "Nenhum contato pendente pelas regras atuais."}</p>}
       <div className="notification-list">{list.map(item => <article className="notification-card" key={item.id}><small>{labels[item.notification.category]} · {item.notification.lesson_date.split("-").reverse().join("/")}</small><strong>{item.notification.student_name}</strong><span>{item.notification.class_name} · {item.notification.lesson_label}</span><p>{item.notification.reason}</p>{history && <small>{item.active ? "Contato confirmado" : "Fora das pendências atuais"}</small>}<NavigationLink className="button button-primary" href={notificationTarget(item.notification, state.demo)} onClick={() => { setOpen(false); void state.read(item).catch(() => undefined); }}>{history ? "Ver detalhes" : "Resolver"}</NavigationLink></article>)}</div>
     </div></HeaderDropdown></div></div>;
 }

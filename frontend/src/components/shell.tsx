@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { OperationalErrorBoundary, OperationTelemetry } from "./operation-telemetry";
-import { KodlandBrowserNotice } from "./kodland-browser-notice";
 import { StudentNotificationsProvider, StudentNotificationBell } from "./student-notifications";
 import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import Image from "next/image";
@@ -88,7 +87,6 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
         </header>
         <main className="page-content" id="main-content" tabIndex={-1}>
           {banner}
-          <KodlandBrowserNotice uid={user.id} />
           <div className="page-stage"><OperationalErrorBoundary key={pathname}>{children}</OperationalErrorBoundary></div>
         </main>
       </section>

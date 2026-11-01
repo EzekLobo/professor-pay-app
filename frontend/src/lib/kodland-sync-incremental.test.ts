@@ -92,10 +92,13 @@ it("retorno explícito ao Firebase compara a base remota, sem confundir cache at
  await kodlandApi.sync("teacher","fixture","essential");
  mocks.db.get("users/incremental/kodland_students/s")!.name="Nome antigo remoto";
  mocks.commits.length=0;
- const cache=vi.spyOn(browserCache,"readKodlandBrowser").mockResolvedValue({version:1,active:true,updatedAt:"2026-10-31",coreAt:"2026-10-31",collections:{},groupCompletedAt:{},automatic:{}});
+ const local:browserCache.KodlandBrowserState={version:1,active:true,updatedAt:"2026-10-31",coreAt:"2026-10-31",collections:{},groupCompletedAt:{},automatic:{}};
+ const cache=vi.spyOn(browserCache,"readKodlandBrowser").mockResolvedValue(local);
+ const persist=vi.spyOn(browserCache,"updateKodlandBrowser").mockImplementation(async(_uid,mutate)=>{mutate(local);return local;});
  const reads=vi.spyOn(browserCache,"readKodlandBrowserRows").mockResolvedValue(snapshot().students);
  try {
   await kodlandApi.sync("teacher","fixture","essential",{storage:"firebase"});
   expect(mocks.commits).toEqual([1]);expect(mocks.db.get("users/incremental/kodland_students/s")?.name).toBe("Ana");
- } finally {cache.mockRestore();reads.mockRestore();}
+  expect(local.collections.kodland_students[0].name).toBe("Ana");
+ } finally {cache.mockRestore();reads.mockRestore();persist.mockRestore();}
 });

@@ -66,3 +66,8 @@ Comparar conteúdo antes de gerar escritas, com timestamps técnicos fora da igu
 - Entregar modo opt-in IndexedDB para dados recuperáveis Kodland durante indisponibilidade Firestore; manter autenticação e dados próprios remotos. A cópia local pode ser a fonte sem participar da fila de gravação Firebase. Nenhum dado próprio é movido ou conciliado como vazio.
 - Snapshot por UID confirmado atomicamente; modo e controles locais persistidos. Operações de backup/restauração/reset continuam lendo base remota, nunca uma sobreposição de cache. Retorno a Firebase é uma nova consulta autorizada/confirmada, não upload cego de overlays locais.
 - Não usar fonte parcial Kodland de mensagem para reconciliar alertas globais. Não sinalizar carga local inicial completa sem cobrir presença e atividades das turmas ativas.
+
+## 01/11/2026 — Política global de armazenamento somente administrativa
+
+- Remover escolha e avisos técnicos de armazenamento para usuários finais. Administração determina Navegador/Firebase globalmente; padrão Navegador mantém operação durante quota indisponível sem exigir escrita para ativação.
+- Política em documento global protegido, endpoint autenticado e alteração exclusiva administrativa. Última configuração válida por UID mantém comportamento em indisponibilidade; sem histórico usar navegador. Leituras não criam documentos; confirmações administrativas só após persistência.

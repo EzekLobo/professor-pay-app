@@ -3483,7 +3483,7 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .notification-fields .form-actions .button { flex: 1 1 120px; width: auto; }
 }
 
-.admin-section-switch { display: flex; gap: 8px; }
+.admin-section-switch { display: flex; flex-wrap: wrap; gap: 8px; }
 .admin-section-switch .button { width: auto; }
 .admin-section-switch button[aria-pressed="true"] { border-color: var(--primary); color: var(--text); background: rgb(124 107 230 / 16%); }
 .admin-users-view { display: grid; gap: 14px; min-width: 0; }

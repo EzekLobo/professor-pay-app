@@ -1,4 +1,4 @@
-> Atualização adicional: foi entregue um modo emergencial opt-in de sincronização Kodland
+> Atualização adicional: foi entregue um modo de sincronização Kodland definido pelo administrador
 > em IndexedDB, descrito em [KODLAND_BROWSER_CACHE.md](../KODLAND_BROWSER_CACHE.md).
 > Não representa a conclusão da migração completa ou do offline/PWA propostos neste plano.
 

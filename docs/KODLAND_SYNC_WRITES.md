@@ -36,4 +36,4 @@ A redução de escritas evita desperdício futuro; não restaura quota já consu
 
 ## Alternativa quando o Firestore está indisponível
 
-A opção **Salvar somente neste navegador** mantém o snapshot Kodland no IndexedDB e não depende da fila/gravação de documentos Firestore. O restante da aplicação mantém suas dependências próprias. Ver [KODLAND_BROWSER_CACHE.md](KODLAND_BROWSER_CACHE.md) para escopo, ativação e retorno à base remota.
+A política **Navegador**, definida em Administração → Sincronização, mantém o snapshot Kodland no IndexedDB e não depende da fila/gravação de documentos Firestore. O restante da aplicação mantém suas dependências próprias. Ver [KODLAND_BROWSER_CACHE.md](KODLAND_BROWSER_CACHE.md) para escopo, ativação e retorno à base remota.

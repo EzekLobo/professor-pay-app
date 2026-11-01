@@ -1,3 +1,4 @@
+import { kodlandStoragePolicy } from "./kodland-storage-policy";
 import { readKodlandBrowser, readKodlandBrowserRows, updateKodlandBrowser, type BrowserRow } from "./kodland-browser-cache";
 import { kodlandDocumentChanged } from "./kodland-write-diff";
 import { requestKodlandJson, readKodlandLocal, KodlandSyncReadTimeout } from "./kodland-sync-client";
@@ -2540,21 +2541,11 @@ function announceKodlandBrowser(uid: string, mode: string, scope?: string) {
     try { window.localStorage.setItem(`nexusclass:kodland-change:${uid}`, crypto.randomUUID()); } catch {}
   }
 }
-async function syncKodlandBrowser(username: string, password: string, mode: KodlandSyncMode, options: KodlandSyncOptions): Promise<KodlandSyncResult> {
-  const user = authUser();
-  const owner = () => getFirebaseAuth().currentUser?.uid === user.uid;
+async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnapshot, mode: KodlandSyncMode, options: KodlandSyncOptions) {
+  const owner = () => getFirebaseAuth().currentUser?.uid === uid;
   const assert = () => { options.assertActive?.(); if (!owner()) throw new ApiError(401, "A conta conectada mudou."); };
-  const syncId = crypto.randomUUID();
-  // Load the last confirmed local snapshot; no Firestore preflight is needed.
-  const previous = await readKodlandBrowser(user.uid);
-  assert();
-  options.onProgress?.("Consultando a Kodland para salvar neste navegador…", syncId);
-  const pending = (previous?.collections.kodland_extra_lessons ?? []).filter(item => !item.completed && !["DONE", "ACCOUNTED"].includes(String(item.manual_status))).map(item => String(item.external_student_id));
-  const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope, pending_extra_student_ids: pending }, () => user.getIdToken(), syncId);
-  assert();
   const stamp = now();
-  options.onProgress?.("Salvando dados no navegador, sem gravar no Firebase…", syncId);
-  await updateKodlandBrowser(user.uid, state => {
+  await updateKodlandBrowser(uid, state => {
     assert();
     const collection = (name: string) => state.collections[name] ?? [];
     const merge = (name: string, incoming: BrowserRow[]) => {
@@ -2610,6 +2601,28 @@ async function syncKodlandBrowser(username: string, password: string, mode: Kodl
     }));
     state.active = true; state.updatedAt = stamp;
   }, owner);
+}
+async function syncKodlandBrowser(username: string, password: string, mode: KodlandSyncMode, options: KodlandSyncOptions): Promise<KodlandSyncResult> {
+  const user = authUser();
+  const owner = () => getFirebaseAuth().currentUser?.uid === user.uid;
+  const assert = () => { options.assertActive?.(); if (!owner()) throw new ApiError(401, "A conta conectada mudou."); };
+  const syncId = crypto.randomUUID();
+  // Load the last confirmed local snapshot; no Firestore preflight is needed.
+  let previous = await readKodlandBrowser(user.uid);
+  assert();
+  if (!previous?.coreAt && mode !== "essential" && mode !== "schedule") {
+    await syncKodlandBrowser(username, password, "essential", { ...options, correctionGroupIds: undefined, followupScope: undefined });
+    assert();
+    previous = await readKodlandBrowser(user.uid);
+  }
+  // Hydrate attendance once when transparently adopting browser storage; never repeat it on the six-hour activity cadence.
+  if (mode === "corrections" && options.followupScope === "activities" && (options.correctionGroupIds ?? []).some(id => !previous?.attendanceCompletedAt?.[id])) options = { ...options, followupScope: undefined };
+  options.onProgress?.("Consultando a Kodland…", syncId);
+  const pending = (previous?.collections.kodland_extra_lessons ?? []).filter(item => !item.completed && !["DONE", "ACCOUNTED"].includes(String(item.manual_status))).map(item => String(item.external_student_id));
+  const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope, pending_extra_student_ids: pending }, () => user.getIdToken(), syncId);
+  assert();
+  options.onProgress?.("Salvando atualização…", syncId);
+  await persistKodlandBrowserSnapshot(user.uid, snapshot, mode, options);
   assert();
   announceKodlandBrowser(user.uid, mode, options.followupScope);
   return { storage: "browser", group_count: snapshot.groups.length, student_count: snapshot.students.length, lesson_count: snapshot.lessons.length, extra_lesson_count: snapshot.extra_lessons.length, review_count: snapshot.reviews.length, attendance_count: snapshot.attendance?.length ?? 0, progress_count: snapshot.task_progress?.length ?? 0, group_ids: snapshot.groups.filter(item => !item.archived).map(item => item.external_id) };
@@ -2737,9 +2750,12 @@ export const kodlandApi = {
     const firebaseUser = authUser();
     const firebaseUserId = firebaseUser.uid;
     const syncId = crypto.randomUUID();
-    const browser = await readKodlandBrowser(firebaseUserId);
-    if (options.storage === "browser" || (options.storage !== "firebase" && browser?.active)) {
-      const run = () => observeOperation<KodlandSyncResult>("kodland_sync", () => syncKodlandBrowser(username, password, mode, options), { scope: mode, trigger: options.automatic ? "automatic" : "manual", reference: syncId });
+    const storage = options.storage ?? await kodlandStoragePolicy();
+    if (storage === "browser") {
+      const run = () => {
+        if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) throw new ApiError(401, "A conta conectada mudou.");
+        return observeOperation<KodlandSyncResult>("kodland_sync", () => syncKodlandBrowser(username, password, mode, options), { scope: mode, trigger: options.automatic ? "automatic" : "manual", reference: syncId });
+      };
       if (typeof navigator !== "undefined" && navigator.locks) return navigator.locks.request(`nexusclass:kodland-browser:${firebaseUserId}`, { ifAvailable: options.automatic === true }, async lock => {
         if (!lock) throw new KodlandAutoSyncBusyError("Outra atualização local está em andamento.");
         return run();
@@ -2818,6 +2834,7 @@ export const kodlandApi = {
         const ids = followupGroups;
         await setDoc(doc(syncCollection("sync_status"), "corrections"), { status: "complete", sync_id: syncId, group_status: Object.fromEntries(ids.map(id => [id, "complete"])), ...(options.followupScope === "attendance" ? {} : { group_completed_at: Object.fromEntries(ids.map(id => [id, completedAt])) }) }, { merge: true });
       }
+      if ((await readKodlandBrowser(firebaseUserId))?.active) await persistKodlandBrowserSnapshot(firebaseUserId, snapshot, mode, options);
       notifyStudentNotificationsChanged();
       if (typeof window !== "undefined") {
         try { window.localStorage.setItem(`nexusclass:kodland-change:${firebaseUserId}`, syncId); } catch { /* Storage can be disabled; in-tab scheduling still works. */ }
@@ -3134,8 +3151,9 @@ export const kodlandApi = {
     options: KodlandSyncOptions = {},
   ): Promise<KodlandSyncResult> => {
     const requestedOwnerId = authUser().uid;
-    const local = options.storage === "browser" || (options.storage !== "firebase" && (await readKodlandBrowser(requestedOwnerId))?.active);
-    onProgress?.(local ? "Preparando sincronização neste navegador…" : "Preparando sincronização manual; aguardando operação em andamento, se houver…");
+    options = { ...options, storage: options.storage ?? await kodlandStoragePolicy() };
+    const local = options.storage === "browser";
+    onProgress?.(local ? "Preparando sincronização…" : "Preparando sincronização manual; aguardando operação em andamento, se houver…");
     const priority = local ? async <T,>(_uid: string, run: () => Promise<T>) => run() : withKodlandManualPriority;
     return priority(requestedOwnerId, () => observeOperation<KodlandSyncResult>("kodland_sync", async () => {
     const ownerId = requestedOwnerId;

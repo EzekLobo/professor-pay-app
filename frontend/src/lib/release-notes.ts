@@ -10,11 +10,6 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
-    version: 2026103110, date: "2026-10-31", title: "Sincronização salva no navegador",
-    description: "A opção Salvar somente neste navegador atualiza dados Kodland sem gravá-los no Firestore. Turmas, aulas e acompanhamento ficam neste aparelho após recarregar; pagamentos e dados próprios continuam no Firebase.",
-    href: "/settings#data", action: "Abrir sincronização",
-  },
-  {
     version: 2026103109, date: "2026-10-31", title: "Sincronização conforme a necessidade",
     description: "Presença é consultada após a aula, com até duas tentativas. Atividades atualizam a cada seis horas; turmas e grade, diariamente. As notificações reaproveitam os dados carregados, reduzindo consultas repetidas.",
     href: "/settings#data", action: "Abrir sincronização",

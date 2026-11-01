@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { KodlandBrowserState } from "./kodland-browser-cache";
 const state = vi.hoisted(() => ({ uid: "local-owner", disk: null as KodlandBrowserState | null, fail: false, calls: [] as string[] }));
+vi.mock("./kodland-storage-policy", () => ({ kodlandStoragePolicy: async () => "browser" }));
 vi.mock("./kodland-sync-lock", async original => ({
  ...await original<typeof import("./kodland-sync-lock")>(),
  withKodlandSyncLock: () => { throw new Error("Remote write queue must not block local sync"); },
@@ -72,4 +73,13 @@ it("não apresenta importação local parcial como acompanhamento completo para 
  expect(await kodlandApi.notificationSyncStatus()).toMatchObject({status:"running"});
  await kodlandApi.sync("teacher","fixture","corrections",{storage:"browser",refreshSchedule:false,correctionGroupIds:["g"]});
  expect(await kodlandApi.notificationSyncStatus()).toMatchObject({status:"complete"});
+});
+
+it("inicializa o cache ao adotar política do administrador numa atualização automática parcial",async()=>{
+ const fetch=vi.fn(async(_url,request)=>Response.json({...base(),review_group_ids:["g"],attendance_group_ids:JSON.parse(request.body).followup_scope === "activities" ? [] : ["g"],task_progress:[]}));vi.stubGlobal("fetch",fetch);
+ await kodlandApi.sync("teacher","fixture","corrections",{automatic:true,refreshSchedule:false,correctionGroupIds:["g"],followupScope:"activities"});
+ expect(fetch.mock.calls.map(call=>JSON.parse(call[1].body).mode)).toEqual(["essential","corrections"]);
+ expect((await kodlandApi.groups()).items).toHaveLength(1);expect(state.disk!.attendanceCompletedAt?.g).toBeTruthy();
+ await kodlandApi.sync("teacher","fixture","corrections",{automatic:true,refreshSchedule:false,correctionGroupIds:["g"],followupScope:"activities"});
+ expect(JSON.parse(fetch.mock.lastCall![1].body).followup_scope).toBe("activities");
 });

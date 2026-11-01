@@ -1,5 +1,14 @@
 # Estado atual
 
+## Política de armazenamento administrativa — 01/11/2026
+
+- Usuário removeu escolha/avisos de armazenamento do fluxo comum. DataContent sincroniza sem checkbox, sucesso técnico ou banner; componente KodlandBrowserNotice removido. Nota2026103110 removida porque instruía opção que deixou de existir; sem nova novidade global para configuração administrativa.
+- Administração → Sincronização define browser/firebase para todos; padrão browser. /api/kodland/policy GET exige sessão, PUT assertAdministrator. Documento global app_settings/kodland_sync via AdminSDK; sem permissão de escrita cliente. Cache servidor60s/cliente60s porUID, fallbackúltimapolíticaválida local oubrowser;401/403 não viram sucesso. Admin confirma gravação real; falhasquota informadas somente no painel administrativo.
+- syncAll fixa política no começo da sequência; sync manual/automático resolve política sem opção de usuário. Node/tooling permanece adapterFirebase sem janela de browser. Transição inicial via requestparcial faz core e hidrata presença uma vez por turma para não ocultar dados ao ativar cache. Cloud refresh confirmado espelha cache ainda ativo sem novo fetch; syncAll completo desativa cache quando retorna aoFirebase.
+- Próximas referências: kodland-storage-policy.ts, api/kodland/policy/route.ts, kodland-storage-admin.tsx. Propagação até2min com serviço disponível; política histórica pode permanecer durante indisponibilidade. Configuração padrão não exige gravação quando Firebase está sem quota.
+- Validação:400unitários/63arquivos,11E2E de modal/dados/novidades/IndexedDB, lint/typecheck/build aprovados. Autorização de política, falha de gravação sem falso sucesso, cache/fallback/401/trocaUID, bootstrap automático e espelhamento confirmado cobertos. Deploy e alteração real da configuração não confirmados.
+
+
 ## Modo local emergencial Kodland — 31/10/2026
 
 - Usuário relatou quota Firestore esgotada e pediu atualização sem gravação remota. Opção Salvar somente neste navegador no modal usa IndexedDB nexusclass-kodland-v1/accounts por UID, sem credenciais/tokens, confirmado em transaction.oncomplete. Fonte ativa persiste após recarga; falha aborta e preserva snapshot anterior.

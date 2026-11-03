@@ -76,3 +76,9 @@ Comparar conteúdo antes de gerar escritas, com timestamps técnicos fora da igu
 
 - Substituir Mais móvel por navegação horizontal nativa com todas as áreas operacionais. Configurações fica no cabeçalho; Administração apenas dentro de Configurações, com permissões existentes.
 - Novidades passam a ser entrada agregada no sino, com modal somente por clique e consulta posterior no Histórico. Não abrir automaticamente ou exibir ícone separado. Manter cursor porUID e separar leitura de novidades de confirmação de contato com responsáveis.
+
+## 03/11/2026 — Alertas derivados independentes de commits do Firestore
+
+- Calcular alertas Kodland confirmados no cache usando a última configuração conhecida, sem habilitar regras desconhecidas. Reconciliação deve declarar cobertura por fonte/turma/categoria para preservar casos de grupos ou fontes indisponíveis.
+- Guardar shadow de configurações/histórico auxiliares, mas exigir confirmação remota para salvar novas regras e confirmar contato. Leitura local não equivale a contato ou envio de mensagem.
+- Faltas e atividades de aula Kodi referem-se à última ocorrência encerrada. Classificar a última aula automaticamente e conservar unknown quando faltarem estado/inventário/horário confiáveis.

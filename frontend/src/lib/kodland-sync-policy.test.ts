@@ -56,3 +56,12 @@ describe("agenda econômica de sincronização", () => {
   expect(attendanceConfirmed(lesson,[],[record])).toBe(false);
  });
 });
+
+it("classifica somente a última aula pendente e limita tentativas sem exigir abrir materiais",()=>{
+ const previous={...lesson,id:"old",lesson_date:"2026-10-24",materials_status:"pending" as const};
+ const current={...lesson,materials_status:"pending" as const};
+ const materials=tasks("2026-10-31T23:00:00Z",{},[previous,current]).filter(task=>task.kind==="materials");
+ expect(materials).toHaveLength(1);expect(materials[0].lesson?.id).toBe("l");
+ expect(tasks("2026-10-31T23:00:00Z",{[materials[0].id]:{attempts:2,at:"2026-10-31T22:00:00Z",complete:false}},[previous,current]).filter(task=>task.kind==="materials")).toEqual([]);
+ expect(tasks("2026-10-31T23:00:00Z",{},[previous,{...current,materials_status:"ready"}]).filter(task=>task.kind==="materials")).toEqual([]);
+});

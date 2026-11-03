@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { readKodlandLocal } from "@/lib/kodland-sync-client";
 import { useReleaseNotes } from "./release-notes";
 import { observeOperation, reportOperation } from "@/lib/operation-log-client";
 import { classifyOperationError } from "@/lib/operation-log";
@@ -67,17 +68,17 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
     try {
       const previous = cached.current;
       const remote = force || !previous || Date.now() - previous.at >= 6 * 3600000;
-      const [value, history] = remote ? await Promise.all([store.settings(), store.cases()]) : [previous.settings, previous.history];
+      const [value, history] = remote ? await Promise.all([store.settings(force), store.cases(force)]) : [previous.settings, previous.history];
       if (run !== generation.current) return;
       setSettings(value); setCases(history);
-      const prefs = demo ? snapshot?.tutorPreferences : remote ? await tutorPreferencesApi.get() : null;
+      const prefs = demo ? snapshot?.tutorPreferences : remote ? await readKodlandLocal(() => tutorPreferencesApi.get(), crypto.randomUUID(), "Mensagem de ausência", 3000).catch(() => null) : null;
       if (run !== generation.current) return;
-      if (remote || demo) setAbsenceTemplate(prefs?.absence_message_template || DEFAULT_ABSENCE_MESSAGE);
+      if (prefs || demo) setAbsenceTemplate(prefs?.absence_message_template || DEFAULT_ABSENCE_MESSAGE);
       const data = value.enabled ? await source(value, force) : null;
       if (run !== generation.current) return;
       const items = data ? evaluateStudentNotifications(data.lessons, data.obligations, value, new Date()) : [];
       const itemSignature = JSON.stringify(items);
-      const rows = remote || previous?.signature !== itemSignature ? await store.reconcile(items, startedAt) : history;
+      const rows = remote || previous?.signature !== itemSignature ? await store.reconcile(items, startedAt, data?.coverage) : history;
       cached.current = { at: remote ? Date.now() : previous.at, settings: value, history: rows, signature: itemSignature };
       if (run !== generation.current) return;
       setCases(rows); setWarnings(data?.warnings ?? []); setUpdated(data?.loaded_at ?? ""); setError("");

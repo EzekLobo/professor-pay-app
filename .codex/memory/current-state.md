@@ -1,5 +1,17 @@
 # Estado atual
 
+## Alertas da última aula e cache de notificações — 03/11/2026
+
+- Usuário relatou ausência de faltas/nenhuma atividade no sino. Identificados: reconciliação dependia de commits Firebase; bloqueio global por turma incompleta; presença/progresso com IDs distintos; classificação só após abrir material; datas/horários curriculares esparsos e opcionais undefined recusados pelo Firestore.
+- student-notification-source usa cobertura por categoria/turma; browser calcula a partir de coleções confirmadas e fonte manual opcional/cache6h/timeout3s; cloud aceita turmas saudáveis em snapshot parcial. Não reconciliar vazio fora da cobertura. IDs canônicos ligam presença/progresso; campos de contato ausentes viram strings vazias. Âncoras de calendário impedem alertar aula antiga como última.
+- kodland-notification-calendar reutiliza horário semanal apenas se âncoras datadas concordam, com tratamento da meia-noite. Regras Kodland de falta/aula limitadas à última ocorrência encerrada; casa mantém prazos anteriores. Datas iniciais/ativação/tolerância mantidas.
+- Dep. materials em kodland-sync-policy/hook carrega classificação da última aula pending/error, máximo2tentativas e sem arquivos grandes. syncBrowser manual hidrata última aula; getters de materiais notificam alterações. Inventário confirmado verifica todos os itens de aula, sem bloquear por extras desconhecidos nem tratar unknown de atividade obrigatória como missing.
+- notificationCache opcional em IndexedDB guarda shadow de regras confirmadas/histórico conhecido. createStudentNotificationStore envolve remoto: casos derivados em browser não aguardam Firebase; markRead local não confirma; confirmação de contato exige commit remoto (cria caso cache-only validado quando necessário). Cache normal/cloud prévio preserva confirmações ao adotar modo navegador. Remoto continua verdade para novas configurações/confirmar contato.
+- Reconcile canônico migra confirmação inequívoca da mesma ocorrência; DTOs removem undefined antes de Firestore. Testes de cache/quota/UID/cobertura/última aula/inventário/horários/migração e fluxos mobile; novidade2026110301; docs/STUDENT_NOTIFICATIONS.md e docs/KODLAND_BROWSER_CACHE.md.
+
+- Validação:415 testes unitários/65arquivos;9E2E de notificações/mensagens/sync no celular e desktop;lint e build com TypeScript aprovados. Firebase/Kodland privados e deploy não verificados.
+
+
 ## Navegação móvel e novidades no sino — 01/11/2026
 
 - ShellFrame remove Mais/modal e inclui as6rotas principais na barra móvel horizontal nativa (pan-x/overflow), com sugestão visual parcial da próxima opção. useLayoutEffect revela itemativo antes de pintar, inclusive entrada direta/recarga de Tarefas; desktop mantém menu vertical. Configurações agora é engrenagem44px no cabeçalho, sem duplicação lateral.

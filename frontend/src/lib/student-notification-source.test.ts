@@ -80,3 +80,10 @@ it("reutiliza fontes por seis horas e permite atualização manual antes do praz
  now+=60000;await loadStudentNotificationSource("a",settings);expect(reads).toHaveBeenCalledTimes(2);
  await loadStudentNotificationSource("a",settings,true);expect(reads).toHaveBeenCalledTimes(3);
 });
+
+it("falha de uma turma no Firebase não bloqueia as demais nem autoriza apagar seus casos",async()=>{
+ Object.assign(mock.status,{status:"failed",mode:"corrections",main_status:"failed",group_status:{ready:"complete",blocked:"failed"}});
+ vi.spyOn(kodlandApi,"groups").mockResolvedValue({items:[{external_id:"ready",archived:false},{external_id:"blocked",archived:false}] as NotificationSourceSnapshot["groups"]});
+ const source=await loadStudentNotificationSource("a",settings,true);
+ expect(source.coverage).toEqual({manual:true,attendance:["ready"],activities:["ready"]});
+});

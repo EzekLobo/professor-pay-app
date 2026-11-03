@@ -71,3 +71,18 @@ describe("casos e confirmação de contato", () => {
     expect(mock.documents.size).toBe(0); vi.unstubAllGlobals();
   });
 });
+
+it("mudança do identificador da mesma ocorrência mantém contato confirmado sem reapresentar cobrança",()=>{
+ const old={...item,id:"old-id",occurrence_id:"2"};
+ const previous=reconcileNotificationCases([],[old],timestamp);previous[0].confirmed_revisions=[old.revision];
+ const canonical={...old,id:"canonical-id",occurrence_id:"source-id"};
+ const merged=reconcileNotificationCases(previous,[canonical],timestamp);
+ expect(merged.find(row=>row.id==="old-id")?.active).toBe(false);
+ expect(needsNotificationContact(merged.find(row=>row.id==="canonical-id")!)).toBe(false);
+});
+
+it("remove campos opcionais undefined antes de gravar uma notificação no Firestore",async()=>{
+ const store=createStudentNotificationStore("a");await store.reconcile([{...item,recording_url:undefined}],timestamp);
+ const saved=mock.documents.get(`users/a/notification_cases/${item.id}`) as {notification:object};
+ expect(saved.notification).not.toHaveProperty("recording_url");
+});

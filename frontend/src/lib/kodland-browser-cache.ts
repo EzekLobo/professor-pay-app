@@ -1,10 +1,12 @@
-/** Recoverable Kodland data only. Never stores credentials, tokens or app-owned records. */
+import type { NotificationCase, NotificationSettings } from "./student-notification-rules";
+/** Kodland snapshots and a notification shadow cache. Never stores credentials or tokens. */
 export type BrowserRow = { id: string } & Record<string, unknown>;
 export type KodlandBrowserState = {
   version: 1; active: boolean; updatedAt: string; coreAt: string;
   collections: Record<string, BrowserRow[]>;
   groupCompletedAt: Record<string, string>;
   attendanceCompletedAt?: Record<string, string>;
+  notificationCache?: { settings?: NotificationSettings; settingsAt?: number; cases: NotificationCase[]; remoteCasesAt?: number };
   automatic: Record<string, { attempts: number; at: string; complete: boolean }>;
 };
 const database = "nexusclass-kodland-v1";

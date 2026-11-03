@@ -1,15 +1,28 @@
+import { kodlandNotificationCalendar } from "./kodland-notification-calendar";
 import type { KodlandAttendance, KodlandGroup, KodlandStudent } from "./api";
 import type { KodlandLesson } from "./kodland-lessons";
 import { lessonForAttendance } from "./attendance-schedule";
-import { notificationLocalInstant } from "./student-notification-rules";
+import { notificationLessonEnd, notificationLocalInstant } from "./student-notification-rules";
 import { isActiveKodlandStudent } from "./student-ranking";
 
 export const ACTIVITY_SYNC_INTERVAL = 6 * 60 * 60000;
 export type AutomaticTaskState = { attempts: number; at: string; complete: boolean };
-export type AutomaticTask = { id: string; kind: "daily" | "classroom" | "attendance"; groupId?: string; lesson?: KodlandLesson; students?: string[] };
+export type AutomaticTask = { id: string; kind: "daily" | "classroom" | "attendance" | "materials"; groupId?: string; lesson?: KodlandLesson; students?: string[] };
 const zone = "America/Sao_Paulo";
 const day = (time: number) => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(time);
 
+export function latestKodlandLessons(lessons: KodlandLesson[], now: number, classrooms: KodlandGroup[] = []) {
+  const groups = new Map<string, KodlandLesson>();
+  for (const lesson of lessons) {
+    if (/cancel/i.test(lesson.status)) continue;
+    const calendar = kodlandNotificationCalendar({ lesson_date: "" }, lesson, lessons, classrooms.find(group => group.external_id === lesson.external_class_id), zone);
+    const end = Date.parse(calendar.endedAt ?? "");
+    if (!Number.isFinite(end) || end > now) continue;
+    const previous = groups.get(lesson.external_class_id);
+    if (!previous || end > Date.parse(notificationLessonEnd(previous.lesson_date?.slice(0, 10), previous.start_time, previous.end_time, zone) ?? "")) groups.set(lesson.external_class_id, { ...lesson, lesson_date: calendar.date, start_time: calendar.start, end_time: calendar.end });
+  }
+  return [...groups.values()];
+}
 /** Decisions use the real dated calendar, never an assumed weekly recurrence. */
 export function automaticTasks(now: number, groups: KodlandGroup[], lessons: KodlandLesson[], students: KodlandStudent[], states: Record<string, AutomaticTaskState>, scheduleUpdatedAt: string | null): AutomaticTask[] {
   const tasks: AutomaticTask[] = [];
@@ -35,6 +48,10 @@ export function automaticTasks(now: number, groups: KodlandGroup[], lessons: Kod
     if (state?.attempts && (now < end + 60 * 60000 || now - Date.parse(state.at) < 30 * 60000)) continue;
     const ids = students.filter(student => student.external_class_id === lesson.external_class_id && !student.hidden && isActiveKodlandStudent(student.status)).map(student => student.external_id);
     if (ids.length) tasks.push({ id: attendanceId, kind: "attendance", groupId: lesson.external_class_id, lesson, students: [...new Set(ids)] });
+  }
+  for (const lesson of latestKodlandLessons(lessons, now, groups)) {
+    const id = `materials:${lesson.external_class_id}:${lesson.id}`;
+    if (active.has(lesson.external_class_id) && lesson.source_lesson_id && ["pending", "error"].includes(lesson.materials_status ?? "") && !states[id]?.complete && (states[id]?.attempts ?? 0) < 2) tasks.push({ id, kind: "materials", groupId: lesson.external_class_id, lesson });
   }
   return [...new Map(tasks.map(task => [task.id, task])).values()];
 }

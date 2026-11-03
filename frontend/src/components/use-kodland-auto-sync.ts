@@ -60,6 +60,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean) {
         try {
           if (task.kind === "daily") await synchronize(credentials, "schedule");
           else if (task.kind === "classroom") await synchronize(credentials, "classroom", task.groupId);
+          else if (task.kind === "materials" && task.lesson) await kodlandApi.loadLessonMaterials(task.lesson, credentials.username, credentials.password);
           else await synchronize(credentials, "corrections", task.groupId, "attendance");
         } catch (reason) {
           if (reason instanceof KodlandAutoSyncBusyError && owner()) {

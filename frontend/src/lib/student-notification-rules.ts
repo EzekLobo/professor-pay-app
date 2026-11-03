@@ -47,13 +47,14 @@ export type NotificationLesson = {
   attendance: "absent" | "other" | "unknown";
   guardian_name: string; guardian_phone: string;
   recording_url?: string;
+  classroom_inventory?: string[];
 };
 /** Only explicit assignment/status data belong here. A review queue is not an inventory. */
 export type NotificationObligation = {
   id: string; source: "manual" | "kodland"; class_id: string; student_id: string; occurrence_id: string;
   title: string; kind: ActivityKind; due_at: string | null;
   state: "missing" | "delivered" | "unknown";
-  required: boolean; exempt: boolean;
+  required: boolean; exempt: boolean; external_task_id?: string;
 };
 export type StudentNotification = NotificationLesson & {
   id: string; category: NotificationCategory; revision: string;
@@ -74,10 +75,27 @@ export function notificationLocalInstant(date: string, time: string, zone: strin
     return civil(value) === target ? new Date(value).toISOString() : null;
   } catch { return null; }
 }
+export function notificationLessonEnd(date: string, start: string | undefined, end: string | undefined, zone: string): string | null {
+  const ended = notificationLocalInstant(date, end?.slice(0, 5) ?? "", zone);
+  const started = notificationLocalInstant(date, start?.slice(0, 5) ?? "", zone);
+  if (!ended || !started || Date.parse(ended) > Date.parse(started)) return ended;
+  if (ended === started) return null;
+  const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + 1);
+  return notificationLocalInstant(next.toISOString().slice(0, 10), end!.slice(0, 5), zone);
+}
+export type NotificationCoverage = { manual: boolean; attendance: string[]; activities: string[] };
+export function notificationCovered(item: Pick<StudentNotification, "source" | "class_id" | "category">, coverage?: NotificationCoverage) {
+  return !coverage || (item.source === "manual" ? coverage.manual : (item.category === "absence" ? coverage.attendance : coverage.activities).includes(item.class_id));
+}
 export function evaluateStudentNotifications(lessons: readonly NotificationLesson[], obligations: readonly NotificationObligation[], settings: NotificationSettings, now: Date): StudentNotification[] {
   if (!settings.enabled) return [];
   const grouped = new Map<string, NotificationObligation[]>();
   for (const item of obligations) { const key = identity(item); const list = grouped.get(key) ?? []; if (!list.some(prior => prior.id === item.id)) list.push(item); grouped.set(key, list); }
+  const latest = new Map<string, number>();
+  for (const lesson of lessons) {
+    const end = Date.parse(lesson.ended_at ?? "");
+    if (lesson.source === "kodland" && lesson.active && !lesson.cancelled && end <= now.getTime()) latest.set(lesson.class_id, Math.max(latest.get(lesson.class_id) ?? 0, end));
+  }
   const result = new Map<string, StudentNotification>();
   for (const lesson of lessons) {
     const ended = Date.parse(lesson.ended_at ?? "");
@@ -87,14 +105,19 @@ export function evaluateStudentNotifications(lessons: readonly NotificationLesso
       const sorted = [...activities].sort((a, b) => a.id.localeCompare(b.id));
       result.set(id, { ...lesson, id, category, reason, revision: category === "absence" ? "absence" : JSON.stringify(sorted.map(item => item.id)), activities: sorted.map(item => ({ id: item.id, title: item.title, due_at: item.due_at })) });
     };
-    if (settings.attendance_enabled && lesson.attendance === "absent") add("absence", "Falta sem justificativa: entrar em contato com o responsável.");
+    const lastClass = lesson.source !== "kodland" || ended === latest.get(lesson.class_id);
+    if (lastClass && settings.attendance_enabled && lesson.attendance === "absent") add("absence", "Falta sem justificativa: entrar em contato com o responsável.");
     const assigned = (grouped.get(identity(lesson)) ?? []).filter(item => item.required && !item.exempt);
     const classroom = assigned.filter(item => item.kind === "classroom");
     const due = (item: NotificationObligation) => !item.due_at || (Number.isFinite(Date.parse(item.due_at)) && Date.parse(item.due_at) + settings.tolerance_minutes * 60000 <= now.getTime());
     const missing = classroom.filter(item => item.state === "missing" && due(item));
-    // Unknown statuses prevent an assertion that absolutely nothing was delivered.
-    if (settings.classroom_rule === "none_submitted" && !assigned.some(item => item.kind === "unknown") && classroom.length > 0 && missing.length === classroom.length) add("classroom", "Nenhuma atividade da aula foi entregue.", missing);
-    if (settings.classroom_rule === "more_than" && missing.length > settings.classroom_threshold) add("classroom", `${missing.length} atividades da aula não entregues.`, missing);
+    // A verified classroom inventory permits unrelated unknown tasks, but never missing/unknown records for a required classroom task.
+    const inventoryComplete = lesson.classroom_inventory
+      ? lesson.classroom_inventory.length > 0 && lesson.classroom_inventory.every(id => classroom.some(item => item.external_task_id === id))
+      : !assigned.some(item => item.kind === "unknown");
+    // Unknown delivery states still prevent an assertion that nothing was delivered.
+    if (lastClass && settings.classroom_rule === "none_submitted" && inventoryComplete && classroom.length > 0 && missing.length === classroom.length) add("classroom", "Nenhuma atividade da aula foi entregue.", missing);
+    if (lastClass && settings.classroom_rule === "more_than" && missing.length > settings.classroom_threshold) add("classroom", `${missing.length} atividades da aula não entregues.`, missing);
     if (settings.homework_enabled) {
       const overdue = assigned.filter(item => {
         if (item.kind !== "homework" || item.state !== "missing") return false;

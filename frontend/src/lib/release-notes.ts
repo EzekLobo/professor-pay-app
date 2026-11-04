@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110406, date: "2026-11-04", title: "Indicadores compactos nas turmas",
+    description: "Alunos e atividades sem corrigir aparecem em indicadores à direita de cada turma. A criação de cursos usa o botão compacto Curso.",
+    href: "/classes", action: "Abrir alunos",
+  },
+  {
     version: 2026110405, date: "2026-11-04", title: "Alunos em uma única grade",
     description: "A aba Alunos reúne ranking, perfil e atividades por turma. Criar grupos e turmas permanece na mesma tela, sem alternar para outra lista.",
     href: "/classes", action: "Abrir alunos",

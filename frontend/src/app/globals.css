@@ -3779,3 +3779,7 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .compact-student-profile small { font-size: .65rem; }
 .compact-activities-grid-scroll .activity-whatsapp-button { flex: 0 0 44px; }
 .correction-disclosure { flex: 0 0 18px; width: 18px; height: 18px; vertical-align: middle; }
+
+.class-count-badge { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; border: 1px solid rgb(68 206 255 / 22%); border-radius: 999px; padding: 4px 8px; color: #aac8e8; background: rgb(68 206 255 / 7%); font-size: .72rem; font-weight: 800; white-space: nowrap; }
+.class-pending-badge { color: #f2d8a2; border-color: rgba(255, 190, 62, .35); background: rgba(194, 118, 12, .12); }
+@media (max-width: 480px) { .compact-class-actions { gap: 5px; } .class-count-badge { padding: 4px 6px; } }

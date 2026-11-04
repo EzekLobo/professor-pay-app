@@ -1,5 +1,10 @@
 # Estado atual
 
+## Navegação exclusiva entre turmas — 04/11/2026
+
+- A grade de Alunos mantém no máximo uma turma expandida: abrir outra contrai a anterior; clicar novamente na aberta fecha todas. Ações do menu de turma continuam isoladas desse toggle.
+- Validação: typecheck, lint, testes afetados, 3 E2E de modos Alunos em 320/390/1440 e build/deploy de produção após a alteração. Novidade 2026110411.
+
 ## Ações das turmas em dropdown — 04/11/2026
 
 - O menu de três pontos da grade Alunos abre as ações da turma ancoradas no cabeçalho, sem modal. Renomear usa formulário inline; ocultar mantém confirmação e a preferência local. Clique externo e Escape fecham o menu.

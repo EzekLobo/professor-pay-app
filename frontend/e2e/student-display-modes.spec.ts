@@ -29,6 +29,13 @@ for (const width of [320, 390, 1440]) {
     await expect(firstClass.getByRole("table")).toBeVisible();
     await expect(firstClass.getByRole("columnheader", { name: "Saldo de aulas" })).toBeVisible();
     await expect(firstClass.locator(".is-full-name").first()).toBeVisible();
+    const secondClass = page.locator(".compact-activities-class").nth(1);
+    await secondClass.locator("summary").click();
+    await expect(secondClass).toHaveAttribute("open", "");
+    await expect(firstClass).not.toHaveAttribute("open", "");
+    await firstClass.locator("summary").click();
+    await expect(firstClass).toHaveAttribute("open", "");
+    await expect(secondClass).not.toHaveAttribute("open", "");
     await page.screenshot({ path: `test-results/student-roster-${width}.png`, fullPage: true });
     await expect(page.getByRole("button", { name: /campos vazios/ })).toHaveCount(0);
     await expect(firstClass.locator(".class-completion-badge")).toBeVisible();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { MoreVertical, Plus, Settings, Trash2 } from "lucide-react";
+import { MoreVertical, Plus, Search, Settings, Trash2, X } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { manualCoursesApi, manualOperationsApi, manualTeachingApi, teachingSettingsApi, tutorPreferencesApi } from "@/lib/api";
 import type { ManualClass, ManualClassGroup, ManualClassGroupInput, ManualClassInput, ManualStudent } from "@/lib/manual-teaching";
@@ -38,6 +38,7 @@ export function ManualClassesPanel({ adapter, hasKodlandGroups = false, kodlandL
   const [defaultPaymentDay, setDefaultPaymentDay] = useState(15);
   const [courses, setCourses] = useState<ManualCourse[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [editing, setEditing] = useState<ManualClass | "new" | null>(null);
   const [classInput, setClassInput] = useState<ManualClassInput>(emptyInput);
   const [classRateInput, setClassRateInput] = useState("");
@@ -132,8 +133,14 @@ export function ManualClassesPanel({ adapter, hasKodlandGroups = false, kodlandL
   };
 
   return <>
-    <section className="panel manual-teaching-panel" data-tour="classes-personal-groups">
-      <div className="section-heading classes-compact-heading manual-personal-heading"><label className="manual-class-search"><span className="sr-only">Buscar grupo, turma ou aluno</span><input className="input" type="search" placeholder="Buscar grupo, turma ou aluno" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label><div className="card-actions manual-add-actions"><button className="button button-ghost button-small manual-add-action" type="button" aria-label="Adicionar grupo" title="Adicionar grupo" onClick={() => { setGroupInput(emptyGroup()); setGroupManagerOpen(true); }}><Plus size={17} aria-hidden="true" /><span>Grupo</span></button><button className="button button-ghost button-small manual-add-action" data-tour="classes-add-class" type="button" aria-label="Adicionar turma" title="Adicionar turma" onClick={() => editClass()}><Plus size={17} aria-hidden="true" /><span>Turma</span></button></div></div>
+    <section className="manual-teaching-toolbar-area" data-tour="classes-personal-groups">
+      <div className="manual-teaching-toolbar">
+        <div className="manual-teaching-toolbar-actions">
+          <button className="button button-ghost manual-search-toggle" type="button" aria-label={searchOpen ? "Fechar busca" : "Buscar grupo, turma ou aluno"} title={searchOpen ? "Fechar e limpar busca" : "Buscar grupo, turma ou aluno"} aria-expanded={searchOpen} aria-controls="manual-class-search" onClick={() => { setSearchOpen((value) => !value); if (searchOpen) setSearchQuery(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</button>
+          <div className="manual-add-actions"><button className="button button-ghost button-small manual-add-action" type="button" aria-label="Adicionar grupo" title="Adicionar grupo" onClick={() => { setGroupInput(emptyGroup()); setGroupManagerOpen(true); }}><Plus size={17} aria-hidden="true" /><span>Grupo</span></button><button className="button button-ghost button-small manual-add-action" data-tour="classes-add-class" type="button" aria-label="Adicionar turma" title="Adicionar turma" onClick={() => editClass()}><Plus size={17} aria-hidden="true" /><span>Turma</span></button></div>
+        </div>
+        {searchOpen && <div className="manual-class-search-popover" role="search"><label className="manual-class-search"><span className="sr-only">Buscar grupo, turma ou aluno</span><input id="manual-class-search" className="input" autoFocus type="search" placeholder="Buscar grupo, turma ou aluno" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setSearchQuery(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-controls="manual-class-search"]')?.focus(); } }} /></label></div>}
+      </div>
       {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     </section>
     {!hasKodlandGroups && !kodlandLoading && personalGroups.length === 0 && legacyClasses.length === 0 ? <section className="panel manual-group-panel"><p className="muted">Crie um grupo e cadastre sua primeira turma.</p></section> : visibleGroups.length === 0 && visibleLegacyClasses.length === 0 && (personalGroups.length > 0 || legacyClasses.length > 0) ? <section className="panel manual-group-panel"><p className="muted">Nenhum grupo, turma ou aluno encontrado.</p></section> : <div className="manual-groups-list">

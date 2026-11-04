@@ -17,6 +17,7 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await expect(personalGroups.getByText("Matemática particular", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Configurar grupo Turmas autônomas" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Ações da turma Matemática particular" })).toBeVisible();
+  await page.getByRole("button", { name: "Buscar grupo, turma ou aluno" }).click();
   const search = page.getByRole("searchbox", { name: "Buscar grupo, turma ou aluno" });
   await search.fill("Helena");
   await expect(personalGroups.getByText("Matemática particular", { exact: true })).toBeVisible();

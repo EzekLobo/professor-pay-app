@@ -1,9 +1,10 @@
 # Estado atual
 
-## Interface do quadro — 04/11/2026
+## Interface do quadro e alunos — 04/11/2026
 
 - Menu Tarefas renomeado para Meu quadro (Quadro no celular), com Minhas tarefas mantido como título interno. A busca abre por ícone no topo em um popover sobreposto; criar tarefa continua como ação textual principal e a barra não cresce ao abrir busca.
 - A legenda contextual de Atividades e Presença fica no ícone de informações, em modal, sem ocupar espaço fixo do conteúdo. Cores dos tipos de atividade e estados de presença são explicadas sob demanda.
+- Em Alunos, busca, Grupo e Turma ficam compactos e alinhados à direita no topo; a busca abre sobre o conteúdo e não reserva uma linha larga.
 
 ## Integração e rotina de sincronização — 04/11/2026
 

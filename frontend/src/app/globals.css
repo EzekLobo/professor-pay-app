@@ -2783,14 +2783,16 @@ summary:focus-visible {
     justify-content: center;
   }
 }
-.manual-teaching-panel { display: grid; gap: 12px; }
 .classes-compact-heading { gap: 10px; }
 .classes-compact-heading h2 { margin: 0; }
-.manual-personal-heading .card-actions { align-items: center; }
-.manual-class-search { display: block; width: min(420px, 100%); }
-.manual-class-search .input { min-height: 42px; }
-.manual-add-actions { gap: 6px; }
-.manual-add-action { min-height: 38px; gap: 6px; padding: 8px 10px; }
+.manual-teaching-toolbar-area { position: relative; display: grid; gap: 8px; margin-bottom: 12px; }
+.manual-teaching-toolbar { position: relative; display: flex; justify-content: flex-end; min-height: 44px; }
+.manual-teaching-toolbar-actions, .manual-add-actions { display: flex; align-items: center; gap: 6px; }
+.manual-search-toggle { display: inline-grid; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 8px; place-items: center; }
+.manual-class-search-popover { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; width: min(420px,calc(100vw - 48px)); padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: #0e1b30; box-shadow: 0 16px 48px #0008; }
+.manual-class-search { display: block; width: 100%; min-width: 0; }
+.manual-class-search .input { width: 100%; min-height: 44px; }
+.manual-add-action { min-height: 44px; gap: 6px; padding: 8px 10px; }
 .manual-add-action span { font-size: .76rem; }
 .sync-icon-button { display: inline-grid; flex: 0 0 42px; width: 42px; min-width: 42px; max-width: 42px; height: 42px; min-height: 42px; padding: 0; place-items: center; }
 .group-header-trash-button { color: #f0a6bd; border-color: rgba(240, 166, 189, .35); }
@@ -3066,13 +3068,11 @@ summary:focus-visible {
 .kodland-settings-form-help { grid-column: 1 / -1; margin: 0; }
 .kodland-group-name-field { grid-column: 1 / -1; }
 @media (max-width: 680px) {
-  .pedagogical-panel > .section-heading,
-  .manual-teaching-panel > .section-heading {
+  .pedagogical-panel > .section-heading {
     align-items: stretch;
     flex-direction: column;
   }
-  .pedagogical-panel > .section-heading .card-actions,
-  .manual-teaching-panel > .section-heading .card-actions {
+  .pedagogical-panel > .section-heading .card-actions {
     justify-content: flex-start;
   }
   .manual-class-modal { width: min(100% - 16px, 1120px); max-height: calc(100dvh - 16px); }
@@ -3088,6 +3088,7 @@ summary:focus-visible {
   .class-finance-actions { align-items: flex-start; flex-direction: column; }
   .class-finance-actions .button { width: auto; }
 }
+@media (max-width: 420px) { .manual-class-search-popover { width: min(420px,calc(100vw - 36px)); } }
 @media (min-width: 481px) and (max-width: 680px) {
   .manual-class-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .manual-form-grid, .manual-group-options, .manual-student-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }

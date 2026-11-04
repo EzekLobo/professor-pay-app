@@ -472,7 +472,7 @@ export function CompactActivitiesGrid({
   return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", selected.status], ["Pontuação", `${kodlandStudentPoints(selected.progress_summary)} pts`], ["Progresso", selected.progress_summary], ["E-mail", selected.email], ["Telefone", selected.phone], ["Responsável", selected.guardian_name], ["Telefone do responsável", selected.guardian_phone], ["E-mail do responsável", selected.guardian_email]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{selected.profile_url && <a className="button button-ghost" href={absoluteUrl(selected.profile_url)} target="_blank" rel="noreferrer">Perfil na Kodland</a>}</div>}</Modal><div className="correction-class-list compact-activities-list" aria-label="Atividades pendentes em formato compacto">
     {model.filter(item => !hidden.includes(item.key)).map((original) => {
       const classModel = { ...original, name: names[original.key] || original.name };
-      const gridStyle = { "--attendance-columns": classModel.columns.length } as CSSProperties;
+      const gridStyle = { "--attendance-columns": Math.max(1, classModel.columns.length) } as CSSProperties;
       return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
         <summary className="correction-class-heading">
           <div><h3>{classModel.name}</h3><span aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={13} aria-hidden="true" />{classModel.rows.length}</span></div>
@@ -488,7 +488,7 @@ export function CompactActivitiesGrid({
             </div>}
             {classModel.rows.map((row) => <div className={pendingOnly ? "compact-pending-row" : "attendance-grid-row"} style={pendingOnly ? undefined : gridStyle} role={pendingOnly ? "listitem" : "row"} key={row.key}>
               <div className="attendance-student-summary" role={pendingOnly ? undefined : "rowheader"}>
-                <div className="attendance-student-copy"><div className="activity-student-heading"><div className="compact-student-profile">{row.student ? <button type="button" className="compact-student-name" onClick={() => setSelected(row.student!)} title={`Informações de ${row.name}`}>{row.rank}º · {row.name}</button> : <h4>{row.name}</h4>}{row.student && <small>{new Intl.NumberFormat("pt-BR").format(kodlandStudentPoints(row.student.progress_summary))} pts</small>}</div>{contactButton?.(classModel.key, row.key, row.name)}</div></div>
+                <div className="attendance-student-copy"><div className="activity-student-heading"><div className="compact-student-profile">{row.student ? <button type="button" className="compact-student-name" onClick={() => setSelected(row.student!)} aria-label={`Informações de ${row.name}`} title={row.name}>{row.rank}º · {row.name.trim().split(/\s+/).filter((_, index, parts) => index === 0 || index === parts.length - 1).join(" ")}</button> : <h4>{row.name}</h4>}{row.student && <small>{new Intl.NumberFormat("pt-BR").format(kodlandStudentPoints(row.student.progress_summary))} pts</small>}</div>{contactButton?.(classModel.key, row.key, row.name)}</div></div>
               </div>
               {classModel.columns.map((column) => {
                 const cell = row.cells[column.key];

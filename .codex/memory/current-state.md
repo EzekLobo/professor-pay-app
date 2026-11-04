@@ -1,5 +1,7 @@
 # Estado atual
 
+- Grade Alunos: coluna fixa de 200px, nome e último sobrenome com tooltip completo, fonte compacta. Turmas sem atividades usam ao menos uma coluna CSS para evitar repeat(0) inválido.
+
 - Grade única em Alunos e atividades; ranking, pontos e perfil na caixa do aluno Kodland. Aba Alunos sem alternância: ações gerais e criação na mesma tela, sem outra lista de turmas. Lint, typecheck, dois testes da grade e build de produção aprovados.
 
 

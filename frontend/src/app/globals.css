@@ -3767,3 +3767,14 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .classes-integrated-actions .classes-compact-heading { margin: 0; }
 .compact-class-actions { display: inline-flex; align-items: center; gap: 12px; }
 .compact-class-actions .group-menu-button { width: 44px; height: 44px; }
+
+/* Keep the student column stable, including classes without pending tasks. */
+.compact-activities-grid-scroll .attendance-grid-header,
+.compact-activities-grid-scroll .attendance-grid-row { grid-template-columns: 200px repeat(var(--attendance-columns), 146px); }
+.compact-activities-grid-scroll .attendance-student-summary { width: 200px; box-sizing: border-box; min-height: 60px; }
+.compact-activities-grid-scroll .attendance-student-copy { width: 100%; min-width: 0; }
+.compact-activities-grid-scroll .activity-student-heading { width: 100%; justify-content: space-between; }
+.compact-student-profile { flex: 1; overflow: hidden; }
+.compact-student-name { display: block; width: 100%; min-height: 32px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .76rem; line-height: 1.25; }
+.compact-student-profile small { font-size: .65rem; }
+.compact-activities-grid-scroll .activity-whatsapp-button { flex: 0 0 44px; }

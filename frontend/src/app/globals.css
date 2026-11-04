@@ -2847,9 +2847,13 @@ summary:focus-visible {
 .compact-activity-action::after { position: absolute; z-index: 20; top: calc(100% + 6px); left: 50%; width: max-content; max-width: 220px; border: 1px solid rgba(112, 190, 255, .42); border-radius: 7px; padding: 6px 8px; color: #f5f9ff; background: #071528; box-shadow: 0 8px 24px rgba(0, 0, 0, .38); content: attr(data-tooltip); font-size: .72rem; font-weight: 700; line-height: 1.25; opacity: 0; pointer-events: none; text-align: left; transform: translate(-50%, -3px); transition: opacity .08s ease, transform .08s ease; white-space: normal; }
 .compact-activity-action:hover::after, .compact-activity-action:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
 .compact-activity-empty { cursor: default; }
-.attendance-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; color: var(--muted, #9db4d5); font-size: .7rem; font-weight: 750; }
-.attendance-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.correction-legend-modal { width: min(420px, calc(100vw - 24px)); }
+.correction-legend-list { display: grid; gap: 12px; color: var(--muted, #9db4d5); font-size: .82rem; font-weight: 700; }
+.correction-legend-list > span { display: flex; align-items: center; gap: 10px; min-height: 28px; }
 .attendance-legend-swatch { display: inline-block; width: 13px; height: 13px; flex: 0 0 13px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 4px; }
+.activity-legend-swatch { display: inline-block; width: 13px; height: 13px; flex: 0 0 13px; border: 1px solid rgba(255, 255, 255, .18); border-radius: 4px; }
+.activity-legend-swatch.is-kodland { border-color: rgba(255, 190, 62, .7); background: rgba(194, 118, 12, .65); }
+.activity-legend-swatch.is-manual { border-color: rgba(86, 195, 255, .68); background: rgba(37, 119, 182, .65); }
 .attendance-whatsapp-modal { width: min(620px, calc(100vw - 24px)); }
 .attendance-whatsapp-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .attendance-whatsapp-form > * { grid-column: 1 / -1; }
@@ -3568,8 +3572,6 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .correction-class-heading > div { flex-wrap: wrap; gap: 5px 8px; }
   .correction-class-heading h3 { font-size: .83rem; }
   .correction-class-heading > div > span { padding: 3px 7px; font-size: .65rem; }
-  .attendance-legend { gap: 6px 10px; margin-top: 0; font-size: .65rem; }
-  .attendance-legend-swatch { width: 10px; height: 10px; flex-basis: 10px; border-radius: 3px; }
   .attendance-grid-header, .attendance-grid-row { grid-template-columns: 124px repeat(var(--attendance-columns), 64px); column-gap: 4px; }
   .attendance-student-summary { padding: 5px 8px; }
   .attendance-student-copy h4 { font-size: .76rem; }
@@ -3647,6 +3649,7 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .correction-filters-modal { width: min(420px, calc(100vw - 24px)); }
 .correction-filters-modal .field { display: grid; gap: 8px; }
 @media (max-width: 760px) { .correction-icon-toolbar { width: 100%; gap: 6px; } }
+@media (max-width: 420px) { .correction-icon-toolbar { gap: 4px; } }
 
 /* Follow-up rows show identity once and align content/actions consistently. */
 .correction-card.entity-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 16px; padding: 12px; }

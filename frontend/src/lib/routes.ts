@@ -23,7 +23,7 @@ export const navigation: AppRoute[] = [
   { href: "/lessons", label: "Aulas", mobileLabel: "Aulas", icon: BookOpen },
 ];
 
-export const tasksNavigation: AppRoute = { href: "/tasks", label: "Tarefas", mobileLabel: "Tarefas", icon: ListTodo };
+export const tasksNavigation: AppRoute = { href: "/tasks", label: "Meu quadro", mobileLabel: "Quadro", icon: ListTodo };
 export const utilityNavigation: AppRoute = { href: "/data", label: "Dados e backup", mobileLabel: "Dados", icon: DatabaseBackup };
 export const settingsNavigation: AppRoute = { href: "/settings", label: "Configurações", mobileLabel: "Ajustes", icon: Settings };
 

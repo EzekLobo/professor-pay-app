@@ -54,6 +54,7 @@ for (const width of [1440, 390, 320]) {
     await expect(title).not.toBeVisible();
     await page.getByRole("button", { name: "Voltar ao quadro", exact: true }).click();
     await expect(title).toBeVisible();
+    await page.getByRole("button", { name: "Buscar tarefas", exact: true }).click();
     const search = page.getByRole("searchbox", { name: "Buscar tarefas", exact: true });
     await search.fill("inexistente");
     await expect(title).not.toBeVisible();

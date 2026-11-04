@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Archive, ArchiveRestore, ArrowDown, ArrowLeft, ArrowUp, Columns3, Copy, GripVertical, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDown, ArrowLeft, ArrowUp, Columns3, Copy, GripVertical, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { observeOperation } from "@/lib/operation-log-client";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
@@ -33,6 +33,7 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
   const [draftError, setDraftError] = useState("");
   const [newItem, setNewItem] = useState("");
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [kind, setKind] = useState("");
   const [priority, setPriority] = useState("");
@@ -120,8 +121,15 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
   }
 
   return <div className="tasks-page">
-    <div className="tasks-toolbar"><div><h2>Minhas tarefas</h2><p className="muted">Organize suas atividades e problemas a resolver.</p></div><Button type="button" onClick={create} disabled={loading || busy || activeLists.length === 0}><Plus size={17} aria-hidden="true" />Nova tarefa</Button></div>
-    <div className="tasks-tools"><label className="tasks-search"><span className="sr-only">Buscar tarefas</span><Input type="search" placeholder="Buscar tarefa" value={search} onChange={(event) => setSearch(event.target.value)} /></label><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label="Listas" title="Organizar listas" disabled={loading || busy} onClick={() => setListEditor("__all__")}><Columns3 size={18} aria-hidden="true" /><span>Listas</span></Button><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label="Filtros" title="Filtros" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((value) => !value)}><SlidersHorizontal size={18} aria-hidden="true" /><span>Filtros</span></Button><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label={archive ? "Voltar ao quadro" : "Ver arquivo"} title={archive ? "Voltar ao quadro" : "Ver arquivo"} onClick={() => setArchive((value) => !value)}>{archive ? <ArrowLeft size={18} aria-hidden="true" /> : <Archive size={18} aria-hidden="true" />}<span>{archive ? "Voltar ao quadro" : "Ver arquivo"}</span></Button></div>
+    <div className="tasks-toolbar">
+      <div><h2>Minhas tarefas</h2><p className="muted">Organize suas atividades e problemas a resolver.</p></div>
+      <div className="tasks-toolbar-actions">
+        <Button type="button" className="button-ghost task-icon-button" aria-label={searchOpen ? "Fechar busca" : "Buscar tarefas"} title={searchOpen ? "Fechar e limpar busca" : "Buscar tarefas"} aria-expanded={searchOpen} aria-controls="task-search-field" onClick={() => { setSearchOpen((value) => !value); if (searchOpen) setSearch(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
+        <Button type="button" onClick={create} disabled={loading || busy || activeLists.length === 0}><Plus size={17} aria-hidden="true" />Nova tarefa</Button>
+      </div>
+      {searchOpen && <div className="tasks-search-popover" role="search"><label className="tasks-search"><span className="sr-only">Buscar tarefas</span><Input id="task-search-field" autoFocus type="search" placeholder="Buscar tarefa" value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setSearch(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-controls="task-search-field"]')?.focus(); } }} /></label></div>}
+    </div>
+    <div className="tasks-tools"><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label="Listas" title="Organizar listas" disabled={loading || busy} onClick={() => setListEditor("__all__")}><Columns3 size={18} aria-hidden="true" /><span>Listas</span></Button><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label="Filtros" title="Filtros" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((value) => !value)}><SlidersHorizontal size={18} aria-hidden="true" /><span>Filtros</span></Button><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label={archive ? "Voltar ao quadro" : "Ver arquivo"} title={archive ? "Voltar ao quadro" : "Ver arquivo"} onClick={() => setArchive((value) => !value)}>{archive ? <ArrowLeft size={18} aria-hidden="true" /> : <Archive size={18} aria-hidden="true" />}<span>{archive ? "Voltar ao quadro" : "Ver arquivo"}</span></Button></div>
     {filtersOpen && <div className="tasks-filters"><label>Tipo<select className="input" value={kind} onChange={(event) => setKind(event.target.value)}><option value="">Todos</option><option value="task">Tarefa</option><option value="problem">Problema</option></select></label><label>Prioridade<select className="input" value={priority} onChange={(event) => setPriority(event.target.value)}><option value="">Todas</option>{Object.entries(priorities).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Categoria<select className="input" value={category} onChange={(event) => setCategory(event.target.value)}><option value="">Todas</option>{categories.map((value) => <option key={value}>{value}</option>)}</select></label><label>Prazo<select className="input" value={due} onChange={(event) => setDue(event.target.value)}><option value="">Todos</option><option value="today">Hoje</option><option value="overdue">Atrasadas</option></select></label></div>}
     {hasFilters && <div className="tasks-filter-summary"><span>{filtered.length} resultado(s)</span><button type="button" onClick={() => { setSearch(""); setKind(""); setPriority(""); setCategory(""); setDue(""); }}>Limpar filtros</button></div>}
     {error && <div className="tasks-error"><p className="form-error" role="alert">{error}</p><Button type="button" className="button-ghost button-small" onClick={() => { setError(""); setLoading(true); setReload((value) => value + 1); }}>Tentar novamente</Button></div>}

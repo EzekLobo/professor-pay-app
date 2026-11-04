@@ -12,7 +12,7 @@ for(const width of [320,390]) test(`barra inferior responde a arraste real por t
  }
  await session.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
  await expect.poll(()=>nav.evaluate(element=>element.scrollLeft)).toBeGreaterThan(20);
- const tasks=nav.getByRole("link",{name:"Tarefas",exact:true});await expect(tasks).toBeInViewport();await tasks.click();await expect(page).toHaveURL(/#tasks$/);
+ const tasks=nav.getByRole("link",{name:"Meu quadro",exact:true});await expect(tasks).toBeInViewport();await tasks.click();await expect(page).toHaveURL(/#tasks$/);
  await page.reload();await expect(tasks).toHaveAttribute("aria-current","page");await expect(tasks).toBeInViewport();
  await expect.poll(()=>tasks.evaluate(element=>{const box=element.getBoundingClientRect();const parent=element.parentElement!.getBoundingClientRect();return box.left>=parent.left-1&&box.right<=parent.right+1;})).toBe(true);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

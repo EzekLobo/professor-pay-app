@@ -7,7 +7,7 @@ import { subscribeStudentNotifications } from "@/lib/student-notification-store"
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen } from "lucide-react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -566,6 +566,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
   const [viewMode, setViewMode] = useState<"attendance" | "activities" | "students">(studentsContent ? "students" : "activities");
   const [activitiesView, setActivitiesView] = useState<"list" | "compact">("list");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(true);
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
@@ -849,6 +850,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
           <Button type="button" className="button-ghost symbol-action" aria-label="Abrir filtros" title="Filtros do acompanhamento" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}><Filter size={18} aria-hidden="true" /></Button>
           <Button type="button" className="button-ghost symbol-action" aria-label={searchOpen ? "Fechar busca" : "Abrir busca"} title={searchOpen ? "Fechar e limpar busca" : "Buscar aluno, turma ou atividade"} aria-expanded={searchOpen} aria-controls="correction-search-field" onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
           {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}
+          <Button type="button" className="button-ghost symbol-action" aria-label={viewMode === "activities" ? "Legenda das atividades" : "Legenda de presença"} title={viewMode === "activities" ? "Legenda das atividades" : "Legenda de presença"} aria-haspopup="dialog" aria-expanded={legendOpen} onClick={() => setLegendOpen(true)}><Info size={18} aria-hidden="true" /></Button>
         </div>}
       </div>
       {viewMode === "students" && <div id="students-content" role="tabpanel" aria-labelledby="students-tab">{studentsContent}</div>}
@@ -861,17 +863,18 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
           <div className="form-actions"><Button type="button" onClick={() => setFiltersOpen(false)}>Concluir</Button></div>
         </div>
       </Modal>
-      {viewMode !== "students" && <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
-        {viewMode === "attendance" ? <>
-        <div className="attendance-legend" aria-label="Legenda das cores de presença">
-          {([
+      <Modal open={legendOpen} title={viewMode === "activities" ? "Legenda das atividades" : "Legenda de presença"} onClose={() => setLegendOpen(false)} className="correction-legend-modal">
+        {viewMode === "activities" ? <div className="correction-legend-list" aria-label="Origem das atividades pendentes"><span><i className="activity-legend-swatch is-kodland" aria-hidden="true" />Atividade Kodland pendente de correção</span><span><i className="activity-legend-swatch is-manual" aria-hidden="true" />Atividade própria pendente de correção</span></div>
+          : <div className="correction-legend-list" aria-label="Estados de presença">{([
             ["present", "Presente"],
             ["absent", "Falta sem justificativa"],
             ["excused", "Falta justificada"],
             ["late", "Atraso"],
             ["unknown", "Sem confirmação"],
-          ] as const).map(([status, label]) => <span key={status}><i className={`attendance-legend-swatch attendance-status-${status}`} aria-hidden="true" />{label}</span>)}
-        </div>
+          ] as const).map(([status, label]) => <span key={status}><i className={`attendance-legend-swatch attendance-status-${status}`} aria-hidden="true" />{label}</span>)}</div>}
+      </Modal>
+      {viewMode !== "students" && <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
+        {viewMode === "attendance" ? <>
         <ManualAttendanceGrid adapter={demo?.manualAdapter} />
         {loading ? <p className="muted">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro.</p> : <div className="correction-class-list attendance-list">
           {attendanceByClass.map(([className, histories]) => <details

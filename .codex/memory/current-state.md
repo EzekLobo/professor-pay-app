@@ -1,5 +1,10 @@
 # Estado atual
 
+## Interface do quadro — 04/11/2026
+
+- Menu Tarefas renomeado para Meu quadro (Quadro no celular), com Minhas tarefas mantido como título interno. A busca abre por ícone no topo em um popover sobreposto; criar tarefa continua como ação textual principal e a barra não cresce ao abrir busca.
+- A legenda contextual de Atividades e Presença fica no ícone de informações, em modal, sem ocupar espaço fixo do conteúdo. Cores dos tipos de atividade e estados de presença são explicadas sob demanda.
+
 ## Integração e rotina de sincronização — 04/11/2026
 
 - Scheduler ativo mantém uma única rotina, agora com escopos de extra nova na entrada da Agenda, conferência final no dia seguinte, gravações após aula, chamada a cada5min desde T−15min, presença em +1h e atividades/ranking a cada entrada em Turmas. Não reimporta cadastro, disponibilidade ou materiais automaticamente; pagamentos seguem D−5 diário na entrada da página.

@@ -7,7 +7,7 @@ import { subscribeStudentNotifications } from "@/lib/student-notification-store"
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical, ChevronDown } from "lucide-react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -470,6 +470,10 @@ export function CompactActivitiesGrid({
   onCorrectManual: (activity: ManualActivity) => void;
   pendingOnly?: boolean;
 }) {
+  const [emptyFields, setEmptyFields] = useState<Record<string, boolean>>(() => {
+    try { const value = JSON.parse(localStorage.getItem("nexusclass.class-empty-fields") ?? "{}"); return value && typeof value === "object" && !Array.isArray(value) ? value : {}; } catch { return {}; }
+  });
+  useEffect(() => { try { localStorage.setItem("nexusclass.class-empty-fields", JSON.stringify(emptyFields)); } catch { /* Keep this preference in memory when storage is unavailable. */ } }, [emptyFields]);
   const activitiesRoot = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const root = activitiesRoot.current;
@@ -495,30 +499,31 @@ export function CompactActivitiesGrid({
   return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", selected.status], ["Pontuação", `${kodlandStudentPoints(selected.progress_summary)} pts`], ["Progresso", selected.progress_summary], ["E-mail", selected.email], ["Telefone", selected.phone], ["Responsável", selected.guardian_name], ["Telefone do responsável", selected.guardian_phone], ["E-mail do responsável", selected.guardian_email]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{selected.profile_url && <a className="button button-ghost" href={absoluteUrl(selected.profile_url)} target="_blank" rel="noreferrer">Perfil na Kodland</a>}</div>}</Modal><div ref={activitiesRoot} className="correction-class-list compact-activities-list" aria-label="Atividades pendentes em formato compacto">
     {model.filter(item => !hidden.includes(item.key)).map((original) => {
       const classModel = { ...original, name: names[original.key] || original.name };
+      const hideEmpty = !(emptyFields[classModel.key] ?? !pendingOnly);
       const gridStyle = { "--attendance-columns": Math.max(1, classModel.columns.length) } as CSSProperties;
       return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
         <summary className="correction-class-heading">
           <div className="compact-class-copy"><h3>{classModel.name}</h3><small className="compact-class-course" title={classModel.courseName || "Curso não informado"}>{classModel.courseName || "Curso não informado"}</small></div>
-          <span className="compact-class-actions"><span className="class-count-badge" aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={14} aria-hidden="true" />{classModel.rows.length}</span><span className="class-count-badge class-pending-badge" aria-label={`${classModel.rows.reduce((total, row) => total + Object.keys(row.cells).length, 0)} atividades sem corrigir`} title="Atividades sem corrigir"><ClipboardCheck size={14} aria-hidden="true" />{classModel.rows.reduce((total, row) => total + Object.keys(row.cells).length, 0)}</span><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" onClick={event => { event.preventDefault(); setClassAction(classModel); }}><MoreVertical size={18} aria-hidden="true" /></button><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
+          <span className="compact-class-actions"><span className="class-count-badge" aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={14} aria-hidden="true" />{classModel.rows.length}</span><span className="class-count-badge class-pending-badge" aria-label={`${classModel.rows.reduce((total, row) => total + Object.keys(row.cells).length, 0)} atividades sem corrigir`} title="Atividades sem corrigir"><ClipboardCheck size={14} aria-hidden="true" />{classModel.rows.reduce((total, row) => total + Object.keys(row.cells).length, 0)}</span><button type="button" className="group-menu-button" aria-label={`${hideEmpty ? "Mostrar" : "Ocultar"} campos vazios de ${classModel.name}`} title={hideEmpty ? "Mostrar campos vazios" : "Ocultar campos vazios"} aria-pressed={!hideEmpty} onClick={event => { event.preventDefault(); event.stopPropagation(); setEmptyFields(current => ({ ...current, [classModel.key]: hideEmpty })); }}>{hideEmpty ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}</button><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" onClick={event => { event.preventDefault(); setClassAction(classModel); }}><MoreVertical size={18} aria-hidden="true" /></button><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
         </summary>
         <div className="correction-class-body attendance-class-body">
-          <div className={`attendance-grid-scroll compact-activities-grid-scroll${pendingOnly ? " compact-pending-list" : ""}`} tabIndex={0} role={pendingOnly ? "list" : "grid"} aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={pendingOnly ? undefined : classModel.rows.length + 1} aria-colcount={pendingOnly ? undefined : classModel.columns.length + 1}>
-            {!pendingOnly && <div className="attendance-grid-header compact-activities-grid-header" style={gridStyle} role="row">
+          <div className={`attendance-grid-scroll compact-activities-grid-scroll${hideEmpty ? " compact-pending-list" : ""}`} tabIndex={0} role={hideEmpty ? "list" : "grid"} aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={hideEmpty ? undefined : classModel.rows.length + 1} aria-colcount={hideEmpty ? undefined : classModel.columns.length + 1}>
+            {!hideEmpty && <div className="attendance-grid-header compact-activities-grid-header" style={gridStyle} role="row">
               <div className="attendance-grid-corner" role="columnheader">Aluno</div>
               {classModel.columns.map((column) => <div className="attendance-column-heading compact-activity-column-heading" role="columnheader" key={column.key} title={`${column.lessonLabel} · ${column.taskLabel}`}>
                 <span className="sr-only">{column.lessonLabel}: {column.taskLabel}</span>
               </div>)}
             </div>}
-            {classModel.rows.map((row) => <div className={pendingOnly ? "compact-pending-row" : "attendance-grid-row"} style={pendingOnly ? undefined : gridStyle} role={pendingOnly ? "listitem" : "row"} key={row.key}>
-              <div className="attendance-student-summary" role={pendingOnly ? undefined : "rowheader"}>
+            {classModel.rows.map((row) => <div className={hideEmpty ? "compact-pending-row" : "attendance-grid-row"} style={hideEmpty ? undefined : gridStyle} role={hideEmpty ? "listitem" : "row"} key={row.key}>
+              <div className="attendance-student-summary" role={hideEmpty ? undefined : "rowheader"}>
                 <div className="attendance-student-copy"><div className="activity-student-heading"><div className="compact-student-profile">{row.student ? <button type="button" className="compact-student-name" onClick={() => setSelected(row.student!)} aria-label={`Informações de ${row.name}`} title={row.name}>{row.rank}º · {row.name.trim().split(/\s+/).filter((_, index, parts) => index === 0 || index === parts.length - 1).join(" ")}</button> : <h4>{row.name}</h4>}{row.student && <small>{new Intl.NumberFormat("pt-BR").format(kodlandStudentPoints(row.student.progress_summary))} pts</small>}</div>{contactButton?.(classModel.key, row.key, row.name)}</div></div>
               </div>
               {classModel.columns.map((column) => {
                 const cell = row.cells[column.key];
-                if (!cell) return pendingOnly ? null : <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
+                if (!cell) return hideEmpty ? null : <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
                 const actionContent = <><span className="compact-activity-lesson" title={column.lessonLabel}>{column.lessonLabel}</span><span className="compact-activity-task" title={column.taskLabel}>{column.taskLabel}</span></>;
-                return <div className="compact-activity-cell" role={pendingOnly ? "group" : "gridcell"} key={column.key}>
+                return <div className="compact-activity-cell" role={hideEmpty ? "group" : "gridcell"} key={column.key}>
                   {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
                     : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>{actionContent}</button>
                       : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} target="_blank" rel="noreferrer">{actionContent}</a>}

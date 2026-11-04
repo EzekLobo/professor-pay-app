@@ -1,5 +1,7 @@
 # Estado atual
 
+- Cada turma possui olho para mostrar/ocultar células vazias, com preferência local por turma. Ocultar compacta atividades; filtro global continua decidindo quais alunos/turmas entram.
+
 - Somente pendências remove também turmas vazias, mantém só alunos com células de correção e mostra estado vazio quando não há resultados; seleção persistida inclusive na aba Alunos.
 
 - Filtros de Alunos/Presença abrem dropdown junto ao ícone, sem modal nem Concluir; aplicação imediata, foco no seletor, fechamento externo/Escape com retorno ao botão.

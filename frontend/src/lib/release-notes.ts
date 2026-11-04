@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110407, date: "2026-11-04", title: "Campos vazios por turma",
+    description: "O ícone de olho permite mostrar ou ocultar os campos vazios das atividades em cada turma, mantendo a escolha neste navegador.",
+    href: "/classes", action: "Abrir alunos",
+  },
+  {
     version: 2026110406, date: "2026-11-04", title: "Indicadores compactos nas turmas",
     description: "Alunos e atividades sem corrigir aparecem em indicadores à direita de cada turma. A criação de cursos usa o botão compacto Curso.",
     href: "/classes", action: "Abrir alunos",

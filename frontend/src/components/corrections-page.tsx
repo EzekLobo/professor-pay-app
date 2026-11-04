@@ -7,7 +7,7 @@ import { subscribeStudentNotifications } from "@/lib/student-notification-store"
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical } from "lucide-react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical, ChevronDown } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -463,20 +463,36 @@ export function CompactActivitiesGrid({
   onCorrectManual: (activity: ManualActivity) => void;
   pendingOnly?: boolean;
 }) {
+  const activitiesRoot = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = activitiesRoot.current;
+    if (!root) return;
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || !(event.target instanceof Element)) return;
+      const grid = event.target.closest<HTMLElement>(".compact-activities-grid-scroll");
+      if (!grid || !root.contains(grid) || grid.scrollWidth <= grid.clientWidth + 1) return;
+      event.preventDefault();
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      const scale = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? grid.clientWidth : 1;
+      grid.scrollLeft += delta * scale;
+    };
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => root.removeEventListener("wheel", onWheel);
+  }, []);
   const [classAction, setClassAction] = useState<CompactActivityClass | null>(null);
   const [names, setNames] = useState<Record<string, string>>(() => { try { return JSON.parse(localStorage.getItem("nexusclass.integrated-class-names") ?? "{}"); } catch { return {}; } });
   const [hidden, setHidden] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("nexusclass.integrated-hidden-classes") ?? "[]"); } catch { return []; } });
   useEffect(() => { localStorage.setItem("nexusclass.integrated-class-names", JSON.stringify(names)); }, [names]);
   useEffect(() => { localStorage.setItem("nexusclass.integrated-hidden-classes", JSON.stringify(hidden)); }, [hidden]);
   const [selected, setSelected] = useState<KodlandStudent | null>(null);
-  return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", selected.status], ["Pontuação", `${kodlandStudentPoints(selected.progress_summary)} pts`], ["Progresso", selected.progress_summary], ["E-mail", selected.email], ["Telefone", selected.phone], ["Responsável", selected.guardian_name], ["Telefone do responsável", selected.guardian_phone], ["E-mail do responsável", selected.guardian_email]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{selected.profile_url && <a className="button button-ghost" href={absoluteUrl(selected.profile_url)} target="_blank" rel="noreferrer">Perfil na Kodland</a>}</div>}</Modal><div className="correction-class-list compact-activities-list" aria-label="Atividades pendentes em formato compacto">
+  return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", selected.status], ["Pontuação", `${kodlandStudentPoints(selected.progress_summary)} pts`], ["Progresso", selected.progress_summary], ["E-mail", selected.email], ["Telefone", selected.phone], ["Responsável", selected.guardian_name], ["Telefone do responsável", selected.guardian_phone], ["E-mail do responsável", selected.guardian_email]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{selected.profile_url && <a className="button button-ghost" href={absoluteUrl(selected.profile_url)} target="_blank" rel="noreferrer">Perfil na Kodland</a>}</div>}</Modal><div ref={activitiesRoot} className="correction-class-list compact-activities-list" aria-label="Atividades pendentes em formato compacto">
     {model.filter(item => !hidden.includes(item.key)).map((original) => {
       const classModel = { ...original, name: names[original.key] || original.name };
       const gridStyle = { "--attendance-columns": Math.max(1, classModel.columns.length) } as CSSProperties;
       return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
         <summary className="correction-class-heading">
           <div><h3>{classModel.name}</h3><span aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={13} aria-hidden="true" />{classModel.rows.length}</span></div>
-          <span className="compact-class-actions"><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" onClick={event => { event.preventDefault(); setClassAction(classModel); }}><MoreVertical size={18} aria-hidden="true" /></button><span className="correction-disclosure" aria-hidden="true">⌄</span></span>
+          <span className="compact-class-actions"><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" onClick={event => { event.preventDefault(); setClassAction(classModel); }}><MoreVertical size={18} aria-hidden="true" /></button><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
         </summary>
         <div className="correction-class-body attendance-class-body">
           <div className={`attendance-grid-scroll compact-activities-grid-scroll${pendingOnly ? " compact-pending-list" : ""}`} tabIndex={0} role={pendingOnly ? "list" : "grid"} aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={pendingOnly ? undefined : classModel.rows.length + 1} aria-colcount={pendingOnly ? undefined : classModel.columns.length + 1}>
@@ -906,7 +922,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
               });
             }}
           >
-            <summary className="correction-class-heading"><div><h3>{className}</h3><span>{histories.length} aluno{histories.length === 1 ? "" : "s"}</span></div><span className="correction-disclosure" aria-hidden="true">⌄</span></summary>
+            <summary className="correction-class-heading"><div><h3>{className}</h3><span>{histories.length} aluno{histories.length === 1 ? "" : "s"}</span></div><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></summary>
             <div className="correction-class-body attendance-class-body"><AttendanceClassGrid histories={histories} lessons={lessons} groups={groups} classOpen={openAttendanceClasses.has(className)} onWhatsApp={setWhatsAppDraft} /></div>
           </details>)}
         </div>}
@@ -932,7 +948,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
               <div className="card-actions"><Button type="button" className="correction-action" aria-label="Corrigir" title="Corrigir atividade" onClick={() => { setEditingManual(item); setFeedback(item.feedback); }}><ClipboardCheck size={18} aria-hidden="true" /></Button></div>
             </article>;
             return <details className="correction-class-group" key={`manual:${className}`}>
-              <summary className="correction-class-heading"><div><h3>{className}</h3><span>{classActivities.length} pendência{classActivities.length === 1 ? "" : "s"}</span></div><span className="correction-disclosure" aria-hidden="true">⌄</span></summary>
+              <summary className="correction-class-heading"><div><h3>{className}</h3><span>{classActivities.length} pendência{classActivities.length === 1 ? "" : "s"}</span></div><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></summary>
               <div className="correction-class-body">{grouping === "class"
                 ? <div className="entity-list">{classActivities.map((item) => card(item, true))}</div>
                 : <div className="correction-subgroup-list">{ownGroups.map(([label, items]) => <section className={`correction-subgroup${grouping === "student" ? " correction-subgroup-student" : ""}`} key={label}>
@@ -956,7 +972,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
                   <h3>{className}</h3>
                   <span>{classReviews.length} pendência{classReviews.length === 1 ? "" : "s"}</span>
                 </div>
-                <span className="correction-disclosure" aria-hidden="true">⌄</span>
+                <ChevronDown className="correction-disclosure" size={18} aria-hidden="true" />
               </summary>
               <div className="correction-class-body">
                 {grouping === "class" ? (

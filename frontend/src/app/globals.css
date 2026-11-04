@@ -3778,3 +3778,4 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .compact-student-name { display: block; width: 100%; min-height: 32px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .76rem; line-height: 1.25; }
 .compact-student-profile small { font-size: .65rem; }
 .compact-activities-grid-scroll .activity-whatsapp-button { flex: 0 0 44px; }
+.correction-disclosure { flex: 0 0 18px; width: 18px; height: 18px; vertical-align: middle; }

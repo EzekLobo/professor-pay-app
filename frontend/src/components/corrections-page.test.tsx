@@ -46,6 +46,17 @@ const manualActivity = (overrides: Partial<ManualActivity> = {}): ManualActivity
 });
 
 describe("compactActivitiesModel", () => {
+  it("remove turmas e alunos sem correções pendentes e mantém seus cadastros no filtro todos", () => {
+    const input = { groups: [group(), group({ id: "empty", external_id: "empty", title: "Sem correções" })],
+      students: [student(), student({ id: "other", external_id: "other", name: "Sem entrega" })],
+      reviews: [review()], lessons: [], manualActivities: [], manualClasses: [manualClass()], manualStudents: [manualStudent()] };
+    const pending = compactActivitiesModel({ ...input, pendingOnly: true });
+    expect(pending).toHaveLength(1);
+    expect(pending[0].rows.map(row => row.name)).toEqual(["Ana"]);
+    expect(Object.keys(pending[0].rows[0].cells)).toHaveLength(1);
+    expect(compactActivitiesModel(input)).toHaveLength(3);
+  });
+
   it("oculta alunos e células vazias no filtro de pendências para turmas próprias e Kodland", () => {
     const inputs = {
       groups: [group()], lessons: [lesson()], students: [student(), student({ id: "other", external_id: "other", name: "Sem pendência" })],

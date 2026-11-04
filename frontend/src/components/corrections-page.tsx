@@ -222,7 +222,7 @@ export function compactActivitiesModel({
     courseName: draft.courseName,
     columns: [...draft.columns.values()].sort((first, second) => first.sortKey.localeCompare(second.sortKey, "pt-BR")),
     rows: [...draft.rows.values()].filter(row => !pendingOnly || Object.keys(row.cells).length > 0).sort((first, second) => (first.rank ?? Infinity) - (second.rank ?? Infinity) || first.name.localeCompare(second.name, "pt-BR")),
-  })).sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
+  })).filter(item => !pendingOnly || item.rows.length > 0).sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
 }
 
 export interface CorrectionsDemoAdapter {
@@ -658,7 +658,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       if (!active) return;
       if (stored?.viewMode === "attendance" || stored?.viewMode === "activities") setViewMode(stored.viewMode);
       if (stored?.activitiesView === "list" || stored?.activitiesView === "compact") setActivitiesView(stored.activitiesView);
-      setPendingOnly(unified ? false : typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : true);
+      setPendingOnly(typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : !unified);
       if (unified) setActivitiesView("compact");
       if (stored?.grouping === "class" || stored?.grouping === "student" || stored?.grouping === "lesson") setGrouping(stored.grouping);
       if (stored?.attendanceFilter === "ABSENT" || stored?.attendanceFilter === "ALL" || stored?.attendanceFilter === "PRESENT") setAttendanceFilter(stored.attendanceFilter);
@@ -958,7 +958,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
         </div>}
         </> : <>
         {classesContent && <div className="classes-integrated-actions" data-tour="classes-management">{classesContent}</div>}
-        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 && !unified ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
+        {loading ? <p className="muted">Carregando correções…</p> : (activitiesView === "compact" ? compactActivities.length === 0 : visibleReviews.length + visibleOwn.length === 0) ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
           contactButton={contactButton}
           pendingOnly={pendingOnly}

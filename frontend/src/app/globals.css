@@ -3783,3 +3783,6 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .class-count-badge { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; border: 1px solid rgb(68 206 255 / 22%); border-radius: 999px; padding: 4px 8px; color: #aac8e8; background: rgb(68 206 255 / 7%); font-size: .72rem; font-weight: 800; white-space: nowrap; }
 .class-pending-badge { color: #f2d8a2; border-color: rgba(255, 190, 62, .35); background: rgba(194, 118, 12, .12); }
 @media (max-width: 480px) { .compact-class-actions { gap: 5px; } .class-count-badge { padding: 4px 6px; } }
+
+.week-day header { position: relative; }
+.week-day-holiday { position: absolute; top: 14px; right: 0; max-width: 100%; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .6rem; line-height: 1; }

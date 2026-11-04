@@ -1,5 +1,7 @@
 # Estado atual
 
+- Nome do feriado posicionado no espaço inferior do cabeçalho diário da Agenda, sem aumentar altura nem deslocar aulas; nome longo truncado com tooltip.
+
 - Cursos sem frase de apresentação; ação compacta Livro+Curso. Cabeçalho da grade Alunos alinha contagem de alunos e atividades sem corrigir à direita, junto ao menu e seta.
 
 - Grade de atividades traduz roda do mouse em rolagem horizontal por turma com listener nativo não passivo e bloqueio da página nos limites; Ctrl+roda preserva zoom. Disclosure usa ChevronDown.

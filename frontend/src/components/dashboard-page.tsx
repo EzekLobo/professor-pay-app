@@ -420,7 +420,7 @@ export function WeekSchedule({
                     day: "2-digit",
                     month: "2-digit",
                   })}
-                  {dayHoliday && <small className="week-day-holiday">{dayHoliday.name}</small>}
+                  {dayHoliday && <small className="week-day-holiday" title={dayHoliday.name}>{dayHoliday.name}</small>}
                 </span>
               </header>
               {dayEntries.length ? (

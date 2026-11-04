@@ -3187,8 +3187,8 @@ export const kodlandApi = {
       reviewCount += result.review_count;
     }
     assertSyncOwner();
-    if (core.storage === "browser") return { ...core, review_count: reviewCount, storage: "browser" };
-    const lessons = (await allRows("kodland_lessons", ownerId, true)) as unknown as KodlandLesson[];
+    const browserStorage = core.storage === "browser";
+    const lessons = (browserStorage ? (await readKodlandBrowser(ownerId))?.collections.kodland_lessons ?? [] : await allRows("kodland_lessons", ownerId, true)) as unknown as KodlandLesson[];
     const pendingLessons = lessons
       .filter((lesson): lesson is KodlandLesson & { source_lesson_id: string } =>
         authorizedGroupIds.has(lesson.external_class_id) && Boolean(lesson.source_lesson_id) &&
@@ -3235,8 +3235,21 @@ export const kodlandApi = {
           firestorePayload({ ...updates, updated_at: now() }),
         ));
       });
-      await commitWrites(writes, options.assertActive);
+      if (browserStorage) {
+        await updateKodlandBrowser(ownerId, state => {
+          const byKey = new Map(materials.map(material => [materialKey(material), material]));
+          state.collections.kodland_lessons = state.collections.kodland_lessons.map(row => {
+            const lesson = row as unknown as KodlandLesson;
+            const material = byKey.get(materialKey({ group_id: lesson.external_class_id, source_lesson_id: lesson.source_lesson_id ?? "" }));
+            return material ? { ...row, ...mergeLoadedKodlandMaterials(lesson, material) } : row;
+          });
+        }, () => getFirebaseAuth().currentUser?.uid === ownerId);
+      } else await commitWrites(writes, options.assertActive);
       materialCount += writes.length;
+    }
+    if (browserStorage) {
+      announceKodlandBrowser(ownerId, "materials");
+      return { ...core, review_count: reviewCount, material_count: materialCount, storage: "browser" };
     }
     let payrollWarning: string | undefined;
     try {

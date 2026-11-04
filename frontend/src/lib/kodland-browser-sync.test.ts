@@ -83,3 +83,18 @@ it("inicializa o cache ao adotar política do administrador numa atualização a
  await kodlandApi.sync("teacher","fixture","corrections",{automatic:true,refreshSchedule:false,correctionGroupIds:["g"],followupScope:"activities"});
  expect(JSON.parse(fetch.mock.lastCall![1].body).followup_scope).toBe("activities");
 });
+
+it("sincronização total busca materiais pendentes e os reutiliza", async () => {
+ const lesson = { id: "l", source_lesson_id: "source", external_class_id: "g", title: "Aula", classroom_tasks: [], materials_status: "pending" };
+ vi.stubGlobal("fetch", vi.fn(async (_url, request) => {
+  const body = JSON.parse(request.body); state.calls.push(body.mode);
+  if (body.mode === "materials") return Response.json({ ...base(), materials: body.material_requests.map((item: object) => ({ ...item, materials_status: "ready", slides_url: "https://example.test/slides", guide_url: "", homework_url: "", homework_title: "", classroom_tasks: [] })) });
+  if (body.mode === "corrections") return Response.json({ ...base(), review_group_ids: ["g"], attendance_group_ids: ["g"], task_progress: [] });
+  return Response.json({ ...base(), lessons: [lesson] });
+ }));
+ const result = await kodlandApi.syncAll("teacher", "fixture", undefined, { storage: "browser" });
+ expect(result.material_count).toBe(1);
+ expect(state.disk!.collections.kodland_lessons).toEqual(expect.arrayContaining([expect.objectContaining({ materials_status: "ready", slides_url: "https://example.test/slides" })]));
+ await kodlandApi.syncAll("teacher", "fixture", undefined, { storage: "browser" });
+ expect(state.calls.filter(mode => mode === "materials")).toHaveLength(1);
+});

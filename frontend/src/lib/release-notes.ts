@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110302, date: "2026-11-03", title: "Materiais na sincronização",
+    description: "A sincronização completa também prepara os materiais das aulas para acesso nas telas.",
+    href: "/lessons", action: "Ver aulas",
+  },
+  {
     version: 2026110301, date: "2026-11-03", title: "Alertas da última aula",
     description: "O sino identifica faltas e atividades não entregues da última aula de cada turma conforme suas regras. Registros desconhecidos aguardam confirmação, e uma turma pendente não bloqueia as demais.",
     href: "/settings#notifications", action: "Revisar alertas",

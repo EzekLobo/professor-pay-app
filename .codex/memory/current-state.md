@@ -1,5 +1,9 @@
 # Estado atual
 
+## Materiais na sincronização total — 03/11/2026
+
+- syncAll em modo browser consulta materiais pendentes em lotes com as credenciais da operação e guarda links no IndexedDB; mantém materiais existentes e não exige gravação Firestore. Falha interrompe a operação, preservando lotes já salvos para retomada. A tela individual ainda oferece credenciais para aulas pendentes. Teste kodland-browser-sync cobre carga e reutilização; serviços reais não verificados.
+
 ## Alertas da última aula e cache de notificações — 03/11/2026
 
 - Usuário relatou ausência de faltas/nenhuma atividade no sino. Identificados: reconciliação dependia de commits Firebase; bloqueio global por turma incompleta; presença/progresso com IDs distintos; classificação só após abrir material; datas/horários curriculares esparsos e opcionais undefined recusados pelo Firestore.

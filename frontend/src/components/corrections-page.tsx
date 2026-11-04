@@ -8,7 +8,7 @@ import { subscribeStudentNotifications } from "@/lib/student-notification-store"
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical, ChevronDown, Percent } from "lucide-react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical, ChevronDown, Percent, Settings, EyeOff } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -570,11 +570,33 @@ export function CompactActivitiesGrid({
     root.addEventListener("wheel", onWheel, { passive: false });
     return () => root.removeEventListener("wheel", onWheel);
   }, []);
-  const [classAction, setClassAction] = useState<CompactActivityClass | null>(null);
+  const [openClassMenu, setOpenClassMenu] = useState<string | null>(null);
+  const [editingClassKey, setEditingClassKey] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState("");
   const [names, setNames] = useState<Record<string, string>>(() => { try { return JSON.parse(localStorage.getItem("nexusclass.integrated-class-names") ?? "{}"); } catch { return {}; } });
   const [hidden, setHidden] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("nexusclass.integrated-hidden-classes") ?? "[]"); } catch { return []; } });
   useEffect(() => { localStorage.setItem("nexusclass.integrated-class-names", JSON.stringify(names)); }, [names]);
   useEffect(() => { localStorage.setItem("nexusclass.integrated-hidden-classes", JSON.stringify(hidden)); }, [hidden]);
+  useEffect(() => {
+    if (!openClassMenu) return;
+    const closeMenu = (event: PointerEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest(".compact-class-actions-menu-anchor")) {
+        setOpenClassMenu(null);
+        setEditingClassKey(null);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpenClassMenu(null);
+      setEditingClassKey(null);
+    };
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openClassMenu]);
   const [selected, setSelected] = useState<KodlandStudent | ManualStudent | null>(null);
   const pointsFor = (row: CompactActivityRow) => row.points ?? (row.student ? kodlandStudentPoints(row.student.progress_summary) : null);
   const creditFor = (student?: KodlandStudent) => student && typeof student.lesson_credits_remaining === "number" ? `${new Intl.NumberFormat("pt-BR").format(student.lesson_credits_remaining)} aulas` : "Não informado";
@@ -586,10 +608,13 @@ export function CompactActivitiesGrid({
       const isPending = mode === "pending";
       const studentsOnly = mode === "students";
       const gridStyle = { "--attendance-columns": Math.max(1, classModel.columns.length) } as CSSProperties;
-      return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
+      const classMenuOpen = openClassMenu === classModel.key;
+      const classIsBeingRenamed = editingClassKey === classModel.key;
+      const menuId = `compact-class-actions-${classModel.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+      return <details className={`correction-class-group attendance-class-group compact-activities-class${classMenuOpen ? " has-actions-menu" : ""}`} key={classModel.key}>
         <summary className="correction-class-heading">
           <div className="compact-class-copy"><h3>{classModel.name}</h3><small className="compact-class-course" title={classModel.courseName || "Curso não informado"}>{classModel.courseName || "Curso não informado"}</small></div>
-          <span className="compact-class-actions"><span className="class-count-badge" aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={14} aria-hidden="true" />{classModel.rows.length}</span><span className="class-count-badge class-pending-badge" aria-label={`${classModel.pendingCount ?? 0} atividades sem corrigir`} title="Atividades sem corrigir"><ClipboardCheck size={14} aria-hidden="true" />{classModel.pendingCount ?? 0}</span><span className="class-count-badge class-completion-badge" aria-label={classModel.completionPercent == null ? "Percentual de aulas não informado" : `${classModel.completionPercent}% das aulas sincronizadas concluídas`} title={`${classModel.completedLessons ?? 0} de ${classModel.totalLessons ?? 0} aulas sincronizadas concluídas`}><Percent size={14} aria-hidden="true" />{classModel.completionPercent == null ? "—" : `${classModel.completionPercent}%`}</span><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" onClick={event => { event.preventDefault(); setClassAction(classModel); }}><MoreVertical size={18} aria-hidden="true" /></button><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
+          <span className="compact-class-actions"><span className="class-count-badge" aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={14} aria-hidden="true" />{classModel.rows.length}</span><span className="class-count-badge class-pending-badge" aria-label={`${classModel.pendingCount ?? 0} atividades sem corrigir`} title="Atividades sem corrigir"><ClipboardCheck size={14} aria-hidden="true" />{classModel.pendingCount ?? 0}</span><span className="class-count-badge class-completion-badge" aria-label={classModel.completionPercent == null ? "Percentual de aulas não informado" : `${classModel.completionPercent}% das aulas sincronizadas concluídas`} title={`${classModel.completedLessons ?? 0} de ${classModel.totalLessons ?? 0} aulas sincronizadas concluídas`}><Percent size={14} aria-hidden="true" />{classModel.completionPercent == null ? "—" : `${classModel.completionPercent}%`}</span><span className="compact-class-actions-menu-anchor"><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" aria-haspopup="menu" aria-expanded={classMenuOpen} aria-controls={classMenuOpen ? menuId : undefined} onClick={event => { event.preventDefault(); event.stopPropagation(); setOpenClassMenu(current => current === classModel.key ? null : classModel.key); setEditingClassKey(null); }}><MoreVertical size={18} aria-hidden="true" /></button>{classMenuOpen && <div id={menuId} className="group-actions-menu compact-class-actions-menu" role="menu" aria-label={`Ações da turma ${classModel.name}`} onClick={event => { event.preventDefault(); event.stopPropagation(); }}>{classIsBeingRenamed ? <form className="group-rename-form" onSubmit={event => { event.preventDefault(); const name = nameInput.trim(); if (!name) return; setNames(current => ({ ...current, [classModel.key]: name })); setEditingClassKey(null); setOpenClassMenu(null); }}><label><span className="sr-only">Novo nome da turma</span><input className="input" autoFocus value={nameInput} onChange={event => setNameInput(event.target.value)} aria-label="Novo nome da turma" /></label><div><button className="button button-ghost button-small" type="button" onClick={() => setEditingClassKey(null)}>Cancelar</button><button className="button button-small" type="submit" disabled={!nameInput.trim()}>Salvar</button></div></form> : <><button type="button" role="menuitem" onClick={() => { setNameInput(classModel.name); setEditingClassKey(classModel.key); }}><Settings size={15} aria-hidden="true" /> Renomear turma</button><button className="group-actions-menu-danger" type="button" role="menuitem" onClick={() => { if (window.confirm(`Ocultar a turma ${classModel.name} desta visualização?`)) setHidden(current => [...current, classModel.key]); setOpenClassMenu(null); }}><EyeOff size={15} aria-hidden="true" /> Ocultar turma</button></>}</div>}</span><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
         </summary>
         <div className="correction-class-body attendance-class-body">
           {studentsOnly ? <div className="class-students-view" role="table" aria-label={`Alunos da turma ${classModel.name}`}><div className="class-students-header" role="row"><span role="columnheader">Aluno</span><span role="columnheader">Pontuação</span><span role="columnheader" title="Saldo global de créditos de aulas no perfil da Kodland">Saldo de aulas</span></div>{classModel.rows.map(row => <div className="class-students-row" role="row" key={row.key}><div role="cell">{studentSummary(row, classModel.key, true)}</div><span role="cell">{pointsFor(row) == null ? "Não informado" : `${new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts`}</span><span role="cell" title={row.student?.lesson_credits_updated_at ? `Saldo atualizado em ${new Date(row.student.lesson_credits_updated_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : "Saldo global de aulas. Para carregar, use Atualizar perfis e saldos no modo Alunos."}>{creditFor(row.student)}</span></div>)}</div> : <>
@@ -621,7 +646,7 @@ export function CompactActivitiesGrid({
         </div>
       </details>;
     })}
-  </div><Modal open={Boolean(classAction)} title={`Turma ${classAction?.name ?? ""}`} onClose={() => setClassAction(null)}>{classAction && <div className="form"><Button type="button" onClick={() => { const name = window.prompt("Novo nome da turma", classAction.name)?.trim(); if (name) setNames(current => ({ ...current, [classAction.key]: name })); setClassAction(null); }}>Renomear turma</Button><Button type="button" className="button-ghost" onClick={() => { if (window.confirm(`Ocultar a turma ${classAction.name} desta visualização?`)) setHidden(current => [...current, classAction.key]); setClassAction(null); }}>Ocultar turma</Button></div>}</Modal></>;
+  </div></>;
 }
 
 function ReviewCard({

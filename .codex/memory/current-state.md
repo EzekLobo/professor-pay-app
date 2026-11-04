@@ -1,5 +1,10 @@
 # Estado atual
 
+## Ações das turmas em dropdown — 04/11/2026
+
+- O menu de três pontos da grade Alunos abre as ações da turma ancoradas no cabeçalho, sem modal. Renomear usa formulário inline; ocultar mantém confirmação e a preferência local. Clique externo e Escape fecham o menu.
+- Validação: typecheck, lint, 23 testes unitários afetados, 3 E2E de modos Alunos em 320/390/1440 e build de produção aprovados. Novidade 2026110410.
+
 ## Modos de acompanhamento — 04/11/2026
 
 - Alunos oferece Completo (progresso explícito entregue/não entregue/sem informação por módulo), Correções pendentes (turmas/alunos/células com correção) e Alunos (nome completo, pontos, saldo global de aulas). Favoritos migrados e olho removido. Percentual usa aulas sincronizadas não canceladas e flag/status ministrada; tooltip mostra numerador/denominador, sem supor total fixo do curso.

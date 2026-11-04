@@ -12,6 +12,13 @@ for (const width of [320, 390, 1440]) {
     await filters.getByRole("button", { name: "Alunos", exact: true }).click();
     await page.keyboard.press("Escape");
     const firstClass = page.locator(".compact-activities-class").first();
+    await firstClass.getByRole("button", { name: /Ações da turma/ }).click();
+    const classActions = page.getByRole("menu", { name: /Ações da turma/ });
+    await expect(classActions).toBeVisible();
+    await expect(classActions.getByRole("menuitem", { name: "Renomear turma" })).toBeVisible();
+    await expect(classActions.getByRole("menuitem", { name: "Ocultar turma" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(classActions).toBeHidden();
     await firstClass.locator("summary").click();
     await expect(firstClass.getByRole("table")).toBeVisible();
     await expect(firstClass.getByRole("columnheader", { name: "Saldo de aulas" })).toBeVisible();

@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110410, date: "2026-11-04", title: "Ações da turma em menu suspenso",
+    description: "Renomeie ou oculte uma turma pelo menu de três pontos, sem abrir uma janela sobre a tela de Alunos.",
+    href: "/classes", action: "Abrir alunos",
+  },
+  {
     version: 2026110409, date: "2026-11-04", title: "Três formas de acompanhar alunos",
     description: "Escolha Completo, Correções pendentes ou Alunos. Veja o progresso registrado por módulo, a conclusão das aulas sincronizadas e o saldo de aulas ao atualizar os perfis.",
     href: "/classes", action: "Abrir alunos",

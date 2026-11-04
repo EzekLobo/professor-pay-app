@@ -4,14 +4,14 @@
 
 - Scheduler ativo mantém uma única rotina, agora com escopos de extra nova na entrada da Agenda, conferência final no dia seguinte, gravações após aula, chamada a cada5min desde T−15min, presença em +1h e atividades/ranking a cada entrada em Turmas. Não reimporta cadastro, disponibilidade ou materiais automaticamente; pagamentos seguem D−5 diário na entrada da página.
 - Escopos especiais também persistem no cache Navegador para não depender de Firestore. Browser occurrence é limitado a grupos do professor e a ocorrência local exata; o servidor valida extras na agenda do professor.
-- Causa do run failed identificada: Ubuntu26.04 em ubuntu-latest não tem browser binário para Playwright1.57. Job `e2e` fixado em `ubuntu-24.04` em `.github/workflows/ci.yml`.
-- Validação integrada local passou: `npm.cmd run quality:web` (lint, typecheck, 573 testes/83 arquivos e build de produção com27 rotas). Merge resolvido sem conflitos; push, CI remoto e Vercel ainda pendentes. Plano em `docs/plans/ci-sync-2026-11-04.md` e regras em `docs/AUTO_SYNC.md`.
+- Causa inicial do run failed: Ubuntu26.04 em ubuntu-latest sem Chromium compatível com Playwright1.57. Job `e2e` fixado em `ubuntu-24.04`; Actions confirmou a instalação e executou 87 testes. Web/API passaram; oito falhas eram testes do demo presos ao calendário de outubro. Gestos agora escolhem direção habilitada e helper abre folha pelo vencimento calculado em São Paulo.
+- Correção local passou nos oito E2E afetados e em `npm.cmd run quality:web` (lint, typecheck,573 testes/83 arquivos e build27 rotas). Deploy `78a7b73` está READY e responde HTTP200; correções dos testes ainda aguardam novo commit/push/CI/deploy. Plano em `docs/plans/ci-sync-2026-11-04.md`, regras em `docs/AUTO_SYNC.md`.
 
 ## Diagnóstico de CI/Vercel — 04/11/2026
 
-- Confirmado remoto: último deploy nexusclass61c827a READY, três recentes READY. Quatro erros históricos TS7006 shell.tsx/event resolvidos desde3107feb. Run failed atual é CI/e2e: Playwright1.57.0 não instala Chromium em ubuntu26.04 (ubuntu-latest). Web/api passam. Job e2e fixado em ubuntu-24.04 no branch de integração; novo CI e deploy aguardam push.
+- Diagnóstico inicial confirmou deploy `61c827a` READY e erro repetido do CI Playwright/Ubuntu26.04. Runner e2e foi fixado. Run `41833950911` (`78a7b73`) confirmou web/API e Chromium; E2E teve76 aprovações e oito falhas em expectativas de mês/gesto na demonstração. Ajustes locais nos testes passaram nos oito casos e quality:web; novo SHA ainda aguarda push.
 - Evidências/links em docs/reviews/2026-11-04-ci-vercel-diagnostico.md. Runtimeprodução últimos30min sem erros;24h indisponível por retençãoHobby. Conector lê metadados mas403 em logs; CLI vercel.cmd --scope ezeklobos-projects funcionou. Não repetir pedido de autorização para metadados/CLI.
-- Checkout inicial ce592a2 foi preservado em snapshot antes da integração. A análise do deploy publicado é histórica; nenhum deploy manual/rerun executado até agora.
+- Checkout inicial ce592a2 preservado em snapshot antes da integração. Deploy `78a7b73` confirmado READY pelo CLI e página responde HTTP200; logs do build vinculam o commit. Conector MCP Vercel devolveu403, CLI autenticado funcionou; deploy do novo SHA pendente.
 
 
 ## Turmas unificadas — 04/11/2026

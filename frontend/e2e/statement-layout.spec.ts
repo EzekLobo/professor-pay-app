@@ -1,13 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { openDemoOfficialStatement } from "./fixtures/demo-payroll";
 
 for (const width of [390, 1440]) {
   test(`extrato cabe na tela e permite alcançar todas as ações (${width}px)`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/demo#payments");
     await page.evaluate(() => localStorage.setItem("nexusclass:modal-guide:demo-payment-statement:v2", "1"));
-    await page.locator(".payment-carousel-card.is-focus").click();
-    const statement = page.getByRole("dialog", { name: /^Extrato/ });
-    await expect(statement).toBeVisible();
+    const statement = await openDemoOfficialStatement(page);
     await expect(statement.getByRole("region", { name: "Origem dos valores" })).toContainText("Kodland · oficial");
     await expect(statement.getByText("Contabilizada", { exact: true })).toHaveCount(0);
     await expect(statement.getByText("Sobre as situações oficiais", { exact: true })).toHaveCount(0);

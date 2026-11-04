@@ -6,6 +6,7 @@
 - Extras não ministradas recebem conferência final no dia seguinte; relatório conhecido (inclusive negativo) encerra com `final_checked_at`. Erro/desconhecido permanece pendente e limitado a retries.
 - Uma única rotina ativa é requisito: não montar `AutoSyncController` junto ao `useKodlandAutoSync`. Escopos em cache Navegador persistem localmente e são limitados ao UID, grupo e ocorrência confirmados.
 - A escolha de `ubuntu-24.04` para o job Playwright evita a incompatibilidade de Chromium do Ubuntu26.04 com Playwright1.57; confirmar no Actions após push.
+- E2E financeiro do demo não deve assumir mês fixo nem que existe competência anterior. Calcular o próximo vencimento no fuso de São Paulo e navegar pela direção habilitada do carrossel.
 
 ## 2026-11-04 — Turmas reúne o acompanhamento pedagógico
 

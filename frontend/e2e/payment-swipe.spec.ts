@@ -7,6 +7,8 @@ for (const width of [320, 390]) for (const route of ["dashboard", "payments"]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto(`/demo#${route}`);
     const card = page.locator(".payment-carousel-card.is-focus");
+    const previous = page.getByRole("button", { name: "Competência anterior", exact: true });
+    const next = page.getByRole("button", { name: "Próxima competência", exact: true });
     await card.scrollIntoViewIfNeeded();
     const original = await card.getAttribute("aria-label");
     const client = await context.newCDPSession(page);
@@ -23,12 +25,13 @@ for (const width of [320, 390]) for (const route of ["dashboard", "payments"]) {
       // Separate successive native gestures; Chromium suppresses taps during a fling.
       await page.waitForTimeout(350);
     };
-    await swipe(1);
+    const firstDirection = await previous.isDisabled() ? -1 : 1;
+    await swipe(firstDirection);
     await expect(card).not.toHaveAttribute("aria-label", original!);
     await expect(page.getByRole("dialog", { name: /^Extrato/ })).not.toBeVisible();
-    await swipe(-1);
+    await swipe(-firstDirection);
     await expect(card).toHaveAttribute("aria-label", original!);
-    await page.getByRole("button", { name: "Competência anterior", exact: true }).tap();
+    await (firstDirection > 0 ? previous : next).tap();
     await expect(card).not.toHaveAttribute("aria-label", original!);
     await card.scrollIntoViewIfNeeded();
     const box = (await card.boundingBox())!;

@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BookOpen,
-  ClipboardCheck,
   DatabaseBackup,
   LayoutDashboard,
   ListTodo,
@@ -25,14 +24,13 @@ export const navigation: AppRoute[] = [
 ];
 
 export const tasksNavigation: AppRoute = { href: "/tasks", label: "Tarefas", mobileLabel: "Tarefas", icon: ListTodo };
-export const correctionsNavigation: AppRoute = { href: "/corrections", label: "Acompanhamento", mobileLabel: "Acompanhar", icon: ClipboardCheck };
 export const utilityNavigation: AppRoute = { href: "/data", label: "Dados e backup", mobileLabel: "Dados", icon: DatabaseBackup };
 export const settingsNavigation: AppRoute = { href: "/settings", label: "Configurações", mobileLabel: "Ajustes", icon: Settings };
 
-export const appRoutes = [...navigation, correctionsNavigation, tasksNavigation, settingsNavigation];
+export const appRoutes = [...navigation, tasksNavigation, settingsNavigation];
 
 export function pageTitle(pathname: string) {
   return pathname === "/admin"
     ? "Administração"
-    : appRoutes.find((item) => item.href === pathname)?.label ?? "NexusClass";
+    : appRoutes.find((item) => item.href === (pathname === "/corrections" ? "/classes" : pathname))?.label ?? "NexusClass";
 }

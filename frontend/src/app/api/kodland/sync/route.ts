@@ -1,3 +1,5 @@
+import { callFromNearest, classroomUrl, extraReportOutcome, scopedOccurrence, scopedOccurrenceKey, type KodlandScopedRequest, type KodlandScopedPayload, type KodlandScopedOccurrence } from "@/lib/kodland-scoped-sync";
+import { calendarDay, occurrenceTimes, weekBounds } from "@/lib/sync-policy";
 import { NextRequest } from "next/server";
 import {
   enrichKodlandLessons,
@@ -960,6 +962,7 @@ export function extrasFromTeacherAgenda(
   students: Student[],
   today = teacherToday(),
   reference = new Date(),
+  timeZone = "America/Sao_Paulo",
 ): ExtraLesson[] {
   const byStudentId = new Map(
     students.map((student) => [student.external_id, student]),
@@ -998,7 +1001,7 @@ export function extrasFromTeacherAgenda(
         );
         if (!Number.isNaN(date.getTime())) {
           const parts = new Intl.DateTimeFormat("en-CA", {
-            timeZone: "America/Sao_Paulo",
+            timeZone,
             year: "numeric",
             month: "2-digit",
             day: "2-digit",
@@ -1381,9 +1384,9 @@ async function reviewsForGroup(
   token: string,
   taskProgress: KodlandTaskProgress[],
 ): Promise<Review[]> {
-    const lessons = list(
-      await get(`student_groups/${group.external_id}/lessons/`, token),
-    ).filter((value) => record(value).lesson_passed === true);
+    const lessonsPayload = await get(`student_groups/${group.external_id}/lessons/`, token);
+    if (!validListPayload(lessonsPayload)) throw new SyncFailure("kodland_unavailable", 502);
+    const lessons = list(lessonsPayload).filter((value) => record(value).lesson_passed === true);
     const results = await mapWithConcurrency(
       lessons,
       KODLAND_CONCURRENCY,
@@ -1765,6 +1768,120 @@ export function attachAttendanceSchedule(items: Attendance[], lessons: KodlandLe
   });
 }
 
+const validListPayload = (value: unknown) => Array.isArray(value) || ["results", "items", "data", "students", "events", "schedule", "timetable"].some(key => Array.isArray(record(value)[key]));
+function rankingPatches(payload: unknown, group: Group) {
+  if (!validListPayload(payload)) throw new SyncFailure("kodland_unavailable", 502);
+  return studentsFromPayload(payload, group).filter(item => item.progress_summary).map(item => ({ id: item.id, external_class_id: item.external_class_id, progress_summary: item.progress_summary }));
+}
+async function scopedZoom(path: string): Promise<unknown> {
+  const response = await fetchKodland(zoomServiceApi + path, { headers: { "api-key": zoomServicePublicKey }, cache: "no-store" });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new SyncFailure("kodland_unavailable", 502);
+  return response.json();
+}
+async function storedScopedOccurrence(request: NextRequest, uid: string, supplied: KodlandScopedOccurrence): Promise<KodlandScopedOccurrence> {
+  if (!supplied || !["lesson", "extra"].includes(supplied.kind) || !supplied.id || supplied.id.includes("/") || supplied.id.length > 500) throw new SyncFailure("kodland_unavailable", 400);
+  const project = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (!project) throw new SyncFailure("kodland_unavailable", 503);
+  const collection = supplied.kind === "lesson" ? "kodland_lessons" : "kodland_extra_lessons";
+  const response = await fetchKodland(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(project)}/databases/(default)/documents/users/${encodeURIComponent(uid)}/${collection}/${encodeURIComponent(supplied.id)}`, { headers: { authorization: request.headers.get("authorization") ?? "" }, cache: "no-store" });
+  if (response.status === 404 || response.status === 403) throw new SyncFailure("kodland_unavailable", 403);
+  if (!response.ok) throw new SyncFailure("kodland_unavailable", 502);
+  const fields = record(record(await response.json()).fields);
+  const field = (key: string) => text(record(fields[key]).stringValue);
+  return { kind: supplied.kind, id: supplied.id, group_id: field("external_class_id"), source_lesson_id: field("source_lesson_id") || supplied.id, lesson_date: field("lesson_date").slice(0, 10), start_time: field("start_time").slice(0, 5), end_time: field("end_time").slice(0, 5), booking_id: field("recording_booking_id"), external_student_id: field("external_student_id") };
+}
+/** Scope payloads are patches; absence never authorizes deleting unrelated collections. */
+async function scopedSnapshot(input: KodlandScopedRequest, groups: Group[], teacherId: string, token: string): Promise<KodlandScopedPayload> {
+  const result: KodlandScopedPayload = { scoped: { scope: input.scope, complete: true, updated: 0 } };
+  const occurrence = input.occurrence;
+  if (!["activities", "ranking", "attendance", "extras_discovery", "extra_final_check", "recordings", "call_link"].includes(input.scope)) throw new SyncFailure("kodland_unavailable", 400);
+  if (input.scope === "activities" || input.scope === "ranking") {
+    const ids = new Set(input.group_ids ?? groups.filter(group => !group.archived).map(group => group.external_id));
+    if (ids.size > 100 || [...ids].some(id => !groups.some(group => group.external_id === id))) throw new SyncFailure("kodland_unavailable", 403);
+    const selected = groups.filter(group => ids.has(group.external_id) && !group.archived);
+    const snapshots = await mapWithConcurrency(selected, 1, async group => {
+      const progress: KodlandTaskProgress[] = [];
+      const reviews = input.scope === "activities" ? await reviewsForGroup(group, token, progress) : [];
+      let ranking: NonNullable<KodlandScopedPayload["ranking"]> = [], rankingComplete = true;
+      try {
+        const payload = await get(`student_groups/${group.external_id}/get_students_main_data/`, token);
+        ranking = rankingPatches(payload, group);
+        rankingComplete = ranking.length === studentsFromPayload(payload, group).length && (ranking.length > 0 || group.student_count === 0);
+      } catch { rankingComplete = false; }
+      return { reviews, progress, ranking, rankingComplete };
+    });
+    result.reviews = snapshots.flatMap(item => item.reviews) as KodlandScopedPayload["reviews"];
+    result.task_progress = snapshots.flatMap(item => item.progress);
+    result.ranking = snapshots.flatMap(item => item.ranking);
+    result.review_group_ids = selected.map(group => group.external_id);
+    result.scoped.ranking_complete = snapshots.every(item => item.rankingComplete);
+    return result;
+  }
+  if (input.scope === "extras_discovery") {
+    const date = input.week_date ?? calendarDay(Date.now(), input.time_zone), week = weekBounds(Date.now(), input.time_zone);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < week.start || date > week.end || (input.known_extra_ids?.length ?? 0) > 10000) throw new SyncFailure("kodland_unavailable", 400);
+    const payload = await get(`teachers/${teacherId}/get_teacher_extra_lessons_timetable/?date=${date}`, token);
+    if (!validListPayload(payload)) throw new SyncFailure("kodland_unavailable", 502);
+    const known = new Set(input.known_extra_ids ?? []);
+    result.extra_lessons = extrasFromTeacherAgenda(payload, [], date, new Date(), input.time_zone).filter(item => !known.has(item.id) && item.lesson_date >= week.start && item.lesson_date <= week.end) as KodlandScopedPayload["extra_lessons"];
+    return result;
+  }
+  if (!occurrence || !occurrenceTimes(scopedOccurrence(occurrence), input.time_zone)) throw new SyncFailure("kodland_unavailable", 400);
+  result.scoped.occurrence_key = scopedOccurrenceKey(occurrence, input.time_zone);
+  let extra: ExtraLesson | undefined, rawExtra: Record<string, unknown> | undefined;
+  if (occurrence.kind === "extra") {
+    // The teacher calendar itself authorizes this extra; submitted IDs never do.
+    const payload = await get(`teachers/${teacherId}/get_teacher_extra_lessons_timetable/?date=${occurrence.lesson_date}`, token);
+    if (!validListPayload(payload)) throw new SyncFailure("kodland_unavailable", 502);
+    extra = extrasFromTeacherAgenda(payload, [], occurrence.lesson_date, new Date(), input.time_zone).find(item => item.id === occurrence.id);
+    if (!extra || extra.lesson_date !== occurrence.lesson_date || extra.start_time !== occurrence.start_time || extra.end_time !== occurrence.end_time) throw new SyncFailure("kodland_unavailable", 403);
+    rawExtra = scheduleItems(payload).map(value => ({ ...record(record(value).lesson ?? record(value).event ?? record(value).lesson_data), ...record(value) })).find(value => String(value.extra_lesson_id ?? value.id ?? value.lesson_id ?? "") === providerExtraId(extra!));
+  } else if (!groups.some(group => group.external_id === occurrence.group_id)) throw new SyncFailure("kodland_unavailable", 403);
+  if (input.scope === "attendance") {
+    const group = groups.find(group => group.external_id === occurrence.group_id);
+    if (!group || occurrence.kind !== "lesson") throw new SyncFailure("kodland_unavailable", 403);
+    const payload = await get(`student_groups/${group.external_id}/get_students_main_data/`, token);
+    if (!validListPayload(payload)) throw new SyncFailure("kodland_unavailable", 502);
+    result.attendance = attendanceFromStudentsPayload(payload, group).filter(item => item.lesson_id === occurrence.source_lesson_id).map(item => ({ ...item, lesson_date: occurrence.lesson_date, start_time: occurrence.start_time }));
+    const studentCount = list(payload).filter(value => text(record(record(value).main_info).student_id)).length;
+    result.scoped.complete = result.attendance.length > 0 && result.attendance.length === studentCount;
+    return result;
+  }
+  if (input.scope === "extra_final_check") {
+    if (!extra) throw new SyncFailure("kodland_unavailable", 400);
+    const report = await getOptional(`extra_lesson_reports/by_extra_lesson/${encodeURIComponent(providerExtraId(extra))}/`, token);
+    const outcome = extraReportOutcome(report);
+    if (outcome === null) throw new SyncFailure("kodland_unavailable", 502);
+    result.scoped.final_completed = outcome;
+    return result;
+  }
+  if (input.scope === "recordings") {
+    const path = extra
+      ? `api/zoom_recording/get_videos_by_booking_id/${encodeURIComponent(extra.recording_booking_id)}`
+      : `api/zoom_recording/get_videos_by_student_group_id/${encodeURIComponent(occurrence.group_id)}`;
+    if (extra && !extra.recording_booking_id) { result.scoped.complete = false; return result; }
+    const payload = await scopedZoom(path);
+    if (payload !== null && !validListPayload(payload)) throw new SyncFailure("kodland_unavailable", 502);
+    const urls = groupRecordingUrls(payload);
+    const candidate = extra ? list(payload).map(value => record(value)).map(value => text(value.s3_url ?? value.download_url ?? value.zoom_play_cloud_link ?? value.s3_link)).find(url => /^https?:\/\//i.test(url)) : urls.get(occurrence.source_lesson_id);
+    result.scoped.recording_url = candidate ?? "";
+    result.scoped.complete = !!candidate;
+    return result;
+  }
+  if (input.scope === "call_link") {
+    const now = Date.now(), times = occurrenceTimes(scopedOccurrence(occurrence), input.time_zone)!;
+    if (now < times.start - 15 * 60_000 || now >= times.end) { result.scoped.complete = false; return result; }
+    const url = extra
+      ? rawExtra?.is_classroom_url_visible === true ? classroomUrl(rawExtra.classroom_session_id) : ""
+      : callFromNearest(await scopedZoom(`api/zoom_conference/get_nearest_by_group_id/${encodeURIComponent(occurrence.group_id)}`), occurrence, now, input.time_zone);
+    result.scoped.call_url = url;
+    result.scoped.complete = !!url;
+    return result;
+  }
+  throw new SyncFailure("kodland_unavailable", 400);
+}
+
 export async function POST(request: NextRequest) {
   const syncId = syncReference(request);
   const startedAt = Date.now();
@@ -1812,7 +1929,8 @@ export async function POST(request: NextRequest) {
   };
   try {
     trace("started");
-    if (!(await runStage("firebase_auth", () => requireFirebaseUser(request)))) {
+    const firebaseUid = await runStage("firebase_auth", () => requireFirebaseUser(request));
+    if (!firebaseUid) {
       trace("unauthorized");
       return syncResponse(syncId, { code: "firebase_session_expired" }, 401);
     }
@@ -1820,9 +1938,11 @@ export async function POST(request: NextRequest) {
     let body: {
       username?: string;
       password?: string;
-      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles" | "payroll";
+      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles" | "payroll" | "scoped";
+      scoped_request?: KodlandScopedRequest;
       payroll_year?: number;
       payroll_period_id?: string;
+      payroll_period_start?: string;
       group_id?: string;
       source_lesson_id?: string;
       material_requests?: Array<{
@@ -1849,7 +1969,7 @@ export async function POST(request: NextRequest) {
       return syncResponse(syncId, { code: "missing_credentials" }, 400);
     }
     const mode = body.mode ?? "essential";
-    if (!["essential", "schedule", "corrections", "materials", "profiles", "payroll"].includes(mode)) {
+    if (!["essential", "schedule", "corrections", "materials", "profiles", "payroll", "scoped"].includes(mode)) {
       trace("invalid_request");
       return syncResponse(syncId, { code: "invalid_request" }, 400);
     }
@@ -1865,7 +1985,9 @@ export async function POST(request: NextRequest) {
         // Roster rollout flags are not authorization for the tutor's own periods.
         // The authenticated periods endpoint enforces access; never infer a 403 locally.
         const list = payrollList(await runStage("payroll_periods", () => get(`tutor_payroll_periods/?teacher_id=${encodeURIComponent(teacherId)}&year=${year}`, token)));
-        const periodId = body.payroll_period_id;
+        const matching = body.payroll_period_start ? list.find(item => String(item.period_start) === body.payroll_period_start) : undefined;
+        if (body.payroll_period_start && !matching) return syncResponse(syncId, { code: "payroll_unavailable" }, 503);
+        const periodId = body.payroll_period_id ?? (matching ? String(matching.id) : undefined);
         let periods: ReturnType<typeof normalizePayroll>[] = [];
         if (periodId) {
           const summary = list.find(item => String(item.id) === periodId);
@@ -1899,6 +2021,13 @@ export async function POST(request: NextRequest) {
       extra_lessons_complete: false,
       availability_synced: false,
     });
+    if (mode === "scoped") {
+      if (!body.scoped_request || typeof body.scoped_request !== "object") return syncResponse(syncId, { code: "invalid_request" }, 400);
+      const input = { ...body.scoped_request };
+      if (input.occurrence) input.occurrence = await runStage("scoped_resource", () => storedScopedOccurrence(request, firebaseUid, input.occurrence!));
+      const scoped = await runStage("scoped_" + input.scope, () => scopedSnapshot(input, groups, userId(token), token));
+      return syncResponse(syncId, { ...emptyCollections(), ...scoped });
+    }
     if (mode === "materials") {
       const suppliedRequests = Array.isArray(body.material_requests)
         ? body.material_requests
@@ -2048,12 +2177,13 @@ export async function POST(request: NextRequest) {
         1,
         async (group) => {
           const taskProgress: KodlandTaskProgress[] = [];
-          const [reviews, attendance, lessons] = await Promise.all([
+          const [reviews, attendance, lessons, ranking] = await Promise.all([
             reviewsForGroup(group, token, taskProgress),
             attendanceForGroup(group, token),
             lessonsForGroup(group, token, courseLessonCache),
+            get(`student_groups/${group.external_id}/get_students_main_data/`, token).then(payload => rankingPatches(payload, group)).catch(() => []),
           ]);
-          return { reviews, taskProgress, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
+          return { reviews, taskProgress, ranking, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
         },
       ), (result) => ({
         reviewCount: result.reduce((total, item) => total + item.reviews.length, 0),
@@ -2068,6 +2198,7 @@ export async function POST(request: NextRequest) {
         ...emptyCollections(),
         reviews: items,
         task_progress: snapshots.flatMap(item => item.taskProgress),
+        ranking: snapshots.flatMap(item => item.ranking),
         attendance: attendanceItems,
         lessons,
         review_group_ids: correctionGroups.map((group) => group.external_id),

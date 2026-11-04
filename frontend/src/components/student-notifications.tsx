@@ -9,10 +9,11 @@ import { Button, Input } from "./ui";
 import { kodlandApi, manualTeachingApi, tutorPreferencesApi } from "@/lib/api";
 import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import { DEFAULT_ABSENCE_MESSAGE } from "@/lib/manual-operations";
-import { defaultNotificationSettings, validateNotificationSettings, evaluateStudentNotifications, needsNotificationContact, notificationMessage, notificationTarget, type NotificationCase, type NotificationSettings, type StudentNotification } from "@/lib/student-notification-rules";
+import { defaultNotificationSettings, validateNotificationSettings, evaluateStudentNotifications, nextStudentNotificationEvaluationAt, needsNotificationContact, notificationMessage, notificationTarget, type NotificationCase, type NotificationSettings, type StudentNotification } from "@/lib/student-notification-rules";
 import { clearStudentNotificationSourceCache, demoStudentNotificationSource, loadStudentNotificationSource, type NotificationSource } from "@/lib/student-notification-source";
 import { createDemoStudentNotificationStore, createStudentNotificationStore, subscribeStudentNotifications } from "@/lib/student-notification-store";
 import { whatsappUrl } from "@/lib/whatsapp";
+import { subscribeNotificationDataChanges } from "@/lib/student-notification-updates";
 
 type NotificationContext = {
   settings: NotificationSettings | null; cases: NotificationCase[]; warnings: string[]; error: string; loading: boolean; updated: string; demo: boolean;
@@ -43,8 +44,13 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
     return demoStudentNotificationSource(snapshot, value);
   }, [demo, uid, snapshot]);
   const generation = useRef(0);
+  const refreshing = useRef(false);
+  const cachedEvaluation = useRef<{ uid: string; data: NotificationSource; settings: NotificationSettings } | null>(null);
+  const retryAt = useRef<{ at: number; source: boolean } | null>(null);
+  const [evaluationRevision, setEvaluationRevision] = useState(0);
   const refresh = useCallback(async (force = false) => {
     const run = ++generation.current;
+    refreshing.current = true;
     const startedAt = new Date().toISOString();
     setLoading(true);
     try {
@@ -56,22 +62,58 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
       setAbsenceTemplate(prefs?.absence_message_template || DEFAULT_ABSENCE_MESSAGE);
       const data = value.enabled ? await source(value, force) : null;
       if (run !== generation.current) return;
+      cachedEvaluation.current = data ? { uid, data, settings: value } : null;
+      retryAt.current = null;
       const items = data ? evaluateStudentNotifications(data.lessons, data.obligations, value, new Date()) : [];
       const rows = await store.reconcile(items, startedAt);
       if (run !== generation.current) return;
       setCases(rows); setWarnings(data?.warnings ?? []); setUpdated(data?.loaded_at ?? ""); setError("");
-    } catch (reason) { if (run === generation.current) setError(reason instanceof Error ? reason.message : "Não foi possível atualizar os alertas. O histórico foi preservado."); }
-    finally { if (run === generation.current) setLoading(false); }
-  }, [demo, snapshot, store, source]);
+    } catch (reason) {
+      if (run === generation.current) {
+        setError(reason instanceof Error ? reason.message : "Não foi possível atualizar os alertas. O histórico foi preservado.");
+        retryAt.current = { at: Date.now() + 5 * 60000, source: true };
+      }
+    } finally {
+      if (run === generation.current) { refreshing.current = false; setLoading(false); setEvaluationRevision(value => value + 1); }
+    }
+  }, [demo, uid, snapshot, store, source]);
+  // Cached source is reevaluated only at its next temporal boundary.
+  useEffect(() => {
+    const cached = cachedEvaluation.current?.uid === uid ? cachedEvaluation.current : null;
+    const due = cached ? nextStudentNotificationEvaluationAt(cached.data.lessons, cached.data.obligations, cached.settings, Date.now()) : null;
+    const retry = retryAt.current;
+    const at = retry ? retry.at : due;
+    if (at === null) return;
+    const timer = window.setTimeout(() => {
+      if (document.visibilityState === "hidden" || navigator.onLine === false) return;
+      if (retry?.source) { void refresh(true); return; }
+      if (!cached || refreshing.current) { retryAt.current = { at: Date.now() + 1000, source: false }; setEvaluationRevision(value => value + 1); return; }
+      const run = generation.current;
+      const timestamp = new Date().toISOString();
+      void store.reconcile(evaluateStudentNotifications(cached.data.lessons, cached.data.obligations, cached.settings, new Date()), timestamp).then(rows => {
+        if (run !== generation.current) return;
+        setCases(rows); setError(""); retryAt.current = null;
+      }).catch(reason => {
+        if (run !== generation.current) return;
+        setError(reason instanceof Error ? reason.message : "Não foi possível conferir o vencimento dos alertas.");
+        retryAt.current = { at: Date.now() + 5 * 60000, source: false };
+      }).finally(() => { if (run === generation.current) setEvaluationRevision(value => value + 1); });
+    }, Math.max(1, Math.min(at - Date.now(), 2_147_000_000)));
+    return () => window.clearTimeout(timer);
+  }, [evaluationRevision, uid, refresh, store]);
+
   useEffect(() => {
     const reload = () => { void refresh(); };
+    const forceReload = () => { clearStudentNotificationSourceCache(); void refresh(true); };
     const timer = window.setTimeout(reload, 0);
-    const interval = window.setInterval(reload, 60000);
-    const unsubscribe = subscribeStudentNotifications(() => { clearStudentNotificationSourceCache(); reload(); });
-    window.addEventListener("focus", reload); window.addEventListener("online", reload); window.addEventListener("storage", reload);
+    const unsubscribe = subscribeStudentNotifications(forceReload);
+    const unsubscribeSync = demo ? () => undefined : subscribeNotificationDataChanges(uid, () => { void refresh(true); });
+    const onStorage = (event: StorageEvent) => { if (!event.key || event.key.startsWith("nexusclass.demo") || event.key.includes("notification")) forceReload(); };
+    window.addEventListener("focus", reload); window.addEventListener("online", forceReload); window.addEventListener("storage", onStorage);
+    window.addEventListener("nexusclass:manual-teaching-changed", forceReload);
     const runGeneration = generation;
-    return () => { runGeneration.current++; clearTimeout(timer); clearInterval(interval); unsubscribe(); window.removeEventListener("focus", reload); window.removeEventListener("online", reload); window.removeEventListener("storage", reload); };
-  }, [refresh]);
+    return () => { runGeneration.current++; clearTimeout(timer); unsubscribe(); unsubscribeSync(); window.removeEventListener("focus", reload); window.removeEventListener("online", forceReload); window.removeEventListener("storage", onStorage); window.removeEventListener("nexusclass:manual-teaching-changed", forceReload); };
+  }, [demo, uid, refresh]);
   const value: NotificationContext = {
     settings, cases, warnings, error, loading, updated, demo, absenceTemplate,
     refresh: (force) => refresh(force),

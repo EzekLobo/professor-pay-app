@@ -65,3 +65,14 @@ O repositório não provisiona domínio, TLS, segredos, monitoramento externo ou
 backup automatizado. Configure esses itens no provedor e rode smoke tests em
 staging. SQLite é indicado para uso de baixa concorrência com um único processo;
 não o sirva por uma rota estática, diretório público ou download.
+
+## Validação separada por projeto — 30/10/2026
+
+- `npm.cmd test`: testes do domínio Expo em `src`, sem coletar frontend ou Playwright.
+- `npm.cmd run typecheck`: tipos do aplicativo Expo, incluindo App/index/src.
+- `npm.cmd run web:test` e `npm.cmd run web:typecheck`: testes e tipos da aplicação Next.js com a configuração própria do workspace.
+- `npm.cmd run test:all`: testes nativos e web.
+- `npm.cmd run quality`: tipos/testes nativos, lint/tipos/testes/build web e lint/testes do backend legado.
+- `npm.cmd run web:e2e -- --workers=1`: cenários de navegador; o wrapper encaminha as opções para Playwright. Executar após o build para evitar disputa de recursos.
+
+O ciclo mensal do Expo (pagamento no dia15 do mês seguinte) foi confirmado pelo commit26cd759. Testes/fixtures foram alinhados a esse contrato, sem alteração de regra de produção ou migração de dados nesta estabilização.

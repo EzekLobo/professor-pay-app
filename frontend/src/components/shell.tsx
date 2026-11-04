@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { AutoSyncController } from "./auto-sync-controller";
+import { clearAutoSyncRuntimes } from "@/lib/auto-sync-runtime";
+import { clearSyncCoordinators } from "@/lib/sync-coordinator";
 import { StudentNotificationsProvider, StudentNotificationBell } from "./student-notifications";
 import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import Image from "next/image";
@@ -50,7 +53,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
     </Link>;
   };
   return (
-    <StudentNotificationsProvider uid={user.id} snapshot={notificationSnapshot} onDemoChange={onNotificationDemoChange}>
+    <StudentNotificationsProvider key={user.id} uid={user.id} snapshot={notificationSnapshot} onDemoChange={onNotificationDemoChange}>
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Pular para o conteúdo</a>
       <aside className="sidebar">
@@ -102,6 +105,8 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const canOpenAdmin = user.email.trim().toLowerCase() === "ezeklobo.dev@gmail.com";
 
   async function logout() {
+    clearAutoSyncRuntimes();
+    clearSyncCoordinators();
     endStoredAccessSession();
     await logoutFromFirebase().catch(() => undefined);
     router.replace("/login");
@@ -135,7 +140,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
             </button>
           )}
         </>
-      }>{children}</ShellFrame>
+      }><AutoSyncController uid={user.id} pathname={pathname} />{children}</ShellFrame>
       <GuidedTourDialog tour={tour} />
       <HolidayCalendarDialog open={holidayCalendarOpen} onClose={() => setHolidayCalendarOpen(false)} />
     </>

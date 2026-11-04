@@ -20,6 +20,7 @@ import type { KodlandClassSettings } from "@/lib/manual-teaching";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { whatsappUrl } from "@/lib/whatsapp";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
+import { subscribeSyncDataChanged } from "@/lib/sync-events";
 import {
   activeStudentsRankedByPoints,
   kodlandStudentPoints,
@@ -77,9 +78,8 @@ export function GroupAccordion({
   onDelete?: () => void;
   onRename?: (name: string) => void;
 }) {
-  const [selectedStudent, setSelectedStudent] = useState<KodlandStudent | null>(
-    null,
-  );
+  const [selectedStudentState, setSelectedStudent] = useState<KodlandStudent | null>(null);
+  const selectedStudent = students.find(item => item.id === selectedStudentState?.id) ?? selectedStudentState;
   const contact = selectedStudent?.guardian_phone || selectedStudent?.phone;
   const contactLabel = selectedStudent?.guardian_phone
     ? "WhatsApp responsável"
@@ -217,7 +217,7 @@ export function GroupAccordion({
   );
 }
 
-export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; students: KodlandStudent[]; onSync: () => void; manualAdapter?: ManualAdapters } } = {}) {
+export function ClassesContent({ demo, uid }: { uid?: string; demo?: { groups: KodlandGroup[]; students: KodlandStudent[]; onSync: () => void; manualAdapter?: ManualAdapters } } = {}) {
   const [groups, setGroups] = useState<KodlandGroup[]>([]);
   const [students, setStudents] = useState<KodlandStudent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -279,6 +279,16 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (demo || !uid) return;
+    let active = true;
+    const unsubscribe = subscribeSyncDataChanged(uid, event => {
+      if (!event.domains.includes("ranking")) return;
+      void kodlandApi.students().then(result => { if (active) setStudents(result.items); }).catch(() => { if (active) setNotice("O ranking foi atualizado. Recarregue a página para conferir os pontos."); });
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [demo, uid]);
 
   async function syncClasses() {
     if (syncing) return;
@@ -445,7 +455,7 @@ export default function ClassesPage() {
     <AuthGuard>
       {(user) => (
         <Shell user={user}>
-          <ClassesContent />
+          <ClassesContent uid={user.id} />
         </Shell>
       )}
     </AuthGuard>

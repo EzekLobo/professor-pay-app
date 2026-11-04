@@ -72,7 +72,7 @@ export function normalizeNotificationSource(snapshot: NotificationSourceSnapshot
     if (kind === "homework" && settings.homework_days_after_lesson === null) warnings.add("Atividades Kodland de casa não têm prazo importado: configure dias após a aula para habilitar cobranças.");
     obligations.push({ id: progress.id, source: "kodland", class_id: group.external_id, student_id: student.external_id, occurrence_id: progress.lesson_id, title: progress.task_title, kind, due_at: null, state: progress.state, required: true, exempt: false });
   }
-  if (snapshot.groups.some(item => !item.archived) && !(snapshot.taskProgress?.length)) warnings.add("Sincronize Acompanhamento para carregar o progresso das atividades Kodland. A fila de correções sozinha não identifica quem deixou de entregar.");
+  if (snapshot.groups.some(item => !item.archived) && !(snapshot.taskProgress?.length)) warnings.add("Atualize as atividades em Turmas para carregar o progresso das atividades Kodland. A fila de correções sozinha não identifica quem deixou de entregar.");
   return { lessons, obligations, warnings: [...warnings], loaded_at: new Date().toISOString() };
 }
 const cache = new Map<string, { expires: number; promise: Promise<NotificationSourceSnapshot> }>();

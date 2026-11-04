@@ -58,7 +58,7 @@ describe("regras de acompanhamento", () => {
     const second = evaluateStudentNotifications([lesson], [activity("2"), activity("1")], settings, now)[0];
     expect(first.id).toBe(second.id); expect(first.revision).toBe(second.revision);
     expect(notificationTarget(first)).toContain("tab=activities");
-    expect(notificationTarget(first, true)).toContain("#corrections");
+    expect(notificationTarget(first, true)).toContain("#classes");
     expect(notificationTarget(first)).not.toContain("Ana");
     expect(notificationMessage(first, "{responsavel}: {aluno}, {atividades}")).toBe("Maria: Ana, Atividade 1, Atividade 2");
   });

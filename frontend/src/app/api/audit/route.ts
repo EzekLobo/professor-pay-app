@@ -10,7 +10,7 @@ const paths: Record<string, string> = {
   "/payments": "Pagamentos",
   "/classes": "Turmas",
   "/lessons": "Aulas",
-  "/corrections": "Acompanhamento",
+  "/corrections": "Turmas",
   "/data": "Dados e backup",
   "/admin": "Administração",
 };

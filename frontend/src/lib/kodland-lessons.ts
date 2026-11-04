@@ -22,6 +22,10 @@ export type KodlandLesson = {
   lesson_passed: boolean;
   /** Recording published for this scheduled occurrence, when Kodland provides one. */
   recording_url?: string;
+  call_url?: string;
+  call_occurrence_key?: string;
+  call_checked_at?: string;
+  call_expires_at?: string;
   external_url: string;
   slides_url: string;
   guide_url: string;

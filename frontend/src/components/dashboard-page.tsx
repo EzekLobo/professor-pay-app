@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ScheduleEntryAction } from "@/components/schedule-entry-action";
 import { type MouseEvent, useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { DashboardContent } from "@/components/dashboard-content";
@@ -40,6 +41,10 @@ import { activeStudentsRankedByPoints, kodlandStudentPoints } from "@/lib/studen
 import { generateRecurringOccurrences } from "@/lib/teaching-finance";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
+import { nextScheduleCallBoundary, safeScheduleCallUrl, type ScheduleCallLink } from "@/lib/schedule-call";
+import { addCalendarDays, calendarDay, DEFAULT_SYNC_TIME_ZONE, occurrenceKey, occurrenceTimes, syncTimeZone, zonedInstant } from "@/lib/sync-policy";
+import { subscribeSyncDataChanged } from "@/lib/sync-events";
+import { createStudentNotificationStore } from "@/lib/student-notification-store";
 
 const dayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 type ScheduleEntry = {
@@ -87,8 +92,8 @@ const weekDay = (value: string) => {
   const date = new Date(`${dateOnly(value)}T12:00:00`);
   return Number.isNaN(date.getTime()) ? -1 : (date.getDay() + 6) % 7;
 };
-const currentWeek = (offset = 0) => {
-  const start = new Date();
+const currentWeek = (offset: number, timeZone: string, now: number) => {
+  const start = new Date(`${calendarDay(now, timeZone)}T12:00:00`);
   start.setHours(12, 0, 0, 0);
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7) + offset * 7);
   return Array.from({ length: 7 }, (_, index) => {
@@ -101,6 +106,32 @@ const isoDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const lessonLocation = (lesson?: KodlandLesson) =>
   lesson ? kodlandLessonLocation(lesson) : "Aula não informada";
+
+/** A recurring placeholder must not inherit a call from a different dated occurrence. */
+function entryCall(entry: ScheduleEntry | null, timeZone: string): ScheduleCallLink | null {
+  const item = entry?.extraLesson ?? entry?.lesson;
+  if (item && /cancel|substitu|replacement/i.test(`${item.status} ${"financial_status" in item ? item.financial_status ?? "" : ""}`)) return null;
+  if (!item || !entry?.date || dateOnly(item.lesson_date) !== entry.date || timeOnly(item.start_time) !== entry.start || timeOnly(item.end_time) !== entry.end) return null;
+  const occurrence = { id: item.id, date: dateOnly(item.lesson_date), startTime: timeOnly(item.start_time), endTime: timeOnly(item.end_time) };
+  const times = occurrenceTimes(occurrence, timeZone);
+  return times ? { url: item.call_url, occurrenceKey: item.call_occurrence_key, expectedOccurrenceKey: occurrenceKey(occurrence, timeZone), startAt: times.start, endAt: times.end } : null;
+}
+
+function ClassroomAction({ call }: { call: ScheduleCallLink | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  const url = safeScheduleCallUrl(call, now);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setNow(Date.now()), 0);
+    return () => window.clearTimeout(timer);
+  }, [call]);
+  useEffect(() => {
+    const boundary = nextScheduleCallBoundary(call, Date.now());
+    if (boundary === null) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.max(1, Math.min(2_147_483_647, boundary - Date.now())));
+    return () => window.clearTimeout(timer);
+  }, [call, now]);
+  return url ? <a className="button button-primary schedule-modal-call" href={url} target="_blank" rel="noopener noreferrer" onClick={event => { if (!safeScheduleCallUrl(call, Date.now())) event.preventDefault(); }}>Abrir chamada</a> : null;
+}
 
 export function WeekSchedule({
   groups,
@@ -118,6 +149,7 @@ export function WeekSchedule({
   manualClasses = [],
   externalSyncEnabled,
   demoMode = false,
+  timeZone = DEFAULT_SYNC_TIME_ZONE,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -137,15 +169,26 @@ export function WeekSchedule({
   manualClasses?: ManualClass[];
   externalSyncEnabled?: boolean;
   demoMode?: boolean;
+  timeZone?: string;
 }) {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [scheduleNow, setScheduleNow] = useState(() => Date.now());
+  useEffect(() => {
+    const resume = () => setScheduleNow(Date.now());
+    const nextDay = addCalendarDays(calendarDay(scheduleNow, timeZone), 1);
+    const midnight = zonedInstant(nextDay, "00:00", timeZone);
+    const timer = midnight === null ? null : window.setTimeout(resume, Math.max(1, midnight - Date.now()));
+    window.addEventListener("focus", resume);
+    return () => { window.removeEventListener("focus", resume); if (timer !== null) window.clearTimeout(timer); };
+  }, [scheduleNow, timeZone]);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
   const [selectedCatalogLessonId, setSelectedCatalogLessonId] = useState("");
   const [modalTab, setModalTab] = useState<"lesson" | "students">("lesson");
-  const [selectedExtra, setSelectedExtra] = useState<KodlandExtraLesson | null>(null);
+  const [selectedExtraState, setSelectedExtra] = useState<KodlandExtraLesson | null>(null);
+  const selectedExtra = extraLessons.find(item => item.id === selectedExtraState?.id) ?? selectedExtraState;
   const [savingExtraStatus, setSavingExtraStatus] = useState(false);
   const [extraStatusError, setExtraStatusError] = useState("");
-  const days = currentWeek(weekOffset);
+  const days = currentWeek(weekOffset, timeZone, scheduleNow);
   const weekState =
     weekOffset === 0 ? "Atual" : weekOffset < 0 ? "Passada" : "Próxima";
   const range = new Set(days.map(isoDate));
@@ -204,7 +247,7 @@ export function WeekSchedule({
     );
     const nextScheduledAtSlot =
       scheduledAtSlot
-        .filter((lesson) => dateOnly(lesson.lesson_date) >= isoDate(new Date()))
+        .filter((lesson) => dateOnly(lesson.lesson_date) >= calendarDay(scheduleNow, timeZone))
         .sort((a, b) => a.lesson_date.localeCompare(b.lesson_date))[0] ??
       [...scheduledAtSlot].sort((a, b) =>
         b.lesson_date.localeCompare(a.lesson_date),
@@ -297,7 +340,7 @@ export function WeekSchedule({
             {manualClasses.length > 0 && groups.length === 0 ? "Turmas próprias atualizadas ao salvar" : <>Última atualização: {scheduleLastUpdatedAt ? (
               <time dateTime={scheduleLastUpdatedAt}>
                 {new Intl.DateTimeFormat("pt-BR", {
-                  timeZone: "America/Sao_Paulo",
+                  timeZone,
                   dateStyle: "short",
                   timeStyle: "short",
                 }).format(new Date(scheduleLastUpdatedAt))}
@@ -353,7 +396,7 @@ export function WeekSchedule({
           const dayEntries = entries
             .filter((entry) => entry.day === day)
             .sort((a, b) => a.start.localeCompare(b.start));
-          const isToday = isoDate(date) === isoDate(new Date());
+          const isToday = isoDate(date) === calendarDay(scheduleNow, timeZone);
           return (
             <section
               className={`week-day${isToday ? " is-today" : ""}${dayHoliday ? " is-holiday" : ""}`}
@@ -382,11 +425,12 @@ export function WeekSchedule({
                     {entry.detail && <span>{entry.detail}</span>}
                   </>;
                   return entry.group || entry.manualClass || entry.availability || entry.extra ? (
-                    <button
-                      type="button"
+                    <ScheduleEntryAction
                       className={`${className} week-slot-action`}
                       key={entry.id}
-                      onClick={() => {
+                      call={entryCall(entry, timeZone)}
+                      label={`Abrir detalhes de ${entry.title}${entry.detail ? `, ${entry.detail}` : ""}`}
+                      onDetails={() => {
                         if (entry.extraLesson) {
                           setExtraStatusError("");
                           setSelectedExtra(entry.extraLesson);
@@ -396,10 +440,9 @@ export function WeekSchedule({
                         setModalTab("lesson");
                         setSelectedEntry(entry);
                       }}
-                      aria-label={`Abrir detalhes de ${entry.title}${entry.detail ? `, ${entry.detail}` : ""}`}
                     >
                       {contents}
-                    </button>
+                    </ScheduleEntryAction>
                   ) : (
                     <article className={className} key={entry.id}>{contents}</article>
                   );
@@ -439,6 +482,8 @@ export function WeekSchedule({
               })} · {selectedExtra.start_time || "Horário não informado"}
               {selectedExtra.end_time ? ` – ${selectedExtra.end_time}` : ""}
             </p>
+            <ClassroomAction call={entryCall({ id: selectedExtra.id, day: weekDay(selectedExtra.lesson_date), date: dateOnly(selectedExtra.lesson_date), start: timeOnly(selectedExtra.start_time), end: timeOnly(selectedExtra.end_time), title: selectedExtra.student_name, extra: true, extraLesson: selectedExtra }, timeZone)} />
+            {selectedExtra.recording_url && <a className="button button-ghost" href={selectedExtra.recording_url} target="_blank" rel="noopener noreferrer">Ver gravação</a>}
             <section className="extra-status-options" aria-label="Status da aula extra">
               <h3>Atualizar status</h3>
               <button
@@ -576,6 +621,7 @@ export function WeekSchedule({
           >
             {selectedEntry?.group && (
               <>
+                {!viewingDifferentLesson && <ClassroomAction call={entryCall({ ...selectedEntry, lesson: selectedLesson }, timeZone)} />}
                 <div className="class-lesson-navigation" aria-label="Navegar entre aulas">
                   <button
                     type="button"
@@ -749,6 +795,7 @@ export function KodlandSummary({
   demoMode = false,
   onOpenCorrections,
   externalSyncEnabled,
+  timeZone,
 }: {
   groups: KodlandGroup[];
   students: KodlandStudent[];
@@ -772,6 +819,7 @@ export function KodlandSummary({
   demoMode?: boolean;
   onOpenCorrections?: () => void;
   externalSyncEnabled?: boolean;
+  timeZone?: string;
 }) {
   const active = groups.filter((group) => !group.archived);
   const canExternalSync = externalSyncEnabled ?? !demoMode;
@@ -786,13 +834,14 @@ export function KodlandSummary({
           <span>Alunos ativos</span>
           <strong>{activeStudentsRankedByPoints(students).length + manualStudents.filter((item) => item.active).length}</strong>
         </article>
-        <Link className="metric-card metric-card-link" href={demoMode ? "#corrections" : "/corrections"} onClick={demoMode ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onOpenCorrections?.(); } : undefined} aria-label={`Abrir correções: ${reviews.length + manualPendingCount} pendente(s)`}>
+        <Link className="metric-card metric-card-link" href={demoMode ? "#classes" : "/classes?tab=activities"} onClick={demoMode ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onOpenCorrections?.(); } : undefined} aria-label={`Abrir correções: ${reviews.length + manualPendingCount} pendente(s)`}>
           <span>Correções pendentes</span>
           <strong>{reviews.length + manualPendingCount}</strong>
         </Link>
       </section>
       <WeekSchedule
         demoMode={demoMode}
+        timeZone={timeZone}
         groups={groups}
         students={students}
         lessons={lessons}
@@ -812,7 +861,7 @@ export function KodlandSummary({
   );
 }
 
-function DashboardPageContent() {
+function DashboardPageContent({ uid }: { uid: string }) {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [groups, setGroups] = useState<KodlandGroup[]>([]);
   const [students, setStudents] = useState<KodlandStudent[]>([]);
@@ -829,6 +878,7 @@ function DashboardPageContent() {
   const [refreshNotice, setRefreshNotice] = useState("");
   const [scheduleLastUpdatedAt, setScheduleLastUpdatedAt] = useState<string | null>(null);
   const [kodlandEnabled, setKodlandEnabled] = useState(false);
+  const [timeZone, setTimeZone] = useState(DEFAULT_SYNC_TIME_ZONE);
 
   useEffect(() => {
     if (!refreshNotice) return;
@@ -839,7 +889,8 @@ function DashboardPageContent() {
     setFailed(false);
     if (!keepContent) setDashboard(null);
     try {
-      const preferences = await tutorPreferencesApi.get();
+      const [preferences, notificationSettings] = await Promise.all([tutorPreferencesApi.get(), createStudentNotificationStore(uid).settings().catch(() => ({ time_zone: DEFAULT_SYNC_TIME_ZONE }))]);
+      setTimeZone(syncTimeZone(notificationSettings.time_zone));
       setKodlandEnabled(preferences.kodland_enabled);
       const empty = Promise.resolve({ items: [] });
       const [
@@ -886,7 +937,21 @@ function DashboardPageContent() {
       setFailed(true);
       return false;
     }
-  }, []);
+  }, [uid]);
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = subscribeSyncDataChanged(uid, event => {
+      const domains = new Set(event.domains);
+      // These APIs read saved application data, never the external platform.
+      const updates: Promise<void>[] = [];
+      if (domains.has("agenda") || domains.has("recordings") || domains.has("call_link")) updates.push(Promise.all([kodlandApi.lessons(), kodlandApi.extraLessons(), kodlandApi.scheduleLastUpdatedAt()]).then(([nextLessons, nextExtras, updatedAt]) => { if (active) { setLessons(nextLessons.items); setExtraLessons(nextExtras.items); setScheduleLastUpdatedAt(updatedAt); } }));
+      if (domains.has("ranking")) updates.push(kodlandApi.students().then(result => { if (active) setStudents(result.items); }));
+      if (domains.has("activities")) updates.push(kodlandApi.reviews().then(result => { if (active) setReviews(result.items); }));
+      if (domains.has("payments")) updates.push(dashboardApi.get().then(result => { if (active) setDashboard(result); }));
+      void Promise.all(updates).catch(() => { if (active) setRefreshNotice("Os dados foram atualizados. Não foi possível recarregar esta área; tente atualizar a página."); });
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [uid]);
   useEffect(() => {
     const reloadHolidays = () => void holidaysApi.list().then(setCustomHolidays).catch(() => undefined);
     window.addEventListener("nexusclass:holidays-changed", reloadHolidays);
@@ -978,6 +1043,7 @@ function DashboardPageContent() {
         manualStudents={manualStudents}
         manualPendingCount={manualPendingCount}
         externalSyncEnabled={kodlandEnabled}
+        timeZone={timeZone}
       />
       <DashboardContent
         state="ready"
@@ -993,7 +1059,7 @@ export default function DashboardPage() {
     <AuthGuard>
       {(user) => (
         <Shell user={user}>
-          <DashboardPageContent />
+          <DashboardPageContent uid={user.id} />
         </Shell>
       )}
     </AuthGuard>

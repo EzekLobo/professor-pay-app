@@ -45,9 +45,13 @@ const tutorials: readonly TutorialDefinition[] = [
   {
     id: "classes",
     pathname: "/classes",
-    version: 5,
+    version: 6,
     steps: [
-      { id: "welcome", title: "Turmas", description: "Você pode gerir turmas próprias sem uma conta Kodland e manter as importadas na mesma tela.", placement: "center" },
+      { id: "welcome", title: "Turmas", description: "Atividades, presença e alunos agora ficam em Turmas. Use Alunos para cadastrar e organizar turmas próprias e importadas.", placement: "center" },
+      { id: "tabs", title: "Três áreas na mesma tela", description: "Atividades reúne correções e entregas; Presença mostra o histórico; Alunos reúne cadastros, turmas e ranking.", target: '[data-tour="classes-tabs"]', placement: "bottom" },
+      { id: "activities-sync", title: "Sincronização", description: "Atualize as atividades importadas quando precisar.", target: '[data-tour="corrections-sync"]', placement: "bottom" },
+      { id: "activities-filters", title: "Filtros", description: "Filtre e agrupe as atividades para encontrar o que procura.", target: '[data-tour="corrections-filters"]', placement: "bottom" },
+      { id: "activities-cards", title: "Atividades", description: "A primeira turma foi expandida para mostrar as atividades pendentes. Abra uma atividade para conferir os detalhes e corrigir.", target: '[data-tour="corrections-cards"]', placement: "top", reveal: "details" },
       { id: "personal-groups", title: "Turmas pessoais", description: "Organize suas turmas em grupos, como particulares ou reforço escolar.", target: '[data-tour="classes-personal-groups"]', placement: "top" },
       { id: "add-class", title: "Adicionar turma", description: "Escolha um grupo existente ou crie outro, defina horários, recebimento e alunos no mesmo cadastro.", target: '[data-tour="classes-add-class"]', placement: "bottom" },
       { id: "sync", title: "Sincronização opcional", description: "Atualize apenas as turmas importadas da Kodland quando tiver acesso à plataforma.", target: '[data-tour="classes-sync"]', placement: "bottom" },
@@ -61,17 +65,6 @@ const tutorials: readonly TutorialDefinition[] = [
     steps: [
       { id: "welcome", title: "Aulas", description: "Consulte cursos sincronizados e crie cursos próprios com módulos, aulas e materiais.", placement: "center" },
       { id: "courses", title: "Cursos disponíveis", description: "O primeiro curso foi expandido para você localizar os módulos e abrir os materiais de cada aula.", target: '[data-tour="lessons-courses"]', placement: "top", reveal: "details" },
-    ],
-  },
-  {
-    id: "corrections",
-    pathname: "/corrections",
-    version: 3,
-    steps: [
-      { id: "welcome", title: "Acompanhamento", description: "Acompanhe presença e atividades que precisam de atenção.", placement: "center" },
-      { id: "sync", title: "Sincronização", description: "Atualize as atividades importadas quando precisar.", target: '[data-tour="corrections-sync"]', placement: "bottom" },
-      { id: "filters", title: "Filtros", description: "Filtre e agrupe as atividades para encontrar o que procura.", target: '[data-tour="corrections-filters"]', placement: "bottom" },
-      { id: "cards", title: "Atividades", description: "A primeira turma foi expandida para mostrar as atividades pendentes. Abra uma atividade para conferir os detalhes e corrigir.", target: '[data-tour="corrections-cards"]', placement: "top", reveal: "details" },
     ],
   },
   {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const fake = vi.hoisted(() => ({
   docs: new Map<string, Record<string, unknown>>(),
   batchSizes: [] as number[],
+  queued: [] as string[],
   failMigration: false,
   userId: "test-user",
 }));
@@ -15,6 +16,13 @@ vi.mock("@/lib/firebase", () => ({
   getFirebaseDb: () => ({}),
 }));
 vi.mock("@/lib/firebase-auth", () => ({ reauthenticateWithFirebase: vi.fn(async () => undefined) }));
+vi.mock("./sync-coordinator", () => ({
+  getSyncCoordinator: () => ({ enqueue: async (job: { resourceId: string; run(context: unknown): Promise<{ value: unknown }> }) => {
+    fake.queued.push(job.resourceId);
+    const result = await job.run({ assertCurrent() {}, assertLease: async () => undefined, signal: new AbortController().signal });
+    return { status: "complete", value: result.value };
+  } }),
+}));
 vi.mock("firebase/firestore", () => {
   const path = (value: unknown) => String(value);
   const snapshot = (key: string) => ({
@@ -65,7 +73,7 @@ vi.mock("firebase/firestore", () => {
   };
 });
 
-import { dashboardApi, dataApi, kodlandPayrollApi, manualTeachingApi } from "./api";
+import { dashboardApi, dataApi, kodlandApi, kodlandPayrollApi, manualTeachingApi } from "./api";
 import { normalizePayroll } from "./kodland-payroll";
 
 const key = (collection: string, id: string) => `users/test-user/${collection}/${id}`;
@@ -78,6 +86,7 @@ const lesson = (id: string, date = "2026-10-13") => ({
 beforeEach(() => {
   fake.docs.clear();
   fake.batchSizes.length = 0;
+  fake.queued.length = 0;
   fake.failMigration = false;
   fake.userId = "test-user";
 });
@@ -251,5 +260,37 @@ describe("backup e migração", () => {
       .filter((item) => item.class_id === "class-1" && item.lesson_date === "2026-10-13");
     expect(sameDay).toHaveLength(1);
     expect(sameDay[0].id).toBe("old-lesson");
+  });
+});
+
+
+describe("ephemeral classroom state in portable backups", () => {
+  it("strips call sessions, preserves final extra checks, and clears pre-existing sessions on restore", async () => {
+    const id = "kodland-extra-session", checked = "2026-10-28T12:00:00Z";
+    fake.docs.set(key("kodland_extra_lessons", id), { id, external_student_id: "7", student_name: "Student", external_class_id: "g1", external_class_name: "Group", lesson_date: "2026-10-27", start_time: "18:00", end_time: "19:00", completed: false, status: "PENDING", final_checked_at: checked, recording_url: "https://recording.example.test/1", call_url: "https://learn.kodland.org/pt/class-room?sessionId=private-session", call_occurrence_key: "occurrence", call_checked_at: checked, call_expires_at: checked, created_at: checked });
+    fake.docs.set(key("sync_status", "auto_lock"), { token: "private-lease", expires_at: 1234 });
+    const exported = await dataApi.export();
+    const extra = (exported.kodland_extra_lessons as Record<string, unknown>[])[0];
+    expect(extra.final_checked_at).toBe(checked); expect(extra.recording_url).toBe("https://recording.example.test/1");
+    for (const field of ["call_url", "call_occurrence_key", "call_checked_at", "call_expires_at"]) expect(extra).not.toHaveProperty(field);
+    expect(exported).not.toHaveProperty("sync_status"); expect(JSON.stringify(exported)).not.toContain("private-lease");
+    await dataApi.import({ ...exported, exported_at: "session-import", kodland_extra_lessons: [{ ...extra, call_url: "https://learn.kodland.org/class-room?sessionId=untrusted-restored", call_occurrence_key: "stale" }] });
+    const restored = fake.docs.get(key("kodland_extra_lessons", id))!;
+    expect(restored.call_url).toBe(""); expect(restored.call_occurrence_key).toBe("");
+    expect(restored.final_checked_at).toBe(checked); expect(restored.recording_url).toBe("https://recording.example.test/1");
+    await dataApi.reset("password"); expect(fake.docs.has(key("sync_status", "auto_lock"))).toBe(false);
+  });
+});
+
+
+describe("legacy synchronization uses the shared queue", () => {
+  it("runs manual snapshot and backup restore through distinct non-nested jobs", async () => {
+    const fetch = vi.fn<(url: unknown, options?: RequestInit) => Promise<Response>>().mockResolvedValue(Response.json({ groups: [], students: [], reviews: [], lessons: [], extra_lessons: [], availability: [] }));
+    vi.stubGlobal("fetch", fetch);
+    await kodlandApi.sync("teacher", "secret", "schedule");
+    expect(fake.queued).toEqual(["sync:schedule:all"]);
+    expect(fetch.mock.calls[0][1]).toMatchObject({ signal: expect.any(AbortSignal) });
+    await dataApi.import({ schema_version: "4.0", exported_at: "queued-restore" });
+    expect(fake.queued).toEqual(["sync:schedule:all", "backup-import"]);
   });
 });

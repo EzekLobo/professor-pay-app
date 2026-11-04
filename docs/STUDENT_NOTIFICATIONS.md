@@ -15,7 +15,7 @@ Nas atividades próprias, defina Aula ou Casa, prazo, obrigatoriedade e dispensa
 ## Resolver um alerta
 
 1. Abra o sino no cabeçalho e selecione **Resolver** no caso desejado.
-2. Acompanhamento abre o aluno, a turma e a aula do caso. Revise a ocorrência, as atividades faltantes e a mensagem.
+2. Turmas abre a aba correspondente, o aluno, a turma e a aula do caso. Revise a ocorrência, as atividades faltantes e a mensagem.
 3. Cadastre ou edite o contato do responsável, se necessário. O telefone do aluno não é usado como substituto automático.
 4. Use **Abrir WhatsApp** e revise/envie a mensagem no aplicativo. Também é possível realizar o contato por outro meio.
 5. Clique em **Confirmar contato realizado** somente após o contato. Abrir WhatsApp não comprova envio nem confirma o caso.
@@ -28,9 +28,9 @@ Se os dados forem regularizados, a condição deixa de estar ativa, preservando 
 
 - A central é interna à aplicação web. Reavalia ao carregar, focar a janela, voltar à rede, alterar dados e a cada minuto enquanto aberta. Não envia push e não executa cobranças com o aplicativo fechado.
 - Turmas próprias usam atribuições e estados de entrega explícitos. Entrega aguardando correção não conta como não entregue. Alunos inativos, aulas canceladas, tarefas dispensadas/opcionais e dados desconhecidos não viram cobranças automáticas.
-- A sincronização de Acompanhamento preserva o progresso externo em `kodland_task_progress`. Classifica Aula/Casa somente quando o ID da tarefa corresponde aos links de materiais da aula. Estados não documentados ou classificação desconhecida ficam fora da cobrança; a regra Nenhuma entregue aguarda classificação completa.
+- A sincronização de atividades em Turmas preserva o progresso externo em `kodland_task_progress`. Classifica Aula/Casa somente quando o ID da tarefa corresponde aos links de materiais da aula. Estados não documentados ou classificação desconhecida ficam fora da cobrança; a regra Nenhuma entregue aguarda classificação completa.
 - Não há prazo individual importado da plataforma externa. Para dever de casa dessa origem, defina a política de dias após a aula. Presenças sem horário final confiável ficam fora dos alertas de falta.
-- A cobertura externa foi verificada com contratos/documentação e fixtures locais; não houve operação em conta real nessa implementação. Os avisos da central indicam dados insuficientes. Faça uma nova sincronização de Acompanhamento para popular o progresso; uma fila de correções antiga não substitui esse inventário.
+- A cobertura externa foi verificada com contratos/documentação e fixtures locais; não houve operação em conta real nessa implementação. Os avisos da central indicam dados insuficientes. Faça uma nova sincronização de atividades em Turmas para popular o progresso; uma fila de correções antiga não substitui esse inventário.
 - Conta autenticada usa Firestore e requer rede para confirmar contato. O estado é isolado por UID; a demonstração usa armazenamento local separado. Não há nova promessa de funcionamento offline entre recargas.
 
 ## Dados e manutenção

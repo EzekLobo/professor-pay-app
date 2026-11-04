@@ -143,7 +143,12 @@ export async function rememberKodlandCredentials(
   const userId = getFirebaseAuth().currentUser?.uid;
   const username = credentials.username.trim();
   if (!userId || !username || !credentials.password) return false;
-  return saveInBrowserVault({ username, password: credentials.password }, userId);
+  const saved = await saveInBrowserVault({ username, password: credentials.password }, userId);
+  if (saved && getFirebaseAuth().currentUser?.uid === userId && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(KODLAND_CREDENTIALS_CHANGED, { detail: { uid: userId } }));
+    return true;
+  }
+  return false;
 }
 
 export async function restoreKodlandCredentials() {
@@ -151,4 +156,15 @@ export async function restoreKodlandCredentials() {
   if (!userId) return null;
   const credentials = await loadFromBrowserVault(userId);
   return getFirebaseAuth().currentUser?.uid === userId ? credentials : null;
+}
+
+const KODLAND_CREDENTIALS_CHANGED = "nexusclass:kodland-credentials-changed";
+/** Listeners only receive account identity; credentials stay in the encrypted vault. */
+export function subscribeKodlandCredentialsChanged(uid: string, listener: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  const callback = (event: Event) => {
+    if ((event as CustomEvent<{ uid?: string }>).detail?.uid === uid) listener();
+  };
+  window.addEventListener(KODLAND_CREDENTIALS_CHANGED, callback);
+  return () => window.removeEventListener(KODLAND_CREDENTIALS_CHANGED, callback);
 }

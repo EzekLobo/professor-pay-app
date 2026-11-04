@@ -1,7 +1,7 @@
 "use client";
 
 import { MessageCircle } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Modal } from "@/components/modal";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 import { manualAdapter as productionAdapter } from "@/lib/manual-adapters-runtime";
@@ -26,13 +26,26 @@ function ClassGrid({ classroom, students, occurrences, records, preferences, ada
     const past = ordered.map((item, index) => item.lesson_date <= today() ? index : -1).filter((index) => index >= 0).at(-1) ?? 0;
     requestAnimationFrame(() => { const target = element.querySelector<HTMLElement>(`[data-manual-column="${past}"]`); if (target) element.scrollLeft = Math.max(0, target.offsetLeft - 260); });
   }, [ordered]);
-  const wheel = (event: WheelEvent<HTMLDivElement>) => { if (Math.abs(event.deltaY) > Math.abs(event.deltaX) && ref.current?.scrollWidth && ref.current.scrollWidth > ref.current.clientWidth) { ref.current.scrollLeft += event.deltaY; event.preventDefault(); } };
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const wheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const next = Math.max(0, Math.min(element.scrollWidth - element.clientWidth, element.scrollLeft + event.deltaY));
+      if (next === element.scrollLeft) return;
+      event.preventDefault();
+      element.scrollLeft = next;
+    };
+    // React delegates wheel listeners passively, so cancellation needs a native listener.
+    element.addEventListener("wheel", wheel, { passive: false });
+    return () => element.removeEventListener("wheel", wheel);
+  }, []);
   const byKey = new Map(records.map((item) => [`${item.occurrence_id}:${item.student_id}`, item]));
   const change = async (occurrence: ManualOccurrence, student: ManualStudent, status: ManualAttendanceStatus) => {
     const previous = byKey.get(`${occurrence.id}:${student.id}`);
     const saved = await adapter.operations.saveAttendance({ id: previous?.id, occurrence_id: occurrence.id, class_id: classroom.id, student_id: student.id, status, note: previous?.note ?? "" }); onSaved(saved);
   };
-  return <div className="attendance-grid-scroll" ref={ref} tabIndex={0} onWheel={wheel} aria-label={`Presença da turma ${classroom.name}`}>
+  return <div className="attendance-grid-scroll" ref={ref} tabIndex={0} aria-label={`Presença da turma ${classroom.name}`}>
     <div className="attendance-grid-header" style={style} role="row"><div className="attendance-grid-corner" role="columnheader">Aluno</div>{ordered.map((item, index) => <div className="attendance-column-heading" role="columnheader" data-manual-column={index} key={item.id}><strong>{dateLabel(item.lesson_date)}</strong><small>{item.start_time}</small></div>)}</div>
     {activeStudents.map((student) => <div className="attendance-grid-row" style={style} role="row" key={student.id}><div className="attendance-student-summary" role="rowheader"><div className="attendance-student-copy"><h4>{student.name}</h4>{student.email && <span>{student.email}</span>}</div></div>{ordered.map((occurrence) => {
       const record = byKey.get(`${occurrence.id}:${student.id}`); const status = record?.status ?? "UNMARKED"; const code = occurrence.course_code || "Sem código";

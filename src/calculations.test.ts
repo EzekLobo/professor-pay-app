@@ -118,19 +118,19 @@ describe('weekday helpers', () => {
 });
 
 describe('payment period and date', () => {
-  it('maps days 1 to 15 to the first period and next month day 1', () => {
-    expect(getPeriod('2026-05-01')).toBe('01 a 15/05/2026');
-    expect(getPeriod('2026-05-15')).toBe('01 a 15/05/2026');
-    expect(getPaymentDate('2026-05-15')).toBe('2026-06-01');
+  it('maps the first half of the month to the monthly period and next month day 15', () => {
+    expect(getPeriod('2026-05-01')).toBe('05/2026');
+    expect(getPeriod('2026-05-15')).toBe('05/2026');
+    expect(getPaymentDate('2026-05-15')).toBe('2026-06-15');
   });
 
-  it('maps day 16 onward to the second period and next month day 15', () => {
-    expect(getPeriod('2026-05-16')).toBe('16 a 31/05/2026');
+  it('keeps day 16 onward in the same monthly period and payment date', () => {
+    expect(getPeriod('2026-05-16')).toBe('05/2026');
     expect(getPaymentDate('2026-05-31')).toBe('2026-06-15');
   });
 
   it('rolls December payments into January of the next year', () => {
-    expect(getPaymentDate('2026-12-10')).toBe('2027-01-01');
+    expect(getPaymentDate('2026-12-10')).toBe('2027-01-15');
     expect(getPaymentDate('2026-12-20')).toBe('2027-01-15');
   });
 });
@@ -162,19 +162,22 @@ describe('money and dashboard calculations', () => {
 
   it('groups payments, finds last and next, and applies received status', () => {
     const lessons = [
+      lesson({ id: 'april', lessonDate: '2026-04-20', durationHours: 1, hourlyRate: 40 }),
       lesson({ id: 'may-early', lessonDate: '2026-05-04', durationHours: 1, hourlyRate: 50 }),
       lesson({ id: 'may-early-newer', lessonDate: '2026-05-12', durationHours: 1, hourlyRate: 55 }),
       lesson({ id: 'may-late', lessonDate: '2026-05-18', durationHours: 1, hourlyRate: 60 }),
       lesson({ id: 'june-early', lessonDate: '2026-06-01', durationHours: 1, hourlyRate: 70 }),
     ];
-    const confirmations: PaymentConfirmation[] = [{ id: 'p-1', paymentDate: '2026-06-01', receivedAt: '2026-06-01', note: '' }];
+    const confirmations: PaymentConfirmation[] = [{ id: 'p-1', paymentDate: '2026-05-15', receivedAt: '2026-05-15', note: '' }];
     const dashboard = buildDashboard([baseClass], lessons, confirmations, '2026-06-10');
 
     expect(dashboard.payments).toHaveLength(3);
-    expect(dashboard.lastPayment?.paymentDate).toBe('2026-06-01');
+    expect(dashboard.lastPayment?.paymentDate).toBe('2026-05-15');
     expect(dashboard.lastPayment?.status).toBe('Recebido');
     expect(dashboard.nextPayment?.paymentDate).toBe('2026-06-15');
-    expect(dashboard.payments[0].lessons.map((item) => item.id)).toEqual(['may-early-newer', 'may-early']);
+    expect(dashboard.payments[1].lessons.map((item) => item.id)).toEqual(['may-late', 'may-early-newer', 'may-early']);
+    expect(dashboard.payments[1]).toMatchObject({ period: '05/2026', total: 165, lessonCount: 3 });
+    expect(dashboard.payments[0]).toMatchObject({ period: '04/2026', total: 40, status: 'Recebido' });
   });
 
   it('calculates class progress without counting extra lessons', () => {
@@ -250,7 +253,7 @@ describe('money and dashboard calculations', () => {
     const dashboard = buildDashboard(
       [baseClass],
       [
-        lesson({ id: 'past', lessonDate: '2026-05-04' }),
+        lesson({ id: 'past', lessonDate: '2026-04-20' }),
         lesson({ id: 'next', lessonDate: '2026-05-18' }),
         lesson({ id: 'far', lessonDate: '2026-06-20' }),
       ],
@@ -258,15 +261,15 @@ describe('money and dashboard calculations', () => {
       '2026-06-10',
     );
 
-    expect(relevantPayments(dashboard.payments, dashboard.today).map((item) => item.paymentDate)).toEqual(['2026-06-15', '2026-06-01']);
+    expect(relevantPayments(dashboard.payments, dashboard.today).map((item) => item.paymentDate)).toEqual(['2026-06-15', '2026-05-15']);
   });
 
   it('orders relevant payments newest first including the next future payment', () => {
     const dashboard = buildDashboard(
       [baseClass],
       [
-        lesson({ id: 'older', lessonDate: '2026-04-20' }),
-        lesson({ id: 'newer', lessonDate: '2026-05-04' }),
+        lesson({ id: 'older', lessonDate: '2026-03-20' }),
+        lesson({ id: 'newer', lessonDate: '2026-04-20' }),
         lesson({ id: 'next', lessonDate: '2026-05-20' }),
         lesson({ id: 'far', lessonDate: '2026-06-20' }),
       ],
@@ -276,8 +279,8 @@ describe('money and dashboard calculations', () => {
 
     expect(relevantPayments(dashboard.payments, dashboard.today).map((item) => item.paymentDate)).toEqual([
       '2026-06-15',
-      '2026-06-01',
       '2026-05-15',
+      '2026-04-15',
     ]);
   });
 });
@@ -303,9 +306,9 @@ describe('initial seed data', () => {
       ['2026-05-12', 'Lucas'],
     ]);
     expect(extras.every((item) => item.hourlyRate === 30)).toBe(true);
-    expect(getPaymentDate(extras[0].lessonDate)).toBe('2026-05-01');
+    expect(getPaymentDate(extras[0].lessonDate)).toBe('2026-05-15');
     expect(getPaymentDate(extras[1].lessonDate)).toBe('2026-05-15');
-    expect(getPaymentDate(extras[2].lessonDate)).toBe('2026-06-01');
-    expect(getPaymentDate(extras[3].lessonDate)).toBe('2026-06-01');
+    expect(getPaymentDate(extras[2].lessonDate)).toBe('2026-06-15');
+    expect(getPaymentDate(extras[3].lessonDate)).toBe('2026-06-15');
   });
 });

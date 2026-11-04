@@ -2,22 +2,24 @@
 import type { StudentNotification } from "@/lib/student-notification-rules";
 import { NotificationResolution } from "./student-notifications";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { MessageCircle, RefreshCw } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { Modal } from "@/components/modal";
-import { ApiError, kodlandApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
+import { kodlandApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
 import { attendanceDateFromSchedule, attendanceLessonParts, lessonForAttendance } from "@/lib/attendance-schedule";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
-import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
-import { restoreKodlandCredentials } from "@/lib/browser-credentials";
+import { runActivitiesSync } from "@/lib/auto-sync-runtime";
+import { getFirebaseAuth } from "@/lib/firebase";
+import { subscribeSyncDataChanged } from "@/lib/sync-events";
 import { isActiveKodlandStudent } from "@/lib/student-ranking";
 import { whatsappUrl } from "@/lib/whatsapp";
 import { ManualAttendanceGrid } from "@/components/manual-attendance-grid";
+import { ClassesContent } from "@/components/classes-page";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
@@ -386,19 +388,25 @@ function AttendanceClassGrid({
     return () => window.cancelAnimationFrame(frame);
   }, [classOpen, columns.length, focusColumnIndex]);
 
-  const scrollWithMouseWheel = (event: WheelEvent<HTMLDivElement>) => {
-    const element = event.currentTarget;
-    if (element.scrollWidth <= element.clientWidth) return;
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-    if (!delta) return;
-    const next = Math.max(0, Math.min(element.scrollWidth - element.clientWidth, element.scrollLeft + delta));
-    if (next === element.scrollLeft) return;
-    event.preventDefault();
-    element.scrollLeft = next;
-  };
+  useEffect(() => {
+    const element = gridRef.current;
+    if (!element) return;
+    const scrollWithMouseWheel = (event: WheelEvent) => {
+      if (element.scrollWidth <= element.clientWidth) return;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (!delta) return;
+      const next = Math.max(0, Math.min(element.scrollWidth - element.clientWidth, element.scrollLeft + delta));
+      if (next === element.scrollLeft) return;
+      event.preventDefault();
+      element.scrollLeft = next;
+    };
+    // React delegates wheel listeners passively, so cancellation needs a native listener.
+    element.addEventListener("wheel", scrollWithMouseWheel, { passive: false });
+    return () => element.removeEventListener("wheel", scrollWithMouseWheel);
+  }, []);
 
   return (
-    <div className="attendance-grid-scroll" ref={gridRef} tabIndex={0} aria-label="Grade de histórico de presença" onWheel={scrollWithMouseWheel}>
+    <div className="attendance-grid-scroll" ref={gridRef} tabIndex={0} aria-label="Grade de histórico de presença">
       <div className="attendance-grid-header" style={gridStyle} role="row">
         <div className="attendance-grid-corner" role="columnheader">Aluno</div>
         {columns.map((column, index) => <div className={`attendance-column-heading${column.moduleStart ? " attendance-module-start" : ""}`} role="columnheader" data-attendance-column-index={index} key={column.key}>
@@ -527,7 +535,7 @@ function ReviewCard({
 }
 
 type CorrectionsViewPreferences = {
-  viewMode: "attendance" | "activities";
+  viewMode: "attendance" | "activities" | "students";
   activitiesView: "list" | "compact";
   pendingOnly: boolean;
   grouping: ReviewGrouping;
@@ -547,7 +555,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   const groups = demo?.groups ?? storedGroups;
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
-  const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
+  const [viewMode, setViewMode] = useState<CorrectionsViewPreferences["viewMode"]>("activities");
   const [activitiesView, setActivitiesView] = useState<"list" | "compact">("list");
   const [pendingOnly, setPendingOnly] = useState(true);
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
@@ -583,12 +591,14 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
     } catch { /* Prefer defaults when browser storage is unavailable or malformed. */ }
     queueMicrotask(() => {
       if (!active) return;
-      if (stored?.viewMode === "attendance" || stored?.viewMode === "activities") setViewMode(stored.viewMode);
+      if (stored?.viewMode === "attendance" || stored?.viewMode === "activities" || stored?.viewMode === "students") setViewMode(stored.viewMode);
       if (stored?.activitiesView === "list" || stored?.activitiesView === "compact") setActivitiesView(stored.activitiesView);
       setPendingOnly(typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : true);
       if (stored?.grouping === "class" || stored?.grouping === "student" || stored?.grouping === "lesson") setGrouping(stored.grouping);
       if (stored?.attendanceFilter === "ABSENT" || stored?.attendanceFilter === "ALL" || stored?.attendanceFilter === "PRESENT") setAttendanceFilter(stored.attendanceFilter);
       const context = new URLSearchParams(window.location.search);
+      const requestedTab = context.get("tab");
+      if (requestedTab === "activities" || requestedTab === "attendance" || requestedTab === "students") setViewMode(requestedTab);
       if (context.has("notification")) {
         setViewMode(context.get("tab") === "attendance" ? "attendance" : "activities");
         setQuery(""); setAttendanceFilter("ALL");
@@ -612,13 +622,12 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (keepContent = false) => {
     if (demo) {
       const enabled = (await demo.manualAdapter?.preferences.get())?.kodland_enabled === true;
-      setKodlandEnabled(enabled); setHasKodlandGroups(enabled && (demo.groups?.length ?? 0) > 0); return;
+      setKodlandEnabled(enabled); setHasKodlandGroups(enabled && (demo.groups?.length ?? 0) > 0); return false;
     }
-    setLoading(true);
-    setError("");
+    if (!keepContent) { setLoading(true); setError(""); }
     try {
       const preferences = await tutorPreferencesApi.get();
       setKodlandEnabled(preferences.kodland_enabled);
@@ -636,8 +645,10 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
       setManualClasses(ownClasses);
       setManualStudents(ownStudents);
       setStudents(studentResult.items);
+      return preferences.kodland_enabled && groupResult.items.length > 0;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -657,39 +668,48 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
       }
       return;
     }
-    const credentials = await restoreKodlandCredentials();
-    if (!credentials) {
-      setError("Salve as credenciais em Dados e backup antes de atualizar as correções.");
-      return;
-    }
-    setSyncing(true);
-    setError("");
-    setNotice("");
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (!uid) return;
+    setSyncing(true); setError(""); setNotice("");
     try {
-      const result = await kodlandApi.sync(
-        credentials.username.trim(),
-        credentials.password,
-        "corrections",
-      );
-      await load();
-      setNotice(
-        `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
-      );
+      const result = await runActivitiesSync(uid, { manual: true });
+      if (result.status === "skipped") setNotice("A atualização está aguardando conexão ou outra consulta em andamento.");
+      else {
+        setNotice(result.value.ranking_complete === false ? "Atividades atualizadas; a pontuação do ranking ficou pendente." : "Atividades e ranking atualizados.");
+      }
     } catch (reason) {
-      setError(
-        reason instanceof ApiError || reason instanceof KodlandSyncResponseError || reason instanceof KodlandSyncPersistenceError
-          ? reason.message
-          : "Não foi possível atualizar as correções.",
-      );
-    } finally {
-      setSyncing(false);
-    }
+      setError(reason instanceof Error ? reason.message : "Não foi possível atualizar as atividades.");
+    } finally { setSyncing(false); }
   }
 
+  // One entry action. Rerenders, filters and the internal attendance tab do not trigger a new source lookup.
   useEffect(() => {
-    const timer = window.setTimeout(() => { void load(); }, 0);
-    return () => window.clearTimeout(timer);
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const eligible = await load();
+        if (!active || demo || !eligible) return;
+        const uid = getFirebaseAuth().currentUser?.uid;
+        if (!uid) return;
+        setSyncing(true);
+        try {
+          await runActivitiesSync(uid);
+        } catch (reason) {
+          if (active) setError(reason instanceof Error ? reason.message : "A atualização automática ficou pendente. Os dados salvos foram preservados.");
+        } finally { if (active) setSyncing(false); }
+      })();
+    }, 0);
+    return () => { active = false; window.clearTimeout(timer); };
   }, [load, demo]);
+
+  useEffect(() => {
+    if (demo) return;
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (!uid) return;
+    return subscribeSyncDataChanged(uid, event => {
+      if (event.domains.some(domain => ["activities", "attendance", "ranking", "agenda"].includes(domain))) void load(true);
+    });
+  }, [demo, load]);
 
   const visibleReviews = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -780,22 +800,25 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
       </Modal>
       <section className="page-heading">
         <div>
-          <p className="eyebrow">Presença e atividades</p>
-          <h1>Acompanhamento</h1>
+          <p className="eyebrow">Atividades, presença e alunos</p>
+          <h1>Turmas</h1>
         </div>
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
       <div className="corrections-topbar">
-        <nav className="corrections-page-tabs" role="tablist" aria-label="Páginas do acompanhamento">
-          <button id="activities-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>
+        <nav className="corrections-page-tabs" data-tour="classes-tabs" role="tablist" aria-label="Áreas de turmas">
+          <button id="activities-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => { if (viewMode === "students") void load(true); setViewMode("activities"); }}>
             Atividades
           </button>
-          <button id="attendance-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>
+          <button id="attendance-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => { if (viewMode === "students") void load(true); setViewMode("attendance"); }}>
             Presença
           </button>
+          <button id="students-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "students"} className={viewMode === "students" ? "active" : ""} onClick={() => setViewMode("students")}>
+            Alunos
+          </button>
         </nav>
-        <div className={`correction-heading-actions${viewMode === "activities" ? " correction-heading-actions-activities" : ""}${viewMode === "activities" && activitiesView === "compact" ? " correction-heading-actions-compact" : ""}`} data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
+        {viewMode !== "students" && <div className={`correction-heading-actions${viewMode === "activities" ? " correction-heading-actions-activities" : ""}${viewMode === "activities" && activitiesView === "compact" ? " correction-heading-actions-compact" : ""}`} data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
             {viewMode === "attendance" ? (
               <label className="correction-toolbar-control"><span>Mostrar</span><select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>
                 <option value="ABSENT">Faltas</option>
@@ -820,10 +843,10 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
             {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}>
               <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
             </Button>}
-        </div>
+        </div>}
       </div>
-      <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
-        {viewMode === "attendance" ? <>
+      <section id="corrections-content" role="tabpanel" aria-labelledby={`${viewMode}-tab`} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
+        {viewMode === "students" ? <ClassesContent uid={demo ? undefined : preferenceKey} demo={demo ? { groups: demo.groups ?? [], students: demo.students ?? [], manualAdapter: demo.manualAdapter, onSync: demo.onSync } : undefined} /> : viewMode === "attendance" ? <>
         <div className="attendance-legend" aria-label="Legenda das cores de presença">
           {([
             ["present", "Presente"],

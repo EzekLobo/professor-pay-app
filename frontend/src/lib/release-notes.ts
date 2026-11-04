@@ -9,6 +9,9 @@ export type ReleaseNote = {
 
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
+  { version: 2026110401, date: "2026-11-04", title: "Tudo sobre suas turmas em um só lugar", description: "Turmas reúne Atividades, Presença e Alunos. Acompanhe as aulas e acesse os cadastros e as configurações das turmas pelas abas da mesma tela.", href: "/classes", action: "Abrir Turmas" },
+  { version: 2026103001, date: "2026-10-30", title: "Sincronização e pagamentos mais consistentes", description: "Links de chamada e gravação são preservados ao atualizar a mesma aula. Desligar a Kodland interrompe novas consultas automáticas, e pagamentos atrasados continuam editáveis.", href: "/settings#data", action: "Abrir dados e backup" },
+  { version: 2026102901, date: "2026-10-29", title: "Atualizações no momento certo", description: "Atividades e ranking atualizam ao abrir Acompanhamento. A Agenda verifica presença, extras e gravações por necessidade e sinaliza chamadas disponíveis para abrir com dois cliques ou toques.", href: "/dashboard", action: "Abrir Agenda" },
   { version: 2026102801, date: "2026-10-28", title: "Alertas para acompanhar seus alunos", description: "Ative notificações de faltas e atividades com dados suficientes. O sino leva à pendência para revisar a mensagem ao responsável e registrar o contato.", href: "/settings#notifications", action: "Configurar notificações" },
   { version: 2026102606, date: "2026-10-26", title: "Dados e backup nas Configurações", description: "Encontre sincronização, cópias de segurança e planilhas na seção Dados e backup das Configurações.", href: "/settings#data", action: "Abrir dados e backup" },
   {

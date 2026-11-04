@@ -1,5 +1,39 @@
 # Estado atual
 
+## Diagnóstico de CI/Vercel — 04/11/2026
+
+- Confirmado remoto: último deploy nexusclass61c827a READY, três recentes READY. Quatro erros históricos TS7006 shell.tsx/event resolvidos desde3107feb. Run failed atual é CI/e2e: Playwright1.57.0 não instala Chromium em ubuntu26.04 (ubuntu-latest). Web/api passam. Sugerido fixar job e2e ubuntu-24.04; não aplicado nesta investigação.
+- Evidências/links em docs/reviews/2026-11-04-ci-vercel-diagnostico.md. Runtimeprodução últimos30min sem erros;24h indisponível por retençãoHobby. Conector lê metadados mas403 em logs; CLI vercel.cmd --scope ezeklobos-projects funcionou. Não repetir pedido de autorização para metadados/CLI.
+- Checkout localce592a2 está atrás do publicado e contém trabalho anterior; não pull/reset. Nenhum deploy/rerun/alteração remota executado.
+
+
+## Turmas unificadas — 04/11/2026
+
+- /classes reúne estrutura de CorrectionsContent com abas Atividades, Presença e Alunos. ClassesContent reaproveitado em Alunos preserva turmas/grupos/alunos manuais e Kodland. Navegação principal tem só Turmas; dashboard/notificações/guia apontam ao novo destino. /corrections redireciona preservando query; demo#corrections normaliza para #classes.
+- Preferência visual legada preservada; tab explícita prevalece. Retorno de Alunos relê dados persistidos, sem nova sincronização de atividades por troca de aba. Layout320/390/1440 inspecionado; até420px abas13px com toque45px e teste geométrico dos rótulos.
+- Confirmado: quality:web passou (lint, tipos,437 testes e build24 páginas);24 E2E afetados passaram e4 unified repetidos após ajuste visual passaram. Novidade2026110401. Plano docs/plans/unified-classes-2026-11-04.md. Sem deploy, conta real ou alteração Expo.
+
+
+## Correções da revisão — 30/10/2026
+
+- R01–R08 corrigidos; plano `docs/plans/review-fixes-2026-10-30.md` e encerramento em `docs/reviews/2026-10-30-revisao-completa.md`. Financeiro/cadastros/dashboard vinculados ao UID; OVERDUE editável; links preservados por ocorrência e recuperáveis; toggle imediato inclusive fila/payroll; caches autoritativos; activation_at real e pendências rastreadas preservadas.
+- Raiz separa Vitest/TypeScript do frontend e encaminha flags web. Contrato mensal confirmado em26cd759; apenas testes/fixtures Expo alinhados, sem APK/app.json alterado. Novidade web2026103001.
+- `npm.cmd run quality` passou:65 testes nativos,437 web,33 backend, tipos/lint/build. Navegador53 cenários únicos aprovados combinando execução completa e repetição dos dois arquivos afetados; cinco cenários repetidos passaram, depois dois demo passaram com nova asserção scrollY.
+- Browser revelou bug adicional de wheel passivo; grades manual/Kodland usam listener nativo cancelável com cleanup e liberam vertical no limite. Setup Vite ganhou90s somente no hook; interações mantêm30s. Diagnósticos removidos. Qualidade web repetida após delta das grades.
+- Conta Kodland autenticada, regras publicadas/emulador Firestore e dispositivo Expo continuam pendentes. Sem deploy, push ou operação em conta real. A seção abaixo é histórico da revisão anterior às correções.
+## Revisão da aplicação — 30/10/2026
+
+- Relatório em `docs/reviews/2026-10-30-revisao-completa.md`: seis defeitos funcionais confirmados por sete diagnósticos sintéticos, mais duas lacunas de validação. Sem correções funcionais nesta revisão.
+- P1 R01: paymentsApi.confirm pode gravar snapshot de A em B se a sessão mudar durante paymentDetail; ref resolve UID atual depois do await. P2: sync manual perde links de chamada/gravação com marcador completo; OVERDUE bloqueado como recebido; toggle Kodland não invalida runtime; histórico remoto concluído permanece pendente no cache; bootstrap pode ancorar antes da ativação.
+- Confirmado nesta revisão: web394 testes, lint/typecheck/build; navegador53 cenários únicos, dois passaram após repetição isolada; backend legado33 testes/Ruff. Native src65 testes:54 passam/11 falham por contrato financeiro divergente. npm test/tsc raiz misturam frontend/Expo/runners; usar comandos diretos do workspace até corrigir configuração.
+- Conta Kodland real, regras publicadas/emulador Firestore e execução em dispositivo Expo continuam pendentes. Não considerar a suíte verde como aprovação dos cenários de troca de conta, persistência de links e invalidação do runtime. Arquivos de diagnóstico temporários removidos; alterações anteriores preservadas.
+
+## Sincronização automática por escopo — 29/10/2026
+
+- Web implementada: políticas/coordenador/estado/eventos `sync-*`, runtime `auto-sync-runtime` no Shell e folha diária `auto-sync-payroll`. Escopos isolados em `kodland-scoped-sync` e rota; cadastro, disponibilidade e materiais fora da automação. Fonte de regras/aceite em `docs/plans/scoped-auto-sync-implementation.md`; operação em `docs/AUTO_SYNC.md`.
+- Presença fim +1h; extras novas da semana e conferência final no dia seguinte; gravação após fim e próximos acessos ≥30min; atividades/ranking a cada entrada; folha D−5..D diária. Carga inicial presença/gravação: 7 dias. Chamada −15min/retry5min até fim, ícone44px e gesto duplo, link por ocorrência confirmado em JS público Kodland.
+- Notificações por eventos e deadlines locais em cache, sem varredura remota60s. Manuais/importação compartilham fila com automação, leases privados `sync_status/auto_*`, guards UID/posse, eventos entre abas e reconexão do cofre. Backup remove call_* e preserva final_checked_at; reset remove leases e guards impedem executores antigos de gravar.
+- Confirmado: 394 testes web, lint/build e17 cenários únicos Playwright passaram; três timeouts em paralelo ao build passaram isolados. Screenshots320/390/1440 inspecionados. Novidade2026102901. Sem deploy, conta Kodland real ou emulador Firestore; app fechado não executa tarefas. Expo/APK não alterados.
 ## Notificações de acompanhamento — 28/10/2026
 
 - Sino no cabeçalho e Configurações > Notificações: faltas, nenhuma atividade de aula entregue, mais de N pendentes e casa vencida, com prévia/data inicial/fuso/tolerância. Ativação inicia desligada. Alerta abre caso em Acompanhamento com mensagem editável, cadastro do responsável e confirmação explícita de contato; leitura/contato/regularização são estados separados.

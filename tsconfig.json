@@ -2,5 +2,21 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true
-  }
+  },
+  "include": [
+    "App.tsx",
+    "index.ts",
+    "src/**/*.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "frontend",
+    "backend",
+    "android",
+    "ios",
+    "dist",
+    "web-build",
+    "coverage"
+  ]
 }

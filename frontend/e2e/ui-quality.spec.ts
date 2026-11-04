@@ -36,7 +36,7 @@ test("navegação móvel mantém áreas principais e oferece as demais em Mais",
   await more.click();
   const dialog = page.getByRole("dialog", { name: "Mais opções", exact: true });
   const extras = dialog.getByRole("navigation", { name: "Outras áreas" });
-  for (const label of ["Acompanhamento", "Tarefas", "Configurações"]) {
+  for (const label of ["Tarefas", "Configurações"]) {
     await expect(extras.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   await expect(extras.getByRole("link", { name: "Configurações", exact: true })).toHaveAttribute("aria-current", "page");

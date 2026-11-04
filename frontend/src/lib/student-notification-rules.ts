@@ -69,6 +69,43 @@ export function notificationLocalInstant(date: string, time: string, zone: strin
     return civil(value) === target ? new Date(value).toISOString() : null;
   } catch { return null; }
 }
+/** Resolve deadlines using exactly the same policy as alert evaluation. */
+function obligationDeadline(item: NotificationObligation, lesson: NotificationLesson, settings: NotificationSettings): number | null {
+  let due = Date.parse(item.due_at ?? "");
+  if (!Number.isFinite(due) && item.kind === "homework" && settings.homework_days_after_lesson !== null) {
+    const date = new Date(lesson.lesson_date + "T12:00:00Z"); date.setUTCDate(date.getUTCDate() + settings.homework_days_after_lesson);
+    due = Date.parse(notificationLocalInstant(date.toISOString().slice(0, 10), "23:59", settings.time_zone) ?? "");
+  }
+  return Number.isFinite(due) ? due : null;
+}
+/** Next instant when cached data can change alerts, without another source lookup. */
+export function nextStudentNotificationEvaluationAt(lessons: readonly NotificationLesson[], obligations: readonly NotificationObligation[], settings: NotificationSettings, now: number): number | null {
+  if (!settings.enabled) return null;
+  let next: number | null = null;
+  const remember = (at: number) => { if (Number.isFinite(at) && at > now) next = next === null ? at : Math.min(next, at); };
+  const tolerance = settings.tolerance_minutes * 60000;
+  const grouped = new Map<string, NotificationObligation[]>();
+  for (const item of obligations) {
+    if (!item.required || item.exempt || item.state !== "missing") continue;
+    const key = identity(item); const values = grouped.get(key) ?? []; values.push(item); grouped.set(key, values);
+  }
+  for (const lesson of lessons) {
+    const ended = Date.parse(lesson.ended_at ?? "");
+    if (!lesson.active || lesson.cancelled || lesson.lesson_date < settings.start_date || !Number.isFinite(ended)) continue;
+    if (settings.attendance_enabled && lesson.attendance === "absent") remember(ended + tolerance);
+    for (const item of grouped.get(identity(lesson)) ?? []) {
+      if (item.kind === "classroom" && settings.classroom_rule !== "off") {
+        const due = obligationDeadline(item, lesson, settings);
+        if (!item.due_at || due !== null) remember(Math.max(ended + tolerance, due === null ? -Infinity : due + tolerance));
+      }
+      if (item.kind === "homework" && settings.homework_enabled) {
+        const due = obligationDeadline(item, lesson, settings);
+        if (due !== null) remember(Math.max(ended + tolerance, due + tolerance));
+      }
+    }
+  }
+  return next;
+}
 export function evaluateStudentNotifications(lessons: readonly NotificationLesson[], obligations: readonly NotificationObligation[], settings: NotificationSettings, now: Date): StudentNotification[] {
   if (!settings.enabled) return [];
   const grouped = new Map<string, NotificationObligation[]>();
@@ -93,12 +130,8 @@ export function evaluateStudentNotifications(lessons: readonly NotificationLesso
     if (settings.homework_enabled) {
       const overdue = assigned.filter(item => {
         if (item.kind !== "homework" || item.state !== "missing") return false;
-        let due = Date.parse(item.due_at ?? "");
-        if (!Number.isFinite(due) && settings.homework_days_after_lesson !== null) {
-          const date = new Date(`${lesson.lesson_date}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + settings.homework_days_after_lesson);
-          due = Date.parse(notificationLocalInstant(date.toISOString().slice(0, 10), "23:59", settings.time_zone) ?? "");
-        }
-        return Number.isFinite(due) && due + settings.tolerance_minutes * 60000 <= now.getTime();
+        const due = obligationDeadline(item, lesson, settings);
+        return due !== null && due + settings.tolerance_minutes * 60000 <= now.getTime();
       });
       if (overdue.length) add("homework", `${overdue.length} atividade(s) de casa com prazo vencido.`, overdue);
     }
@@ -114,7 +147,7 @@ export type NotificationCase = {
 export const needsNotificationContact = (item: NotificationCase) => item.active && !item.confirmed_revisions.includes(item.notification.revision);
 export function notificationTarget(item: StudentNotification, demo = false) {
   const params = new URLSearchParams({ tab: item.category === "absence" ? "attendance" : "activities", source: item.source, class: item.class_id, student: item.student_id, occurrence: item.occurrence_id, notification: item.id });
-  return demo ? `/demo?${params}#corrections` : `/corrections?${params}`;
+  return demo ? `/demo?${params}#classes` : `/classes?${params}`;
 }
 export function notificationMessage(item: StudentNotification, template: string) {
   const values: Record<string, string> = { responsavel: item.guardian_name || "responsável", aluno: item.student_name, turma: item.class_name, aula: item.lesson_label, data: item.lesson_date.split("-").reverse().join("/"), atividades: item.activities.map(activity => activity.title).join(", "), prazo: item.activities.map(activity => activity.due_at).filter(Boolean).join(", "), gravacao: item.recording_url || "", primeiro_nome: item.guardian_name.split(" ")[0] || "responsável", codigo_aula: item.lesson_label };

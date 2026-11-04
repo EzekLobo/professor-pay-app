@@ -23,6 +23,10 @@ import {
   type PaymentDetail,
 } from "@/lib/api";
 import { formatMoney } from "@/lib/finance";
+import { useStudentNotifications } from "@/components/student-notifications";
+import { getFirebaseAuth } from "@/lib/firebase";
+import { syncPaymentsOnEntry } from "@/lib/auto-sync-payroll";
+import { subscribeSyncDataChanged } from "@/lib/sync-events";
 const status = (s: string) =>
   s === "RECEIVED" ? "Recebido" : s === "OVERDUE" ? "Em atraso" : "Previsto";
 const tone = (s: string) =>
@@ -80,6 +84,11 @@ export type PaymentsAdapter = {
 };
 export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {}) {
   const paymentActions = adapter ?? paymentsApi;
+  const notificationState = useStudentNotifications();
+  const automaticEntryStarted = useRef(false);
+  const detailPaymentDate = useRef<string | null>(null);
+  const mounted = useRef(false);
+  const [automaticStatus, setAutomaticStatus] = useState("");
   const [confirmReverse, setConfirmReverse] = useState<boolean | null>(null);
   const [items, setItems] = useState<DashboardPayment[]>([]),
     [detail, setDetail] = useState<PaymentDetail | null>(null),
@@ -123,8 +132,8 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       : carouselMotion === "previous"
         ? [-2, -1, 0, 1]
         : [-1, 0, 1];
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (keepContent = false) => {
+    if (!keepContent) setLoading(true);
     try {
       const loadedItems = (await paymentActions.list()).items;
       const nextFocus =
@@ -132,6 +141,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
           (item) => item.payment_date > new Date().toISOString().slice(0, 10),
         ) ?? loadedItems.at(-1) ?? null;
       setItems(loadedItems);
+      setStatusPayment(current => current ? loadedItems.find(item => item.payment_date === current.payment_date) ?? null : null);
       setFocusedPaymentDate((current) =>
         current && loadedItems.some((item) => item.payment_date === current)
           ? current
@@ -151,6 +161,31 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { detailPaymentDate.current = detail?.payment_date ?? null; }, [detail]);
+  useEffect(() => {
+    if (adapter) return; // A demo adapter must never resolve Firebase or Kodland services.
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (!uid) return;
+    return subscribeSyncDataChanged(uid, event => {
+      if (!event.domains.includes("payments")) return;
+      void load(true);
+      const date = detailPaymentDate.current;
+      if (date) void paymentActions.get(date).then(value => {
+        if (getFirebaseAuth().currentUser?.uid === uid && detailPaymentDate.current === date) setDetail(value);
+      }).catch(() => { /* Keep the open statement while a refresh is unavailable. */ });
+    });
+  }, [adapter, load, paymentActions]);
+  useEffect(() => {
+    if (adapter || loading || !notificationState?.settings || automaticEntryStarted.current) return;
+    automaticEntryStarted.current = true;
+    void syncPaymentsOnEntry(items, { timeZone: notificationState.settings.time_zone }).then(result => {
+      if (!mounted.current) return;
+      setAutomaticStatus(result.status === "auth_required" ? "Reconecte a Kodland em Dados e backup para atualizar os pagamentos."
+        : result.status === "credentials_required" ? "Salve o acesso à Kodland em Dados e backup para atualizar os pagamentos automaticamente."
+          : result.status === "pending" ? "A atualização dos pagamentos ficou pendente. Os dados salvos foram preservados." : "");
+    }).catch(() => { if (mounted.current) setAutomaticStatus("Não foi possível atualizar os pagamentos agora. Os dados salvos foram preservados."); });
+  }, [adapter, items, loading, notificationState?.settings]);
   async function open(date: string) {
     try {
       setDetail(await paymentActions.get(date));
@@ -317,6 +352,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
           para o dia 15 do mês seguinte.
         </p>
       </section>
+      {automaticStatus && <p className="muted" role="status">{automaticStatus}</p>}
       {error && <p className="form-error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
       <section className="metric-grid payment-metric-grid" data-tour="payments-summary">

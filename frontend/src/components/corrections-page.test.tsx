@@ -68,6 +68,9 @@ describe("compactActivitiesModel", () => {
     expect(model.flatMap(group => group.rows.map(row => row.name))).toEqual(["Ana", "Carla"]);
     const markup = renderToStaticMarkup(<CompactActivitiesGrid model={model} pendingOnly onCorrectManual={() => undefined} />);
     expect(markup).not.toContain("compact-activity-empty");
+    expect(markup).toContain('role="grid"');
+    expect(markup).toContain('role="columnheader">Aluno');
+    expect(markup).not.toContain("compact-pending-row");
     expect(markup).not.toContain("Sem pendência");
     expect(markup).toContain("Desafio");
     expect(compactActivitiesModel(inputs).flatMap(group => group.rows)).toHaveLength(4);

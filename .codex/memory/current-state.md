@@ -4,14 +4,14 @@
 
 - Scheduler ativo mantém uma única rotina, agora com escopos de extra nova na entrada da Agenda, conferência final no dia seguinte, gravações após aula, chamada a cada5min desde T−15min, presença em +1h e atividades/ranking a cada entrada em Turmas. Não reimporta cadastro, disponibilidade ou materiais automaticamente; pagamentos seguem D−5 diário na entrada da página.
 - Escopos especiais também persistem no cache Navegador para não depender de Firestore. Browser occurrence é limitado a grupos do professor e a ocorrência local exata; o servidor valida extras na agenda do professor.
-- Causa inicial do run failed: Ubuntu26.04 em ubuntu-latest sem Chromium compatível com Playwright1.57. Job `e2e` fixado em `ubuntu-24.04`; Actions confirmou a instalação e executou 87 testes. Web/API passaram; oito falhas eram testes do demo presos ao calendário de outubro. Gestos agora escolhem direção habilitada e helper abre folha pelo vencimento calculado em São Paulo.
-- Correção local passou nos oito E2E afetados e em `npm.cmd run quality:web` (lint, typecheck,573 testes/83 arquivos e build27 rotas). Deploy `78a7b73` está READY e responde HTTP200; correções dos testes ainda aguardam novo commit/push/CI/deploy. Plano em `docs/plans/ci-sync-2026-11-04.md`, regras em `docs/AUTO_SYNC.md`.
+- Causa inicial do run failed: Ubuntu26.04 em `ubuntu-latest` sem Chromium compatível com Playwright1.57. Job `e2e` fixado em `ubuntu-24.04`; o run `41837212006` confirmou API, web e 87 testes E2E aprovados. Os testes de pagamento passaram a calcular vencimentos no fuso São Paulo e respeitar a navegação disponível.
+- Correções publicadas no commit `6647e146`; Vercel ficou READY e respondeu HTTP200. O workflow `.github/workflows/ci.yml` agora roda a suíte completa somente em pull requests; pushes para `master` continuam acionando o deploy automático do Vercel sem iniciar Actions. Plano em `docs/plans/ci-sync-2026-11-04.md`, regras de produto em `docs/AUTO_SYNC.md`.
 
 ## Diagnóstico de CI/Vercel — 04/11/2026
 
-- Diagnóstico inicial confirmou deploy `61c827a` READY e erro repetido do CI Playwright/Ubuntu26.04. Runner e2e foi fixado. Run `41833950911` (`78a7b73`) confirmou web/API e Chromium; E2E teve76 aprovações e oito falhas em expectativas de mês/gesto na demonstração. Ajustes locais nos testes passaram nos oito casos e quality:web; novo SHA ainda aguarda push.
+- Diagnóstico inicial confirmou deploy `61c827a` READY e erro repetido do CI Playwright/Ubuntu26.04. Runner E2E foi fixado; o primeiro run revelou oito expectativas frágeis de mês/gesto, corrigidas em `6647e146`. O run final `41837212006` passou em todos os jobs e o deploy desse SHA ficou READY. O CI foi limitado a pull requests para que pushes diretos à branch de produção não repitam essa bateria.
 - Evidências/links em docs/reviews/2026-11-04-ci-vercel-diagnostico.md. Runtimeprodução últimos30min sem erros;24h indisponível por retençãoHobby. Conector lê metadados mas403 em logs; CLI vercel.cmd --scope ezeklobos-projects funcionou. Não repetir pedido de autorização para metadados/CLI.
-- Checkout inicial ce592a2 preservado em snapshot antes da integração. Deploy `78a7b73` confirmado READY pelo CLI e página responde HTTP200; logs do build vinculam o commit. Conector MCP Vercel devolveu403, CLI autenticado funcionou; deploy do novo SHA pendente.
+- Checkout inicial ce592a2 preservado em snapshot antes da integração. Deploy `6647e14` confirmado READY pelo CLI e página responde HTTP200; logs do build vinculam o commit. Conector MCP Vercel devolveu403, CLI autenticado funcionou.
 
 
 ## Turmas unificadas — 04/11/2026

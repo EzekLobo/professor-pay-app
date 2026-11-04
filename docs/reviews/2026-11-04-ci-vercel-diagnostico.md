@@ -22,4 +22,4 @@
 
 ## Limites e método
 
-Diagnóstico e primeira correção de runner confirmados remotamente. Correção das expectativas temporais nos E2E passou localmente; novo SHA/CI/deploy aguardam push. Metadados/build/runtime consultados via CLI autenticado com scope explícito ezeklobos-projects após o conector Vercel devolver403. Checkout ce592a2 foi preservado em snapshot antes da integração. Runtime production errors só foi verificável em janela curta de30min; retenção Hobby não expõe24h.
+Diagnóstico e correção confirmados remotamente. O commit `6647e146` passou no run `41837212006` (API, web e 87 E2E); o deployment Vercel correspondente ficou READY e respondeu HTTP200. Depois, o workflow passou a executar a bateria completa apenas em pull requests. Pushes para `master` ainda acionam o deploy automático diretamente pelo Vercel. Metadados/build/runtime consultados via CLI autenticado com scope explícito ezeklobos-projects após o conector Vercel devolver403. Checkout ce592a2 foi preservado em snapshot antes da integração. Runtime production errors só foi verificável em janela curta de30min; retenção Hobby não expõe24h.

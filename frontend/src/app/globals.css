@@ -3786,3 +3786,6 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 
 .week-day header { position: relative; }
 .week-day-holiday { position: absolute; top: 14px; right: 0; max-width: 100%; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .6rem; line-height: 1; }
+
+.correction-class-heading > .compact-class-copy { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.compact-class-course { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: .72rem; font-weight: 500; }

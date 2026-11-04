@@ -1,5 +1,7 @@
 # Estado atual
 
+- Cabeçalhos de Alunos exibem curso abaixo da turma, com fonte menor e tooltip; Kodland usa course_name e turmas próprias resolvem course_id no catálogo manual.
+
 - Nome do feriado posicionado no espaço inferior do cabeçalho diário da Agenda, sem aumentar altura nem deslocar aulas; nome longo truncado com tooltip.
 
 - Cursos sem frase de apresentação; ação compacta Livro+Curso. Cabeçalho da grade Alunos alinha contagem de alunos e atividades sem corrigir à direita, junto ao menu e seta.

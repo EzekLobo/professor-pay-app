@@ -12,7 +12,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { Modal } from "@/components/modal";
-import { ApiError, kodlandApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
+import { ApiError, kodlandApi, manualCoursesApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
 import { attendanceDateFromSchedule, attendanceLessonParts, lessonForAttendance } from "@/lib/attendance-schedule";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
@@ -69,6 +69,7 @@ export type CompactActivityRow = {
 export type CompactActivityClass = {
   key: string;
   name: string;
+  courseName?: string;
   columns: CompactActivityColumn[];
   rows: CompactActivityRow[];
 };
@@ -88,6 +89,7 @@ const groupBy = <T,>(items: T[], keyFor: (item: T) => string) =>
 type CompactActivityClassDraft = {
   key: string;
   name: string;
+  courseName?: string;
   columns: Map<string, CompactActivityColumn>;
   rows: Map<string, CompactActivityRow>;
 };
@@ -121,7 +123,9 @@ export function compactActivitiesModel({
   manualClasses,
   manualStudents,
   pendingOnly = false,
+  manualCourseNames = {},
 }: {
+  manualCourseNames?: Record<string, string>;
   reviews: readonly KodlandReview[];
   lessons: readonly KodlandLesson[];
   manualActivities: readonly ManualActivity[];
@@ -157,6 +161,7 @@ export function compactActivitiesModel({
   for (const [externalClassId, classReviews] of reviewsByClass) {
     const group = groupsByExternalId.get(externalClassId);
     const draft = ensureClass(`kodland:${externalClassId}`, group?.title || classReviews[0]?.external_class_name || "Turma Kodland");
+    draft.courseName = group?.course_name;
     for (const [index, student] of activeStudentsRankedByPoints(students.filter((item) => item.external_class_id === externalClassId)).entries()) {
       const row = ensureRow(draft, student.external_id || student.id, student.name, student.email);
       row.student = student; row.rank = index + 1;
@@ -190,6 +195,7 @@ export function compactActivitiesModel({
   for (const [classId, classActivities] of activitiesByClass) {
     const manualClass = manualClassesById.get(classId);
     const draft = ensureClass(`manual:${classId}`, manualClass?.name || "Turma própria");
+    draft.courseName = manualCourseNames[manualClass?.course_id ?? ""];
     for (const studentId of manualClass?.student_ids ?? []) {
       const student = manualStudentsById.get(studentId);
       if (student?.active) ensureRow(draft, student.id, student.name, student.email);
@@ -213,6 +219,7 @@ export function compactActivitiesModel({
   return [...drafts.values()].map((draft) => ({
     key: draft.key,
     name: draft.name,
+    courseName: draft.courseName,
     columns: [...draft.columns.values()].sort((first, second) => first.sortKey.localeCompare(second.sortKey, "pt-BR")),
     rows: [...draft.rows.values()].filter(row => !pendingOnly || Object.keys(row.cells).length > 0).sort((first, second) => (first.rank ?? Infinity) - (second.rank ?? Infinity) || first.name.localeCompare(second.name, "pt-BR")),
   })).sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
@@ -491,7 +498,7 @@ export function CompactActivitiesGrid({
       const gridStyle = { "--attendance-columns": Math.max(1, classModel.columns.length) } as CSSProperties;
       return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
         <summary className="correction-class-heading">
-          <div><h3>{classModel.name}</h3></div>
+          <div className="compact-class-copy"><h3>{classModel.name}</h3><small className="compact-class-course" title={classModel.courseName || "Curso não informado"}>{classModel.courseName || "Curso não informado"}</small></div>
           <span className="compact-class-actions"><span className="class-count-badge" aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={14} aria-hidden="true" />{classModel.rows.length}</span><span className="class-count-badge class-pending-badge" aria-label={`${classModel.rows.reduce((total, row) => total + Object.keys(row.cells).length, 0)} atividades sem corrigir`} title="Atividades sem corrigir"><ClipboardCheck size={14} aria-hidden="true" />{classModel.rows.reduce((total, row) => total + Object.keys(row.cells).length, 0)}</span><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" onClick={event => { event.preventDefault(); setClassAction(classModel); }}><MoreVertical size={18} aria-hidden="true" /></button><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
         </summary>
         <div className="correction-class-body attendance-class-body">
@@ -606,6 +613,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const [loading, setLoading] = useState(!demo);
   const [syncing, setSyncing] = useState(false);
   const [storedManualActivities, setManualActivities] = useState<ManualActivity[]>([]);
+  const [manualCourseNames, setManualCourseNames] = useState<Record<string, string>>({});
   const [storedManualClasses, setManualClasses] = useState<ManualClass[]>([]);
   const [storedManualStudents, setManualStudents] = useState<ManualStudent[]>([]);
   const manualActivities = demo?.manualActivities ?? storedManualActivities;
@@ -665,6 +673,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
 
   const load = useCallback(async (background = false) => {
     if (demo) {
+      const courses = await demo.manualAdapter?.courses.list() ?? [];
+      setManualCourseNames(Object.fromEntries(courses.map(course => [course.id, course.name])));
       const enabled = (await demo.manualAdapter?.preferences.get())?.kodland_enabled === true;
       setKodlandEnabled(enabled); setHasKodlandGroups(enabled && (demo.groups?.length ?? 0) > 0); return;
     }
@@ -686,6 +696,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       setHasKodlandGroups(groupResult.items.length > 0);
       if (ownActivities) setManualActivities(ownActivities);
       if (ownClasses) setManualClasses(ownClasses);
+      if (!localOnly) { const courses = await manualCoursesApi.list(); setManualCourseNames(Object.fromEntries(courses.map(course => [course.id, course.name]))); }
       if (ownStudents) setManualStudents(ownStudents);
       setStudents(studentResult.items);
     } catch (reason) {
@@ -775,12 +786,13 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     students: attendanceStudents,
     manualClasses,
     manualStudents,
+    manualCourseNames,
     pendingOnly,
   }).map((item) => {
     const normalized = query.trim().toLocaleLowerCase("pt-BR");
     if (!normalized || item.name.toLocaleLowerCase("pt-BR").includes(normalized)) return item;
     return { ...item, rows: item.rows.filter(row => `${row.name} ${row.email}`.toLocaleLowerCase("pt-BR").includes(normalized) || Object.keys(row.cells).length > 0) };
-  }).filter(item => !query.trim() || item.rows.length > 0 || item.name.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))), [attendanceStudents, groups, lessons, manualClasses, manualStudents, pendingOnly, query, visibleOwn, visibleReviews]);
+  }).filter(item => !query.trim() || item.rows.length > 0 || item.name.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))), [attendanceStudents, groups, lessons, manualClasses, manualStudents, manualCourseNames, pendingOnly, query, visibleOwn, visibleReviews]);
   const attendanceHistories = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const studentsByExternalId = new Map(attendanceStudents.map((student) => [student.external_id, student]));

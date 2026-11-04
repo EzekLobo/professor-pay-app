@@ -2849,7 +2849,7 @@ export const kodlandApi = {
       if (typeof window !== "undefined") {
         try { window.localStorage.setItem(`nexusclass:kodland-change:${firebaseUserId}`, syncId); } catch { /* Storage can be disabled; in-tab scheduling still works. */ }
       }
-      if (typeof window !== "undefined" && (options.automatic ?? options.refreshSchedule === false)) window.dispatchEvent(new CustomEvent("nexusclass:kodland-synced", { detail: { mode, scope: options.followupScope } }));
+      if (typeof window !== "undefined" && (mode === "essential" || mode === "schedule" || (options.automatic ?? options.refreshSchedule === false))) window.dispatchEvent(new CustomEvent("nexusclass:kodland-synced", { detail: { mode, scope: options.followupScope } }));
       return result;
     };
     if (mode === "corrections") {

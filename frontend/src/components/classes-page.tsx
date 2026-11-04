@@ -278,7 +278,12 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(timer);
+    const onSync = (event: Event) => {
+      const mode = (event as CustomEvent<{ mode?: string }>).detail?.mode;
+      if (mode === "essential" || mode === "schedule") void load();
+    };
+    window.addEventListener("nexusclass:kodland-synced", onSync);
+    return () => { window.clearTimeout(timer); window.removeEventListener("nexusclass:kodland-synced", onSync); };
   }, [load]);
 
   async function syncClasses() {
@@ -297,13 +302,8 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
         credentials.password,
         "essential",
       );
-      const profiles = await kodlandApi.sync(
-        credentials.username.trim(),
-        credentials.password,
-        "profiles",
-      );
       setNotice(
-        `${result.student_count} aluno(s) atualizado(s), com ${profiles.student_count} perfil(is) consultado(s). ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda.`,
+        `${result.group_count} turma(s) e ${result.student_count} aluno(s) atualizado(s). ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda.`,
       );
       await load();
     } catch (reason) {

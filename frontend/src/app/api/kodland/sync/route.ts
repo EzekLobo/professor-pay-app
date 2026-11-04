@@ -698,7 +698,10 @@ async function groupsForTeacher(
         token,
       ),
     );
-    const items = list(payload.results);
+    if (!Array.isArray(payload.results)) {
+      throw new Error("A Kodland retornou uma lista de turmas inválida.");
+    }
+    const items = payload.results;
     groups.push(
       ...items
         .map((value) => {

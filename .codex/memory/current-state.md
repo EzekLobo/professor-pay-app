@@ -1,5 +1,9 @@
 # Estado atual
 
+## Atualização da lista de turmas — 03/11/2026
+
+- ClassesContent escuta conclusão de sync essential/schedule e recarrega; atualização manual não depende mais de segunda consulta de perfis, exibindo turmas após essential. Modo Firebase também emite evento após gravação confirmada. A API rejeita resposta Kodland sem results em vez de interpretá-la como lista vazia. Não houve consulta à conta real, logo outras causas dependem da resposta observada em produção.
+
 ## Materiais na sincronização total — 03/11/2026
 
 - syncAll em modo browser consulta materiais pendentes em lotes com as credenciais da operação e guarda links no IndexedDB; mantém materiais existentes e não exige gravação Firestore. Falha interrompe a operação, preservando lotes já salvos para retomada. A tela individual ainda oferece credenciais para aulas pendentes. Teste kodland-browser-sync cobre carga e reutilização; serviços reais não verificados.

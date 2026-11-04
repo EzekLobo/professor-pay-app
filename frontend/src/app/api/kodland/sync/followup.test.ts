@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { POST } from "./route";
 const token = `header.${Buffer.from(JSON.stringify({ user_id: 22 })).toString("base64url")}.signature`;
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
-function mockProvider({ attendanceFails = false } = {}) {
+function mockProvider({ attendanceFails = false, invalidGroups = false } = {}) {
   vi.stubEnv("NEXT_PUBLIC_FIREBASE_API_KEY", "test");
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   const calls: string[] = [];
@@ -11,7 +11,7 @@ function mockProvider({ attendanceFails = false } = {}) {
     const url = String(input); calls.push(url);
     if (url.includes("identitytoolkit")) return Response.json({ users: [{ localId: "teacher" }] });
     if (url.includes("/login")) return Response.json({ access_token: token });
-    if (url.includes("get_teachers_groups")) return Response.json({ results: [{ id: "g", title: "Python", course: { id: "course" }, archived: false }], next: null });
+    if (url.includes("get_teachers_groups")) return Response.json(invalidGroups ? { error: "unavailable" } : { results: [{ id: "g", title: "Python", course: { id: "course" }, archived: false }], next: null });
     if (url.includes("/lessons/")) return Response.json(url.includes("page=2") ? [] : [{ lesson_id: "l", lesson_passed: true }]);
     if (url.includes("get_group_progress")) return Response.json({ lesson_tasks: [{ id: "t", title: "Projeto" }], students_progress: [{ student_id: "s", student_name: "Ana", tasks_data: [{ task_id: "t", task_status_key: "TASK_NOT_SUBMITTED" }] }] });
     if (url.includes("attendance") || url.includes("get_students_main_data")) return attendanceFails ? Response.json({}, { status: 404 }) : Response.json([{ student_id: "s", student_name: "Ana", lesson_id: "l", lesson_date: "2026-10-31", status: "ABSENT" }]);
@@ -50,4 +50,11 @@ it("atualiza link da aula sem baixar cronograma, alunos, grade ou financeiro", a
  const calls=mockProvider();const response=await POST(request({mode:"classroom"}));
  expect(response.status).toBe(200);expect((await response.json()).groups).toHaveLength(1);
  expect(calls.some(url=>/get_students_main_data|get_group_progress|teacher_timetables|payroll|\/lessons\//.test(url))).toBe(false);
+});
+
+it("rejeita resposta inválida de turmas em vez de retornar lista vazia", async () => {
+ mockProvider({ invalidGroups: true });
+ const response = await POST(request({ mode: "classroom" }));
+ expect(response.status).toBeGreaterThanOrEqual(500);
+ expect(await response.json()).not.toHaveProperty("groups");
 });

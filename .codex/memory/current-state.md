@@ -1,5 +1,8 @@
 # Estado atual
 
+- Grade única em Alunos e atividades; ranking, pontos e perfil na caixa do aluno Kodland. Gestão geral em modo separado, sem duplicar turmas. Lint, typecheck, dois testes da grade e build de produção aprovados.
+
+
 ## Interface do quadro e alunos — 04/11/2026
 
 - Menu Tarefas renomeado para Meu quadro (Quadro no celular), com Minhas tarefas mantido como título interno. A busca abre por ícone no topo em um popover sobreposto; criar tarefa continua como ação textual principal e a barra não cresce ao abrir busca.

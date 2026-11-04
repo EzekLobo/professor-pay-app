@@ -3756,3 +3756,8 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .student-alerts-dropdown .notification-row-content { display: grid; flex: 1; min-width: 0; gap: 4px; font-size: .82rem; line-height: 1.35; overflow-wrap: anywhere; }
 .student-alerts-dropdown .notification-row-content small { color: var(--muted); font-size: .72rem; }
 .student-alerts-dropdown .notification-status { margin: 12px 16px; font-size: .78rem; }
+
+.compact-student-profile { display: grid; min-width: 0; gap: 3px; }
+.compact-student-name { min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 800; text-align: left; cursor: pointer; }
+.compact-student-name:hover { color: var(--primary); }
+.compact-student-profile small { color: #a9c5e8; font-size: .7rem; }

@@ -19,7 +19,7 @@ import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
-import { isActiveKodlandStudent } from "@/lib/student-ranking";
+import { activeStudentsRankedByPoints, kodlandStudentPoints, isActiveKodlandStudent } from "@/lib/student-ranking";
 import { whatsappUrl } from "@/lib/whatsapp";
 import { ManualAttendanceGrid } from "@/components/manual-attendance-grid";
 import type { ManualAdapters } from "@/lib/manual-adapters";
@@ -62,6 +62,8 @@ export type CompactActivityRow = {
   key: string;
   name: string;
   email: string;
+  student?: KodlandStudent;
+  rank?: number;
   cells: Record<string, CompactActivityCell>;
 };
 export type CompactActivityClass = {
@@ -151,11 +153,13 @@ export function compactActivitiesModel({
     const key = review.external_class_id || review.external_class_name || "unknown";
     reviewsByClass.set(key, [...(reviewsByClass.get(key) ?? []), review]);
   }
+  for (const group of groups) if (!reviewsByClass.has(group.external_id)) reviewsByClass.set(group.external_id, []);
   for (const [externalClassId, classReviews] of reviewsByClass) {
     const group = groupsByExternalId.get(externalClassId);
     const draft = ensureClass(`kodland:${externalClassId}`, group?.title || classReviews[0]?.external_class_name || "Turma Kodland");
-    for (const student of students.filter((item) => item.external_class_id === externalClassId && isActiveKodlandStudent(item.status))) {
-      ensureRow(draft, student.external_id || student.id, student.name, student.email);
+    for (const [index, student] of activeStudentsRankedByPoints(students.filter((item) => item.external_class_id === externalClassId)).entries()) {
+      const row = ensureRow(draft, student.external_id || student.id, student.name, student.email);
+      row.student = student; row.rank = index + 1;
     }
     for (const review of classReviews) {
       const studentKey = review.external_student_id || review.student_name || review.id;
@@ -182,6 +186,7 @@ export function compactActivitiesModel({
   for (const activity of manualActivities) {
     activitiesByClass.set(activity.class_id, [...(activitiesByClass.get(activity.class_id) ?? []), activity]);
   }
+  for (const item of manualClasses) if (!activitiesByClass.has(item.id)) activitiesByClass.set(item.id, []);
   for (const [classId, classActivities] of activitiesByClass) {
     const manualClass = manualClassesById.get(classId);
     const draft = ensureClass(`manual:${classId}`, manualClass?.name || "Turma própria");
@@ -209,7 +214,7 @@ export function compactActivitiesModel({
     key: draft.key,
     name: draft.name,
     columns: [...draft.columns.values()].sort((first, second) => first.sortKey.localeCompare(second.sortKey, "pt-BR")),
-    rows: [...draft.rows.values()].filter(row => !pendingOnly || Object.keys(row.cells).length > 0).sort((first, second) => first.name.localeCompare(second.name, "pt-BR")),
+    rows: [...draft.rows.values()].filter(row => !pendingOnly || Object.keys(row.cells).length > 0).sort((first, second) => (first.rank ?? Infinity) - (second.rank ?? Infinity) || first.name.localeCompare(second.name, "pt-BR")),
   })).sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
 }
 
@@ -458,7 +463,8 @@ export function CompactActivitiesGrid({
   onCorrectManual: (activity: ManualActivity) => void;
   pendingOnly?: boolean;
 }) {
-  return <div className="correction-class-list compact-activities-list" aria-label="Atividades pendentes em formato compacto">
+  const [selected, setSelected] = useState<KodlandStudent | null>(null);
+  return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", selected.status], ["Pontuação", `${kodlandStudentPoints(selected.progress_summary)} pts`], ["Progresso", selected.progress_summary], ["E-mail", selected.email], ["Telefone", selected.phone], ["Responsável", selected.guardian_name], ["Telefone do responsável", selected.guardian_phone], ["E-mail do responsável", selected.guardian_email]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{selected.profile_url && <a className="button button-ghost" href={absoluteUrl(selected.profile_url)} target="_blank" rel="noreferrer">Perfil na Kodland</a>}</div>}</Modal><div className="correction-class-list compact-activities-list" aria-label="Atividades pendentes em formato compacto">
     {model.map((classModel) => {
       const gridStyle = { "--attendance-columns": classModel.columns.length } as CSSProperties;
       return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
@@ -476,7 +482,7 @@ export function CompactActivitiesGrid({
             </div>}
             {classModel.rows.map((row) => <div className={pendingOnly ? "compact-pending-row" : "attendance-grid-row"} style={pendingOnly ? undefined : gridStyle} role={pendingOnly ? "listitem" : "row"} key={row.key}>
               <div className="attendance-student-summary" role={pendingOnly ? undefined : "rowheader"}>
-                <div className="attendance-student-copy"><div className="activity-student-heading"><h4>{row.name}</h4>{contactButton?.(classModel.key, row.key, row.name)}</div></div>
+                <div className="attendance-student-copy"><div className="activity-student-heading"><div className="compact-student-profile">{row.student ? <button type="button" className="compact-student-name" onClick={() => setSelected(row.student!)} title={`Informações de ${row.name}`}>{row.rank}º · {row.name}</button> : <h4>{row.name}</h4>}{row.student && <small>{new Intl.NumberFormat("pt-BR").format(kodlandStudentPoints(row.student.progress_summary))} pts</small>}</div>{contactButton?.(classModel.key, row.key, row.name)}</div></div>
               </div>
               {classModel.columns.map((column) => {
                 const cell = row.cells[column.key];
@@ -494,7 +500,7 @@ export function CompactActivitiesGrid({
         </div>
       </details>;
     })}
-  </div>;
+  </div></>;
 }
 
 function ReviewCard({
@@ -550,6 +556,7 @@ type CorrectionsViewPreferences = {
 
 export function CorrectionsContent({ demo, preferenceKey = "default", classesContent }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string; classesContent?: ReactNode }) {
   const unified = Boolean(classesContent);
+  const [managementOpen, setManagementOpen] = useState(false);
   const notifications = useStudentNotifications();
   const [storedReviews, setReviews] = useState<KodlandReview[]>([]);
   const [storedLessons, setLessons] = useState<KodlandLesson[]>([]);
@@ -564,7 +571,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
   const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
-  const [activitiesView, setActivitiesView] = useState<"list" | "compact">("list");
+  const [activitiesView, setActivitiesView] = useState<"list" | "compact">(unified ? "compact" : "list");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -604,7 +611,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       if (!active) return;
       if (stored?.viewMode === "attendance" || stored?.viewMode === "activities") setViewMode(stored.viewMode);
       if (stored?.activitiesView === "list" || stored?.activitiesView === "compact") setActivitiesView(stored.activitiesView);
-      setPendingOnly(typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : true);
+      setPendingOnly(unified ? false : typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : true);
+      if (unified) setActivitiesView("compact");
       if (stored?.grouping === "class" || stored?.grouping === "student" || stored?.grouping === "lesson") setGrouping(stored.grouping);
       if (stored?.attendanceFilter === "ABSENT" || stored?.attendanceFilter === "ALL" || stored?.attendanceFilter === "PRESENT") setAttendanceFilter(stored.attendanceFilter);
       const context = new URLSearchParams(window.location.search);
@@ -746,7 +754,11 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     manualClasses,
     manualStudents,
     pendingOnly,
-  }), [attendanceStudents, groups, lessons, manualClasses, manualStudents, pendingOnly, visibleOwn, visibleReviews]);
+  }).map((item) => {
+    const normalized = query.trim().toLocaleLowerCase("pt-BR");
+    if (!normalized || item.name.toLocaleLowerCase("pt-BR").includes(normalized)) return item;
+    return { ...item, rows: item.rows.filter(row => `${row.name} ${row.email}`.toLocaleLowerCase("pt-BR").includes(normalized) || Object.keys(row.cells).length > 0) };
+  }).filter(item => !query.trim() || item.rows.length > 0 || item.name.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))), [attendanceStudents, groups, lessons, manualClasses, manualStudents, pendingOnly, query, visibleOwn, visibleReviews]);
   const attendanceHistories = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const studentsByExternalId = new Map(attendanceStudents.map((student) => [student.external_id, student]));
@@ -841,8 +853,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
           </button>
         </nav>
         <div className="correction-icon-toolbar" data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
-          {viewMode === "activities" && classesContent && <div id="classes-toolbar-slot" className="classes-toolbar-slot" />}
-          {viewMode === "activities" && <div className="correction-view-switch" role="group" aria-label="Formato de visualização das atividades">
+          {viewMode === "activities" && classesContent && <><Button type="button" className="button-ghost" onClick={() => { setManagementOpen(!managementOpen); void load(true); }}>{managementOpen ? "Voltar às atividades" : "Gerenciar turmas e grupos"}</Button>{managementOpen && <div id="classes-toolbar-slot" className="classes-toolbar-slot" />}</>}
+          {viewMode === "activities" && !unified && <div className="correction-view-switch" role="group" aria-label="Formato de visualização das atividades">
             <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>
             <button type="button" aria-label="Compacto" title="Visualização compacta" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}><LayoutGrid size={18} aria-hidden="true" /></button>
           </div>}
@@ -893,8 +905,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
           </details>)}
         </div>}
         </> : <>
-        {classesContent && <div className="classes-activity-management" data-tour="classes-management">{classesContent}</div>}
-        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
+        {managementOpen && classesContent ? <div className="classes-activity-management" data-tour="classes-management">{classesContent}</div> : loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 && !unified ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
           contactButton={contactButton}
           pendingOnly={pendingOnly}

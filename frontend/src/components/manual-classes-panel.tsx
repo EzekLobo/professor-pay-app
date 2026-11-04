@@ -71,7 +71,8 @@ export function ManualClassesPanel({ adapter, hasKodlandGroups = false, kodlandL
   }, [load]);
 
   useEffect(() => {
-    setToolbarTarget(document.getElementById("classes-toolbar-slot"));
+    const frame = window.requestAnimationFrame(() => setToolbarTarget(document.getElementById("classes-toolbar-slot")));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   const save = async (action: () => Promise<unknown>, message: string) => {

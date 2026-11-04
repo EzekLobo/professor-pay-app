@@ -3761,3 +3761,9 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .compact-student-name { min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 800; text-align: left; cursor: pointer; }
 .compact-student-name:hover { color: var(--primary); }
 .compact-student-profile small { color: #a9c5e8; font-size: .7rem; }
+
+.classes-integrated-actions .classes-management-grid { display: block; }
+.classes-integrated-actions .pedagogical-panel { padding: 0 0 12px; border: 0; background: transparent; min-height: 0; }
+.classes-integrated-actions .classes-compact-heading { margin: 0; }
+.compact-class-actions { display: inline-flex; align-items: center; gap: 12px; }
+.compact-class-actions .group-menu-button { width: 44px; height: 44px; }

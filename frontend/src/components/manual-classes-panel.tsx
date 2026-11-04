@@ -25,7 +25,7 @@ const emptyGroup = (): ManualClassGroupInput => ({ name: "" });
 type StudentInput = { id?: string; name: string; email: string; phone: string; guardian_name: string; guardian_phone: string; notes: string; active: boolean };
 
 /** Personal teaching stays separate from the virtual Kodland grouping. */
-export function ManualClassesPanel({ adapter, hasKodlandGroups = false, kodlandLoading = false }: { adapter?: ManualAdapters; hasKodlandGroups?: boolean; kodlandLoading?: boolean }) {
+export function ManualClassesPanel({ adapter, hasKodlandGroups = false, kodlandLoading = false, actionsOnly = false }: { actionsOnly?: boolean; adapter?: ManualAdapters; hasKodlandGroups?: boolean; kodlandLoading?: boolean }) {
   const teaching = adapter?.teaching ?? manualTeachingApi;
   const settings = adapter?.settings ?? teachingSettingsApi;
   const preferences = adapter?.preferences ?? tutorPreferencesApi;
@@ -146,7 +146,7 @@ export function ManualClassesPanel({ adapter, hasKodlandGroups = false, kodlandL
       {searchOpen && <div className="manual-class-search-popover" role="search"><label className="manual-class-search"><span className="sr-only">Buscar grupo, turma ou aluno</span><input id="manual-class-search" className="input" autoFocus type="search" placeholder="Buscar grupo, turma ou aluno" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setSearchQuery(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-controls="manual-class-search"]')?.focus(); } }} /></label></div>}
     </div>, toolbarTarget)}
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
-    {!hasKodlandGroups && !kodlandLoading && personalGroups.length === 0 && legacyClasses.length === 0 ? <section className="panel manual-group-panel"><p className="muted">Crie um grupo e cadastre sua primeira turma.</p></section> : visibleGroups.length === 0 && visibleLegacyClasses.length === 0 && (personalGroups.length > 0 || legacyClasses.length > 0) ? <section className="panel manual-group-panel"><p className="muted">Nenhum grupo, turma ou aluno encontrado.</p></section> : <div className="manual-groups-list">
+    {!actionsOnly && (!hasKodlandGroups && !kodlandLoading && personalGroups.length === 0 && legacyClasses.length === 0 ? <section className="panel manual-group-panel"><p className="muted">Crie um grupo e cadastre sua primeira turma.</p></section> : visibleGroups.length === 0 && visibleLegacyClasses.length === 0 && (personalGroups.length > 0 || legacyClasses.length > 0) ? <section className="panel manual-group-panel"><p className="muted">Nenhum grupo, turma ou aluno encontrado.</p></section> : <div className="manual-groups-list">
         {visibleGroups.map(({ group, classrooms }) => {
           const studentCount = new Set(classrooms.flatMap((item) => item.student_ids).filter((id) => students.some((student) => student.id === id && student.active))).size;
           return <details className="panel manual-group-panel" key={group.id}>
@@ -156,7 +156,7 @@ export function ManualClassesPanel({ adapter, hasKodlandGroups = false, kodlandL
           </details>;
         })}
         {visibleLegacyClasses.length > 0 && <details className="panel manual-group-panel legacy-group"><summary className="section-heading manual-group-panel-heading"><div className="group-summary-copy"><h3>Sem grupo</h3><span className="group-course-name">Turmas cadastradas antes da organização por grupos</span></div></summary><div className="manual-group-class-list"><p className="muted">Edite uma turma para vinculá-la a um grupo.</p>{visibleLegacyClasses.map((item) => <ClassRow key={item.id} item={item} students={students} courses={courses} busy={busy} onEdit={() => editClass(item)} onDelete={() => { if (window.confirm(`Excluir a turma ${item.name}? Aulas e atividades vinculadas também serão apagadas.`)) void save(() => teaching.deleteClass(item.id), "Turma excluída."); }} />)}</div></details>}
-      </div>}
+      </div>)}
 
     <Modal open={Boolean(editing)} title={editing === "new" ? "Adicionar nova turma" : "Editar turma"} onClose={() => setEditing(null)} className="manual-class-modal">
       {editing && <form className="management-form manual-class-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void saveClass(); }}>

@@ -1,6 +1,6 @@
 # Estado atual
 
-- Grade única em Alunos e atividades; ranking, pontos e perfil na caixa do aluno Kodland. Gestão geral em modo separado, sem duplicar turmas. Lint, typecheck, dois testes da grade e build de produção aprovados.
+- Grade única em Alunos e atividades; ranking, pontos e perfil na caixa do aluno Kodland. Aba Alunos sem alternância: ações gerais e criação na mesma tela, sem outra lista de turmas. Lint, typecheck, dois testes da grade e build de produção aprovados.
 
 
 ## Interface do quadro e alunos — 04/11/2026

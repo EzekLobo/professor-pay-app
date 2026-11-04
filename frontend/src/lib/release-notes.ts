@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110405, date: "2026-11-04", title: "Alunos em uma única grade",
+    description: "A aba Alunos reúne ranking, perfil e atividades por turma. Criar grupos e turmas permanece na mesma tela, sem alternar para outra lista.",
+    href: "/classes", action: "Abrir alunos",
+  },
+  {
     version: 2026110404, date: "2026-11-04", title: "Alunos e atividades em uma só tela",
     description: "A tela de Turmas reúne ranking por pontuação e perfil dos alunos, atividades e ferramentas para criar e administrar grupos e turmas próprias e Kodland.",
     href: "/classes", action: "Abrir turmas",

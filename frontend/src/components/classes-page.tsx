@@ -220,7 +220,7 @@ export function GroupAccordion({
 
 export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; students: KodlandStudent[]; onSync: () => void; manualAdapter?: ManualAdapters } } = {}) {
   const [groups, setGroups] = useState<KodlandGroup[]>([]);
-  const [students, setStudents] = useState<KodlandStudent[]>([]);
+  const [, setStudents] = useState<KodlandStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
@@ -345,23 +345,6 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     } finally { setSavingSettings(false); }
   }
 
-  const deleteKodlandGroup = (group: KodlandGroup) => {
-    if (!window.confirm(`Excluir a turma ${group.title}? Ela ficará oculta até ser restaurada no navegador.`)) return;
-    const next = [...new Set([...hiddenKodlandGroups, group.external_id])];
-    window.localStorage.setItem(HIDDEN_KODLAND_GROUPS_KEY, JSON.stringify(next));
-    setHiddenKodlandGroups(next);
-    setGroups((current) => current.filter((item) => item.external_id !== group.external_id));
-    setNotice("Turma Kodland excluída da visualização.");
-  };
-
-  const renameKodlandGroup = (group: KodlandGroup, name: string) => {
-    const next = { ...kodlandGroupNames, [group.external_id]: name };
-    window.localStorage.setItem(KODLAND_GROUP_NAMES_KEY, JSON.stringify(next));
-    setKodlandGroupNames(next);
-    setGroups((current) => current.map((item) => item.external_id === group.external_id ? { ...item, title: name } : item));
-    setNotice("Nome da turma atualizado neste navegador.");
-  };
-
   const deleteKodlandCollection = () => {
     if (!groups.length) {
       setError("Nenhuma turma Kodland disponível para excluir.");
@@ -388,7 +371,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
         </p>
       )}
 
-      <ManualClassesPanel adapter={demo?.manualAdapter} hasKodlandGroups={groups.length > 0} kodlandLoading={loading} />
+      <ManualClassesPanel actionsOnly adapter={demo?.manualAdapter} hasKodlandGroups={groups.length > 0} kodlandLoading={loading} />
       {kodlandEnabled && <section className="panel pedagogical-panel page-fill-panel">
         <div className="section-heading classes-compact-heading">
           <h2>{kodlandGroupLabel}</h2>
@@ -404,29 +387,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
             </Button>
           </div>
         </div>
-        {loading ? (
-          <p className="muted">Carregando turmas…</p>
-        ) : groups.length === 0 ? (
-          <p className="muted">
-            Nenhuma turma sincronizada. Use o ícone de sincronização para importar
-            suas turmas.
-          </p>
-        ) : (
-          <div className="accordion-list" data-tour="classes-list">
-            {groups.map((group) => (
-              <GroupAccordion
-                key={group.id}
-                group={group}
-                students={students.filter(
-                  (student) => student.external_class_id === group.external_id,
-                )}
-                openByDefault={false}
-                onDelete={() => deleteKodlandGroup(group)}
-                onRename={(name) => renameKodlandGroup(group, name)}
-              />
-            ))}
-          </div>
-        )}
+
       </section>}
       <Modal open={Boolean(selectedGroup)} title={`Configurar ${kodlandGroupLabel}`} onClose={() => setSelectedGroup(null)}>
         {selectedGroup && <form className="management-form kodland-settings-form" onSubmit={(event) => { event.preventDefault(); void saveGroupSettings(); }}>

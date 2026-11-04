@@ -7,7 +7,7 @@ import { subscribeStudentNotifications } from "@/lib/student-notification-store"
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info } from "lucide-react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -463,14 +463,20 @@ export function CompactActivitiesGrid({
   onCorrectManual: (activity: ManualActivity) => void;
   pendingOnly?: boolean;
 }) {
+  const [classAction, setClassAction] = useState<CompactActivityClass | null>(null);
+  const [names, setNames] = useState<Record<string, string>>(() => { try { return JSON.parse(localStorage.getItem("nexusclass.integrated-class-names") ?? "{}"); } catch { return {}; } });
+  const [hidden, setHidden] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("nexusclass.integrated-hidden-classes") ?? "[]"); } catch { return []; } });
+  useEffect(() => { localStorage.setItem("nexusclass.integrated-class-names", JSON.stringify(names)); }, [names]);
+  useEffect(() => { localStorage.setItem("nexusclass.integrated-hidden-classes", JSON.stringify(hidden)); }, [hidden]);
   const [selected, setSelected] = useState<KodlandStudent | null>(null);
   return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", selected.status], ["Pontuação", `${kodlandStudentPoints(selected.progress_summary)} pts`], ["Progresso", selected.progress_summary], ["E-mail", selected.email], ["Telefone", selected.phone], ["Responsável", selected.guardian_name], ["Telefone do responsável", selected.guardian_phone], ["E-mail do responsável", selected.guardian_email]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{selected.profile_url && <a className="button button-ghost" href={absoluteUrl(selected.profile_url)} target="_blank" rel="noreferrer">Perfil na Kodland</a>}</div>}</Modal><div className="correction-class-list compact-activities-list" aria-label="Atividades pendentes em formato compacto">
-    {model.map((classModel) => {
+    {model.filter(item => !hidden.includes(item.key)).map((original) => {
+      const classModel = { ...original, name: names[original.key] || original.name };
       const gridStyle = { "--attendance-columns": classModel.columns.length } as CSSProperties;
       return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
         <summary className="correction-class-heading">
           <div><h3>{classModel.name}</h3><span aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={13} aria-hidden="true" />{classModel.rows.length}</span></div>
-          <span className="correction-disclosure" aria-hidden="true">⌄</span>
+          <span className="compact-class-actions"><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" onClick={event => { event.preventDefault(); setClassAction(classModel); }}><MoreVertical size={18} aria-hidden="true" /></button><span className="correction-disclosure" aria-hidden="true">⌄</span></span>
         </summary>
         <div className="correction-class-body attendance-class-body">
           <div className={`attendance-grid-scroll compact-activities-grid-scroll${pendingOnly ? " compact-pending-list" : ""}`} tabIndex={0} role={pendingOnly ? "list" : "grid"} aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={pendingOnly ? undefined : classModel.rows.length + 1} aria-colcount={pendingOnly ? undefined : classModel.columns.length + 1}>
@@ -500,7 +506,7 @@ export function CompactActivitiesGrid({
         </div>
       </details>;
     })}
-  </div></>;
+  </div><Modal open={Boolean(classAction)} title={`Turma ${classAction?.name ?? ""}`} onClose={() => setClassAction(null)}>{classAction && <div className="form"><Button type="button" onClick={() => { const name = window.prompt("Novo nome da turma", classAction.name)?.trim(); if (name) setNames(current => ({ ...current, [classAction.key]: name })); setClassAction(null); }}>Renomear turma</Button><Button type="button" className="button-ghost" onClick={() => { if (window.confirm(`Ocultar a turma ${classAction.name} desta visualização?`)) setHidden(current => [...current, classAction.key]); setClassAction(null); }}>Ocultar turma</Button></div>}</Modal></>;
 }
 
 function ReviewCard({
@@ -556,7 +562,7 @@ type CorrectionsViewPreferences = {
 
 export function CorrectionsContent({ demo, preferenceKey = "default", classesContent }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string; classesContent?: ReactNode }) {
   const unified = Boolean(classesContent);
-  const [managementOpen, setManagementOpen] = useState(false);
+
   const notifications = useStudentNotifications();
   const [storedReviews, setReviews] = useState<KodlandReview[]>([]);
   const [storedLessons, setLessons] = useState<KodlandLesson[]>([]);
@@ -846,14 +852,14 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       <div className="corrections-topbar">
         <nav className="corrections-page-tabs" data-tour={classesContent ? "classes-tabs" : undefined} role="tablist" aria-label={classesContent ? "Áreas de turmas" : "Páginas do acompanhamento"}>
           <button id="activities-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>
-            {classesContent ? "Alunos e atividades" : "Atividades"}
+            {classesContent ? "Alunos" : "Atividades"}
           </button>
           <button id="attendance-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>
             Presença
           </button>
         </nav>
         <div className="correction-icon-toolbar" data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
-          {viewMode === "activities" && classesContent && <><Button type="button" className="button-ghost" onClick={() => { setManagementOpen(!managementOpen); void load(true); }}>{managementOpen ? "Voltar às atividades" : "Gerenciar turmas e grupos"}</Button>{managementOpen && <div id="classes-toolbar-slot" className="classes-toolbar-slot" />}</>}
+          {viewMode === "activities" && classesContent && <div id="classes-toolbar-slot" className="classes-toolbar-slot" />}
           {viewMode === "activities" && !unified && <div className="correction-view-switch" role="group" aria-label="Formato de visualização das atividades">
             <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>
             <button type="button" aria-label="Compacto" title="Visualização compacta" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}><LayoutGrid size={18} aria-hidden="true" /></button>
@@ -905,7 +911,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
           </details>)}
         </div>}
         </> : <>
-        {managementOpen && classesContent ? <div className="classes-activity-management" data-tour="classes-management">{classesContent}</div> : loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 && !unified ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
+        {classesContent && <div className="classes-integrated-actions" data-tour="classes-management">{classesContent}</div>}
+        {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 && !unified ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
           contactButton={contactButton}
           pendingOnly={pendingOnly}

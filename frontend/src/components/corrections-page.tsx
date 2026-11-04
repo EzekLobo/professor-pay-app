@@ -1,4 +1,5 @@
 "use client";
+import { FavoriteFilterOptions } from "./favorite-filter-options";
 import { ActivityMissingList } from "./activity-missing-list";
 import type { ActivityTarget } from "@/lib/activity-missing-list";
 import type { StudentNotification } from "@/lib/student-notification-rules";
@@ -610,7 +611,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const filterRoot = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!filtersOpen) return;
-    filterRoot.current?.querySelector<HTMLSelectElement>("select")?.focus();
+    filterRoot.current?.querySelector<HTMLElement>("select, .favorite-filter-choice")?.focus();
     const onPointer = (event: PointerEvent) => {
       if (event.target instanceof Node && !filterRoot.current?.contains(event.target)) setFiltersOpen(false);
     };
@@ -626,6 +627,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   }, [filtersOpen]);
   const [legendOpen, setLegendOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [withoutPending, setWithoutPending] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(true);
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
   const [openAttendanceClasses, setOpenAttendanceClasses] = useState<Set<string>>(() => new Set());
@@ -810,11 +812,11 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     manualStudents,
     manualCourseNames,
     pendingOnly,
-  }).map((item) => {
+  }).map(item => withoutPending ? { ...item, rows: item.rows.filter(row => Object.keys(row.cells).length === 0), columns: [] } : item).filter(item => !withoutPending || item.rows.length > 0).map((item) => {
     const normalized = query.trim().toLocaleLowerCase("pt-BR");
     if (!normalized || item.name.toLocaleLowerCase("pt-BR").includes(normalized)) return item;
     return { ...item, rows: item.rows.filter(row => `${row.name} ${row.email}`.toLocaleLowerCase("pt-BR").includes(normalized) || Object.keys(row.cells).length > 0) };
-  }).filter(item => !query.trim() || item.rows.length > 0 || item.name.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))), [attendanceStudents, groups, lessons, manualClasses, manualStudents, manualCourseNames, pendingOnly, query, visibleOwn, visibleReviews]);
+  }).filter(item => !query.trim() || item.rows.length > 0 || item.name.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))), [attendanceStudents, groups, lessons, manualClasses, manualStudents, manualCourseNames, pendingOnly, withoutPending, query, visibleOwn, visibleReviews]);
   const attendanceHistories = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const studentsByExternalId = new Map(attendanceStudents.map((student) => [student.external_id, student]));
@@ -918,8 +920,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
             <Button type="button" className="button-ghost symbol-action" aria-label="Abrir filtros" title="Filtros" aria-expanded={filtersOpen} aria-controls="correction-filter-dropdown" onClick={() => setFiltersOpen(open => !open)}><Filter size={18} aria-hidden="true" /></Button>
             {filtersOpen && <div id="correction-filter-dropdown" className="correction-filter-dropdown" role="region" aria-label="Filtros do acompanhamento">
         <div className="form">
-          {viewMode === "attendance" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}><option value="ABSENT">Faltas</option><option value="ALL">Todos</option><option value="PRESENT">Presentes</option></select></label>
-            : activitiesView === "compact" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar atividades" value={pendingOnly ? "pending" : "all"} onChange={event => setPendingOnly(event.target.value === "pending")}><option value="pending">Somente pendências</option><option value="all">Todos os alunos</option></select></label>
+          {viewMode === "attendance" ? <FavoriteFilterOptions key="attendance" scope={`attendance.${preferenceKey}`} value={attendanceFilter} options={[{ value: "ALL", label: "Todos" }, { value: "ABSENT", label: "Com faltas" }, { value: "PRESENT", label: "Com presença" }]} onChange={value => setAttendanceFilter(value as AttendanceFilter)} />
+            : activitiesView === "compact" ? <FavoriteFilterOptions key="activities" scope={`activities.${preferenceKey}`} value={withoutPending ? "clear" : pendingOnly ? "pending" : "all"} options={[{ value: "all", label: "Todos os alunos" }, { value: "pending", label: "Com correções pendentes" }, { value: "clear", label: "Sem correções pendentes" }]} onChange={value => { setPendingOnly(value === "pending"); setWithoutPending(value === "clear"); }} />
               : <label className="field">Agrupar por<select className="input" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}><option value="class">Turma</option><option value="student">Aluno</option><option value="lesson">Aula</option></select></label>}
         </div>
             </div>}

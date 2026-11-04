@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110408, date: "2026-11-04", title: "Filtros favoritos",
+    description: "Favorite filtros pela estrela para colocá-los no topo. Alunos também permite mostrar somente quem não tem correções pendentes.",
+    href: "/classes", action: "Abrir alunos",
+  },
+  {
     version: 2026110407, date: "2026-11-04", title: "Campos vazios por turma",
     description: "O ícone de olho permite mostrar ou ocultar os campos vazios das atividades em cada turma, mantendo a escolha neste navegador.",
     href: "/classes", action: "Abrir alunos",

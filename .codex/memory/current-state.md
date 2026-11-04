@@ -1,5 +1,7 @@
 # Estado atual
 
+- Dropdown de filtros tem opções clicáveis e estrela por opção; favoritos persistem por usuário/área e sobem ao topo. Alunos inclui todos/com correções/sem correções pendentes; Presença mantém seus três filtros com favoritos.
+
 - Cada turma possui olho para mostrar/ocultar células vazias, com preferência local por turma. Ocultar compacta atividades; filtro global continua decidindo quais alunos/turmas entram.
 
 - Somente pendências remove também turmas vazias, mantém só alunos com células de correção e mostra estado vazio quando não há resultados; seleção persistida inclusive na aba Alunos.

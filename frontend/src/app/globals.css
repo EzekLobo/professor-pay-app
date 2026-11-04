@@ -3794,3 +3794,11 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .correction-filter-dropdown { position: absolute; z-index: 60; top: calc(100% + 8px); right: 0; width: min(260px, calc(100vw - 32px)); padding: 14px; border: 1px solid var(--border-bright); border-radius: 12px; background: #0d1b30; box-shadow: 0 12px 32px rgb(0 0 0 / 35%); }
 .correction-filter-dropdown .field { display: grid; gap: 8px; font-size: .78rem; color: var(--muted); }
 .correction-filter-dropdown .input { width: 100%; min-width: 0; }
+
+.favorite-filter-options { display: grid; gap: 4px; }
+.favorite-filter-row { display: flex; align-items: center; gap: 4px; }
+.favorite-filter-choice { flex: 1; min-width: 0; min-height: 44px; padding: 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: .78rem; text-align: left; cursor: pointer; }
+.favorite-filter-choice[aria-pressed="true"] { background: rgb(68 206 255 / 12%); color: var(--primary); }
+.favorite-filter-star { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.favorite-filter-star[aria-pressed="true"] { color: #facc15; }
+.favorite-filter-choice:hover, .favorite-filter-star:hover { background: rgb(68 206 255 / 10%); }

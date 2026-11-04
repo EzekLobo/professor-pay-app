@@ -49,8 +49,7 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await page.locator("details.manual-group-panel").filter({ has: page.getByRole("heading", { name: "Reforço particular" }) }).locator("summary").click();
   await expect(page.getByText("Turma de redação")).toBeVisible();
 
-  await page.getByRole("link", { name: "Acompanhamento", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Acompanhamento" })).toBeVisible();
+  await page.getByRole("tab", { name: "Atividades", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Atividades" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "Presença" }).click();
   await expect(page.getByRole("tab", { name: "Presença" })).toHaveAttribute("aria-selected", "true");
@@ -92,6 +91,7 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await expect(compactView).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("Sem pendências para os filtros atuais.")).toBeVisible();
   await page.reload();
+  await page.getByRole("tab", { name: "Atividades", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Atividades" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("button", { name: "Compacto" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Lista" }).click();

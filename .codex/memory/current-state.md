@@ -1,5 +1,9 @@
 # Estado atual
 
+## Turmas unificadas — 04/11/2026
+
+- /classes reaproveita CorrectionsContent com aba inicial Alunos (ClassesContent), seguida de Atividades e Presença; /corrections permanece compatível com links e notificações existentes. Shell oculta acesso duplicado e destaca Turmas na rota antiga. Demo também inclui as três abas.
+
 ## Diagnóstico Vercel — 03/11/2026
 
 - Deploy de 5fc3646 falhou com TS7006 em shell.tsx: callback do link Configurações sem tipo de evento. Produção ainda estava em 163a902, portanto não continha a correção de atualização de turmas. Callback agora tipado MouseEvent<HTMLAnchorElement>.

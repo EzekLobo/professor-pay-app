@@ -25,7 +25,7 @@ test("navegação móvel desliza entre áreas e mantém Configurações no cabe�
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/demo#data");
   const navigation = page.getByRole("navigation", { name: "Navegação principal" });
-  for (const label of ["Resumo", "Pagamentos", "Turmas", "Aulas", "Acompanhamento", "Tarefas"]) await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+  for (const label of ["Resumo", "Pagamentos", "Turmas", "Aulas", "Tarefas"]) await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mais opções", exact: true })).toHaveCount(0);
   await expect(page.locator(".shell-header").getByRole("link", { name: "Configurações", exact: true })).toHaveAttribute("aria-current", "page");
   await navigation.getByRole("link", { name: "Tarefas", exact: true }).click();
@@ -251,7 +251,7 @@ for (const width of [320, 390, 520, 768]) {
     await page.getByText("Kodland", { exact: true }).click();
     await page.getByRole("button", { name: "Salvar", exact: true }).click();
     await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible();
-      await page.getByRole("link", { name: "Acompanhamento", exact: true }).click();
+      await page.getByRole("link", { name: "Turmas", exact: true }).click();
     await page.getByRole("tab", { name: "Presença", exact: true }).click();
     const controls = [page.getByRole("button", { name: "Abrir filtros" }), page.getByRole("button", { name: "Abrir busca" }), page.getByRole("button", { name: "Atualizar correções", exact: true })];
     const boxes = [];

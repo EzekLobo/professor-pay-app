@@ -543,7 +543,8 @@ type CorrectionsViewPreferences = {
   attendanceFilter: AttendanceFilter;
 };
 
-export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string }) {
+export function CorrectionsContent({ demo, preferenceKey = "default", studentsContent }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string; studentsContent?: ReactNode }) {
+  const unified = Boolean(studentsContent);
   const notifications = useStudentNotifications();
   const [storedReviews, setReviews] = useState<KodlandReview[]>([]);
   const [storedLessons, setLessons] = useState<KodlandLesson[]>([]);
@@ -557,7 +558,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   const groups = demo?.groups ?? storedGroups;
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
-  const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
+  const [viewMode, setViewMode] = useState<"attendance" | "activities" | "students">(studentsContent ? "students" : "activities");
   const [activitiesView, setActivitiesView] = useState<"list" | "compact">("list");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -595,7 +596,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
     } catch { /* Prefer defaults when browser storage is unavailable or malformed. */ }
     queueMicrotask(() => {
       if (!active) return;
-      if (stored?.viewMode === "attendance" || stored?.viewMode === "activities") setViewMode(stored.viewMode);
+      if (!unified && (stored?.viewMode === "attendance" || stored?.viewMode === "activities")) setViewMode(stored.viewMode);
       if (stored?.activitiesView === "list" || stored?.activitiesView === "compact") setActivitiesView(stored.activitiesView);
       setPendingOnly(typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : true);
       if (stored?.grouping === "class" || stored?.grouping === "student" || stored?.grouping === "lesson") setGrouping(stored.grouping);
@@ -609,10 +610,10 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
       setViewPreferencesLoaded(true);
     });
     return () => { active = false; };
-  }, [preferenceKey]);
+  }, [preferenceKey, unified]);
 
   useEffect(() => {
-    if (!viewPreferencesLoaded || new URLSearchParams(window.location.search).has("notification")) return;
+    if (!viewPreferencesLoaded || viewMode === "students" || new URLSearchParams(window.location.search).has("notification")) return;
     try {
       localStorage.setItem(`nexusclass.corrections.view.${preferenceKey}`, JSON.stringify({ viewMode, activitiesView, grouping, attendanceFilter, pendingOnly } satisfies CorrectionsViewPreferences));
     } catch { /* The screen remains usable when storage is blocked. */ }
@@ -700,16 +701,17 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   }
 
   useEffect(() => {
+    if (viewMode === "students") return;
     const timer = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(timer);
-  }, [load, demo]);
+  }, [load, demo, viewMode]);
 
   useEffect(() => {
-    if (demo) return;
+    if (demo || viewMode === "students") return;
     let timer: ReturnType<typeof setTimeout>;
     const unsubscribe = subscribeStudentNotifications(change => { if (change !== "source") return; clearTimeout(timer); timer = setTimeout(() => { void load(true); }, 150); });
     return () => { clearTimeout(timer); unsubscribe(); };
-  }, [demo, load]);
+  }, [demo, load, viewMode]);
 
   const visibleReviews = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -816,14 +818,15 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
       </Modal>
       <section className="page-heading">
         <div>
-          <p className="eyebrow">Presença e atividades</p>
-          <h1>Acompanhamento</h1>
+          <p className="eyebrow">{studentsContent ? "Alunos, atividades e presença" : "Presença e atividades"}</p>
+          <h1>{studentsContent ? "Turmas" : "Acompanhamento"}</h1>
         </div>
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
       <div className="corrections-topbar">
-        <nav className="corrections-page-tabs" role="tablist" aria-label="Páginas do acompanhamento">
+        <nav className="corrections-page-tabs" role="tablist" aria-label={studentsContent ? "Áreas de turmas" : "Páginas do acompanhamento"}>
+          {studentsContent && <button id="students-tab" type="button" role="tab" aria-controls="students-content" aria-selected={viewMode === "students"} className={viewMode === "students" ? "active" : ""} onClick={() => setViewMode("students")}>Alunos</button>}
           <button id="activities-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>
             Atividades
           </button>
@@ -831,7 +834,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
             Presença
           </button>
         </nav>
-        <div className="correction-icon-toolbar" data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
+        {viewMode !== "students" && <div className="correction-icon-toolbar" data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
           {viewMode === "activities" && <div className="correction-view-switch" role="group" aria-label="Formato de visualização das atividades">
             <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>
             <button type="button" aria-label="Compacto" title="Visualização compacta" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}><LayoutGrid size={18} aria-hidden="true" /></button>
@@ -839,9 +842,10 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
           <Button type="button" className="button-ghost symbol-action" aria-label="Abrir filtros" title="Filtros do acompanhamento" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}><Filter size={18} aria-hidden="true" /></Button>
           <Button type="button" className="button-ghost symbol-action" aria-label={searchOpen ? "Fechar busca" : "Abrir busca"} title={searchOpen ? "Fechar e limpar busca" : "Buscar aluno, turma ou atividade"} aria-expanded={searchOpen} aria-controls="correction-search-field" onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
           {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}
-        </div>
+        </div>}
       </div>
-      {searchOpen && <Input id="correction-search-field" className="correction-revealed-search" autoFocus aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setQuery(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-label="Fechar busca"]')?.focus(); } }} />}
+      {viewMode === "students" && <div id="students-content" role="tabpanel" aria-labelledby="students-tab">{studentsContent}</div>}
+      {viewMode !== "students" && searchOpen && <Input id="correction-search-field" className="correction-revealed-search" autoFocus aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setQuery(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-label="Fechar busca"]')?.focus(); } }} />}
       <Modal open={filtersOpen} title="Filtros do acompanhamento" onClose={() => setFiltersOpen(false)} className="correction-filters-modal">
         <div className="form">
           {viewMode === "attendance" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}><option value="ABSENT">Faltas</option><option value="ALL">Todos</option><option value="PRESENT">Presentes</option></select></label>
@@ -850,7 +854,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
           <div className="form-actions"><Button type="button" onClick={() => setFiltersOpen(false)}>Concluir</Button></div>
         </div>
       </Modal>
-      <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
+      {viewMode !== "students" && <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
         {viewMode === "attendance" ? <>
         <div className="attendance-legend" aria-label="Legenda das cores de presença">
           {([
@@ -949,7 +953,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
           })}
         </div>}
         </>}
-      </section>
+      </section>}
     </div>
   );
 }

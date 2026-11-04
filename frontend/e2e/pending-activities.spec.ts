@@ -9,7 +9,8 @@ for (const width of [320, 390, 1440]) {
     await expect(page.getByRole("checkbox", { name: /Kodland/ })).toBeChecked();
     await page.getByRole("button", { name: "Salvar", exact: true }).click();
     await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible();
-      await page.getByRole("link", { name: "Acompanhamento", exact: true }).click();
+      await page.getByRole("link", { name: "Turmas", exact: true }).click();
+    await page.getByRole("tab", { name: "Atividades", exact: true }).click();
     await page.getByRole("button", { name: "Compacto", exact: true }).click();
     await page.getByRole("button", { name: "Abrir filtros" }).click();
     const filter = page.getByRole("combobox", { name: "Filtrar atividades", exact: true });
@@ -38,10 +39,12 @@ for (const width of [320, 390, 1440]) {
     await expect.poll(() => group.locator(".attendance-grid-row").count()).toBeGreaterThan(pendingRows);
     await expect.poll(() => group.locator(".compact-activity-empty").count()).toBeGreaterThan(0);
     await page.reload();
+    await page.getByRole("tab", { name: "Atividades", exact: true }).click();
     await page.getByRole("button", { name: "Abrir filtros" }).click();
     await expect(filter).toHaveValue("all");
     await filter.selectOption("pending");
     await page.reload();
+    await page.getByRole("tab", { name: "Atividades", exact: true }).click();
     await page.getByRole("button", { name: "Abrir filtros" }).click();
     await expect(filter).toHaveValue("pending");
   });

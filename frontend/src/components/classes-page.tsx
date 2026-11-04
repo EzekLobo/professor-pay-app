@@ -1,4 +1,5 @@
 "use client";
+import { CorrectionsContent } from "./corrections-page";
 
 import { useCallback, useEffect, useState } from "react";
 import { MoreVertical, RefreshCw, Settings, Trash2 } from "lucide-react";
@@ -446,7 +447,7 @@ export default function ClassesPage() {
     <AuthGuard>
       {(user) => (
         <Shell user={user}>
-          <ClassesContent />
+          <CorrectionsContent preferenceKey={user.id} studentsContent={<ClassesContent />} />
         </Shell>
       )}
     </AuthGuard>

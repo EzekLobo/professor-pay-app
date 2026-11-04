@@ -35,9 +35,9 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
   useLayoutEffect(() => {
     if (window.matchMedia("(max-width: 720px)").matches) navigation.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [pathname]);
-  const isActive = (href: string) => pathname === href;
+  const isActive = (href: string) => pathname === href || (href === "/classes" && pathname === "/corrections");
   const settingsRoutes = appRoutes.filter((item) => item.href === "/data" || item.label === "Configurações");
-  const mainRoutes = appRoutes.filter((item) => !settingsRoutes.includes(item));
+  const mainRoutes = appRoutes.filter((item) => !settingsRoutes.includes(item) && item.href !== "/corrections");
   const renderNavLink = (item: (typeof appRoutes)[number]) => {
     const Icon = item.icon;
     return <Link

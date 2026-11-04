@@ -5,7 +5,7 @@
 - Menu Tarefas renomeado para Meu quadro (Quadro no celular), com Minhas tarefas mantido como título interno. A busca abre por ícone no topo em um popover sobreposto; criar tarefa continua como ação textual principal e a barra não cresce ao abrir busca.
 - A legenda contextual de Atividades e Presença fica no ícone de informações, em modal, sem ocupar espaço fixo do conteúdo. Cores dos tipos de atividade e estados de presença são explicadas sob demanda.
 - Em Alunos, busca, Grupo e Turma ficam compactos à direita na mesma linha das abas em telas largas; a busca abre sobre o conteúdo. Em telas estreitas, os controles descem para preservar a largura e evitar sobreposição.
-- Na grade de atividades, cada retângulo de correção mostra o identificador da aula e o título da atividade; rótulos externos repetidos foram removidos e títulos longos continuam disponíveis pelo foco/toque do controle.
+- Na grade de atividades, cada retângulo de correção tem 54px de altura e mostra o identificador da aula e o título da atividade; o texto da atividade ocupa até duas linhas e rótulos externos repetidos foram removidos.
 
 ## Integração e rotina de sincronização — 04/11/2026
 

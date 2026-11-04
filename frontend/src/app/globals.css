@@ -2845,7 +2845,7 @@ summary:focus-visible {
 .compact-pending-row > .attendance-student-summary { flex: 0 0 180px; width: 180px; }
 .compact-pending-row > .compact-activity-cell { flex: 0 0 146px; width: 146px; gap: 5px; }
 @media (max-width: 760px) { .compact-pending-row > .attendance-student-summary { flex-basis: 150px; width: 150px; } }
-.compact-activity-action { display: grid; min-height: 44px; align-content: center; justify-items: stretch; gap: 3px; border: 1px solid rgba(255, 190, 62, .7); border-radius: 8px; padding: 5px 8px; color: #fff3cb; background: rgba(194, 118, 12, .35); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: filter .15s ease, transform .15s ease; }
+.compact-activity-action { display: grid; width: 100%; height: 54px; min-height: 54px; max-height: 54px; box-sizing: border-box; align-content: center; justify-items: stretch; gap: 3px; border: 1px solid rgba(255, 190, 62, .7); border-radius: 8px; padding: 5px 8px; color: #fff3cb; background: rgba(194, 118, 12, .35); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: filter .15s ease, transform .15s ease; }
 .compact-activity-lesson { overflow: hidden; color: #fff5d6; font-size: .68rem; font-weight: 900; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
 .compact-activity-task { display: -webkit-box; overflow: hidden; color: #f2d8a2; font-size: .64rem; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .compact-activity-manual { border-color: rgba(86, 195, 255, .68); background: rgba(37, 119, 182, .35); color: #d8f4ff; }
@@ -3637,7 +3637,8 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .correction-control-symbol { display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
 .correction-view-switch button { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 8px; }
 .correction-class-heading > div > span { display: inline-flex; align-items: center; gap: 5px; }
-.compact-activity-action, .correction-action, .symbol-action { min-width: 44px; min-height: 44px; }
+.compact-activity-action { min-width: 44px; min-height: 54px; }
+.correction-action, .symbol-action { min-width: 44px; min-height: 44px; }
 .correction-action, .symbol-action { width: 44px; padding: 8px; flex-shrink: 0; }
 @media (max-width: 760px) {
   .correction-heading-actions > .correction-toolbar-control { grid-template-columns: 24px minmax(0, 1fr); }

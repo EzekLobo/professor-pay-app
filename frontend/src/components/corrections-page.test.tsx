@@ -46,6 +46,40 @@ const manualActivity = (overrides: Partial<ManualActivity> = {}): ManualActivity
 });
 
 describe("compactActivitiesModel", () => {
+  it("mantém progresso explícito por módulo sem inferir entrega pela fila vazia", () => {
+    const input = { groups: [group()], students: [student()], reviews: [], lessons: [lesson()], manualActivities: [], manualClasses: [], manualStudents: [],
+      taskProgress: (["delivered", "missing", "unknown"] as const).map((state, index) => ({ id: `p${index}`, external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: `t${index}`, task_title: `Atividade ${index}`, state })) };
+    const full = compactActivitiesModel({ ...input, complete: true })[0];
+    expect(full.columns.every(column => column.moduleLabel === "M7")).toBe(true);
+    expect(Object.values(full.rows[0].cells).map(cell => cell.source === "progress" ? cell.progress.state : "review")).toEqual(["delivered", "missing", "unknown"]);
+    expect(full.pendingCount).toBe(0);
+    expect(compactActivitiesModel({ ...input, complete: true, pendingOnly: true })).toEqual([]);
+    expect(compactActivitiesModel({ ...input, taskProgress: [], complete: true })[0].rows[0].cells).toEqual({});
+  });
+  it("prioriza correção pendente e une IDs do catálogo ao mesmo campo", () => {
+    const model = compactActivitiesModel({ groups: [group()], students: [student()], lessons: [lesson({ source_lesson_id: "catalog-1" })], reviews: [review({ lesson_id: "lesson-1", lesson_number: 27, task_id: "t1" })], manualActivities: [], manualClasses: [], manualStudents: [], complete: true,
+      taskProgress: [{ id: "p1", external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "catalog-1", task_id: "t1", task_title: "Atividade", state: "delivered" }] });
+    expect(model[0].columns).toHaveLength(1);
+    expect(Object.values(model[0].rows[0].cells)[0].source).toBe("kodland");
+    expect(model[0].pendingCount).toBe(1);
+  });
+  it("conta aulas sincronizadas sem total presumido e faltas por turma/aluno sem duplicar", () => {
+    const held = lesson({ lesson_passed: true, status: "Scheduled" });
+    const model = compactActivitiesModel({ groups: [group()], students: [student()], reviews: [], lessons: [held, held, lesson({ id: "future", lesson_passed: false, status: "Scheduled" }), lesson({ id: "cancelled", status: "cancelled" })], manualActivities: [], manualClasses: [], manualStudents: [],
+      attendance: [1, 2].map(index => ({ id: `a${index}`, external_class_id: "kodland-1", external_class_name: "Turma", external_student_id: "external-student-1", student_name: "Ana", lesson_id: "lesson-1", lesson_title: "Aula", lesson_date: "2026-01-01", start_time: "19:00", status: "ABSENT" as const })) });
+    expect(model[0]).toMatchObject({ totalLessons: 2, completedLessons: 1, completionPercent: 50 });
+    expect(model[0].rows[0].absenceCount).toBe(1);
+    expect(compactActivitiesModel({ groups: [group()], students: [], reviews: [], lessons: [], manualActivities: [], manualClasses: [], manualStudents: [] })[0].completionPercent).toBeNull();
+  });
+  it("modo completo mantém todos os estados manuais e pendências só aceita entregas sem correção", () => {
+    const activities = [manualActivity(), manualActivity({ id: "done", title: "Feita", status: "corrected" }), manualActivity({ id: "assigned", title: "A fazer", status: "assigned", submission_text: "" })];
+    const input = { groups: [], students: [], reviews: [], lessons: [], manualActivities: activities, manualClasses: [manualClass()], manualStudents: [manualStudent()] };
+    const complete = compactActivitiesModel({ ...input, complete: true });
+    expect(Object.values(complete[0].rows[0].cells).map(cell => cell.source === "manual" ? cell.activity.status : "other")).toEqual(["pending", "corrected", "assigned"]);
+    expect(complete[0].pendingCount).toBe(1);
+    expect(Object.keys(compactActivitiesModel({ ...input, complete: true, pendingOnly: true })[0].rows[0].cells)).toHaveLength(1);
+  });
+
   it("remove turmas e alunos sem correções pendentes e mantém seus cadastros no filtro todos", () => {
     const input = { groups: [group(), group({ id: "empty", external_id: "empty", title: "Sem correções" })],
       students: [student(), student({ id: "other", external_id: "other", name: "Sem entrega" })],

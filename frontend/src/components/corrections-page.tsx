@@ -13,8 +13,10 @@ import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { Modal } from "@/components/modal";
-import { ApiError, kodlandApi, manualCoursesApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
+import { ApiError, kodlandApi, manualCoursesApi, manualOperationsApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
 import { attendanceDateFromSchedule, attendanceLessonParts, lessonForAttendance } from "@/lib/attendance-schedule";
+import type { KodlandTaskProgress } from "@/lib/kodland-task-progress";
+import type { ManualOccurrence } from "@/lib/manual-operations";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
@@ -50,14 +52,16 @@ type AttendanceColumn = {
   recordingUrl: string;
   moduleStart: boolean;
 };
-type CompactActivityCell =
+export type CompactActivityCell =
   | { source: "kodland"; review: KodlandReview }
-  | { source: "manual"; activity: ManualActivity };
+  | { source: "manual"; activity: ManualActivity }
+  | { source: "progress"; progress: KodlandTaskProgress };
 export type CompactActivityColumn = {
   key: string;
   lessonLabel: string;
   taskLabel: string;
   sortKey: string;
+  moduleLabel?: string;
 };
 export type CompactActivityRow = {
   key: string;
@@ -65,12 +69,19 @@ export type CompactActivityRow = {
   email: string;
   student?: KodlandStudent;
   rank?: number;
+  points?: number;
+  absenceCount?: number;
+  manualStudent?: ManualStudent;
   cells: Record<string, CompactActivityCell>;
 };
 export type CompactActivityClass = {
   key: string;
   name: string;
   courseName?: string;
+  completedLessons?: number;
+  totalLessons?: number;
+  completionPercent?: number | null;
+  pendingCount?: number;
   columns: CompactActivityColumn[];
   rows: CompactActivityRow[];
 };
@@ -91,6 +102,8 @@ type CompactActivityClassDraft = {
   key: string;
   name: string;
   courseName?: string;
+  completedLessons?: number;
+  totalLessons?: number;
   columns: Map<string, CompactActivityColumn>;
   rows: Map<string, CompactActivityRow>;
 };
@@ -125,7 +138,15 @@ export function compactActivitiesModel({
   manualStudents,
   pendingOnly = false,
   manualCourseNames = {},
+  taskProgress = [],
+  attendance = [],
+  manualOccurrences = [],
+  complete = false,
 }: {
+  taskProgress?: readonly KodlandTaskProgress[];
+  attendance?: readonly KodlandAttendance[];
+  manualOccurrences?: readonly ManualOccurrence[];
+  complete?: boolean;
   manualCourseNames?: Record<string, string>;
   reviews: readonly KodlandReview[];
   lessons: readonly KodlandLesson[];
@@ -163,14 +184,19 @@ export function compactActivitiesModel({
     const group = groupsByExternalId.get(externalClassId);
     const draft = ensureClass(`kodland:${externalClassId}`, group?.title || classReviews[0]?.external_class_name || "Turma Kodland");
     draft.courseName = group?.course_name;
+    const uniqueLessons = [...new Map(lessons.filter(item => item.external_class_id === externalClassId && !/cancel/i.test(item.status)).map(item => [item.source_lesson_id || item.id, item])).values()];
+    draft.totalLessons = uniqueLessons.length;
+    draft.completedLessons = uniqueLessons.filter(item => item.lesson_passed || /^(held|completed|done|passed|conducted|finished)$/i.test(item.status)).length;
     for (const [index, student] of activeStudentsRankedByPoints(students.filter((item) => item.external_class_id === externalClassId)).entries()) {
       const row = ensureRow(draft, student.external_id || student.id, student.name, student.email);
-      row.student = student; row.rank = index + 1;
+      row.student = student; row.rank = index + 1; row.points = kodlandStudentPoints(student.progress_summary);
+      row.absenceCount = new Set(attendance.filter(item => item.external_class_id === externalClassId && item.external_student_id === student.external_id && item.status === "ABSENT").map(item => item.lesson_id || `${item.lesson_date}:${item.start_time}`)).size;
     }
     for (const review of classReviews) {
       const studentKey = review.external_student_id || review.student_name || review.id;
       const row = ensureRow(draft, studentKey, review.student_name);
-      const lessonKey = review.lesson_id || String(review.lesson_number) || review.lesson_title;
+      const matchedLesson = lessonForReview(review, [...lessons]);
+      const lessonKey = matchedLesson?.source_lesson_id || matchedLesson?.id || review.lesson_id || String(review.lesson_number) || review.lesson_title;
       const taskKey = review.task_id || `${review.task_number}:${review.task_title}`;
       const key = `kodland:${lessonKey}:${taskKey}`;
       if (!draft.columns.has(key)) {
@@ -178,18 +204,34 @@ export function compactActivitiesModel({
         draft.columns.set(key, {
           key,
           lessonLabel,
+          moduleLabel: lessonLabel.match(/^M\d+/)?.[0],
           taskLabel: `${review.task_number ? `${review.task_number}. ` : ""}${review.task_title || "Atividade"}`,
           sortKey: `${String(review.lesson_number).padStart(5, "0")}:${String(review.task_number).padStart(5, "0")}:${review.lesson_title}:${review.task_title}`,
         });
       }
       row.cells[key] ??= { source: "kodland", review };
     }
+    if (complete && !pendingOnly) for (const progress of taskProgress.filter(item => item.external_class_id === externalClassId)) {
+      const rosterStudent = students.find(item => item.external_class_id === externalClassId && item.external_id === progress.external_student_id);
+      if (rosterStudent && !isActiveKodlandStudent(rosterStudent.status)) continue;
+      const row = ensureRow(draft, progress.external_student_id, rosterStudent?.name || "Aluno", rosterStudent?.email);
+      const catalog = lessons.find(item => item.external_class_id === externalClassId && (item.id === progress.lesson_id || item.source_lesson_id === progress.lesson_id));
+      const existing = [...draft.columns.values()].find(column => {
+        const cell = row.cells[column.key];
+        return cell?.source === "kodland" && cell.review.task_id === progress.task_id && (cell.review.lesson_id === progress.lesson_id || lessonForReview(cell.review, [...lessons])?.id === catalog?.id && Boolean(catalog));
+      });
+      const key = existing?.key || `kodland:${catalog?.source_lesson_id || catalog?.id || progress.lesson_id}:${progress.task_id}`;
+      const parts = attendanceLessonParts({ external_class_id: externalClassId, lesson_id: catalog?.id || progress.lesson_id, lesson_title: catalog?.title || "Aula" } as KodlandAttendance, [...lessons]);
+      const label = parts.module ? `${parts.module}${parts.lesson}` : catalog?.title || "Aula";
+      if (!draft.columns.has(key)) draft.columns.set(key, { key, lessonLabel: label, moduleLabel: parts.module || undefined, taskLabel: progress.task_title, sortKey: `${String(catalog?.course_index || catalog?.lesson_number || 0).padStart(5, "0")}:00000:${progress.task_title}` });
+      row.cells[key] ??= { source: "progress", progress };
+    }
   }
 
   const manualClassesById = new Map(manualClasses.map((item) => [item.id, item]));
   const manualStudentsById = new Map(manualStudents.map((item) => [item.id, item]));
   const activitiesByClass = new Map<string, ManualActivity[]>();
-  for (const activity of manualActivities) {
+  for (const activity of complete && !pendingOnly ? manualActivities : pendingManualActivities(manualActivities)) {
     activitiesByClass.set(activity.class_id, [...(activitiesByClass.get(activity.class_id) ?? []), activity]);
   }
   for (const item of manualClasses) if (!activitiesByClass.has(item.id)) activitiesByClass.set(item.id, []);
@@ -197,9 +239,12 @@ export function compactActivitiesModel({
     const manualClass = manualClassesById.get(classId);
     const draft = ensureClass(`manual:${classId}`, manualClass?.name || "Turma própria");
     draft.courseName = manualCourseNames[manualClass?.course_id ?? ""];
+    const classOccurrences = manualOccurrences.filter(item => item.class_id === classId && item.status !== "cancelled" && item.status !== "rescheduled");
+    draft.totalLessons = classOccurrences.length;
+    draft.completedLessons = classOccurrences.filter(item => item.status === "held").length;
     for (const studentId of manualClass?.student_ids ?? []) {
       const student = manualStudentsById.get(studentId);
-      if (student?.active) ensureRow(draft, student.id, student.name, student.email);
+      if (student?.active) { const row = ensureRow(draft, student.id, student.name, student.email); row.manualStudent = student; }
     }
     for (const activity of classActivities) {
       const student = manualStudentsById.get(activity.student_id);
@@ -208,7 +253,8 @@ export function compactActivitiesModel({
       if (!draft.columns.has(key)) {
         draft.columns.set(key, {
           key,
-          lessonLabel: compactManualLessonLabel(activity),
+          lessonLabel: manualOccurrences.find(item => item.id === activity.occurrence_id)?.course_code || compactManualLessonLabel(activity),
+          moduleLabel: manualOccurrences.find(item => item.id === activity.occurrence_id)?.course_code.match(/^M\d+/)?.[0],
           taskLabel: activity.title || "Atividade",
           sortKey: `${activity.occurrence_id}:${activity.title}`,
         });
@@ -221,6 +267,10 @@ export function compactActivitiesModel({
     key: draft.key,
     name: draft.name,
     courseName: draft.courseName,
+    completedLessons: draft.completedLessons,
+    totalLessons: draft.totalLessons,
+    completionPercent: draft.totalLessons ? Math.round((draft.completedLessons ?? 0) * 100 / draft.totalLessons) : null,
+    pendingCount: [...draft.rows.values()].reduce((count, row) => count + Object.values(row.cells).filter(cell => cell.source === "kodland" || cell.source === "manual" && pendingManualActivities([cell.activity]).length > 0).length, 0),
     columns: [...draft.columns.values()].sort((first, second) => first.sortKey.localeCompare(second.sortKey, "pt-BR")),
     rows: [...draft.rows.values()].filter(row => !pendingOnly || Object.keys(row.cells).length > 0).sort((first, second) => (first.rank ?? Infinity) - (second.rank ?? Infinity) || first.name.localeCompare(second.name, "pt-BR")),
   })).filter(item => !pendingOnly || item.rows.length > 0).sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
@@ -240,6 +290,8 @@ export interface CorrectionsDemoAdapter {
   students?: KodlandStudent[];
   groups?: KodlandGroup[];
   manualAdapter?: ManualAdapters;
+  taskProgress?: KodlandTaskProgress[];
+  manualOccurrences?: ManualOccurrence[];
 }
 
 const attendanceStatusLabel = (status: KodlandAttendance["status"]) => ({
@@ -525,7 +577,7 @@ export function CompactActivitiesGrid({
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
                 const actionContent = <><span className="compact-activity-lesson" title={column.lessonLabel}>{column.lessonLabel}</span><span className="compact-activity-task" title={column.taskLabel}>{column.taskLabel}</span></>;
                 return <div className="compact-activity-cell" role="gridcell" key={column.key}>
-                  {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
+                  {cell.source === "progress" ? <div className={`compact-activity-action compact-activity-progress compact-activity-${cell.progress.state}`} aria-label={`${row.name}: ${column.taskLabel}, ${cell.progress.state === "delivered" ? "Entregue" : cell.progress.state === "missing" ? "Não entregue" : "Sem informação"}`}>{actionContent}<span className="compact-activity-state">{cell.progress.state === "delivered" ? "Entregue" : cell.progress.state === "missing" ? "Não entregue" : "Sem informação"}</span></div> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
                     : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>{actionContent}</button>
                       : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} target="_blank" rel="noreferrer">{actionContent}</a>}
                 </div>;
@@ -595,6 +647,10 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const notifications = useStudentNotifications();
   const [storedReviews, setReviews] = useState<KodlandReview[]>([]);
   const [storedLessons, setLessons] = useState<KodlandLesson[]>([]);
+  const [storedTaskProgress, setTaskProgress] = useState<KodlandTaskProgress[]>([]);
+  const [storedManualOccurrences, setManualOccurrences] = useState<ManualOccurrence[]>([]);
+  const taskProgress = demo?.taskProgress ?? storedTaskProgress;
+  const manualOccurrences = demo?.manualOccurrences ?? storedManualOccurrences;
   const [storedAttendance, setAttendance] = useState<KodlandAttendance[]>([]);
   const [storedStudents, setStudents] = useState<KodlandStudent[]>([]);
   const [storedGroups, setGroups] = useState<KodlandGroup[]>([]);
@@ -709,10 +765,13 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       const preferences = localOnly ? { kodland_enabled: true } : await tutorPreferencesApi.get();
       setKodlandEnabled(preferences.kodland_enabled);
       const empty = Promise.resolve({ items: [] });
-      const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents] = await Promise.all([
+      const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents, progressResult, ownOccurrences] = await Promise.all([
         preferences.kodland_enabled ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled ? kodlandApi.attendance() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty,
         localOnly ? Promise.resolve(null) : manualPedagogyApi.activities(), localOnly ? Promise.resolve(null) : manualTeachingApi.classes(), localOnly ? Promise.resolve(null) : manualTeachingApi.students(),
+        preferences.kodland_enabled ? kodlandApi.taskProgress() : empty, localOnly ? Promise.resolve(null) : manualOperationsApi.occurrences(),
       ]);
+      setTaskProgress(progressResult.items);
+      if (ownOccurrences) setManualOccurrences(ownOccurrences);
       setReviews(reviewResult.items);
       setLessons(lessonResult.items);
       setAttendance(attendanceResult.items);
@@ -811,12 +870,15 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     manualClasses,
     manualStudents,
     manualCourseNames,
+    taskProgress,
+    attendance,
+    manualOccurrences,
     pendingOnly,
   }).map(item => withoutPending ? { ...item, rows: item.rows.filter(row => Object.keys(row.cells).length === 0), columns: [] } : item).filter(item => !withoutPending || item.rows.length > 0).map((item) => {
     const normalized = query.trim().toLocaleLowerCase("pt-BR");
     if (!normalized || item.name.toLocaleLowerCase("pt-BR").includes(normalized)) return item;
     return { ...item, rows: item.rows.filter(row => `${row.name} ${row.email}`.toLocaleLowerCase("pt-BR").includes(normalized) || Object.keys(row.cells).length > 0) };
-  }).filter(item => !query.trim() || item.rows.length > 0 || item.name.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))), [attendanceStudents, groups, lessons, manualClasses, manualStudents, manualCourseNames, pendingOnly, withoutPending, query, visibleOwn, visibleReviews]);
+  }).filter(item => !query.trim() || item.rows.length > 0 || item.name.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))), [attendanceStudents, groups, lessons, manualClasses, manualStudents, manualCourseNames, taskProgress, attendance, manualOccurrences, pendingOnly, withoutPending, query, visibleOwn, visibleReviews]);
   const attendanceHistories = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const studentsByExternalId = new Map(attendanceStudents.map((student) => [student.external_id, student]));

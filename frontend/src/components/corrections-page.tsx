@@ -832,7 +832,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
-      <div className="corrections-topbar">
+      <div className={`corrections-topbar${viewMode === "students" ? " corrections-topbar-students" : ""}`}>
         <nav className="corrections-page-tabs" data-tour={studentsContent ? "classes-tabs" : undefined} role="tablist" aria-label={studentsContent ? "Áreas de turmas" : "Páginas do acompanhamento"}>
           {studentsContent && <button id="students-tab" type="button" role="tab" aria-controls="students-content" aria-selected={viewMode === "students"} className={viewMode === "students" ? "active" : ""} onClick={() => setViewMode("students")}>Alunos</button>}
           <button id="activities-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>
@@ -842,6 +842,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
             Presença
           </button>
         </nav>
+        {viewMode === "students" && <div id="students-toolbar-slot" className="students-toolbar-slot" />}
         {viewMode !== "students" && <div className="correction-icon-toolbar" data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
           {viewMode === "activities" && <div className="correction-view-switch" role="group" aria-label="Formato de visualização das atividades">
             <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>

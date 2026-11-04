@@ -3726,3 +3726,18 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .nav::-webkit-scrollbar { display: none; }
   .nav .nav-link { flex: 0 0 clamp(72px, calc((100vw - 8px) / 4.5), 112px); }
 }
+
+/* Lista compacta no sino de notificações */
+.student-alerts-dropdown .notifications-heading { padding: 10px 12px 10px 16px; }
+.student-alerts-dropdown .notifications-heading small { color: var(--muted); font-size: .72rem; }
+.student-alerts-dropdown .notifications-scroll { padding: 0; }
+.student-alerts-dropdown .notification-list { display: block; margin: 0; }
+.student-alerts-dropdown .notification-card { display: block; padding: 0; border: 0; border-top: 1px solid var(--border); }
+.student-alerts-dropdown .notification-row, .student-alerts-dropdown .notification-news-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 64px; margin: 0; padding: 14px 16px; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; text-decoration: none; font: inherit; cursor: pointer; }
+.student-alerts-dropdown .notification-row:hover, .student-alerts-dropdown .notification-news-row:hover { background: rgb(125 211 252 / 7%); }
+.student-alerts-dropdown .notification-row > svg, .student-alerts-dropdown .notification-news-row > svg { flex: none; align-self: center; color: var(--muted); }
+.student-alerts-dropdown .notification-row-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 50%; color: #82d8f5; background: rgb(100 200 240 / 12%); }
+.student-alerts-dropdown .notification-row-icon.is-pending { color: #f8c66f; background: rgb(248 198 111 / 12%); }
+.student-alerts-dropdown .notification-row-content { display: grid; flex: 1; min-width: 0; gap: 4px; font-size: .82rem; line-height: 1.35; overflow-wrap: anywhere; }
+.student-alerts-dropdown .notification-row-content small { color: var(--muted); font-size: .72rem; }
+.student-alerts-dropdown .notification-status { margin: 12px 16px; font-size: .78rem; }

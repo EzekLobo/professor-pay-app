@@ -5,6 +5,10 @@
 - Deploy de 5fc3646 falhou com TS7006 em shell.tsx: callback do link Configurações sem tipo de evento. Produção ainda estava em 163a902, portanto não continha a correção de atualização de turmas. Callback agora tipado MouseEvent<HTMLAnchorElement>.
 - Build local e 417 testes passaram. Sem erros/logs de sync na janela recente consultada (20min); ausência de logs não comprova sincronização. Host de acesso ao navegador indisponível nesta sessão, impedindo teste autenticado com Kodland real.
 
+## Lista de notificações — 04/11/2026
+
+- Sino mostra novidades e casos em uma única lista, pendências primeiro e casos anteriores identificados; sem abas ou filtro. Cada linha abre o caso e mantém leitura/confirmar contato. Cabeçalho mantém atualizar/configurar/fechar acessíveis.
+
 ## Atualização da lista de turmas — 03/11/2026
 
 - ClassesContent escuta conclusão de sync essential/schedule e recarrega; atualização manual não depende mais de segunda consulta de perfis, exibindo turmas após essential. Modo Firebase também emite evento após gravação confirmada. A API rejeita resposta Kodland sem results em vez de interpretá-la como lista vazia. Não houve consulta à conta real, logo outras causas dependem da resposta observada em produção.

@@ -70,20 +70,20 @@ Uma entrega esperando correção não é tratada automaticamente como não entre
 ## Lista suspensa do sino
 
 O sino abre uma lista suspensa abaixo do cabeçalho, sem bloquear a página. A entrada Novidades da aplicação compartilha essa lista e abre seu próprio modal somente ao clicar; leitura e histórico de novidades são independentes das confirmações de contato. O contador soma os contatos pendentes e uma entrada se houver novidades não lidas.
-Os casos mais recentes aparecem primeiro, com filtros de motivo, Pendentes e Histórico.
+A lista reúne pendências e casos anteriores, com pendências primeiro e os mais recentes em seguida.
 A lista rola internamente e se adapta ao celular. O sino, X, Escape ou clique fora
 fecham a lista; Escape devolve o foco ao sino. A engrenagem abre as configurações.
 Fechar a lista não confirma contato nem resolve pendências.
 
 ## Resolver um alerta
 
-1. Abra o sino no cabeçalho e selecione **Resolver** no caso desejado.
+1. Abra o sino no cabeçalho e selecione o caso desejado.
 2. Acompanhamento abre o aluno, a turma e a aula do caso. Revise a ocorrência, as atividades faltantes e a mensagem.
 3. Cadastre ou edite o contato do responsável, se necessário. O telefone do aluno não é usado como substituto automático.
 4. Use **Abrir WhatsApp** e revise/envie a mensagem no aplicativo. Também é possível realizar o contato por outro meio.
 5. Clique em **Confirmar contato realizado** somente após o contato. Abrir WhatsApp não comprova envio nem confirma o caso.
 
-O contador representa casos ativos que exigem contato, e não apenas notificações não lidas. Um contato confirmado sai da fila e permanece no Histórico. A atividade continua pendente até entrega/dispensa ou outra regularização registrada na fonte. Uma nova aula ou novas atividades vencidas formam outro caso/revisão acionável. A mesma revisão não reaparece apenas por sincronizar novamente.
+O contador representa casos ativos que exigem contato, e não apenas notificações não lidas. Um contato confirmado permanece na lista, identificado como confirmado. A atividade continua pendente até entrega/dispensa ou outra regularização registrada na fonte. Uma nova aula ou novas atividades vencidas formam outro caso/revisão acionável. A mesma revisão não reaparece apenas por sincronizar novamente.
 
 Se os dados forem regularizados, a condição deixa de estar ativa, preservando o histórico. Se a consulta falhar ou a sincronização estiver incompleta, os alertas anteriores são preservados com indicação de erro. Consulte os dados atuais antes de agir sobre um histórico antigo.
 

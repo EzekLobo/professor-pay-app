@@ -15,10 +15,10 @@ for (const width of [1440, 390, 320]) {
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   const box=await dialog.boundingBox();expect(box!.width).toBeLessThanOrEqual(width);expect(box!.height).toBeLessThanOrEqual(900);
   await dialog.getByRole("button",{name:"Entendi",exact:true}).click();await expect(dialog).not.toBeVisible();await expect(bell).toBeFocused();
-  await page.reload();await bell.click();await inbox.getByRole("button",{name:"Histórico",exact:true}).click();
+  await page.reload();await bell.click();
   await inbox.getByRole("button",{name:/Novidades da aplicação/}).click();await expect(dialog).toBeVisible();
   await dialog.getByRole("link",{name:"Definir meu nick"}).click();await expect(page).toHaveURL(/demo#settings$/);await expect(dialog).not.toBeVisible();
-  await bell.click();await inbox.getByRole("button",{name:"Histórico",exact:true}).click();await inbox.getByRole("button",{name:/Novidades da aplicação/}).click();
+  await bell.click();await inbox.getByRole("button",{name:/Novidades da aplicação/}).click();
   await page.keyboard.press("Escape");await expect(dialog).not.toBeVisible();await expect(bell).toBeFocused();expect(privateCalls).toEqual([]);
  });
 }

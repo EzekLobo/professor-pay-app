@@ -3,7 +3,7 @@
 As novidades aparecem como uma entrada **Novidades da aplicação** no sino de notificações.
 Não existe botão próprio no cabeçalho nem abertura automática ao entrar. Quando há versões
 não lidas, essa entrada soma uma pendência ao contador do sino, mesmo com alertas de alunos
-desativados. Após a leitura, pode ser consultada em Histórico.
+desativados. Após a leitura, continua disponível na lista de notificações.
 
 Tocar na entrada fecha a lista suspensa e abre o modal **Novidades do NexusClass**, com as
 melhorias em ordem decrescente e seus atalhos. Entendi, X, Escape, clique no fundo ou um
@@ -51,4 +51,4 @@ entradas é parte da entrega de funcionalidades, sem precisar editar cada conta.
 - `frontend/e2e/release-notes.spec.ts`: consulta, fechamento, confirmação,
   persistência local e atalhos na demo em 1440, 390 e 320 px, sem chamadas
   privadas.
-- A abertura depende de clique; fechar e reabrir via Histórico preserva a leitura e o foco.
+- A abertura depende de clique; fechar e reabrir pela lista preserva a leitura e o foco.

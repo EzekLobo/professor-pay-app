@@ -41,10 +41,10 @@ for (const width of [320, 390, 1440]) {
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
     await page.getByRole("button", { name: /Notificações: \d+ pendentes/ }).click();
-    await dialog.getByLabel("Motivo", { exact: true }).selectOption("classroom");
-    await expect(dialog.locator(".notification-card")).toHaveCount(1);
+    await expect(dialog.getByLabel("Motivo", { exact: true })).toHaveCount(0);
+    await expect(dialog.locator(".notification-card").filter({ hasText: "Atividade de aula" })).toHaveCount(1);
     await page.screenshot({ path: `/tmp/notifications-panel-${width}.png`, fullPage: true });
-    await dialog.getByRole("link", { name: "Resolver", exact: true }).click();
+    await dialog.locator(".notification-card").filter({ hasText: "Atividade de aula" }).getByRole("link").click();
     const resolution = page.getByRole("region", { name: "Resolver notificação" });
     await expect(resolution).toContainText("Exercício da aula");
     await expect(resolution.getByRole("textbox", { name: "Mensagem para o responsável", exact: true })).toHaveValue(/Olá, .*Exercício da aula/);
@@ -57,8 +57,7 @@ for (const width of [320, 390, 1440]) {
     await expect(resolution.getByText("Contato confirmado para esta pendência.")).toBeVisible();
     // A second case on the same route must change the resolved context.
     await page.getByRole("button", { name: /Notificações: \d+ pendentes/ }).click();
-    await dialog.getByLabel("Motivo", { exact: true }).selectOption("homework");
-    await dialog.getByRole("link", { name: "Resolver", exact: true }).click();
+    await dialog.locator(".notification-card").filter({ hasText: "Dever de casa" }).getByRole("link").click();
     await expect(resolution).toContainText("Lista para casa");
     const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }));
     expect(dimensions.content).toBeLessThanOrEqual(dimensions.width + 1);
@@ -88,9 +87,8 @@ test("falta sem contato permite cadastrar responsável e regulariza no históric
   await expect(page.getByText("Regras de notificações salvas.")).toBeVisible();
   await page.getByRole("button", { name: /Notificações: \d+ pendentes/ }).click();
   const dialog = page.getByRole("region", { name: "Notificações", exact: true });
-  await dialog.getByLabel("Motivo", { exact: true }).selectOption("absence");
-  await expect(dialog.locator(".notification-card")).toHaveCount(1);
-  await dialog.getByRole("link", { name: "Resolver", exact: true }).click();
+  await expect(dialog.locator(".notification-card").filter({ hasText: "Falta" })).toHaveCount(1);
+  await dialog.locator(".notification-card").filter({ hasText: "Falta" }).getByRole("link").click();
   const resolution = page.getByRole("region", { name: "Resolver notificação" });
   await expect(resolution).toContainText("Falta sem justificativa");
   await expect(resolution.getByRole("link", { name: "Abrir WhatsApp" })).toHaveCount(0);

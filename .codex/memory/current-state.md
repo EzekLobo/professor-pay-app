@@ -1,5 +1,7 @@
 # Estado atual
 
+- Barra Alunos tem uma única busca (a principal); painel manual em actionsOnly não renderiza busca própria. Ícone de legenda removido de Alunos e mantido em Presença.
+
 - Olho por turma oculta apenas a caixa vazia (placeholder sem decoração), preservando grid, cabeçalho Aluno, posições de colunas e dimensões; não troca mais para lista flex.
 
 - Dropdown de filtros tem opções clicáveis e estrela por opção; favoritos persistem por usuário/área e sobem ao topo. Alunos inclui todos/com correções/sem correções pendentes; Presença mantém seus três filtros com favoritos.

@@ -143,3 +143,13 @@ it("grava presença da ocorrência no cache local sem depender de Firestore", as
   await kodlandApi.syncScope("teacher", "fixture", { scope: "attendance", occurrence }, undefined, { automatic: true });
   expect(state.disk!.collections.kodland_attendance).toMatchObject([{ id: "attendance-1", external_class_id: "g", lesson_id: "source", status: "PRESENT" }]);
 });
+
+it("preserva saldo de aulas no cache e aceita um zero confirmado na leitura de perfis", async () => {
+ await kodlandApi.sync("teacher","fixture","essential",{storage:"browser"});
+ Object.assign(state.disk!.collections.kodland_students[0],{lesson_credits_remaining:9,lesson_credits_updated_at:"old",local_note:"Nota"});
+ await kodlandApi.sync("teacher","fixture","essential",{storage:"browser"});
+ expect(state.disk!.collections.kodland_students[0]).toMatchObject({lesson_credits_remaining:9,lesson_credits_updated_at:"old"});
+ vi.stubGlobal("fetch",vi.fn(async()=>{const payload=base();Object.assign(payload.students[0],{lesson_credits_remaining:0,lesson_credits_updated_at:"new"});return Response.json(payload);}));
+ await kodlandApi.sync("teacher","fixture","profiles",{storage:"browser"});
+ expect(state.disk!.collections.kodland_students[0]).toMatchObject({lesson_credits_remaining:0,lesson_credits_updated_at:"new",local_note:"Nota"});
+});

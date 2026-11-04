@@ -1,3 +1,4 @@
+import { studentLessonCreditsPatch } from "@/lib/student-profile";
 import { publishTutorPreferencesChanged } from "./tutor-preference-events";
 import { occurrenceTimes } from "./sync-policy";
 import { getSyncCoordinator, type SyncExecutionContext } from "./sync-coordinator";
@@ -271,6 +272,9 @@ export type KodlandGroup = {
   created_at: string;
 };
 export type KodlandStudent = {
+  /** Global DEFAULT_LESSON wallet, not a balance restricted to this class/course. */
+  lesson_credits_remaining?: number | null;
+  lesson_credits_updated_at?: string;
   id: string;
   external_id: string;
   name: string;
@@ -2734,6 +2738,7 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
       incoming.forEach(item => {
         const previous = map.get(item.id);
         const value = { ...previous, ...item };
+        if (name === "kodland_students") Object.assign(value, studentLessonCreditsPatch(item, previous ?? {}));
         if (name === "kodland_students" && previous) for (const field of ["guardian_name", "guardian_phone", "guardian_email", "guardian_relationship"]) if (!item[field] && previous[field]) value[field] = previous[field];
         map.set(item.id, value);
       });
@@ -3359,6 +3364,7 @@ export const kodlandApi = {
         .map((student) => {
           const previous = previousById.get(student.id)!;
           return (batch) => batch.update(doc(syncCollection("kodland_students"), student.id), {
+            ...studentLessonCreditsPatch(student, previous),
             name: student.name || previous.name || "",
             email: student.email || previous.email || "",
             phone: student.phone || previous.phone || "",
@@ -3420,6 +3426,7 @@ export const kodlandApi = {
       const previous = oldStudentsById.get(item.id);
       enqueue("kodland_students", item.id, {
         ...item,
+        ...studentLessonCreditsPatch(item, previous),
         local_note: String(previous?.local_note ?? ""),
         // Contact fields come from the latest read-only profile snapshot.
         // Keep the last value only when the profile has no value, so a

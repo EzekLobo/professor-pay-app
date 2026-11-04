@@ -2,7 +2,7 @@
 
 - [x] T1 Dados e modelo: progresso por módulo com estados entregue/não entregue/desconhecido e correção pendente separada; aulas concluídas/total; perfil completo e faltas quando disponíveis. Não inferir entrega pela ausência na fila de correção. Aceite: testes de modelo e typecheck.
 - [ ] T2 Interface: filtros Completo, Correções pendentes e Alunos; favoritos preservados/migrados; remover olho; pendências mostram só turmas/alunos/atividades pendentes sem caixas vazias; Alunos mostra nome completo e pontos, saldo de créditos/aulas restantes vindo do perfil; percentual de aulas em todos os cabeçalhos. Aceite: testes afetados, lint, tipos e build.
-- [ ] T2B Créditos: fonte oficial GET balance/?id=student&lesson_type=DEFAULT_LESSON, registro balance do tipo correto. Campo optional lesson_credits_remaining number|null e updated_at, obtido só no sync explícito de perfis; sem tratar ausente como zero. Aceite: parser/rota/persistência testados. Arquivos disjuntos de T2 (api.ts, student-profile.ts, sync/route.ts e testes); tarefas independentes podem prosseguir em paralelo com contrato opcional definido.
+- [x] T2B Créditos: fonte oficial GET balance/?id=student&lesson_type=DEFAULT_LESSON, registro balance do tipo correto. Campo optional lesson_credits_remaining number|null e updated_at, obtido só no sync explícito de perfis; sem tratar ausente como zero. Aceite: parser/rota/persistência testados. Arquivos disjuntos de T2 (api.ts, student-profile.ts, sync/route.ts e testes); tarefas independentes podem prosseguir em paralelo com contrato opcional definido.
 - [ ] T3 Revisar, registrar novidade/memória e publicar no GitHub/Vercel. Aceite: deploy do commit pronto.
 
 ## Decisões
@@ -15,3 +15,6 @@ Completo usa progresso explícito sincronizado; desconhecido permanece sem infor
 - Loader lê taskProgress também no navegador e ocorrências no autenticado. Demo possui taskProgress sintético e passa ocorrências ao adaptador.
 - T2 precisa passar `complete:true`, atividades manuais completas em vez de visibleOwn e reviews sem filtrar indevidamente estados; renderer provisório source progress não é ação de correção. Entregue não significa corrigido. Campos sem amostra de progresso não implicam não entregue; apresentar lacuna/cobertura.
 - Sete testes da grade/modelo e typecheck passaram. Não houve commit/push em T1.
+
+## Handoff T2B
+Saldo global DEFAULT_LESSON lido em profiles via balance/. Campos opcionais lesson_credits_remaining/lesson_credits_updated_at preservados em syncs posteriores sem saldo, inclusive browser. Zero e negativo aceitos; ausente/inválido permanece não informado ou mantém último conhecido. 59 testes parser/persistência/rota e tipos passaram. Modo Alunos usará refresh explícito profiles, sem novo polling.

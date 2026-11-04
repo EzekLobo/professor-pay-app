@@ -9,7 +9,7 @@ import {
   type KodlandCourseLesson,
   type KodlandLesson,
 } from "@/lib/kodland-lessons";
-import { parseGuardianContact, parseStudentContact } from "@/lib/student-profile";
+import { parseGuardianContact, parseStudentContact, parseStudentLessonCredits } from "@/lib/student-profile";
 import { normalizePayroll, payrollList } from "@/lib/kodland-payroll";
 import { kodlandDeliveryState, type KodlandTaskProgress } from "@/lib/kodland-task-progress";
 
@@ -57,6 +57,8 @@ type Group = {
   archived: boolean;
 };
 type Student = {
+  lesson_credits_remaining?: number | null;
+  lesson_credits_updated_at?: string;
   id: string;
   external_id: string;
   name: string;
@@ -826,7 +828,7 @@ function studentsFromPayload(payload: unknown, group: Group): Student[] {
 async function studentsWithProfiles(
   students: Student[],
   token: string,
-  cache: Map<string, ReturnType<typeof parseGuardianContact> & { student?: ReturnType<typeof parseStudentContact> }>,
+  cache: Map<string, ReturnType<typeof parseGuardianContact> & { student?: ReturnType<typeof parseStudentContact>; credits?: number; creditsAt?: string }>,
 ): Promise<Student[]> {
   return mapWithConcurrency(students, KODLAND_CONCURRENCY, async (student) => {
       let guardian = cache.get(student.external_id);
@@ -835,11 +837,14 @@ async function studentsWithProfiles(
           `students/${student.external_id}/get_general_info_for_student_backoffice_page/`,
           token,
         );
-        guardian = { ...parseGuardianContact(profile), student: parseStudentContact(profile) };
+        const balance = await getOptional(`balance/?id=${encodeURIComponent(student.external_id)}&lesson_type=DEFAULT_LESSON`, token);
+        const credits = parseStudentLessonCredits(balance);
+        guardian = { ...parseGuardianContact(profile), student: parseStudentContact(profile), ...(credits !== null ? { credits, creditsAt: new Date().toISOString() } : {}) };
         cache.set(student.external_id, guardian);
       }
       return {
         ...student,
+        ...(guardian.credits !== undefined ? { lesson_credits_remaining: guardian.credits, lesson_credits_updated_at: guardian.creditsAt } : {}),
         name: guardian.student?.name || student.name,
         email: guardian.student?.email || student.email,
         phone: guardian.student?.phone || student.phone,
@@ -2228,7 +2233,7 @@ export async function POST(request: NextRequest) {
     }
     const profileCache = new Map<
       string,
-      ReturnType<typeof parseGuardianContact> & { student?: ReturnType<typeof parseStudentContact> }
+      ReturnType<typeof parseGuardianContact> & { student?: ReturnType<typeof parseStudentContact>; credits?: number; creditsAt?: string }
     >();
     const courseLessonCache: CourseLessonCache = {
       catalog: new Map(),

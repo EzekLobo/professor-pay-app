@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseGuardianContact, parseStudentContact } from "./student-profile";
+import { parseGuardianContact, parseStudentContact, parseStudentLessonCredits, studentLessonCreditsPatch } from "./student-profile";
 
 describe("student profile contact parser", () => {
   it("keeps student contacts separate from the responsible contact", () => {
@@ -63,5 +63,23 @@ describe("student profile contact parser", () => {
       phone: "+5583996154182",
       email: "mona@example.test",
     });
+  });
+});
+
+describe("student lesson credits", () => {
+  it("reads the default lesson wallet only, retaining zero and negative balances", () => {
+    expect(parseStudentLessonCredits([{ lesson_type: "MONEY", balance: 999 }, { lesson_type: "DEFAULT_LESSON", balance: "50" }])).toBe(50);
+    expect(parseStudentLessonCredits([{ lesson_type: "DEFAULT_LESSON", balance: 0 }])).toBe(0);
+    expect(parseStudentLessonCredits([{ lesson_type: "DEFAULT_LESSON", balance: -2 }])).toBe(-2);
+  });
+  it("does not infer lesson credits from money, absent data or invalid values", () => {
+    for (const payload of [null, {}, [], [{ lesson_type: "MONEY", balance: 50 }], [{ lesson_type: "DEFAULT_LESSON", balance: "" }], [{ lesson_type: "DEFAULT_LESSON", balance: false }], [{ lesson_type: "DEFAULT_LESSON", balance: Infinity }]]) expect(parseStudentLessonCredits(payload)).toBeNull();
+  });
+  it("keeps prior credits when sync omits them and accepts a newly confirmed zero", () => {
+    const previous = { lesson_credits_remaining: 5, lesson_credits_updated_at: "old" };
+    expect(studentLessonCreditsPatch({}, previous)).toEqual(previous);
+    expect(studentLessonCreditsPatch({ lesson_credits_remaining: null }, previous)).toEqual(previous);
+    expect(studentLessonCreditsPatch({ lesson_credits_remaining: 0, lesson_credits_updated_at: "new" }, previous)).toEqual({ lesson_credits_remaining: 0, lesson_credits_updated_at: "new" });
+    expect(studentLessonCreditsPatch({})).toEqual({});
   });
 });

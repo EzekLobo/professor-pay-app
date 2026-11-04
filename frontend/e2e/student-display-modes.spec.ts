@@ -17,6 +17,12 @@ for (const width of [320, 390, 1440]) {
     await expect(classActions).toBeVisible();
     await expect(classActions.getByRole("menuitem", { name: "Renomear turma" })).toBeVisible();
     await expect(classActions.getByRole("menuitem", { name: "Ocultar turma" })).toBeVisible();
+    await classActions.getByRole("menuitem", { name: "Renomear turma" }).click();
+    const renameInput = page.getByRole("textbox", { name: "Novo nome da turma" });
+    await expect(renameInput).toBeVisible();
+    await renameInput.fill("Turma renomeada");
+    await classActions.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(firstClass.getByRole("heading", { name: "Turma renomeada" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(classActions).toBeHidden();
     await firstClass.locator("summary").click();

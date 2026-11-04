@@ -1,5 +1,10 @@
 # Estado atual
 
+## Diagnóstico Vercel — 03/11/2026
+
+- Deploy de 5fc3646 falhou com TS7006 em shell.tsx: callback do link Configurações sem tipo de evento. Produção ainda estava em 163a902, portanto não continha a correção de atualização de turmas. Callback agora tipado MouseEvent<HTMLAnchorElement>.
+- Build local e 417 testes passaram. Sem erros/logs de sync na janela recente consultada (20min); ausência de logs não comprova sincronização. Host de acesso ao navegador indisponível nesta sessão, impedindo teste autenticado com Kodland real.
+
 ## Atualização da lista de turmas — 03/11/2026
 
 - ClassesContent escuta conclusão de sync essential/schedule e recarrega; atualização manual não depende mais de segunda consulta de perfis, exibindo turmas após essential. Modo Firebase também emite evento após gravação confirmada. A API rejeita resposta Kodland sem results em vez de interpretá-la como lista vazia. Não houve consulta à conta real, logo outras causas dependem da resposta observada em produção.

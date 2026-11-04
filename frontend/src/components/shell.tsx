@@ -77,7 +77,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
           <h1 className="shell-title">{pageTitle(pathname)}</h1>
           <div className="header-actions">
             <StudentNotificationBell />
-            <Link className="button button-ghost header-settings-button" aria-label="Configurações" title="Configurações" aria-current={pathname === "/settings" ? "page" : undefined} href={routeHref("/settings")} onClick={onNavigate ? event => { event.preventDefault(); onNavigate("/settings"); } : undefined}><Settings size={20} aria-hidden="true" /></Link>
+            <Link className="button button-ghost header-settings-button" aria-label="Configurações" title="Configurações" aria-current={pathname === "/settings" ? "page" : undefined} href={routeHref("/settings")} onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate("/settings"); } : undefined}><Settings size={20} aria-hidden="true" /></Link>
             {headerActions}
             <div className="profile-chip" aria-label={`Perfil de ${user.name}`}>
               <span>{user.name.slice(0, 1).toUpperCase()}</span>

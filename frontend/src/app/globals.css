@@ -2836,21 +2836,22 @@ summary:focus-visible {
 .attendance-absence-action:disabled { cursor: not-allowed; filter: saturate(.65); opacity: .72; transform: none; }
 .compact-activities-list { margin-top: 0; }
 .compact-activities-class .attendance-class-body { padding: 0; }
-.compact-activity-column-heading { min-height: 52px; }
-.compact-activity-column-heading small { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+.compact-activities-grid-scroll .attendance-grid-header, .compact-activities-grid-scroll .attendance-grid-row { grid-template-columns: 180px repeat(var(--attendance-columns), 146px); }
+.compact-activities-grid-header { min-height: 32px; }
+.compact-activity-column-heading { min-height: 0; padding: 0; }
 .compact-activity-cell { display: grid; align-self: center; min-width: 0; min-height: 28px; padding: 0; }
 .compact-pending-row { display: flex; align-items: stretch; gap: 10px; width: max-content; min-width: 100%; padding: 8px 10px 8px 0; border-bottom: 1px solid rgba(65, 91, 128, .48); }
 .compact-pending-row:last-child { border-bottom: 0; }
 .compact-pending-row > .attendance-student-summary { flex: 0 0 180px; width: 180px; }
 .compact-pending-row > .compact-activity-cell { flex: 0 0 146px; width: 146px; gap: 5px; }
-.compact-pending-lesson { font-size: .72rem; color: #edf6ff; }
-.compact-pending-task { overflow: hidden; color: var(--muted); font-size: .66rem; white-space: nowrap; text-overflow: ellipsis; }
 @media (max-width: 760px) { .compact-pending-row > .attendance-student-summary { flex-basis: 150px; width: 150px; } }
-.compact-activity-action { position: relative; display: grid; min-height: 28px; border: 1px solid rgba(255, 190, 62, .7); border-radius: 8px; padding: 3px 5px; place-items: center; color: #fff3cb; background: rgba(194, 118, 12, .35); font: inherit; font-size: .66rem; font-weight: 850; line-height: 1; text-decoration: none; cursor: pointer; transition: filter .15s ease, transform .15s ease; }
+.compact-activity-action { display: grid; min-height: 44px; align-content: center; justify-items: stretch; gap: 3px; border: 1px solid rgba(255, 190, 62, .7); border-radius: 8px; padding: 5px 8px; color: #fff3cb; background: rgba(194, 118, 12, .35); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: filter .15s ease, transform .15s ease; }
+.compact-activity-lesson { overflow: hidden; color: #fff5d6; font-size: .68rem; font-weight: 900; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.compact-activity-task { display: -webkit-box; overflow: hidden; color: #f2d8a2; font-size: .64rem; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .compact-activity-manual { border-color: rgba(86, 195, 255, .68); background: rgba(37, 119, 182, .35); color: #d8f4ff; }
+.compact-activity-manual .compact-activity-lesson { color: #e7f8ff; }
+.compact-activity-manual .compact-activity-task { color: #c6eaff; }
 .compact-activity-action:hover, .compact-activity-action:focus-visible { filter: brightness(1.18); outline: 2px solid rgba(255, 224, 147, .9); outline-offset: 1px; transform: translateY(-1px); }
-.compact-activity-action::after { position: absolute; z-index: 20; top: calc(100% + 6px); left: 50%; width: max-content; max-width: 220px; border: 1px solid rgba(112, 190, 255, .42); border-radius: 7px; padding: 6px 8px; color: #f5f9ff; background: #071528; box-shadow: 0 8px 24px rgba(0, 0, 0, .38); content: attr(data-tooltip); font-size: .72rem; font-weight: 700; line-height: 1.25; opacity: 0; pointer-events: none; text-align: left; transform: translate(-50%, -3px); transition: opacity .08s ease, transform .08s ease; white-space: normal; }
-.compact-activity-action:hover::after, .compact-activity-action:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
 .compact-activity-empty { cursor: default; }
 .correction-legend-modal { width: min(420px, calc(100vw - 24px)); }
 .correction-legend-list { display: grid; gap: 12px; color: var(--muted, #9db4d5); font-size: .82rem; font-weight: 700; }
@@ -2868,6 +2869,7 @@ summary:focus-visible {
 .attendance-whatsapp-form .form-actions { justify-content: flex-end; }
 @media (max-width: 760px) {
   .attendance-grid-header, .attendance-grid-row { grid-template-columns: 150px repeat(var(--attendance-columns), 90px); }
+  .compact-activities-grid-scroll .attendance-grid-header, .compact-activities-grid-scroll .attendance-grid-row { grid-template-columns: 124px repeat(var(--attendance-columns), 146px); }
   .attendance-student-summary { padding-left: 9px; }
 }
 @keyframes spin-icon { to { transform: rotate(360deg); } }
@@ -3603,8 +3605,6 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .compact-pending-row .activity-student-heading { justify-content: space-between; }
   .compact-pending-row .attendance-student-copy h4 { white-space: normal; }
   .compact-pending-row > .compact-activity-cell { width: auto; gap: 4px; align-self: stretch; align-content: start; }
-  .compact-pending-task { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
-  .compact-pending-lesson { font-size: .7rem; }
   .group-has-actions .group-accordion-summary {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 44px;
@@ -3680,7 +3680,6 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 }
 
 /* Keep adjacent activity actions level even when their titles are long. */
-.compact-pending-task, .compact-pending-lesson,
 .correction-card-lesson, .correction-card-task {
   min-width: 0;
   max-width: 100%;
@@ -3688,7 +3687,6 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.compact-pending-task { line-height: 1.35; }
 .schedule-info-modal { width: min(440px, calc(100vw - 24px)); }
 .week-actions .symbol-action { width: 44px; min-width: 44px; height: 44px; padding: 8px; }
 @media (max-width: 760px) {

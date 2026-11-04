@@ -468,10 +468,10 @@ export function CompactActivitiesGrid({
         </summary>
         <div className="correction-class-body attendance-class-body">
           <div className={`attendance-grid-scroll compact-activities-grid-scroll${pendingOnly ? " compact-pending-list" : ""}`} tabIndex={0} role={pendingOnly ? "list" : "grid"} aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={pendingOnly ? undefined : classModel.rows.length + 1} aria-colcount={pendingOnly ? undefined : classModel.columns.length + 1}>
-            {!pendingOnly && <div className="attendance-grid-header" style={gridStyle} role="row">
+            {!pendingOnly && <div className="attendance-grid-header compact-activities-grid-header" style={gridStyle} role="row">
               <div className="attendance-grid-corner" role="columnheader">Aluno</div>
               {classModel.columns.map((column) => <div className="attendance-column-heading compact-activity-column-heading" role="columnheader" key={column.key} title={`${column.lessonLabel} · ${column.taskLabel}`}>
-                <strong>{column.lessonLabel}</strong><small>{column.taskLabel}</small>
+                <span className="sr-only">{column.lessonLabel}: {column.taskLabel}</span>
               </div>)}
             </div>}
             {classModel.rows.map((row) => <div className={pendingOnly ? "compact-pending-row" : "attendance-grid-row"} style={pendingOnly ? undefined : gridStyle} role={pendingOnly ? "listitem" : "row"} key={row.key}>
@@ -482,11 +482,11 @@ export function CompactActivitiesGrid({
                 const cell = row.cells[column.key];
                 if (!cell) return pendingOnly ? null : <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
+                const actionContent = <><span className="compact-activity-lesson" title={column.lessonLabel}>{column.lessonLabel}</span><span className="compact-activity-task" title={column.taskLabel}>{column.taskLabel}</span></>;
                 return <div className="compact-activity-cell" role={pendingOnly ? "group" : "gridcell"} key={column.key}>
-                  {pendingOnly && <><strong className="compact-pending-lesson" title={column.lessonLabel}>{column.lessonLabel}</strong><small className="compact-pending-task" title={column.taskLabel}>{column.taskLabel}</small></>}
-                  {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} data-tooltip={column.taskLabel} onClick={() => onCorrectManual(cell.activity)}><ClipboardCheck size={18} aria-hidden="true" /></button>
-                    : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} data-tooltip={column.taskLabel} onClick={() => demo.onCorrect(cell.review)}><ClipboardCheck size={18} aria-hidden="true" /></button>
-                      : <a className="compact-activity-action" aria-label={label} title={label} data-tooltip={column.taskLabel} href={cell.review.correction_url} target="_blank" rel="noreferrer"><ClipboardCheck size={18} aria-hidden="true" /></a>}
+                  {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
+                    : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>{actionContent}</button>
+                      : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} target="_blank" rel="noreferrer">{actionContent}</a>}
                 </div>;
               })}
             </div>)}

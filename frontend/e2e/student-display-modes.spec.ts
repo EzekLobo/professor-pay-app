@@ -1,0 +1,43 @@
+import { expect, test } from "@playwright/test";
+for (const width of [320, 390, 1440]) {
+  test(`três modos de alunos e filtros favoritos (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/demo#classes");
+    await expect(page.getByRole("tab", { name: "Alunos", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Abrir filtros", exact: true }).click();
+    const filters = page.getByRole("region", { name: "Filtros do acompanhamento" });
+    await expect(filters.getByRole("button", { name: "Completo", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await filters.getByRole("button", { name: "Favoritar Alunos", exact: true }).click();
+    await expect(filters.locator(".favorite-filter-choice").first()).toHaveText("Alunos");
+    await filters.getByRole("button", { name: "Alunos", exact: true }).click();
+    await page.keyboard.press("Escape");
+    const firstClass = page.locator(".compact-activities-class").first();
+    await firstClass.locator("summary").click();
+    await expect(firstClass.getByRole("table")).toBeVisible();
+    await expect(firstClass.getByRole("columnheader", { name: "Saldo de aulas" })).toBeVisible();
+    await expect(firstClass.locator(".is-full-name").first()).toBeVisible();
+    await page.screenshot({ path: `test-results/student-roster-${width}.png`, fullPage: true });
+    await expect(page.getByRole("button", { name: /campos vazios/ })).toHaveCount(0);
+    await expect(firstClass.locator(".class-completion-badge")).toBeVisible();
+    await firstClass.locator(".is-full-name").first().click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Abrir filtros", exact: true }).click();
+    await filters.getByRole("button", { name: "Correções pendentes", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".compact-activity-empty")).toHaveCount(0);
+    await expect(page.locator(".compact-activity-progress")).toHaveCount(0);
+    await page.getByRole("button", { name: "Abrir filtros", exact: true }).click();
+    await filters.getByRole("button", { name: "Completo", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".compact-activity-progress").first()).toBeAttached();
+    const progressClass = page.locator(".compact-activities-class").filter({ has: page.locator(".compact-activity-progress") }).first();
+    if (!(await progressClass.getAttribute("open"))) await progressClass.locator("summary").click();
+    await expect(progressClass.locator(".compact-activity-progress").first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await page.screenshot({ path: `test-results/student-modes-${width}.png`, fullPage: true });
+    await page.reload();
+    await page.getByRole("button", { name: "Abrir filtros", exact: true }).click();
+    await expect(filters.locator(".favorite-filter-choice").first()).toHaveText("Alunos");
+  });
+}

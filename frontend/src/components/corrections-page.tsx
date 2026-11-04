@@ -8,7 +8,7 @@ import { subscribeStudentNotifications } from "@/lib/student-notification-store"
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical, ChevronDown, Eye, EyeOff } from "lucide-react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical, ChevronDown, Percent } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -276,6 +276,34 @@ export function compactActivitiesModel({
   })).filter(item => !pendingOnly || item.rows.length > 0).sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
 }
 
+/** Filters the finished class model so every source follows the same search rules. */
+export function filterCompactActivitiesModel(model: CompactActivitiesModel, query: string): CompactActivitiesModel {
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  const normalized = normalize(query.trim());
+  if (!normalized) return model;
+  const matches = (value: string) => normalize(value).includes(normalized);
+  return model.flatMap(item => {
+    if (matches(`${item.name} ${item.courseName ?? ""}`)) return [item];
+    const columnsByKey = new Map(item.columns.map(column => [column.key, column]));
+    let studentMatched = false;
+    const rows = item.rows.flatMap(row => {
+      if (matches(`${row.name} ${row.email}`)) { studentMatched = true; return [row]; }
+      const cells = Object.fromEntries(Object.entries(row.cells).filter(([key, cell]) => {
+        const column = columnsByKey.get(key);
+        const detail = cell.source === "kodland" ? `${cell.review.lesson_title} ${cell.review.task_title}`
+          : cell.source === "manual" ? `${cell.activity.title} ${cell.activity.description} ${cell.activity.occurrence_id}`
+            : cell.progress.task_title;
+        return matches(`${column?.moduleLabel ?? ""} ${column?.lessonLabel ?? ""} ${column?.taskLabel ?? ""} ${detail}`);
+      }));
+      return Object.keys(cells).length ? [{ ...row, cells }] : [];
+    });
+    if (!rows.length) return [];
+    const retainedKeys = new Set(rows.flatMap(row => Object.keys(row.cells)));
+    return [{ ...item, rows, columns: studentMatched ? item.columns : item.columns.filter(column => retainedKeys.has(column.key)),
+      pendingCount: rows.reduce((count, row) => count + Object.values(row.cells).filter(cell => cell.source === "kodland" || cell.source === "manual" && pendingManualActivities([cell.activity]).length > 0).length, 0) }];
+  });
+}
+
 export interface CorrectionsDemoAdapter {
   reviews: KodlandReview[];
   lessons: KodlandLesson[];
@@ -515,6 +543,7 @@ export function CompactActivitiesGrid({
   demo,
   onCorrectManual,
   pendingOnly = false,
+  displayMode,
   contactButton,
 }: {
   contactButton?: (classKey: string, studentKey: string, name: string) => ReactNode;
@@ -522,11 +551,9 @@ export function CompactActivitiesGrid({
   demo?: CorrectionsDemoAdapter;
   onCorrectManual: (activity: ManualActivity) => void;
   pendingOnly?: boolean;
+  displayMode?: StudentDisplayMode;
 }) {
-  const [emptyFields, setEmptyFields] = useState<Record<string, boolean>>(() => {
-    try { const value = JSON.parse(localStorage.getItem("nexusclass.class-empty-fields") ?? "{}"); return value && typeof value === "object" && !Array.isArray(value) ? value : {}; } catch { return {}; }
-  });
-  useEffect(() => { try { localStorage.setItem("nexusclass.class-empty-fields", JSON.stringify(emptyFields)); } catch { /* Keep this preference in memory when storage is unavailable. */ } }, [emptyFields]);
+  const mode = displayMode ?? (pendingOnly ? "pending" : "complete");
   const activitiesRoot = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const root = activitiesRoot.current;
@@ -548,42 +575,49 @@ export function CompactActivitiesGrid({
   const [hidden, setHidden] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("nexusclass.integrated-hidden-classes") ?? "[]"); } catch { return []; } });
   useEffect(() => { localStorage.setItem("nexusclass.integrated-class-names", JSON.stringify(names)); }, [names]);
   useEffect(() => { localStorage.setItem("nexusclass.integrated-hidden-classes", JSON.stringify(hidden)); }, [hidden]);
-  const [selected, setSelected] = useState<KodlandStudent | null>(null);
-  return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", selected.status], ["Pontuação", `${kodlandStudentPoints(selected.progress_summary)} pts`], ["Progresso", selected.progress_summary], ["E-mail", selected.email], ["Telefone", selected.phone], ["Responsável", selected.guardian_name], ["Telefone do responsável", selected.guardian_phone], ["E-mail do responsável", selected.guardian_email]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{selected.profile_url && <a className="button button-ghost" href={absoluteUrl(selected.profile_url)} target="_blank" rel="noreferrer">Perfil na Kodland</a>}</div>}</Modal><div ref={activitiesRoot} className="correction-class-list compact-activities-list" aria-label="Atividades pendentes em formato compacto">
+  const [selected, setSelected] = useState<KodlandStudent | ManualStudent | null>(null);
+  const pointsFor = (row: CompactActivityRow) => row.points ?? (row.student ? kodlandStudentPoints(row.student.progress_summary) : null);
+  const creditFor = (student?: KodlandStudent) => student && typeof student.lesson_credits_remaining === "number" ? `${new Intl.NumberFormat("pt-BR").format(student.lesson_credits_remaining)} aulas` : "Não informado";
+  const openStudent = (row: CompactActivityRow) => setSelected(row.student ?? row.manualStudent ?? null);
+  const studentSummary = (row: CompactActivityRow, classKey: string, fullName = false) => <div className="activity-student-heading"><div className="compact-student-profile"><button type="button" className={`compact-student-name${fullName ? " is-full-name" : ""}`} onClick={() => openStudent(row)} disabled={!row.student && !row.manualStudent} aria-label={`Informações de ${row.name}`} title={row.name}>{row.rank ? `${row.rank}º · ` : ""}{fullName ? row.name : row.name.trim().split(/\s+/).filter((_, index, parts) => index === 0 || index === parts.length - 1).join(" ")}</button>{!fullName && pointsFor(row) !== null && <small>{new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts</small>}</div>{contactButton?.(classKey, row.key, row.name)}</div>;
+  return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", "status" in selected ? selected.status : selected.active ? "Ativo" : "Inativo"], ["Pontuação", "progress_summary" in selected ? `${kodlandStudentPoints(selected.progress_summary)} pts` : "Não informado"], ["Saldo de aulas", "progress_summary" in selected ? creditFor(selected) : "Não informado"], ["Progresso", "progress_summary" in selected ? selected.progress_summary : ""], ["E-mail", selected.email], ["Telefone", selected.phone], ["Responsável", `${selected.guardian_name ?? ""}${"guardian_relationship" in selected && selected.guardian_relationship ? ` (${selected.guardian_relationship})` : ""}`], ["Telefone do responsável", selected.guardian_phone], ["E-mail do responsável", "guardian_email" in selected ? selected.guardian_email : ""], ["Observações", "notes" in selected ? selected.notes : ""]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{"profile_url" in selected && selected.profile_url && <a className="button button-ghost" href={absoluteUrl(selected.profile_url)} target="_blank" rel="noreferrer">Perfil na Kodland</a>}</div>}</Modal><div ref={activitiesRoot} className="correction-class-list compact-activities-list" aria-label="Alunos e atividades por turma">
     {model.filter(item => !hidden.includes(item.key)).map((original) => {
       const classModel = { ...original, name: names[original.key] || original.name };
-      const hideEmpty = !(emptyFields[classModel.key] ?? !pendingOnly);
+      const isPending = mode === "pending";
+      const studentsOnly = mode === "students";
       const gridStyle = { "--attendance-columns": Math.max(1, classModel.columns.length) } as CSSProperties;
       return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
         <summary className="correction-class-heading">
           <div className="compact-class-copy"><h3>{classModel.name}</h3><small className="compact-class-course" title={classModel.courseName || "Curso não informado"}>{classModel.courseName || "Curso não informado"}</small></div>
-          <span className="compact-class-actions"><span className="class-count-badge" aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={14} aria-hidden="true" />{classModel.rows.length}</span><span className="class-count-badge class-pending-badge" aria-label={`${classModel.rows.reduce((total, row) => total + Object.keys(row.cells).length, 0)} atividades sem corrigir`} title="Atividades sem corrigir"><ClipboardCheck size={14} aria-hidden="true" />{classModel.rows.reduce((total, row) => total + Object.keys(row.cells).length, 0)}</span><button type="button" className="group-menu-button" aria-label={`${hideEmpty ? "Mostrar" : "Ocultar"} campos vazios de ${classModel.name}`} title={hideEmpty ? "Mostrar campos vazios" : "Ocultar campos vazios"} aria-pressed={!hideEmpty} onClick={event => { event.preventDefault(); event.stopPropagation(); setEmptyFields(current => ({ ...current, [classModel.key]: hideEmpty })); }}>{hideEmpty ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}</button><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" onClick={event => { event.preventDefault(); setClassAction(classModel); }}><MoreVertical size={18} aria-hidden="true" /></button><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
+          <span className="compact-class-actions"><span className="class-count-badge" aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={14} aria-hidden="true" />{classModel.rows.length}</span><span className="class-count-badge class-pending-badge" aria-label={`${classModel.pendingCount ?? 0} atividades sem corrigir`} title="Atividades sem corrigir"><ClipboardCheck size={14} aria-hidden="true" />{classModel.pendingCount ?? 0}</span><span className="class-count-badge class-completion-badge" aria-label={classModel.completionPercent == null ? "Percentual de aulas não informado" : `${classModel.completionPercent}% das aulas sincronizadas concluídas`} title={`${classModel.completedLessons ?? 0} de ${classModel.totalLessons ?? 0} aulas sincronizadas concluídas`}><Percent size={14} aria-hidden="true" />{classModel.completionPercent == null ? "—" : `${classModel.completionPercent}%`}</span><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" onClick={event => { event.preventDefault(); setClassAction(classModel); }}><MoreVertical size={18} aria-hidden="true" /></button><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
         </summary>
         <div className="correction-class-body attendance-class-body">
-          <div className="attendance-grid-scroll compact-activities-grid-scroll" tabIndex={0} role="grid" aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={classModel.rows.length + 1} aria-colcount={classModel.columns.length + 1}>
-            {<div className="attendance-grid-header compact-activities-grid-header" style={gridStyle} role="row">
+          {studentsOnly ? <div className="class-students-view" role="table" aria-label={`Alunos da turma ${classModel.name}`}><div className="class-students-header" role="row"><span role="columnheader">Aluno</span><span role="columnheader">Pontuação</span><span role="columnheader" title="Saldo global de créditos de aulas no perfil da Kodland">Saldo de aulas</span></div>{classModel.rows.map(row => <div className="class-students-row" role="row" key={row.key}><div role="cell">{studentSummary(row, classModel.key, true)}</div><span role="cell">{pointsFor(row) == null ? "Não informado" : `${new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts`}</span><span role="cell" title={row.student?.lesson_credits_updated_at ? `Saldo atualizado em ${new Date(row.student.lesson_credits_updated_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : "Saldo global de aulas. Para carregar, use Atualizar perfis e saldos no modo Alunos."}>{creditFor(row.student)}</span></div>)}</div> : <>
+          {!isPending && <p className="complete-activities-note">{classModel.columns.length ? "Atividades por módulo: entregue, não entregue ou sem informação. Entregue não significa corrigida." : "Nenhuma informação de atividades sincronizada para esta turma."}</p>}
+          <div className={`attendance-grid-scroll compact-activities-grid-scroll${isPending ? " compact-pending-list" : ""}`} tabIndex={0} role="grid" aria-label={`Atividades da turma ${classModel.name}`} aria-rowcount={classModel.rows.length + 1} aria-colcount={classModel.columns.length + 1}>
+            {!isPending && <div className="attendance-grid-header compact-activities-grid-header" style={gridStyle} role="row">
               <div className="attendance-grid-corner" role="columnheader">Aluno</div>
               {classModel.columns.map((column) => <div className="attendance-column-heading compact-activity-column-heading" role="columnheader" key={column.key} title={`${column.lessonLabel} · ${column.taskLabel}`}>
-                <span className="sr-only">{column.lessonLabel}: {column.taskLabel}</span>
+                <span>{column.moduleLabel || column.lessonLabel}</span>
               </div>)}
             </div>}
-            {classModel.rows.map((row) => <div className="attendance-grid-row" style={gridStyle} role="row" key={row.key}>
+            {classModel.rows.map((row) => <div className={isPending ? "compact-pending-row" : "attendance-grid-row"} style={isPending ? undefined : gridStyle} role="row" key={row.key}>
               <div className="attendance-student-summary" role="rowheader">
-                <div className="attendance-student-copy"><div className="activity-student-heading"><div className="compact-student-profile">{row.student ? <button type="button" className="compact-student-name" onClick={() => setSelected(row.student!)} aria-label={`Informações de ${row.name}`} title={row.name}>{row.rank}º · {row.name.trim().split(/\s+/).filter((_, index, parts) => index === 0 || index === parts.length - 1).join(" ")}</button> : <h4>{row.name}</h4>}{row.student && <small>{new Intl.NumberFormat("pt-BR").format(kodlandStudentPoints(row.student.progress_summary))} pts</small>}</div>{contactButton?.(classModel.key, row.key, row.name)}</div></div>
+                <div className="attendance-student-copy">{studentSummary(row, classModel.key)}</div>
               </div>
               {classModel.columns.map((column) => {
                 const cell = row.cells[column.key];
-                if (!cell) return hideEmpty ? <div className="compact-activity-placeholder" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key} /> : <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
+                if (!cell) return isPending ? null : <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
                 const actionContent = <><span className="compact-activity-lesson" title={column.lessonLabel}>{column.lessonLabel}</span><span className="compact-activity-task" title={column.taskLabel}>{column.taskLabel}</span></>;
                 return <div className="compact-activity-cell" role="gridcell" key={column.key}>
-                  {cell.source === "progress" ? <div className={`compact-activity-action compact-activity-progress compact-activity-${cell.progress.state}`} aria-label={`${row.name}: ${column.taskLabel}, ${cell.progress.state === "delivered" ? "Entregue" : cell.progress.state === "missing" ? "Não entregue" : "Sem informação"}`}>{actionContent}<span className="compact-activity-state">{cell.progress.state === "delivered" ? "Entregue" : cell.progress.state === "missing" ? "Não entregue" : "Sem informação"}</span></div> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
+                  {cell.source === "progress" ? <div className={`compact-activity-action compact-activity-progress compact-activity-${cell.progress.state}`} aria-label={`${row.name}: ${column.taskLabel}, ${cell.progress.state === "delivered" ? "Entregue" : cell.progress.state === "missing" ? "Não entregue" : "Sem informação"}`}>{actionContent}<span className="compact-activity-state">{cell.progress.state === "delivered" ? "Entregue" : cell.progress.state === "missing" ? "Não entregue" : "Sem informação"}</span></div> : cell.source === "manual" && !pendingManualActivities([cell.activity]).length ? <div className={`compact-activity-action compact-activity-manual compact-activity-${cell.activity.status === "corrected" ? "delivered" : "missing"}`}>{actionContent}<span className="compact-activity-state">{cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}</span></div> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
                     : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>{actionContent}</button>
                       : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} target="_blank" rel="noreferrer">{actionContent}</a>}
                 </div>;
               })}
             </div>)}
-          </div>
+          </div></>}
         </div>
       </details>;
     })}
@@ -633,7 +667,10 @@ function ReviewCard({
   );
 }
 
+type StudentDisplayMode = "complete" | "pending" | "students";
+
 type CorrectionsViewPreferences = {
+  studentDisplayMode?: StudentDisplayMode;
   viewMode: "attendance" | "activities";
   activitiesView: "list" | "compact";
   pendingOnly: boolean;
@@ -683,8 +720,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   }, [filtersOpen]);
   const [legendOpen, setLegendOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [withoutPending, setWithoutPending] = useState(false);
-  const [pendingOnly, setPendingOnly] = useState(true);
+  const [studentDisplayMode, setStudentDisplayMode] = useState<StudentDisplayMode>("complete");
+  const pendingOnly = studentDisplayMode === "pending";
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
   const [openAttendanceClasses, setOpenAttendanceClasses] = useState<Set<string>>(() => new Set());
   const [whatsAppDraft, setWhatsAppDraft] = useState<WhatsAppDraft | null>(null);
@@ -721,7 +758,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       if (!active) return;
       if (stored?.viewMode === "attendance" || stored?.viewMode === "activities") setViewMode(stored.viewMode);
       if (stored?.activitiesView === "list" || stored?.activitiesView === "compact") setActivitiesView(stored.activitiesView);
-      setPendingOnly(typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : !unified);
+      setStudentDisplayMode(stored?.studentDisplayMode === "complete" || stored?.studentDisplayMode === "pending" || stored?.studentDisplayMode === "students" ? stored.studentDisplayMode : stored?.pendingOnly ? "pending" : "complete");
       if (unified) setActivitiesView("compact");
       if (stored?.grouping === "class" || stored?.grouping === "student" || stored?.grouping === "lesson") setGrouping(stored.grouping);
       if (stored?.attendanceFilter === "ABSENT" || stored?.attendanceFilter === "ALL" || stored?.attendanceFilter === "PRESENT") setAttendanceFilter(stored.attendanceFilter);
@@ -741,9 +778,9 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   useEffect(() => {
     if (!viewPreferencesLoaded || new URLSearchParams(window.location.search).has("notification")) return;
     try {
-      localStorage.setItem(`nexusclass.corrections.view.${preferenceKey}`, JSON.stringify({ viewMode, activitiesView, grouping, attendanceFilter, pendingOnly } satisfies CorrectionsViewPreferences));
+      localStorage.setItem(`nexusclass.corrections.view.${preferenceKey}`, JSON.stringify({ viewMode, activitiesView, grouping, attendanceFilter, pendingOnly, studentDisplayMode } satisfies CorrectionsViewPreferences));
     } catch { /* The screen remains usable when storage is blocked. */ }
-  }, [activitiesView, attendanceFilter, grouping, pendingOnly, preferenceKey, viewMode, viewPreferencesLoaded]);
+  }, [activitiesView, attendanceFilter, grouping, pendingOnly, studentDisplayMode, preferenceKey, viewMode, viewPreferencesLoaded]);
 
   useEffect(() => {
     if (!notice) return;
@@ -805,7 +842,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     }
     const credentials = await restoreKodlandCredentials();
     if (!credentials) {
-      setError("Salve as credenciais em Dados e backup antes de atualizar as correções.");
+      setError("Salve as credenciais em Configurações > Dados e backup antes de atualizar.");
       return;
     }
     setSyncing(true);
@@ -815,11 +852,11 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       const result = await kodlandApi.sync(
         credentials.username.trim(),
         credentials.password,
-        "corrections",
+        studentDisplayMode === "students" ? "profiles" : "corrections",
       );
       await load();
       setNotice(
-        `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
+        studentDisplayMode === "students" ? "Perfis e saldos de aulas atualizados." : `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
       );
     } catch (reason) {
       setError(
@@ -861,10 +898,10 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     () => groupBy(visibleReviews, (review) => review.external_class_name || "Turma não informada"),
     [visibleReviews],
   );
-  const compactActivities = useMemo(() => compactActivitiesModel({
-    reviews: visibleReviews,
+  const compactActivities = useMemo(() => filterCompactActivitiesModel(compactActivitiesModel({
+    reviews: kodlandEnabled ? reviews : [],
     lessons,
-    manualActivities: visibleOwn,
+    manualActivities,
     groups,
     students: attendanceStudents,
     manualClasses,
@@ -874,11 +911,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     attendance,
     manualOccurrences,
     pendingOnly,
-  }).map(item => withoutPending ? { ...item, rows: item.rows.filter(row => Object.keys(row.cells).length === 0), columns: [] } : item).filter(item => !withoutPending || item.rows.length > 0).map((item) => {
-    const normalized = query.trim().toLocaleLowerCase("pt-BR");
-    if (!normalized || item.name.toLocaleLowerCase("pt-BR").includes(normalized)) return item;
-    return { ...item, rows: item.rows.filter(row => `${row.name} ${row.email}`.toLocaleLowerCase("pt-BR").includes(normalized) || Object.keys(row.cells).length > 0) };
-  }).filter(item => !query.trim() || item.rows.length > 0 || item.name.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))), [attendanceStudents, groups, lessons, manualClasses, manualStudents, manualCourseNames, taskProgress, attendance, manualOccurrences, pendingOnly, withoutPending, query, visibleOwn, visibleReviews]);
+    complete: studentDisplayMode === "complete",
+  }), query), [attendanceStudents, groups, lessons, manualClasses, manualStudents, manualCourseNames, taskProgress, attendance, manualOccurrences, pendingOnly, studentDisplayMode, query, manualActivities, reviews, kodlandEnabled]);
   const attendanceHistories = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const studentsByExternalId = new Map(attendanceStudents.map((student) => [student.external_id, student]));
@@ -983,13 +1017,13 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
             {filtersOpen && <div id="correction-filter-dropdown" className="correction-filter-dropdown" role="region" aria-label="Filtros do acompanhamento">
         <div className="form">
           {viewMode === "attendance" ? <FavoriteFilterOptions key="attendance" scope={`attendance.${preferenceKey}`} value={attendanceFilter} options={[{ value: "ALL", label: "Todos" }, { value: "ABSENT", label: "Com faltas" }, { value: "PRESENT", label: "Com presença" }]} onChange={value => setAttendanceFilter(value as AttendanceFilter)} />
-            : activitiesView === "compact" ? <FavoriteFilterOptions key="activities" scope={`activities.${preferenceKey}`} value={withoutPending ? "clear" : pendingOnly ? "pending" : "all"} options={[{ value: "all", label: "Todos os alunos" }, { value: "pending", label: "Com correções pendentes" }, { value: "clear", label: "Sem correções pendentes" }]} onChange={value => { setPendingOnly(value === "pending"); setWithoutPending(value === "clear"); }} />
+            : activitiesView === "compact" ? <FavoriteFilterOptions key="activities" scope={`activities.${preferenceKey}`} value={studentDisplayMode} options={[{ value: "complete", label: "Completo" }, { value: "pending", label: "Correções pendentes" }, { value: "students", label: "Alunos" }]} onChange={value => setStudentDisplayMode(value as StudentDisplayMode)} />
               : <label className="field">Agrupar por<select className="input" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}><option value="class">Turma</option><option value="student">Aluno</option><option value="lesson">Aula</option></select></label>}
         </div>
             </div>}
           </div>
           <Button type="button" className="button-ghost symbol-action" aria-label={searchOpen ? "Fechar busca" : "Abrir busca"} title={searchOpen ? "Fechar e limpar busca" : "Buscar aluno, turma ou atividade"} aria-expanded={searchOpen} aria-controls="correction-search-field" onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
-          {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}
+          {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label={studentDisplayMode === "students" && viewMode === "activities" ? "Atualizar perfis e saldos" : "Atualizar correções"} title={syncing ? "Atualizando" : studentDisplayMode === "students" && viewMode === "activities" ? "Atualizar perfis e saldos" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}
           {viewMode === "attendance" && <Button type="button" className="button-ghost symbol-action" aria-label="Legenda de presença" title="Legenda de presença" aria-haspopup="dialog" aria-expanded={legendOpen} onClick={() => setLegendOpen(true)}><Info size={18} aria-hidden="true" /></Button>}
         </div>
       </div>
@@ -1027,10 +1061,11 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
         </div>}
         </> : <>
         {classesContent && <div className="classes-integrated-actions" data-tour="classes-management">{classesContent}</div>}
-        {loading ? <p className="muted">Carregando correções…</p> : (activitiesView === "compact" ? compactActivities.length === 0 : visibleReviews.length + visibleOwn.length === 0) ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
+        {loading ? <p className="muted">Carregando correções…</p> : (activitiesView === "compact" ? compactActivities.length === 0 : visibleReviews.length + visibleOwn.length === 0) ? <p className="muted correction-empty-state">Nenhum aluno ou atividade para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
           contactButton={contactButton}
           pendingOnly={pendingOnly}
+          displayMode={studentDisplayMode}
           demo={demo}
           onCorrectManual={(activity) => { setEditingManual(activity); setFeedback(activity.feedback); }}
         /> : <div className="correction-class-list" data-tour="corrections-cards">

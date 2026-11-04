@@ -4,7 +4,7 @@ import { Star } from "lucide-react";
 
 export function FavoriteFilterOptions({ scope, options, value, onChange }: { scope: string; options: { value: string; label: string }[]; value: string; onChange: (value: string) => void }) {
   const [favorites, setFavorites] = useState<string[]>(() => {
-    try { const data = JSON.parse(localStorage.getItem(`nexusclass.favorite-filters.${scope}`) ?? "[]"); return Array.isArray(data) ? data.filter(item => typeof item === "string") : []; } catch { return []; }
+    try { const data = JSON.parse(localStorage.getItem(`nexusclass.favorite-filters.${scope}`) ?? "[]"); return Array.isArray(data) ? [...new Set(data.filter(item => typeof item === "string").map(item => scope.startsWith("activities.") ? (({ all: "complete", clear: "students" } as Record<string, string>)[item] ?? item) : item))] : []; } catch { return []; }
   });
   useEffect(() => { try { localStorage.setItem(`nexusclass.favorite-filters.${scope}`, JSON.stringify(favorites)); } catch { /* Keep preferences in memory. */ } }, [favorites, scope]);
   return <div className="favorite-filter-options" role="group" aria-label="Mostrar">{[...options].sort((a, b) => Number(favorites.includes(b.value)) - Number(favorites.includes(a.value))).map(option => {

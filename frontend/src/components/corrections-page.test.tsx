@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { KodlandGroup, KodlandLesson, KodlandReview, KodlandStudent } from "@/lib/api";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
-import { compactActivitiesModel, CompactActivitiesGrid } from "./corrections-page";
+import { compactActivitiesModel, filterCompactActivitiesModel, CompactActivitiesGrid } from "./corrections-page";
 
 const timestamp = "2026-10-21T12:00:00.000Z";
 
@@ -46,6 +46,44 @@ const manualActivity = (overrides: Partial<ManualActivity> = {}): ManualActivity
 });
 
 describe("compactActivitiesModel", () => {
+  for (const mode of ["complete", "pending", "students"] as const) {
+    it(`busca no modo ${mode} restringe alunos e células sem preservar linhas não correspondentes`, () => {
+      const input = { groups: [group()], lessons: [lesson()], reviews: [review({ student_name: "Ana Maria" }), review({ id: "other-review", external_student_id: "other", student_name: "Bia Silva", task_id: "other-task", task_title: "Robô" })],
+        students: [student({ name: "Ana Maria" }), student({ id: "other", external_id: "other", name: "Bia Silva", email: "bia@example.test" })], manualActivities: [], manualClasses: [], manualStudents: [],
+        taskProgress: [{ id: "delivered", external_class_id: "kodland-1", external_student_id: "other", lesson_id: "lesson-1", task_id: "done", task_title: "Pintura", state: "delivered" as const }] };
+      const model = compactActivitiesModel({ ...input, complete: mode === "complete", pendingOnly: mode === "pending" });
+      const byName = filterCompactActivitiesModel(model, "Ana Maria");
+      expect(byName.flatMap(item => item.rows.map(row => row.name))).toEqual(["Ana Maria"]);
+      expect(byName[0].rows[0].cells).toEqual(model[0].rows[0].cells);
+      const byEmail = filterCompactActivitiesModel(model, "bia@example.test");
+      expect(byEmail.flatMap(item => item.rows.map(row => row.name))).toEqual(["Bia Silva"]);
+      const byActivity = filterCompactActivitiesModel(model, "robo");
+      expect(byActivity.flatMap(item => item.rows.map(row => row.name))).toEqual(["Bia Silva"]);
+      expect(Object.values(byActivity[0].rows[0].cells)).toHaveLength(1);
+      expect(byActivity[0].columns).toHaveLength(1);
+      expect(filterCompactActivitiesModel(model, "nada corresponde")).toEqual([]);
+      expect(filterCompactActivitiesModel(model, "Turma Kodland")).toEqual(model);
+    });
+  }
+  it("busca atividades completas em progresso e atividades manuais sem manter alunos estranhos", () => {
+    const model = compactActivitiesModel({ groups: [group()], students: [student(), student({ id: "other", external_id: "other", name: "Bia" })], reviews: [], lessons: [lesson()], complete: true,
+      taskProgress: [{ id: "done", external_class_id: "kodland-1", external_student_id: "other", lesson_id: "lesson-1", task_id: "done", task_title: "Aquarela", state: "delivered" }],
+      manualActivities: [manualActivity({ title: "Aquarela própria" }), manualActivity({ id: "second", title: "Outro exercício" })], manualClasses: [manualClass()], manualStudents: [manualStudent()] });
+    const result = filterCompactActivitiesModel(model, "aquarela");
+    expect(result.flatMap(item => item.rows.map(row => row.name))).toEqual(["Bia", "Carla"]);
+    expect(result.every(item => item.columns.length === 1 && Object.keys(item.rows[0].cells).length === 1)).toBe(true);
+  });
+
+  it("modo Alunos mantém nome completo e distingue saldo zero de saldo desconhecido", () => {
+    const model = compactActivitiesModel({ groups: [group()], lessons: [], reviews: [], manualActivities: [], manualClasses: [], manualStudents: [], students: [student({ name: "Ana Maria de Souza", lesson_credits_remaining: 0 }), student({ id: "other", external_id: "other", name: "Bia Silva" })] });
+    const markup = renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode="students" onCorrectManual={() => undefined} />);
+    expect(markup).toContain("Ana Maria de Souza");
+    expect(markup).toContain("0 aulas");
+    expect(markup).toContain("Não informado");
+    expect(markup).not.toContain("compact-activity-action");
+    expect(markup).not.toContain("campos vazios");
+  });
+
   it("mantém progresso explícito por módulo sem inferir entrega pela fila vazia", () => {
     const input = { groups: [group()], students: [student()], reviews: [], lessons: [lesson()], manualActivities: [], manualClasses: [], manualStudents: [],
       taskProgress: (["delivered", "missing", "unknown"] as const).map((state, index) => ({ id: `p${index}`, external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: `t${index}`, task_title: `Atividade ${index}`, state })) };
@@ -103,8 +141,8 @@ describe("compactActivitiesModel", () => {
     const markup = renderToStaticMarkup(<CompactActivitiesGrid model={model} pendingOnly onCorrectManual={() => undefined} />);
     expect(markup).not.toContain("compact-activity-empty");
     expect(markup).toContain('role="grid"');
-    expect(markup).toContain('role="columnheader">Aluno');
-    expect(markup).not.toContain("compact-pending-row");
+    expect(markup).not.toContain('role="columnheader">Aluno');
+    expect(markup).toContain("compact-pending-row");
     expect(markup).not.toContain("Sem pendência");
     expect(markup).toContain("Desafio");
     expect(compactActivitiesModel(inputs).flatMap(group => group.rows)).toHaveLength(4);

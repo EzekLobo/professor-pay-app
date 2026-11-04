@@ -1,5 +1,11 @@
 # Estado atual
 
+## Modos de acompanhamento — 04/11/2026
+
+- Alunos oferece Completo (progresso explícito entregue/não entregue/sem informação por módulo), Correções pendentes (turmas/alunos/células com correção) e Alunos (nome completo, pontos, saldo global de aulas). Favoritos migrados e olho removido. Percentual usa aulas sincronizadas não canceladas e flag/status ministrada; tooltip mostra numerador/denominador, sem supor total fixo do curso.
+- Créditos DEFAULT_LESSON vêm de GET balance/ no sync explícito profiles, com timestamp. Botão atualizar no modo Alunos busca perfis/saldos, demais modos atualizam correções. Sem novo polling. Ausência não vira zero; zero/negativos preservados; sync essencial mantém saldo anterior. Contrato verificado no perfil Kodland e assets públicos student-detail/wallet. Plano docs/plans/student-display-modes-2026-11-04.md. Lint/tipos/build e82 testes afetados aprovados;9 E2Es únicos em320/390/1440,3 repetidos após ajuste mobile. Busca unificada testada após união das fontes.
+
+
 - Barra Alunos tem uma única busca (a principal); painel manual em actionsOnly não renderiza busca própria. Ícone de legenda removido de Alunos e mantido em Presença.
 
 - Olho por turma oculta apenas a caixa vazia (placeholder sem decoração), preservando grid, cabeçalho Aluno, posições de colunas e dimensões; não troca mais para lista flex.

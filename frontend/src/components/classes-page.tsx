@@ -228,7 +228,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
   const [settingsByGroup, setSettingsByGroup] = useState<Record<string, KodlandClassSettings>>({});
   const [selectedGroup, setSelectedGroup] = useState<KodlandGroup | null>(null);
   const [hiddenKodlandGroups, setHiddenKodlandGroups] = useState<string[]>(readHiddenKodlandGroups);
-  const [kodlandGroupNames, setKodlandGroupNames] = useState<Record<string, string>>(readKodlandGroupNames);
+  const [kodlandGroupNames] = useState<Record<string, string>>(readKodlandGroupNames);
   const [kodlandGroupLabel, setKodlandGroupLabel] = useState(readKodlandGroupLabel);
   const [kodlandGroupLabelInput, setKodlandGroupLabelInput] = useState(readKodlandGroupLabel);
   const [rateInput, setRateInput] = useState("");

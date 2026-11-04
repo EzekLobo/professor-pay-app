@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110409, date: "2026-11-04", title: "Três formas de acompanhar alunos",
+    description: "Escolha Completo, Correções pendentes ou Alunos. Veja o progresso registrado por módulo, a conclusão das aulas sincronizadas e o saldo de aulas ao atualizar os perfis.",
+    href: "/classes", action: "Abrir alunos",
+  },
+  {
     version: 2026110408, date: "2026-11-04", title: "Filtros favoritos",
     description: "Favorite filtros pela estrela para colocá-los no topo. Alunos também permite mostrar somente quem não tem correções pendentes.",
     href: "/classes", action: "Abrir alunos",

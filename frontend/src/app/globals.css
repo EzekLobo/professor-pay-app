@@ -3802,3 +3802,42 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .favorite-filter-star { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
 .favorite-filter-star[aria-pressed="true"] { color: #facc15; }
 .favorite-filter-choice:hover, .favorite-filter-star:hover { background: rgb(68 206 255 / 10%); }
+
+/* Three student views keep class tools and activity states consistent. */
+.compact-activities-class .compact-class-actions { flex-wrap: wrap; justify-content: flex-end; }
+.compact-activities-class .compact-class-copy { min-width: 0; }
+.compact-activities-class .correction-class-heading { flex-wrap: wrap; }
+.class-completion-badge { color: #a7e5cc; border-color: rgb(80 200 150 / 30%); background: rgb(80 200 150 / 8%); }
+.complete-activities-note { margin: 0; padding: 8px 12px; color: var(--muted); font-size: .7rem; }
+.compact-activities-grid-header .compact-activity-column-heading { padding: 5px; min-height: 28px; color: var(--muted); font-size: .67rem; }
+.compact-activity-progress { cursor: default; height: 72px; min-height: 72px; max-height: 72px; }
+.compact-activity-state { font-size: .6rem; font-weight: 750; }
+.compact-activity-delivered { border-color: rgb(80 200 150 / 60%); background: rgb(20 110 80 / 30%); }
+.compact-activity-missing { border-color: rgb(245 130 130 / 60%); background: rgb(130 45 45 / 25%); }
+.compact-activity-unknown { border-color: rgb(125 150 185 / 55%); background: rgb(65 91 128 / 15%); }
+.compact-activities-class .compact-pending-row > .attendance-student-summary { flex: 0 0 200px; width: 200px; }
+.class-students-view { width: 100%; }
+.class-students-header, .class-students-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 140px; gap: 12px; align-items: center; padding: 8px 12px; border-bottom: 1px solid rgb(65 91 128 / 48%); }
+.class-students-header { color: var(--muted); font-size: .7rem; font-weight: 800; }
+.class-students-row { font-size: .76rem; }
+.class-students-row > div { min-width: 0; }
+.class-students-row:last-child { border-bottom: 0; }
+.compact-student-name.is-full-name { min-height: 44px; white-space: normal; overflow: visible; overflow-wrap: anywhere; font-size: .8rem; }
+.compact-student-name:disabled { cursor: default; opacity: 1; }
+@media (max-width: 600px) {
+  .compact-activities-class .compact-class-copy { flex-basis: 100%; }
+  .compact-activities-class .compact-class-actions { margin-left: auto; gap: 5px; }
+  .class-students-header, .class-students-row { grid-template-columns: minmax(0, 1fr) 72px 80px; gap: 6px; padding: 8px; }
+  .class-students-row { font-size: .66rem; }
+  .class-students-row .activity-student-heading { flex-wrap: wrap; }
+  .class-students-row .compact-student-name { font-size: .73rem; }
+  .class-students-row .activity-whatsapp-button { width: 44px; height: 44px; }
+  .class-students-row > span { overflow-wrap: anywhere; }
+}
+@media (max-width: 600px) {
+  .class-students-header, .class-students-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 12px; }
+  .class-students-header > :first-child, .class-students-row > :first-child { grid-column: 1 / -1; }
+  .class-students-row .activity-student-heading { flex-wrap: nowrap; }
+  .class-students-row > span:nth-child(2)::before { content: "Pontuação: "; color: var(--muted); }
+  .class-students-row > span:nth-child(3)::before { content: "Saldo: "; color: var(--muted); }
+}

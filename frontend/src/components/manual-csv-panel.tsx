@@ -8,7 +8,7 @@ import { manualAdapter as productionAdapter } from "@/lib/manual-adapters-runtim
 import { csvText, downloadCsv, planClassCsvRows, previewCsv, validateStudentCsvRows, type CsvPreview } from "@/lib/manual-csv";
 
 type Kind = "students" | "classes";
-const studentHeaders = ["nome", "email", "telefone", "responsavel", "telefone_responsavel", "observacoes", "situacao"];
+const studentHeaders = ["nome", "telefone", "situacao"];
 const classHeaders = ["grupo", "nome", "data_inicio", "data_fim", "dia_semana", "horario", "duracao_minutos", "tarifa_hora", "dia_pagamento", "curso", "emails_alunos"];
 
 export function ManualCsvPanel({ adapter = productionAdapter }: { adapter?: ManualAdapters }) {
@@ -39,7 +39,7 @@ export function ManualCsvPanel({ adapter = productionAdapter }: { adapter?: Manu
   const exportRows = async () => {
     if (kind === "students") {
       const rows = await adapter.teaching.students();
-      downloadCsv("alunos.csv", csvText(studentHeaders, rows.map((item) => [item.name, item.email, item.phone, item.guardian_name, item.guardian_phone, item.notes, item.active ? "ativo" : "inativo"])));
+      downloadCsv("alunos.csv", csvText(studentHeaders, rows.map((item) => [item.name, item.phone, item.active ? "ativo" : "inativo"])));
       return;
     }
     const [classes, groups, students, courses] = await Promise.all([adapter.teaching.classes(), adapter.teaching.groups(), adapter.teaching.students(), adapter.courses.list()]);
@@ -56,7 +56,7 @@ export function ManualCsvPanel({ adapter = productionAdapter }: { adapter?: Manu
       if (kind === "students") {
         const validationErrors = validateStudentCsvRows(preview.rows);
         if (validationErrors.length) throw new Error(validationErrors.join("\n"));
-        await Promise.all(preview.rows.map((row) => adapter.teaching.saveStudent({ name: row.nome, email: row.email, phone: row.telefone, guardian_name: row.responsavel, guardian_phone: row.telefone_responsavel, notes: row.observacoes, active: (row.situacao || "ativo").toLowerCase() !== "inativo" })));
+        await Promise.all(preview.rows.map((row) => adapter.teaching.saveStudent({ name: row.nome, phone: row.telefone, active: (row.situacao || "ativo").toLowerCase() !== "inativo" })));
         setNotice(`${preview.rows.length} aluno(s) importado(s).`);
       } else {
         const [existingGroups, students, courses] = await Promise.all([adapter.teaching.groups(), adapter.teaching.students(), adapter.courses.list()]);
@@ -90,7 +90,7 @@ export function ManualCsvPanel({ adapter = productionAdapter }: { adapter?: Manu
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice">{notice}</p>}
     <div className="data-csv-toolbar"><label className="field">Conteúdo<select className="input" disabled={busy} value={kind} onChange={(event) => { setKind(event.target.value as Kind); setPreview(null); }}><option value="students">Alunos</option><option value="classes">Turmas e matrículas</option></select></label><Button className="button-ghost" type="button" disabled={busy} onClick={() => { setBusy(true); setError(""); void exportRows().catch(reason => setError(reason instanceof Error ? reason.message : "Não foi possível exportar o CSV.")).finally(() => setBusy(false)); }}><Download size={16} aria-hidden="true" />Exportar CSV</Button></div>
     <label className="field data-csv-file">Importar arquivo<Input aria-label="Arquivo CSV para importação" disabled={busy} type="file" accept=".csv,text/csv" onChange={read} /></label>
-    <details className="data-format-help"><summary>Formato do arquivo</summary><p className="muted">Todas as linhas são validadas antes da gravação. Em turmas, use dia da semana de 0 (domingo) a 6 (sábado) e separe e-mails por ponto e vírgula.</p></details>
+    <details className="data-format-help"><summary>Formato do arquivo</summary><p className="muted">Todas as linhas são validadas antes da gravação. Para alunos, informe nome, telefone e situação. Em turmas, use dia da semana de 0 (domingo) a 6 (sábado).</p></details>
     {preview && <div className="csv-preview"><p>{preview.rows.length} linha(s) encontradas.</p>{preview.errors.length > 0 && <ul className="form-error">{preview.errors.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>}<Button type="button" disabled={busy || preview.errors.length > 0} onClick={() => void commit()}>{busy ? "Importando…" : "Confirmar importação"}</Button></div>}
   </section>;
 }

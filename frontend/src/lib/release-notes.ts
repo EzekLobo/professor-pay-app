@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110412, date: "2026-11-04", title: "Dados de alunos minimizados",
+    description: "Alunos agora mantêm somente nome e sobrenome, telefone e saldo de aulas para a operação. E-mail e dados de responsáveis não são exibidos nem persistidos nos registros de alunos.",
+    href: "/classes", action: "Abrir alunos",
+  },
+  {
     version: 2026110411, date: "2026-11-04", title: "Navegação entre turmas mais simples",
     description: "Ao abrir uma turma na tela de Alunos, a turma que estava aberta é contraída automaticamente.",
     href: "/classes", action: "Abrir alunos",

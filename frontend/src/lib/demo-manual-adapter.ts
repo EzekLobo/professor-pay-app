@@ -11,6 +11,7 @@ import {
   type ManualClassGroup,
 } from "./manual-teaching";
 import { generateRecurringOccurrences, saoPauloLocalTimestamp, type RatePeriod } from "./teaching-finance";
+import { sanitizeManualStudentRecord } from "./student-privacy";
 
 type Read = () => DemoSnapshot;
 type Change = (update: (current: DemoSnapshot) => DemoSnapshot) => void;
@@ -43,7 +44,7 @@ export function createDemoManualAdapter(read: Read, change: Change): ManualAdapt
       if (!input.name.trim()) throw new RangeError("Informe o nome do aluno.");
       const previous = input.id ? read().manualStudents.find((item) => item.id === input.id) : undefined;
       if (input.id && !previous) throw new Error("Aluno não encontrado.");
-      const record = { id: input.id ?? id(), name: input.name.trim(), email: input.email?.trim() ?? "", phone: input.phone?.trim() ?? "", guardian_name: input.guardian_name?.trim() ?? previous?.guardian_name ?? "", guardian_phone: input.guardian_phone?.trim() ?? previous?.guardian_phone ?? "", notes: input.notes?.trim() ?? previous?.notes ?? "", active: input.active ?? previous?.active ?? true, created_at: previous?.created_at ?? now(), updated_at: now() };
+      const record = sanitizeManualStudentRecord({ id: input.id ?? id(), name: input.name.trim(), phone: input.phone?.trim() ?? "", active: input.active ?? previous?.active ?? true, created_at: previous?.created_at ?? now(), updated_at: now() });
       change((current) => ({ ...current, manualStudents: [...current.manualStudents.filter((item) => item.id !== record.id), record] }));
       return record;
     },

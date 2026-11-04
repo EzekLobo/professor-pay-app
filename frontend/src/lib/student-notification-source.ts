@@ -32,7 +32,7 @@ export function normalizeNotificationSource(snapshot: NotificationSourceSnapshot
     const end = start && Number.isFinite(occurrence.duration_minutes) && occurrence.duration_minutes > 0 ? new Date(Date.parse(start) + occurrence.duration_minutes * 60000).toISOString() : null;
     for (const student of snapshot.manualStudents.filter(item => item.active && classroom.student_ids.includes(item.id))) {
       const attendance = snapshot.manualAttendance.find(item => item.occurrence_id === occurrence.id && item.student_id === student.id && item.class_id === classroom.id);
-      lessons.push({ source: "manual", class_id: classroom.id, class_name: classroom.name, student_id: student.id, student_name: student.name, occurrence_id: occurrence.id, lesson_label: occurrence.course_code || occurrence.title_snapshot || "Aula", lesson_date: occurrence.lesson_date, ended_at: end, active: true, cancelled: occurrence.status === "cancelled" || occurrence.status === "rescheduled", attendance: attendance?.status === "ABSENT" ? "absent" : !attendance || attendance.status === "UNMARKED" ? "unknown" : "other", guardian_name: student.guardian_name ?? "", guardian_phone: student.guardian_phone ?? "", recording_url: occurrence.recording_url });
+      lessons.push({ source: "manual", class_id: classroom.id, class_name: classroom.name, student_id: student.id, student_name: student.name, occurrence_id: occurrence.id, lesson_label: occurrence.course_code || occurrence.title_snapshot || "Aula", lesson_date: occurrence.lesson_date, ended_at: end, active: true, cancelled: occurrence.status === "cancelled" || occurrence.status === "rescheduled", attendance: attendance?.status === "ABSENT" ? "absent" : !attendance || attendance.status === "UNMARKED" ? "unknown" : "other", guardian_name: "", guardian_phone: student.phone ?? "", recording_url: occurrence.recording_url });
     }
   }
   for (const activity of snapshot.manualActivities) {
@@ -54,7 +54,7 @@ export function normalizeNotificationSource(snapshot: NotificationSourceSnapshot
     const date = calendar.date;
     const end = calendar.endedAt;
     if (!end) warnings.add("Algumas presenças sincronizadas não têm horário final confiável e ficam fora dos alertas de falta.");
-    lessons.push({ source: "kodland", class_id: group.external_id, class_name: group.title, student_id: student.external_id, student_name: student.name, occurrence_id: lesson?.source_lesson_id || lesson?.id || record.lesson_id, lesson_label: lesson?.schedule_code || record.lesson_title || lesson?.title || "Aula", lesson_date: date, ended_at: end, active: true, cancelled: /cancel/i.test(lesson?.status ?? ""), attendance: record.status === "ABSENT" ? "absent" : record.status === "UNKNOWN" ? "unknown" : "other", guardian_name: String(student.guardian_name ?? ""), guardian_phone: String(student.guardian_phone ?? ""), recording_url: lesson?.recording_url || record.recording_url });
+    lessons.push({ source: "kodland", class_id: group.external_id, class_name: group.title, student_id: student.external_id, student_name: student.name, occurrence_id: lesson?.source_lesson_id || lesson?.id || record.lesson_id, lesson_label: lesson?.schedule_code || record.lesson_title || lesson?.title || "Aula", lesson_date: date, ended_at: end, active: true, cancelled: /cancel/i.test(lesson?.status ?? ""), attendance: record.status === "ABSENT" ? "absent" : record.status === "UNKNOWN" ? "unknown" : "other", guardian_name: "", guardian_phone: String(student.phone ?? ""), recording_url: lesson?.recording_url || record.recording_url });
   }
   const taskIdFromUrl = (url: string) => String(url ?? "").match(/\/task\/([^/?#]+)(?:[/?#]|$)/)?.[1] ?? "";
   for (const progress of snapshot.taskProgress ?? []) {
@@ -67,7 +67,7 @@ export function normalizeNotificationSource(snapshot: NotificationSourceSnapshot
     if (!lesson) {
       const calendar = kodlandNotificationCalendar(record, catalog, snapshot.lessons, group, zone);
       const date = calendar.date;
-      lesson = { source: "kodland", class_id: group.external_id, class_name: group.title, student_id: student.external_id, student_name: student.name, occurrence_id: catalog?.source_lesson_id || catalog?.id || progress.lesson_id, lesson_label: catalog?.schedule_code || catalog?.title || "Aula", lesson_date: date, ended_at: calendar.endedAt, active: true, cancelled: /cancel/i.test(catalog?.status ?? ""), attendance: "unknown", guardian_name: String(student.guardian_name ?? ""), guardian_phone: String(student.guardian_phone ?? ""), recording_url: catalog?.recording_url };
+      lesson = { source: "kodland", class_id: group.external_id, class_name: group.title, student_id: student.external_id, student_name: student.name, occurrence_id: catalog?.source_lesson_id || catalog?.id || progress.lesson_id, lesson_label: catalog?.schedule_code || catalog?.title || "Aula", lesson_date: date, ended_at: calendar.endedAt, active: true, cancelled: /cancel/i.test(catalog?.status ?? ""), attendance: "unknown", guardian_name: "", guardian_phone: String(student.phone ?? ""), recording_url: catalog?.recording_url };
       lessons.push(lesson);
     }
     const classroom = catalog?.classroom_tasks?.some(item => taskIdFromUrl(item.url) === progress.task_id) ?? false;
@@ -86,7 +86,7 @@ export function normalizeNotificationSource(snapshot: NotificationSourceSnapshot
     const occurrence = catalog.source_lesson_id || catalog.id;
     for (const student of snapshot.students.filter(item => item.external_class_id === group.external_id && !item.hidden && isActiveKodlandStudent(item.status))) {
       if (lessons.some(item => item.source === "kodland" && item.class_id === group.external_id && item.student_id === student.external_id && item.occurrence_id === occurrence)) continue;
-      lessons.push({ source: "kodland", class_id: group.external_id, class_name: group.title, student_id: student.external_id, student_name: student.name, occurrence_id: occurrence, lesson_label: catalog.schedule_code || catalog.title || "Aula", lesson_date: date, ended_at: end, active: true, cancelled: /cancel/i.test(catalog.status ?? ""), attendance: "unknown", guardian_name: String(student.guardian_name ?? ""), guardian_phone: String(student.guardian_phone ?? "") });
+      lessons.push({ source: "kodland", class_id: group.external_id, class_name: group.title, student_id: student.external_id, student_name: student.name, occurrence_id: occurrence, lesson_label: catalog.schedule_code || catalog.title || "Aula", lesson_date: date, ended_at: end, active: true, cancelled: /cancel/i.test(catalog.status ?? ""), attendance: "unknown", guardian_name: "", guardian_phone: String(student.phone ?? "") });
     }
   }
   if (snapshot.groups.some(item => !item.archived) && !(snapshot.taskProgress?.length)) warnings.add("Atualize as atividades em Turmas para carregar o progresso das atividades Kodland. A fila de correções sozinha não identifica quem deixou de entregar.");

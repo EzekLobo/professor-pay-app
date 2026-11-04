@@ -178,7 +178,7 @@ export function notificationTarget(item: StudentNotification, demo = false) {
   return demo ? `/demo?${params}#classes` : `/classes?${params}`;
 }
 export function notificationMessage(item: StudentNotification, template: string) {
-  const values: Record<string, string> = { responsavel: item.guardian_name || "responsável", aluno: item.student_name, turma: item.class_name, aula: item.lesson_label, data: item.lesson_date.split("-").reverse().join("/"), atividades: item.activities.map(activity => activity.title).join(", "), prazo: item.activities.map(activity => activity.due_at).filter(Boolean).join(", "), gravacao: item.recording_url || "", primeiro_nome: item.guardian_name.split(" ")[0] || "responsável", codigo_aula: item.lesson_label };
+  const values: Record<string, string> = { responsavel: item.guardian_name || "responsável", aluno: item.student_name, turma: item.class_name, aula: item.lesson_label, data: item.lesson_date.split("-").reverse().join("/"), atividades: item.activities.map(activity => activity.title).join(", "), prazo: item.activities.map(activity => activity.due_at).filter(Boolean).join(", "), gravacao: item.recording_url || "", primeiro_nome: item.student_name.split(" ")[0] || "aluno", codigo_aula: item.lesson_label };
   const prepared = item.category === "absence" ? renderAbsenceMessage({ template, studentName: item.student_name, lessonCode: item.lesson_label, date: item.lesson_date.split("-").reverse().join("/"), recordingUrl: item.recording_url }) : template;
   return prepared.replace(/\{([a-z_]+)\}/g, (token, key: string) => values[key] ?? token);
 }

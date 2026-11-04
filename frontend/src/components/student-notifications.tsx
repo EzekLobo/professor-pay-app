@@ -29,7 +29,7 @@ type NotificationContext = {
   preview: (settings: NotificationSettings) => Promise<number>;
   confirm: (item: NotificationCase) => Promise<void>;
   read: (item: NotificationCase) => Promise<void>;
-  contact: (item: StudentNotification, name: string, phone: string) => Promise<void>;
+  contact: (item: StudentNotification, phone: string) => Promise<void>;
   activitySource: (force?: boolean) => Promise<NotificationSource>;
   absenceTemplate: string;
   autoSync: AutoSyncStatus;
@@ -126,19 +126,19 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
     preview: async input => { const checked = validateNotificationSettings(input); const data = await source(checked, true); return evaluateStudentNotifications(data.lessons, data.obligations, checked, new Date()).length; },
     read: item => store.markRead(item.id, item.notification.revision),
     confirm: async item => { await observeOperation("notifications_contact", () => store.confirmContact(item.id, item.notification.revision)); await refresh(); },
-    contact: async (item, name, phone) => {
-      if (!name.trim() || !phone.trim() || phone.replace(/\D/g, "").length < 10) throw new Error("Informe nome e telefone válido do responsável.");
+    contact: async (item, phone) => {
+      if (!phone.trim() || phone.replace(/\D/g, "").length < 10) throw new Error("Informe um telefone válido do aluno.");
       if (demo) {
         if (!onDemoChange) throw new Error("Demonstração indisponível.");
-        onDemoChange(current => item.source === "manual" ? { ...current, manualStudents: current.manualStudents.map(student => student.id === item.student_id ? { ...student, guardian_name: name, guardian_phone: phone } : student) } : { ...current, students: current.students.map(student => student.external_id === item.student_id && student.external_class_id === item.class_id ? { ...student, guardian_name: name, guardian_phone: phone } : student) });
+        onDemoChange(current => item.source === "manual" ? { ...current, manualStudents: current.manualStudents.map(student => student.id === item.student_id ? { ...student, phone } : student) } : { ...current, students: current.students.map(student => student.external_id === item.student_id && student.external_class_id === item.class_id ? { ...student, phone } : student) });
       } else if (item.source === "manual") {
         const student = (await manualTeachingApi.students()).find(student => student.id === item.student_id);
         if (!student) throw new Error("Aluno não encontrado.");
-        await manualTeachingApi.saveStudent({ ...student, guardian_name: name, guardian_phone: phone });
+        await manualTeachingApi.saveStudent({ ...student, phone });
       } else {
         const student = (await kodlandApi.students()).items.find(student => student.external_id === item.student_id && student.external_class_id === item.class_id);
         if (!student) throw new Error("Aluno não encontrado.");
-        await kodlandApi.updateStudent(student.id, { guardian_name: name, guardian_phone: phone });
+        await kodlandApi.updateStudent(student.id, { phone });
       }
       clearStudentNotificationSourceCache(); await refresh(true);
     },
@@ -233,7 +233,6 @@ function NotificationResolutionCard({ item }: { item: NotificationCase }) {
   const state = useStudentNotifications()!;
   const notification = item.notification;
   const [message, setMessage] = useState(() => notificationMessage(notification, notification.category === "absence" ? state.absenceTemplate : state.settings?.activity_message_template ?? defaultNotificationSettings().activity_message_template));
-  const [name, setName] = useState(notification.guardian_name);
   const [phone, setPhone] = useState(notification.guardian_phone);
   const [editingContact, setEditingContact] = useState(!notification.guardian_phone);
   const [busy, setBusy] = useState(false);
@@ -242,8 +241,8 @@ function NotificationResolutionCard({ item }: { item: NotificationCase }) {
   const run = async (action: () => Promise<void>) => { setBusy(true); setError(""); try { await action(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível salvar."); } finally { setBusy(false); } };
   return <section className="panel notification-resolution" aria-label="Resolver notificação"><small>{labels[notification.category]} · {notification.lesson_date.split("-").reverse().join("/")}</small><h3>{notification.student_name} · {notification.class_name}</h3><strong>{notification.lesson_label}</strong><p>{notification.reason}</p>{!item.active && <p role="status">Esta condição não está mais nas pendências atuais. Consulte os dados antes de entrar em contato.</p>}
     {notification.activities.length > 0 && <ul>{notification.activities.map(activity => <li key={activity.id}>{activity.title}{activity.due_at ? ` · Prazo: ${new Date(activity.due_at).toLocaleString("pt-BR")}` : ""}</li>)}</ul>}
-    <p>Responsável: {notification.guardian_name || "Não cadastrado"} · {notification.guardian_phone || "Telefone não cadastrado"}</p><Button type="button" className="button-ghost" onClick={() => setEditingContact(!editingContact)}>Cadastrar ou editar contato</Button>
-    {editingContact && <form onSubmit={event => { event.preventDefault(); void run(async () => { await state.contact(notification, name, phone); setEditingContact(false); }); }}><fieldset disabled={busy} className="settings-fieldset notification-fields"><label className="field">Nome do responsável<Input value={name} required onChange={event => setName(event.target.value)} /></label><label className="field">Telefone do responsável<Input type="tel" value={phone} required onChange={event => setPhone(event.target.value)} /></label><Button type="submit">Salvar contato</Button></fieldset></form>}
+    <p>Telefone do aluno: {notification.guardian_phone || "Não cadastrado"}</p><Button type="button" className="button-ghost" onClick={() => setEditingContact(!editingContact)}>Cadastrar ou editar telefone</Button>
+    {editingContact && <form onSubmit={event => { event.preventDefault(); void run(async () => { await state.contact(notification, phone); setEditingContact(false); }); }}><fieldset disabled={busy} className="settings-fieldset notification-fields"><label className="field">Telefone do aluno<Input type="tel" value={phone} required onChange={event => setPhone(event.target.value)} /></label><Button type="submit">Salvar telefone</Button></fieldset></form>}
     {notification.category !== "absence" && <ActivityMissingList target={{ source: notification.source, class_id: notification.class_id, student_id: notification.student_id }} loadSource={state.activitySource} onInsert={(block, previous) => setMessage(current => previous && current.includes(previous) ? current.replace(previous, block) : `${current.trimEnd()}\n\n${block}`)} />}
     <label className="field">Mensagem para o responsável<textarea aria-label="Mensagem para o responsável" className="input" rows={6} value={message} onChange={event => setMessage(event.target.value)} /></label>
     <div className="form-actions">{notification.guardian_phone && message.trim() && <a className="button button-primary" href={whatsappUrl(notification.guardian_phone, message)} target="_blank" rel="noreferrer" onClick={() => setOpened(true)}>Abrir WhatsApp</a>}<Button type="button" className="button-ghost" disabled={busy || !item.active || !needsNotificationContact(item)} onClick={() => void run(() => state.confirm(item))}>Confirmar contato realizado</Button></div>

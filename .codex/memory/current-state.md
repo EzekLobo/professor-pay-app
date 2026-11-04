@@ -1,5 +1,11 @@
 # Estado atual
 
+## Minimização de dados de alunos — 04/11/2026
+
+- O limite de privacidade aplicado a sincronização Kodland, Firestore, cache do navegador, cadastros manuais, demo e backup/exportação mantém nome normalizado (nome e sobrenome), telefone e saldo de aulas, além dos identificadores/status/progresso necessários ao funcionamento da grade. E-mail, perfil, notas e dados nominais de responsáveis não são exibidos nem gravados em novos registros.
+- A primeira leitura de alunos saneia registros legados com `set` por documento; notificações continuam usando apenas o telefone operacional do aluno e limpam o nome do responsável. Importações antigas podem ser lidas para compatibilidade, mas os campos privados são descartados antes da persistência.
+- Validação: typecheck, lint, build de produção, suíte Vitest web (83 arquivos/586 testes) e 5 de 7 cenários E2E direcionados passaram. Os 2 cenários `demo-manual` continuam falhando porque a tela unificada não renderiza o grupo manual esperado pelo teste legado; os cenários de Turmas unificadas passaram. Novidade 2026110412.
+
 ## Navegação exclusiva entre turmas — 04/11/2026
 
 - A grade de Alunos mantém no máximo uma turma expandida: abrir outra contrai a anterior; clicar novamente na aberta fecha todas. Ações do menu de turma continuam isoladas desse toggle.

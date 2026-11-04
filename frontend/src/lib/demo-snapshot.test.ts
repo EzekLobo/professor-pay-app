@@ -18,7 +18,7 @@ describe("public faithful demonstration", () => {
       name: "Matemática particular", group_id: seed.manualClassGroups[0].id,
     }));
     expect(seed.manualStudents).toContainEqual(expect.objectContaining({ name: "Helena Nogueira" }));
-    expect(seed.students.every((item) => item.email.endsWith("@example.test") && item.profile_url === "" && item.phone === "")).toBe(true);
+    expect(seed.students.every((item) => item.phone === "" && !item.email && !item.profile_url && !item.guardian_name && !item.guardian_email)).toBe(true);
     expect(seed.lessons.every((item) => item.materials_status === "ready" && item.external_url.startsWith("#demo-material"))).toBe(true);
     expect(seed.extras.some((item) => item.lesson_date === "2026-10-14" && !item.completed)).toBe(true);
     expect(kodlandStudentPoints(activeStudentsRankedByPoints(seed.students)[0].progress_summary)).toBe(940);

@@ -184,7 +184,7 @@ describe("backup e migração", () => {
     fake.docs.set(key("task_cards", "task-backup"), createTaskCard({ id: "task-backup", title: "Tarefa no backup" }));
     fake.docs.set(key("task_settings", "lists"), { lists: defaultTaskLists().filter((list) => list.id !== "waiting") });
     const notificationSettings = { ...defaultNotificationSettings("2026-10-01"), enabled: true };
-    const notification = evaluateStudentNotifications([{ source: "manual", class_id: "c", class_name: "Turma", student_id: "s", student_name: "Ana", occurrence_id: "l", lesson_label: "M1L1", lesson_date: "2026-10-13", ended_at: "2026-10-13T20:00:00Z", active: true, cancelled: false, attendance: "absent", guardian_name: "Maria", guardian_phone: "55" }], [], notificationSettings, new Date("2026-10-15T12:00:00Z"))[0];
+    const notification = evaluateStudentNotifications([{ source: "manual", class_id: "c", class_name: "Turma", student_id: "s", student_name: "Ana", occurrence_id: "l", lesson_label: "M1L1", lesson_date: "2026-10-13", ended_at: "2026-10-13T20:00:00Z", active: true, cancelled: false, attendance: "absent", guardian_name: "", guardian_phone: "55" }], [], notificationSettings, new Date("2026-10-15T12:00:00Z"))[0];
     const notificationCase = reconcileNotificationCases([], [notification], "2026-10-15T12:00:00Z")[0];
     fake.docs.set(key("notification_settings", "default"), notificationSettings);
     fake.docs.set(key("notification_cases", notification.id), notificationCase);
@@ -301,7 +301,7 @@ describe("remote synchronization lock and backup queue remain distinct", () => {
 
 describe("persistência e atualização dos alertas Kodland", () => {
   const install = (groups: Array<{ external_id: string; archived: boolean }> = []) => {
-    fake.docs.set(key("kodland_students", "s"), { guardian_phone: "5511999990000", local_note: "Preservar" });
+    fake.docs.set(key("kodland_students", "s"), { id: "s", name: "Ana", phone: "5511999990000" });
     fake.docs.set(key("kodland_lessons", "l"), { title: "M1L1", classroom_tasks: [{ title: "Projeto", url: "https://example.test/task/1" }], materials_status: "ready" });
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ groups, students: [], reviews: [], lessons: [], extra_lessons: [], availability: [], review_group_ids: ["g"], attendance_group_ids: ["g"], attendance: [{ id: "a", external_class_id: "g", external_student_id: "s", status: "ABSENT" }], task_progress: [{ id: "p", external_class_id: "g", external_student_id: "s", lesson_id: "l", task_id: "t", task_title: "Projeto", state: "missing" }] })));
   };
@@ -318,16 +318,16 @@ describe("persistência e atualização dos alertas Kodland", () => {
     vi.stubGlobal("window", { dispatchEvent: event });
     await kodlandApi.sync("fixture", "fixture", "corrections", { correctionGroupIds: ["g"], refreshSchedule: false });
     expect(event.mock.calls.map(([event]) => event.type)).toEqual(["nexusclass:notifications-changed", "nexusclass:sync-data-changed", "nexusclass:kodland-synced"]);
-    expect(fake.docs.get(key("kodland_students", "s"))?.guardian_phone).toBe("5511999990000");
+    expect(fake.docs.get(key("kodland_students", "s"))?.phone).toBe("5511999990000");
     expect(fake.docs.get(key("kodland_lessons", "l"))?.materials_status).toBe("ready");
     expect((await kodlandApi.followupState()).updatedAt.g).toBeTruthy();
   });
-  it("desativa uma turma arquivada na Kodland sem substituir contatos e materiais", async () => {
+  it("desativa uma turma arquivada na Kodland sem substituir telefone e materiais", async () => {
     install([{ external_id: "g", archived: true }]);
     fake.docs.set(key("kodland_groups", "g"), { id: "g", external_id: "g", archived: false, local_class_id: "own-link" });
     await kodlandApi.sync("fixture", "fixture", "corrections", { refreshSchedule: false });
     expect(fake.docs.get(key("kodland_groups", "g"))).toMatchObject({ archived: true, local_class_id: "own-link" });
-    expect(fake.docs.get(key("kodland_students", "s"))?.guardian_phone).toBe("5511999990000");
+    expect(fake.docs.get(key("kodland_students", "s"))?.phone).toBe("5511999990000");
   });
   it("falha de gravação não notifica nem pode ser encoberta por outra sincronização", async () => {
     install(); fake.failBatch = true;

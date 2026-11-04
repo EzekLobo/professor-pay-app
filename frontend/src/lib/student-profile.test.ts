@@ -1,68 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { parseGuardianContact, parseStudentContact, parseStudentLessonCredits, studentLessonCreditsPatch } from "./student-profile";
+import { parseStudentContact, parseStudentLessonCredits, studentLessonCreditsPatch } from "./student-profile";
+import { normalizeStudentName, sanitizeKodlandStudentRecord } from "./student-privacy";
 
 describe("student profile contact parser", () => {
-  it("keeps student contacts separate from the responsible contact", () => {
-    expect(parseStudentContact({ main_info: { full_name: "Aluno", phone: "111", email: "aluno@example.test", parent: { name: "Responsável", phone: "222" } } })).toEqual({ name: "Aluno", phone: "111", email: "aluno@example.test" });
+  it("keeps only a normalized student name and phone", () => {
+    expect(parseStudentContact({ main_info: { full_name: "  Ana Maria de Souza  ", phone: "111", email: "aluno@example.test", parent: { name: "Responsável", phone: "222" } } })).toEqual({ name: "Ana Souza", phone: "111" });
   });
-  it("reads flat parent fields and ignores unrelated profile data", () => {
-    expect(parseGuardianContact({
-      main_info: {
-        parent_full_name: "Mariana Vogel",
-        parent_phone: "+55 11 99999-0000",
-        parent_email: "mariana@example.test",
-        country: "BR",
-        password: "must-not-be-kept",
-      },
-    })).toEqual({
-      name: "Mariana Vogel",
-      relationship: "",
-      phone: "+55 11 99999-0000",
-      email: "mariana@example.test",
-    });
+  it("normalizes names to the first and last token", () => {
+    expect(normalizeStudentName("Lucas")).toBe("Lucas");
+    expect(normalizeStudentName("Lucas   Couto   Spitler")).toBe("Lucas Spitler");
   });
-
-  it("accepts nested family and parent aliases", () => {
-    expect(parseGuardianContact({
-      mainInfo: {
-        family: {
-          student: { name: "Aluno Teste", phone: "11888880000" },
-          parent: {
-            full_name: "Claudio Freitas",
-            relationship: "Pai",
-            phone: "11999990000",
-            email: "claudio@example.test",
-            country: "BR",
-          },
-        },
-      },
-    })).toEqual({
-      name: "Claudio Freitas",
-      relationship: "Pai",
-      phone: "11999990000",
-      email: "claudio@example.test",
-    });
-  });
-
-  it("keeps absent fields empty and does not treat the student's contact as a guardian", () => {
-    expect(parseGuardianContact({
-      main_info: { full_name: "Aluno Teste", email: "aluno@example.test", phone: "11988880000" },
-    })).toEqual({ name: "", relationship: "", phone: "", email: "" });
-  });
-
-  it("accepts the plural aliases used by the family profile section", () => {
-    expect(parseGuardianContact({
-      main_info: {
-        parents_full_name: "Mona Lisa Cartaxo",
-        parents_phone_number: "+5583996154182",
-        parents_email: "mona@example.test",
-      },
-    })).toEqual({
-      name: "Mona Lisa Cartaxo",
-      relationship: "",
-      phone: "+5583996154182",
-      email: "mona@example.test",
-    });
+  it("removes legacy private fields before persistence", () => {
+    expect(sanitizeKodlandStudentRecord({ id: "s", name: "Ana Maria de Souza", phone: "111", email: "x@example.test", guardian_name: "Responsável", guardian_phone: "222", local_note: "privado", progress_summary: "3/10" })).toEqual({ id: "s", name: "Ana Souza", phone: "111", progress_summary: "3/10" });
   });
 });
 

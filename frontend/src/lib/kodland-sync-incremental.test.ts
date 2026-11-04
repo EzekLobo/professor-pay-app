@@ -24,14 +24,14 @@ afterEach(()=>vi.unstubAllGlobals());
 const lesson={id:"l",source_lesson_id:"l",external_class_id:"g",external_class_name:"G",module_number:"1",lesson_number:1,course_index:1,schedule_code:"M1L1",title:"Aula",theme:"",lesson_date:"2026-10-01",start_time:"18:00",end_time:"19:00",status:"held",lesson_passed:true,external_url:"",slides_url:"",guide_url:"",homework_url:"",homework_title:"",classroom_tasks:[]};
 const snapshot=()=>({groups:[{id:"g",external_id:"g",title:"G",archived:false}],students:[{id:"s",external_id:"s",external_class_id:"g",name:"Ana",status:"active"}],lessons:[lesson],reviews:[],extra_lessons:[],availability:[],attendance:[]});
 beforeEach(()=>{mocks.db.clear();mocks.commits.length=0;mocks.reads.length=0;mocks.fail="";vi.stubGlobal("fetch",vi.fn(async()=>Response.json(snapshot())));});
-it("segunda importação igual não regrava documentos e preserva campos locais",async()=>{
+it("segunda importação igual limpa campos pessoais legados e preserva preferências técnicas",async()=>{
  await kodlandApi.sync("teacher","not-real","essential");expect(mocks.commits.reduce((a,b)=>a+b,0)).toBe(3);
  const student=mocks.db.get("users/incremental/kodland_students/s")!;student.local_note="Nota local";student.hidden=true;
  mocks.commits.length=0;const progress=vi.fn();
  await kodlandApi.sync("teacher","not-real","essential",{onProgress:progress});
- expect(mocks.commits).toEqual([]);
- expect(mocks.db.get("users/incremental/kodland_students/s")).toMatchObject({local_note:"Nota local",hidden:true});
- expect(progress.mock.calls.some(call=>String(call[0]).includes("3 registros sem mudanças"))).toBe(true);
+ expect(mocks.commits).toEqual([1]);
+ expect(mocks.db.get("users/incremental/kodland_students/s")).toMatchObject({hidden:true});
+ expect(mocks.db.get("users/incremental/kodland_students/s")).not.toHaveProperty("local_note");
 });
 it("mudança em um aluno grava somente esse documento",async()=>{
  await kodlandApi.sync("teacher","not-real","essential");mocks.commits.length=0;
@@ -103,13 +103,15 @@ it("retorno explícito ao Firebase compara a base remota, sem confundir cache at
  } finally {cache.mockRestore();reads.mockRestore();persist.mockRestore();}
 });
 
-it("preserva créditos em importação essencial e atualiza zero em perfis sem apagar notas locais", async () => {
+it("preserva créditos em importação essencial e atualiza zero em perfis sem reter notas locais", async () => {
  await kodlandApi.sync("teacher","not-real","essential");
  const key="users/incremental/kodland_students/s";
  Object.assign(mocks.db.get(key)!,{lesson_credits_remaining:7,lesson_credits_updated_at:"old",local_note:"Anotação"});
  await kodlandApi.sync("teacher","not-real","essential");
- expect(mocks.db.get(key)).toMatchObject({lesson_credits_remaining:7,lesson_credits_updated_at:"old",local_note:"Anotação"});
+ expect(mocks.db.get(key)).toMatchObject({lesson_credits_remaining:7,lesson_credits_updated_at:"old"});
+ expect(mocks.db.get(key)).not.toHaveProperty("local_note");
  vi.stubGlobal("fetch",vi.fn(async()=>{const data=snapshot();Object.assign(data.students[0],{lesson_credits_remaining:0,lesson_credits_updated_at:"new"});return Response.json(data);}));
  await kodlandApi.sync("teacher","not-real","profiles");
- expect(mocks.db.get(key)).toMatchObject({lesson_credits_remaining:0,lesson_credits_updated_at:"new",local_note:"Anotação",name:"Ana"});
+ expect(mocks.db.get(key)).toMatchObject({lesson_credits_remaining:0,lesson_credits_updated_at:"new",name:"Ana"});
+ expect(mocks.db.get(key)).not.toHaveProperty("local_note");
 });

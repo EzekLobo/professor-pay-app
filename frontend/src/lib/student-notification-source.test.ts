@@ -14,7 +14,7 @@ import { defaultNotificationSettings, evaluateStudentNotifications } from "./stu
 const settings = { ...defaultNotificationSettings("2026-10-01"), enabled: true, classroom_rule: "more_than" as const, classroom_threshold: 0 };
 const snapshot = (): NotificationSourceSnapshot => ({
   manualClasses: [{ id: "c", name: "Turma", active: true, student_ids: ["s"] } as NotificationSourceSnapshot["manualClasses"][number]],
-  manualStudents: [{ id: "s", name: "Ana", active: true, guardian_name: "Maria", guardian_phone: "55" } as NotificationSourceSnapshot["manualStudents"][number]],
+  manualStudents: [{ id: "s", name: "Ana", active: true, phone: "55" } as NotificationSourceSnapshot["manualStudents"][number]],
   manualOccurrences: [{ id: "l", class_id: "c", lesson_date: "2026-10-26", start_time: "18:00", duration_minutes: 60, status: "held", course_code: "M1L1" } as NotificationSourceSnapshot["manualOccurrences"][number]],
   manualAttendance: [{ occurrence_id: "l", class_id: "c", student_id: "s", status: "ABSENT" } as NotificationSourceSnapshot["manualAttendance"][number]],
   manualActivities: [{ id: "t", occurrence_id: "l", class_id: "c", student_id: "s", title: "Exercício", status: "assigned", submission_text: "", submission_url: "", kind: "classroom" } as NotificationSourceSnapshot["manualActivities"][number]],
@@ -24,7 +24,7 @@ beforeEach(() => { mock.uid = "a"; mock.status = { status: "complete", sync_id: 
 describe("fontes de alertas", () => {
   it("liga tarefa atribuída, presença e responsável da turma correta", () => {
     const source = normalizeNotificationSource(snapshot(), settings);
-    expect(source.lessons[0]).toMatchObject({ guardian_name: "Maria", guardian_phone: "55", ended_at: "2026-10-26T22:00:00.000Z", attendance: "absent" });
+    expect(source.lessons[0]).toMatchObject({ guardian_name: "", guardian_phone: "55", ended_at: "2026-10-26T22:00:00.000Z", attendance: "absent" });
     expect(evaluateStudentNotifications(source.lessons, source.obligations, settings, new Date("2026-10-28T12:00:00Z"))).toHaveLength(2);
     const unrelated = snapshot(); unrelated.manualActivities[0].student_id = "outsider";
     expect(normalizeNotificationSource(unrelated, settings).obligations).toEqual([]);

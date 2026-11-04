@@ -151,5 +151,6 @@ it("preserva saldo de aulas no cache e aceita um zero confirmado na leitura de p
  expect(state.disk!.collections.kodland_students[0]).toMatchObject({lesson_credits_remaining:9,lesson_credits_updated_at:"old"});
  vi.stubGlobal("fetch",vi.fn(async()=>{const payload=base();Object.assign(payload.students[0],{lesson_credits_remaining:0,lesson_credits_updated_at:"new"});return Response.json(payload);}));
  await kodlandApi.sync("teacher","fixture","profiles",{storage:"browser"});
- expect(state.disk!.collections.kodland_students[0]).toMatchObject({lesson_credits_remaining:0,lesson_credits_updated_at:"new",local_note:"Nota"});
+ expect(state.disk!.collections.kodland_students[0]).toMatchObject({lesson_credits_remaining:0,lesson_credits_updated_at:"new"});
+ expect(state.disk!.collections.kodland_students[0]).not.toHaveProperty("local_note");
 });

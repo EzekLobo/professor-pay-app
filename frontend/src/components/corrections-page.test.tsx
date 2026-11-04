@@ -56,7 +56,7 @@ describe("compactActivitiesModel", () => {
       expect(byName.flatMap(item => item.rows.map(row => row.name))).toEqual(["Ana Maria"]);
       expect(byName[0].rows[0].cells).toEqual(model[0].rows[0].cells);
       const byEmail = filterCompactActivitiesModel(model, "bia@example.test");
-      expect(byEmail.flatMap(item => item.rows.map(row => row.name))).toEqual(["Bia Silva"]);
+      expect(byEmail).toEqual([]);
       const byActivity = filterCompactActivitiesModel(model, "robo");
       expect(byActivity.flatMap(item => item.rows.map(row => row.name))).toEqual(["Bia Silva"]);
       expect(Object.values(byActivity[0].rows[0].cells)).toHaveLength(1);

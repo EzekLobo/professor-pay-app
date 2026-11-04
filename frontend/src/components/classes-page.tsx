@@ -26,8 +26,6 @@ import {
   kodlandStudentPoints,
 } from "@/lib/student-ranking";
 
-const absoluteUrl = (value: string) =>
-  value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 const parseMoney = (value: string) => {
   const normalized = value.trim().replace(",", ".");
   if (!normalized) return null;
@@ -81,10 +79,8 @@ export function GroupAccordion({
   const [selectedStudent, setSelectedStudent] = useState<KodlandStudent | null>(
     null,
   );
-  const contact = selectedStudent?.guardian_phone || selectedStudent?.phone;
-  const contactLabel = selectedStudent?.guardian_phone
-    ? "WhatsApp responsável"
-    : "WhatsApp aluno";
+  const contact = selectedStudent?.phone;
+  const contactLabel = "WhatsApp aluno";
   const contactHref = selectedStudent
     ? whatsappUrl(contact ?? "", `Olá! Sou o professor de ${selectedStudent.name}.`)
     : "";
@@ -165,27 +161,10 @@ export function GroupAccordion({
                   <dd>{selectedStudent.progress_summary}</dd>
                 </div>
               )}
-              {selectedStudent.guardian_name && (
+              {selectedStudent.phone && (
                 <div>
-                  <dt>Responsável</dt>
-                  <dd>
-                    {selectedStudent.guardian_name}
-                    {selectedStudent.guardian_relationship
-                      ? ` (${selectedStudent.guardian_relationship})`
-                      : ""}
-                  </dd>
-                </div>
-              )}
-              {selectedStudent.guardian_phone && (
-                <div>
-                  <dt>Telefone do responsável</dt>
-                  <dd>{selectedStudent.guardian_phone}</dd>
-                </div>
-              )}
-              {selectedStudent.guardian_email && (
-                <div>
-                  <dt>E-mail do responsável</dt>
-                  <dd>{selectedStudent.guardian_email}</dd>
+                  <dt>Telefone</dt>
+                  <dd>{selectedStudent.phone}</dd>
                 </div>
               )}
             </dl>
@@ -198,16 +177,6 @@ export function GroupAccordion({
                   rel="noreferrer"
                 >
                   {contactLabel}
-                </a>
-              )}
-              {selectedStudent.profile_url && (
-                <a
-                  className="button button-ghost button-small"
-                  href={absoluteUrl(selectedStudent.profile_url)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Perfil
                 </a>
               )}
             </div>
@@ -372,7 +341,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
       )}
 
       <ManualClassesPanel actionsOnly adapter={demo?.manualAdapter} hasKodlandGroups={groups.length > 0} kodlandLoading={loading} />
-      {kodlandEnabled && <section className="panel pedagogical-panel page-fill-panel">
+      {kodlandEnabled && <section className="panel pedagogical-panel page-fill-panel" data-tour="classes-list">
         <div className="section-heading classes-compact-heading">
           <h2>{kodlandGroupLabel}</h2>
           <div className="card-actions">

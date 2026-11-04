@@ -1,5 +1,10 @@
 # Decisões
 
+## 2026-11-04 — Limite de dados pessoais do aluno
+
+- Registros de alunos persistidos no app devem conter apenas nome normalizado (nome e sobrenome), telefone e saldo de aulas, junto dos identificadores/status/progresso necessários à operação. E-mail, nome/contato de responsável, perfil e notas ficam fora do limite de armazenamento.
+- A sanitização é aplicada na entrada da sincronização, nas gravações Firestore/cache, nos adaptadores manuais/demo e em backup/importação. Leituras de registros legados executam uma migração destrutiva apenas desses campos privados, com `set` por documento para não preservar chaves antigas.
+
 ## 2026-11-04 — Um scheduler com consultas por ocorrência
 
 - A rotina ativa não faz importação automática geral de turmas/alunos nem atualiza disponibilidade/materiais. Atividades/ranking rodam ao entrar em Turmas; extras novas são descobertas ao entrar na Agenda; presença é conferida uma vez em +1h; gravações são buscadas após a aula ao acessar Agenda; links de chamada são tentados de T−15min a cada5min até o fim.

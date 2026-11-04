@@ -9,7 +9,8 @@ import {
   type KodlandCourseLesson,
   type KodlandLesson,
 } from "@/lib/kodland-lessons";
-import { parseGuardianContact, parseStudentContact, parseStudentLessonCredits } from "@/lib/student-profile";
+import { parseStudentContact, parseStudentLessonCredits } from "@/lib/student-profile";
+import { normalizeStudentName } from "@/lib/student-privacy";
 import { normalizePayroll, payrollList } from "@/lib/kodland-payroll";
 import { kodlandDeliveryState, type KodlandTaskProgress } from "@/lib/kodland-task-progress";
 
@@ -62,15 +63,9 @@ type Student = {
   id: string;
   external_id: string;
   name: string;
-  email: string;
   phone: string;
   status: string;
   progress_summary: string;
-  profile_url: string;
-  guardian_name: string;
-  guardian_relationship: string;
-  guardian_phone: string;
-  guardian_email: string;
   external_class_id: string;
   external_class_name: string;
 };
@@ -791,7 +786,7 @@ function studentsFromPayload(payload: unknown, group: Group): Student[] {
     const item = record(value);
     const info = record(item.main_info);
     const externalId = text(info.student_id);
-    const name = text(info.full_name);
+    const name = normalizeStudentName(text(info.full_name));
     if (!externalId || !name) return [];
     const progress = list(item.progress_info);
     const current = progress.reduce(
@@ -807,17 +802,9 @@ function studentsFromPayload(payload: unknown, group: Group): Student[] {
         id: `kodland-student-${externalId}`,
         external_id: externalId,
         name,
-        email: text(info.email),
         phone: text(info.phone ?? info.phone_number ?? info.mobile),
         status: text(info.status),
         progress_summary: max ? `${current}/${max}` : "",
-        profile_url:
-          text(info.profile_url) ||
-          `https://bo.kodland.org/students/${externalId}`,
-        guardian_name: "",
-        guardian_relationship: "",
-        guardian_phone: "",
-        guardian_email: "",
         external_class_id: group.external_id,
         external_class_name: group.title,
       },
@@ -828,30 +815,25 @@ function studentsFromPayload(payload: unknown, group: Group): Student[] {
 async function studentsWithProfiles(
   students: Student[],
   token: string,
-  cache: Map<string, ReturnType<typeof parseGuardianContact> & { student?: ReturnType<typeof parseStudentContact>; credits?: number; creditsAt?: string }>,
+  cache: Map<string, { student?: ReturnType<typeof parseStudentContact>; credits?: number; creditsAt?: string }>,
 ): Promise<Student[]> {
   return mapWithConcurrency(students, KODLAND_CONCURRENCY, async (student) => {
-      let guardian = cache.get(student.external_id);
-      if (!guardian) {
+      let profileData = cache.get(student.external_id);
+      if (!profileData) {
         const profile = await getOptional(
           `students/${student.external_id}/get_general_info_for_student_backoffice_page/`,
           token,
         );
         const balance = await getOptional(`balance/?id=${encodeURIComponent(student.external_id)}&lesson_type=DEFAULT_LESSON`, token);
         const credits = parseStudentLessonCredits(balance);
-        guardian = { ...parseGuardianContact(profile), student: parseStudentContact(profile), ...(credits !== null ? { credits, creditsAt: new Date().toISOString() } : {}) };
-        cache.set(student.external_id, guardian);
+        profileData = { student: parseStudentContact(profile), ...(credits !== null ? { credits, creditsAt: new Date().toISOString() } : {}) };
+        cache.set(student.external_id, profileData);
       }
       return {
         ...student,
-        ...(guardian.credits !== undefined ? { lesson_credits_remaining: guardian.credits, lesson_credits_updated_at: guardian.creditsAt } : {}),
-        name: guardian.student?.name || student.name,
-        email: guardian.student?.email || student.email,
-        phone: guardian.student?.phone || student.phone,
-        guardian_name: guardian.name,
-        guardian_relationship: guardian.relationship,
-        guardian_phone: guardian.phone,
-        guardian_email: guardian.email,
+        ...(profileData.credits !== undefined ? { lesson_credits_remaining: profileData.credits, lesson_credits_updated_at: profileData.creditsAt } : {}),
+        name: profileData.student?.name || student.name,
+        phone: profileData.student?.phone || student.phone,
       };
   });
 }
@@ -1036,7 +1018,7 @@ export function extrasFromTeacherAgenda(
         record(event.student).id ??
         record(event.student).student_id,
     );
-    const titleName = text(
+    const titleName = normalizeStudentName(text(
       event.student_full_name ??
         event.student_name ??
         event.studentName ??
@@ -1044,7 +1026,7 @@ export function extrasFromTeacherAgenda(
         record(event.student).name ??
         event.title ??
         event.name,
-    ).replace(/^[-–—\s]+/, "");
+    ).replace(/^[-–—\s]+/, ""));
     const student =
       byStudentId.get(studentId) ?? byName.get(titleName.toLocaleLowerCase());
     const group = record(event.group ?? event.student_group ?? event.class);
@@ -1135,7 +1117,7 @@ const mergeScheduledExtra = (
   ...scheduled,
   external_student_id:
     evidence.external_student_id || scheduled.external_student_id,
-  student_name: evidence.student_name || scheduled.student_name,
+  student_name: normalizeStudentName(evidence.student_name || scheduled.student_name),
   external_class_id: evidence.external_class_id || scheduled.external_class_id,
   external_class_name:
     evidence.external_class_name || scheduled.external_class_name,
@@ -1417,7 +1399,7 @@ async function reviewsForGroup(
         return list(progress.students_progress).flatMap((value) => {
           const student = record(value);
           const studentId = text(student.student_id);
-          const studentName = text(student.student_name);
+          const studentName = normalizeStudentName(text(student.student_name));
           if (studentId && !Array.isArray(student.tasks_data)) throw new SyncFailure("kodland_unavailable", 502);
           return list(student.tasks_data).flatMap((value) => {
             const data = record(value);
@@ -1518,7 +1500,7 @@ export function attendanceFromStudentsPayload(payload: unknown, group: Group): A
     const studentRecord = record(value);
     const mainInfo = record(studentRecord.main_info ?? studentRecord.student ?? studentRecord.student_info);
     const studentId = text(mainInfo.student_id ?? mainInfo.id ?? studentRecord.student_id ?? studentRecord.studentId);
-    const studentName = text(mainInfo.full_name ?? mainInfo.name ?? studentRecord.student_name ?? studentRecord.studentName);
+    const studentName = normalizeStudentName(text(mainInfo.full_name ?? mainInfo.name ?? studentRecord.student_name ?? studentRecord.studentName));
     if (!studentId || !studentName) return [];
     return list(studentRecord.progress_info).flatMap((moduleValue) => {
       const moduleInfo = record(moduleValue);
@@ -1583,7 +1565,7 @@ async function attendanceForGroup(group: Group, token: string): Promise<Attendan
       const student = record(item.student ?? item.student_info ?? item.user ?? containerStudent);
       const lesson = record(item.lesson ?? item.lesson_info ?? item.class_lesson ?? item.lesson_data);
       const studentId = text(item.student_id ?? item.studentId ?? item.user_id ?? student.id ?? student.student_id ?? container.student_id ?? container.studentId);
-      const studentName = text(item.student_name ?? item.studentName ?? item.full_name ?? student.name ?? student.full_name ?? container.student_name ?? container.studentName);
+      const studentName = normalizeStudentName(text(item.student_name ?? item.studentName ?? item.full_name ?? student.name ?? student.full_name ?? container.student_name ?? container.studentName));
       const lessonId = text(item.lesson_id ?? item.lessonId ?? item.event_id ?? lesson.id ?? lesson.lesson_id);
       const lessonDate = dateOnly(item.lesson_date ?? item.lessonDate ?? item.date ?? item.start_at ?? item.startAt ?? lesson.date ?? lesson.lesson_date ?? container.lesson_date ?? container.lessonDate);
     if (!studentId || !studentName || (!lessonId && !lessonDate)) return [];
@@ -2233,7 +2215,7 @@ export async function POST(request: NextRequest) {
     }
     const profileCache = new Map<
       string,
-      ReturnType<typeof parseGuardianContact> & { student?: ReturnType<typeof parseStudentContact>; credits?: number; creditsAt?: string }
+      { student?: ReturnType<typeof parseStudentContact>; credits?: number; creditsAt?: string }
     >();
     const courseLessonCache: CourseLessonCache = {
       catalog: new Map(),

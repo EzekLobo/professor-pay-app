@@ -1,4 +1,5 @@
 import { studentLessonCreditsPatch } from "@/lib/student-profile";
+import { sanitizeKodlandStudentRecord, sanitizeManualStudentRecord } from "@/lib/student-privacy";
 import { publishTutorPreferencesChanged } from "./tutor-preference-events";
 import { occurrenceTimes } from "./sync-policy";
 import { getSyncCoordinator, type SyncExecutionContext } from "./sync-coordinator";
@@ -278,19 +279,22 @@ export type KodlandStudent = {
   id: string;
   external_id: string;
   name: string;
-  email: string;
+  /** @deprecated Legacy snapshots may contain this field; new records omit it. */
+  email?: string;
   phone: string;
   status: string;
   progress_summary: string;
-  profile_url: string;
+  /** @deprecated Legacy snapshots may contain this field; new records omit it. */
+  profile_url?: string;
   external_class_id: string;
   external_class_name: string;
-  local_note: string;
-  guardian_name: string;
-  guardian_relationship: string;
-  guardian_phone: string;
-  guardian_email: string;
-  guardian_note: string;
+  /** @deprecated Legacy snapshots may contain these fields; new records omit them. */
+  local_note?: string;
+  guardian_name?: string;
+  guardian_relationship?: string;
+  guardian_phone?: string;
+  guardian_email?: string;
+  guardian_note?: string;
   hidden: boolean;
   created_at: string;
 };
@@ -1527,7 +1531,14 @@ const temporaryCallFields = ["call_url", "call_occurrence_key", "call_checked_at
 const isCallCollection = (name: string) => name === "kodland_lessons" || name === "kodland_extra_lessons";
 /** Session links belong to a live occurrence, never to a portable backup. */
 const withoutTemporaryCallState = <T extends Record<string, unknown>>(value: T, name: string): T => {
-  const safe: Record<string, unknown> = { ...value };
+  const safe: Record<string, unknown> = name === "kodland_students"
+    ? sanitizeKodlandStudentRecord(value)
+    : name === "manual_students"
+      ? sanitizeManualStudentRecord(value)
+      : { ...value };
+  if (name === "notification_cases" && safe.notification && typeof safe.notification === "object" && !Array.isArray(safe.notification)) {
+    safe.notification = { ...(safe.notification as Record<string, unknown>), guardian_name: "" };
+  }
   if (isCallCollection(name)) temporaryCallFields.forEach(field => { delete safe[field]; });
   return safe as T;
 };
@@ -1585,6 +1596,7 @@ const backupRows = (payload: ImportPayload, name: BackupCollection): Row[] => {
     const normalized = name === "classes" ? normalizeClass(value)
       : name === "lessons" ? normalizeLesson(value)
       : name === "payments" ? normalizePayment(value)
+      : name === "manual_students" ? sanitizeManualStudentRecord(value)
       : name.startsWith("kodland_") && ["kodland_groups", "kodland_students", "kodland_reviews", "kodland_attendance", "kodland_lessons", "kodland_extra_lessons", "kodland_availability"].includes(name)
         ? normalizePedagogicalRow(value, name as PedagogicalCollection)
         : {};
@@ -1651,19 +1663,7 @@ const normalizePedagogicalRow = (
     created_at: String(value.created_at ?? value.createdAt ?? now()),
   };
   if (collection === "kodland_students") {
-    row.local_note = String(value.local_note ?? value.localNote ?? "");
-    row.guardian_name = String(value.guardian_name ?? value.guardianName ?? "");
-    row.guardian_relationship = String(
-      value.guardian_relationship ?? value.guardianRelationship ?? "",
-    );
-    row.guardian_phone = String(
-      value.guardian_phone ?? value.guardianPhone ?? "",
-    );
-    row.guardian_email = String(
-      value.guardian_email ?? value.guardianEmail ?? "",
-    );
-    row.guardian_note = String(value.guardian_note ?? value.guardianNote ?? "");
-    row.hidden = Boolean(value.hidden);
+    return sanitizeKodlandStudentRecord({ ...row, hidden: Boolean(value.hidden) }) as Row;
   }
   if (collection === "kodland_groups") {
     row.local_class_id = value.local_class_id ?? value.localClassId ?? null;
@@ -2080,25 +2080,24 @@ export const manualTeachingApi = {
   groups: async (): Promise<ManualClassGroup[]> =>
     ((await rows("manual_class_groups")) as unknown as ManualClassGroup[])
       .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name)),
-  students: async (): Promise<ManualStudent[]> =>
-    (await rows("manual_students")) as unknown as ManualStudent[],
+  students: async (): Promise<ManualStudent[]> => {
+    const uid = authUser().uid;
+    await ensureManualStudentPrivacyCleanup(uid);
+    return (await rows("manual_students")).map((item) => sanitizeManualStudentRecord(item)) as unknown as ManualStudent[];
+  },
   saveStudent: async (payload: ManualStudentInput): Promise<ManualStudent> => {
     const operationUid = authUser().uid;
     if (!payload.name.trim()) throw new ApiError(400, "Informe o nome do aluno.");
     const id = payload.id || crypto.randomUUID();
     const previous = await forAccount(operationUid, () => getDoc(doc(ref("manual_students", operationUid), id)));
-    const record: ManualStudent = {
+    const record = sanitizeManualStudentRecord({
       id,
       name: payload.name.trim(),
-      email: payload.email?.trim() ?? "",
       phone: payload.phone?.trim() ?? "",
-      guardian_name: payload.guardian_name?.trim() ?? String(previous.data()?.guardian_name ?? ""),
-      guardian_phone: payload.guardian_phone?.trim() ?? String(previous.data()?.guardian_phone ?? ""),
-      notes: payload.notes?.trim() ?? String(previous.data()?.notes ?? ""),
       active: payload.active ?? true,
       created_at: String(previous.data()?.created_at ?? now()),
       updated_at: now(),
-    };
+    }) as ManualStudent;
     await forAccount(operationUid, () => setDoc(doc(ref("manual_students", operationUid), id), record));
     return record;
   },
@@ -2734,13 +2733,19 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
     assert();
     const collection = (name: string) => state.collections[name] ?? [];
     const merge = (name: string, incoming: BrowserRow[]) => {
-      const map = new Map(collection(name).map(item => [item.id, item]));
+      const map = new Map(collection(name).map(item => [
+        item.id,
+        name === "kodland_students" ? sanitizeKodlandStudentRecord(item) : item,
+      ]));
       incoming.forEach(item => {
         const previous = map.get(item.id);
         const value = { ...previous, ...item };
-        if (name === "kodland_students") Object.assign(value, studentLessonCreditsPatch(item, previous ?? {}));
-        if (name === "kodland_students" && previous) for (const field of ["guardian_name", "guardian_phone", "guardian_email", "guardian_relationship"]) if (!item[field] && previous[field]) value[field] = previous[field];
-        map.set(item.id, value);
+        if (name === "kodland_students") {
+          Object.assign(value, studentLessonCreditsPatch(item, previous ?? {}));
+          map.set(item.id, sanitizeKodlandStudentRecord(value));
+        } else {
+          map.set(item.id, value);
+        }
       });
       state.collections[name] = [...map.values()];
     };
@@ -2788,6 +2793,55 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
     state.active = true; state.updatedAt = stamp;
   }, owner);
 }
+
+const studentPrivacyCleanup = new Set<string>();
+const sameRecord = (left: Record<string, unknown>, right: Record<string, unknown>) => {
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  return [...keys].every((key) => JSON.stringify(left[key]) === JSON.stringify(right[key]));
+};
+
+/** Remove legacy e-mail/responsible fields the first time students are read. */
+async function ensureStudentPrivacyCleanup(uid: string) {
+  if (studentPrivacyCleanup.has(uid)) return;
+  const local = await readKodlandBrowser(uid);
+  if (local?.active) {
+    const current = local.collections.kodland_students ?? [];
+    const sanitized = current.map((item) => sanitizeKodlandStudentRecord(item) as BrowserRow);
+    if (current.some((item, index) => !sameRecord(item, sanitized[index]))) {
+      await updateKodlandBrowser(uid, (state) => {
+        state.collections.kodland_students = (state.collections.kodland_students ?? []).map((item) => sanitizeKodlandStudentRecord(item) as BrowserRow);
+      }, () => getFirebaseAuth().currentUser?.uid === uid);
+    }
+    studentPrivacyCleanup.add(uid);
+    return;
+  }
+  const snapshot = await forAccount(uid, () => getDocs(ref("kodland_students", uid)));
+  const writes = snapshot.docs.flatMap((item) => {
+    const raw = { ...(item.data() as Row), id: item.id };
+    const safe = sanitizeKodlandStudentRecord(raw) as Row;
+    return sameRecord(raw, safe)
+      ? []
+      : [(batch: FirebaseWriteBatch) => batch.set(doc(ref("kodland_students", uid), item.id), firestorePayload(safe))];
+  });
+  if (writes.length) await forAccount(uid, () => commitWrites(writes));
+  studentPrivacyCleanup.add(uid);
+}
+
+const manualStudentPrivacyCleanup = new Set<string>();
+async function ensureManualStudentPrivacyCleanup(uid: string) {
+  if (manualStudentPrivacyCleanup.has(uid)) return;
+  const snapshot = await forAccount(uid, () => getDocs(ref("manual_students", uid)));
+  const writes = snapshot.docs.flatMap((item) => {
+    const raw = { ...(item.data() as Row), id: item.id };
+    const safe = sanitizeManualStudentRecord(raw) as Row;
+    return sameRecord(raw, safe)
+      ? []
+      : [(batch: FirebaseWriteBatch) => batch.set(doc(ref("manual_students", uid), item.id), firestorePayload(safe))];
+  });
+  if (writes.length) await forAccount(uid, () => commitWrites(writes));
+  manualStudentPrivacyCleanup.add(uid);
+}
+
 async function syncKodlandBrowser(username: string, password: string, mode: KodlandSyncMode, options: KodlandSyncOptions): Promise<KodlandSyncResult> {
   const user = authUser();
   const owner = () => getFirebaseAuth().currentUser?.uid === user.uid;
@@ -3068,11 +3122,15 @@ export const kodlandApi = {
   groups: async () => ({
     items: (await rows("kodland_groups")) as unknown as KodlandGroup[],
   }),
-  students: async () => ({
-    items: (await rows("kodland_students")).filter(
-      (item) => !item.hidden,
-    ) as unknown as KodlandStudent[],
-  }),
+  students: async () => {
+    const uid = authUser().uid;
+    await ensureStudentPrivacyCleanup(uid);
+    return {
+      items: (await rows("kodland_students")).map((item) => sanitizeKodlandStudentRecord(item)).filter(
+        (item) => !item.hidden,
+      ) as unknown as KodlandStudent[],
+    };
+  },
   reviews: async () => ({
     items: (await rows("kodland_reviews")) as unknown as KodlandReview[],
   }),
@@ -3363,17 +3421,18 @@ export const kodlandApi = {
         .filter((student) => previousById.has(student.id))
         .map((student) => {
           const previous = previousById.get(student.id)!;
-          return (batch) => batch.update(doc(syncCollection("kodland_students"), student.id), {
+          const next = sanitizeKodlandStudentRecord({
+            ...previous,
+            ...student,
             ...studentLessonCreditsPatch(student, previous),
+            id: student.id,
             name: student.name || previous.name || "",
-            email: student.email || previous.email || "",
             phone: student.phone || previous.phone || "",
-            guardian_name: student.guardian_name || previous.guardian_name || "",
-            guardian_relationship: student.guardian_relationship || previous.guardian_relationship || "",
-            guardian_phone: student.guardian_phone || previous.guardian_phone || "",
-            guardian_email: student.guardian_email || previous.guardian_email || "",
+            hidden: Boolean(previous.hidden),
+            created_at: String(previous.created_at ?? createdAt),
             updated_at: createdAt,
           });
+          return (batch) => batch.set(doc(syncCollection("kodland_students"), student.id), firestorePayload(next));
         });
       persistencePhase = "gravação";
       options.assertActive?.();
@@ -3424,29 +3483,12 @@ export const kodlandApi = {
     }));
     students.forEach((item) => {
       const previous = oldStudentsById.get(item.id);
-      enqueue("kodland_students", item.id, {
+      enqueue("kodland_students", item.id, sanitizeKodlandStudentRecord({
         ...item,
         ...studentLessonCreditsPatch(item, previous),
-        local_note: String(previous?.local_note ?? ""),
-        // Contact fields come from the latest read-only profile snapshot.
-        // Keep the last value only when the profile has no value, so a
-        // temporary omission does not erase a previously synchronized contact.
-        guardian_name: String(
-          item.guardian_name || previous?.guardian_name || "",
-        ),
-        guardian_relationship: String(
-          item.guardian_relationship || previous?.guardian_relationship || "",
-        ),
-        guardian_phone: String(
-          item.guardian_phone || previous?.guardian_phone || "",
-        ),
-        guardian_email: String(
-          item.guardian_email || previous?.guardian_email || "",
-        ),
-        guardian_note: String(previous?.guardian_note ?? ""),
         hidden: Boolean(previous?.hidden ?? false),
         created_at: String(previous?.created_at ?? createdAt),
-      });
+      }));
     });
     lessons.forEach((item) => {
       const documentId = kodlandLessonDocumentId(item);
@@ -3739,24 +3781,21 @@ export const kodlandApi = {
       Pick<
         KodlandStudent,
         | "name"
-        | "email"
         | "phone"
-        | "status"
-        | "profile_url"
-        | "local_note"
-        | "guardian_name"
-        | "guardian_relationship"
-        | "guardian_phone"
-        | "guardian_email"
-        | "guardian_note"
       >
     >,
   ) => {
     const operationUid = authUser().uid;
-    await forAccount(operationUid, () => updateDoc(doc(ref("kodland_students", operationUid), id), {
+    const reference = doc(ref("kodland_students", operationUid), id);
+    const current = await forAccount(operationUid, () => getDoc(reference));
+    if (!current.exists()) throw new ApiError(404, "Aluno não encontrado.");
+    const record = sanitizeKodlandStudentRecord({
+      ...(current.data() as Row),
       ...payload,
+      id,
       updated_at: now(),
-    }));
+    });
+    await forAccount(operationUid, () => setDoc(reference, firestorePayload(record)));
   },
   hideStudent: async (id: string) => {
     const operationUid = authUser().uid;
@@ -3971,7 +4010,11 @@ export const dataApi = {
     await assertTaskBoardReadyForDataChange(ownerId);
     assertDataOwner(ownerId);
     const writes = backupCollectionNames.flatMap((name) => backupRows(value, name).map((item) =>
-      (batch: FirebaseWriteBatch) => batch.set(doc(ref(name, ownerId), item.id), { ...item, ...invalidatedCallState(name) }, { merge: true }),
+      (batch: FirebaseWriteBatch) => batch.set(
+        doc(ref(name, ownerId), item.id),
+        { ...item, ...invalidatedCallState(name) },
+        { merge: name !== "kodland_students" && name !== "manual_students" },
+      ),
     ));
     const finance = backupFinance(value);
     if (finance) writes.push((batch) =>

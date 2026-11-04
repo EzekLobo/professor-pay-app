@@ -30,11 +30,11 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("scoped persistence", () => {
   it("patches only points of imported students and keeps unrelated reviews", async () => {
-    mock.records.set("users/owner/kodland_students/kodland-student-7", { external_class_id: "g1", name: "Nome local", guardian_phone: "123", progress_summary: "1/20" });
+    mock.records.set("users/owner/kodland_students/kodland-student-7", { external_class_id: "g1", name: "Nome local", phone: "123", progress_summary: "1/20" });
     mock.records.set("users/owner/kodland_reviews/unrelated", { external_class_id: "g2" });
     vi.stubGlobal("fetch", vi.fn(async () => Response.json(snapshot("activities", { ranking_complete: true }, { review_group_ids: ["g1"], task_progress: [], ranking: [{ id: "kodland-student-7", external_class_id: "g1", progress_summary: "15/20" }, { id: "new-student", external_class_id: "g1", progress_summary: "10/20" }] }))));
     await kodlandApi.syncScope("teacher", "secret", { scope: "activities", group_ids: ["g1"] }, context());
-    expect(mock.records.get("users/owner/kodland_students/kodland-student-7")).toEqual({ external_class_id: "g1", name: "Nome local", guardian_phone: "123", progress_summary: "15/20" });
+    expect(mock.records.get("users/owner/kodland_students/kodland-student-7")).toEqual({ external_class_id: "g1", name: "Nome local", phone: "123", progress_summary: "15/20" });
     expect(mock.records.has("users/owner/kodland_students/new-student")).toBe(false); expect(mock.records.has("users/owner/kodland_reviews/unrelated")).toBe(true);
   });
   it("does not mutate when the account changes after the response", async () => {

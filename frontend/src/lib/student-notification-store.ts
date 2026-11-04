@@ -28,7 +28,10 @@ export function validateNotificationCase(input: unknown): NotificationCase {
     || !(value.read_revision === null || typeof value.read_revision === "string")
     || !(value.contact_confirmed_at === null || typeof value.contact_confirmed_at === "string")
     || !Array.isArray(item.activities) || item.activities.some(activity => !activity || typeof activity.id !== "string" || typeof activity.title !== "string" || !(activity.due_at === null || typeof activity.due_at === "string"))) throw new Error("O histórico de notificações é inválido.");
-  return value;
+  // Notification history keeps the operational phone (used for WhatsApp),
+  // but never carries a responsible's name. Older cases are scrubbed when
+  // they are read and overwritten the next time the case is changed.
+  return { ...value, notification: { ...value.notification, guardian_name: "" } };
 }
 export function reconcileNotificationCases(previous: NotificationCase[], items: StudentNotification[], timestamp: string, coverage?: NotificationCoverage): NotificationCase[] {
   items = items.filter(item => notificationCovered(item, coverage));

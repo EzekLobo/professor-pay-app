@@ -66,7 +66,6 @@ export type CompactActivityColumn = {
 export type CompactActivityRow = {
   key: string;
   name: string;
-  email: string;
   student?: KodlandStudent;
   rank?: number;
   points?: number;
@@ -165,10 +164,10 @@ export function compactActivitiesModel({
     drafts.set(key, draft);
     return draft;
   };
-  const ensureRow = (draft: CompactActivityClassDraft, key: string, name: string, email = "") => {
+  const ensureRow = (draft: CompactActivityClassDraft, key: string, name: string) => {
     const current = draft.rows.get(key);
     if (current) return current;
-    const row: CompactActivityRow = { key, name: name || "Aluno", email, cells: {} };
+    const row: CompactActivityRow = { key, name: name || "Aluno", cells: {} };
     draft.rows.set(key, row);
     return row;
   };
@@ -188,7 +187,7 @@ export function compactActivitiesModel({
     draft.totalLessons = uniqueLessons.length;
     draft.completedLessons = uniqueLessons.filter(item => item.lesson_passed || /^(held|completed|done|passed|conducted|finished)$/i.test(item.status)).length;
     for (const [index, student] of activeStudentsRankedByPoints(students.filter((item) => item.external_class_id === externalClassId)).entries()) {
-      const row = ensureRow(draft, student.external_id || student.id, student.name, student.email);
+      const row = ensureRow(draft, student.external_id || student.id, student.name);
       row.student = student; row.rank = index + 1; row.points = kodlandStudentPoints(student.progress_summary);
       row.absenceCount = new Set(attendance.filter(item => item.external_class_id === externalClassId && item.external_student_id === student.external_id && item.status === "ABSENT").map(item => item.lesson_id || `${item.lesson_date}:${item.start_time}`)).size;
     }
@@ -214,7 +213,7 @@ export function compactActivitiesModel({
     if (complete && !pendingOnly) for (const progress of taskProgress.filter(item => item.external_class_id === externalClassId)) {
       const rosterStudent = students.find(item => item.external_class_id === externalClassId && item.external_id === progress.external_student_id);
       if (rosterStudent && !isActiveKodlandStudent(rosterStudent.status)) continue;
-      const row = ensureRow(draft, progress.external_student_id, rosterStudent?.name || "Aluno", rosterStudent?.email);
+      const row = ensureRow(draft, progress.external_student_id, rosterStudent?.name || "Aluno");
       const catalog = lessons.find(item => item.external_class_id === externalClassId && (item.id === progress.lesson_id || item.source_lesson_id === progress.lesson_id));
       const existing = [...draft.columns.values()].find(column => {
         const cell = row.cells[column.key];
@@ -244,11 +243,11 @@ export function compactActivitiesModel({
     draft.completedLessons = classOccurrences.filter(item => item.status === "held").length;
     for (const studentId of manualClass?.student_ids ?? []) {
       const student = manualStudentsById.get(studentId);
-      if (student?.active) { const row = ensureRow(draft, student.id, student.name, student.email); row.manualStudent = student; }
+      if (student?.active) { const row = ensureRow(draft, student.id, student.name); row.manualStudent = student; }
     }
     for (const activity of classActivities) {
       const student = manualStudentsById.get(activity.student_id);
-      const row = ensureRow(draft, activity.student_id || activity.id, student?.name || "Aluno", student?.email || "");
+      const row = ensureRow(draft, activity.student_id || activity.id, student?.name || "Aluno");
       const key = `manual:${activity.occurrence_id}:${activity.title.trim().toLocaleLowerCase("pt-BR")}`;
       if (!draft.columns.has(key)) {
         draft.columns.set(key, {
@@ -287,7 +286,7 @@ export function filterCompactActivitiesModel(model: CompactActivitiesModel, quer
     const columnsByKey = new Map(item.columns.map(column => [column.key, column]));
     let studentMatched = false;
     const rows = item.rows.flatMap(row => {
-      if (matches(`${row.name} ${row.email}`)) { studentMatched = true; return [row]; }
+      if (matches(row.name)) { studentMatched = true; return [row]; }
       const cells = Object.fromEntries(Object.entries(row.cells).filter(([key, cell]) => {
         const column = columnsByKey.get(key);
         const detail = cell.source === "kodland" ? `${cell.review.lesson_title} ${cell.review.task_title}`
@@ -508,7 +507,7 @@ function AttendanceClassGrid({
         </div>)}
       </div>
       {histories.map((history) => {
-        const phone = history.student?.guardian_phone || history.student?.phone || "";
+        const phone = history.student?.phone || "";
         const recordsByColumn = new Map(history.records.map((item) => [attendanceColumnKey(item, lessons), item]));
         return <div className="attendance-grid-row" style={gridStyle} role="row" key={history.id}>
           <div className="attendance-student-summary" role="rowheader">
@@ -603,7 +602,7 @@ export function CompactActivitiesGrid({
   const creditFor = (student?: KodlandStudent) => student && typeof student.lesson_credits_remaining === "number" ? `${new Intl.NumberFormat("pt-BR").format(student.lesson_credits_remaining)} aulas` : "Não informado";
   const openStudent = (row: CompactActivityRow) => setSelected(row.student ?? row.manualStudent ?? null);
   const studentSummary = (row: CompactActivityRow, classKey: string, fullName = false) => <div className="activity-student-heading"><div className="compact-student-profile"><button type="button" className={`compact-student-name${fullName ? " is-full-name" : ""}`} onClick={() => openStudent(row)} disabled={!row.student && !row.manualStudent} aria-label={`Informações de ${row.name}`} title={row.name}>{row.rank ? `${row.rank}º · ` : ""}{fullName ? row.name : row.name.trim().split(/\s+/).filter((_, index, parts) => index === 0 || index === parts.length - 1).join(" ")}</button>{!fullName && pointsFor(row) !== null && <small>{new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts</small>}</div>{contactButton?.(classKey, row.key, row.name)}</div>;
-  return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", "status" in selected ? selected.status : selected.active ? "Ativo" : "Inativo"], ["Pontuação", "progress_summary" in selected ? `${kodlandStudentPoints(selected.progress_summary)} pts` : "Não informado"], ["Saldo de aulas", "progress_summary" in selected ? creditFor(selected) : "Não informado"], ["Progresso", "progress_summary" in selected ? selected.progress_summary : ""], ["E-mail", selected.email], ["Telefone", selected.phone], ["Responsável", `${selected.guardian_name ?? ""}${"guardian_relationship" in selected && selected.guardian_relationship ? ` (${selected.guardian_relationship})` : ""}`], ["Telefone do responsável", selected.guardian_phone], ["E-mail do responsável", "guardian_email" in selected ? selected.guardian_email : ""], ["Observações", "notes" in selected ? selected.notes : ""]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{"profile_url" in selected && selected.profile_url && <a className="button button-ghost" href={absoluteUrl(selected.profile_url)} target="_blank" rel="noreferrer">Perfil na Kodland</a>}</div>}</Modal><div ref={activitiesRoot} className="correction-class-list compact-activities-list" aria-label="Alunos e atividades por turma">
+  return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", "status" in selected ? selected.status : selected.active ? "Ativo" : "Inativo"], ["Pontuação", "progress_summary" in selected ? `${kodlandStudentPoints(selected.progress_summary)} pts` : "Não informado"], ["Saldo de aulas", "progress_summary" in selected ? creditFor(selected) : "Não informado"], ["Progresso", "progress_summary" in selected ? selected.progress_summary : ""], ["Telefone", selected.phone]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>}</Modal><div ref={activitiesRoot} className="correction-class-list compact-activities-list" aria-label="Alunos e atividades por turma">
     {model.filter(item => !hidden.includes(item.key)).map((original) => {
       const classModel = { ...original, name: names[original.key] || original.name };
       const isPending = mode === "pending";
@@ -956,7 +955,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       const matchesFilter = attendanceFilter === "ALL"
         || (attendanceFilter === "ABSENT" && history.records.some((item) => item.status === "ABSENT"))
         || (attendanceFilter === "PRESENT" && history.records.some((item) => item.status === "PRESENT"));
-      const matchesQuery = !normalized || `${history.name} ${history.student?.email ?? ""} ${history.records.map((item) => `${item.external_class_name} ${item.lesson_title}`).join(" ")}`.toLowerCase().includes(normalized);
+      const matchesQuery = !normalized || `${history.name} ${history.records.map((item) => `${item.external_class_name} ${item.lesson_title}`).join(" ")}`.toLowerCase().includes(normalized);
       return isActiveKodlandStudent(history.student?.status) && matchesFilter && matchesQuery;
     });
   }, [attendance, attendanceFilter, attendanceStudents, query]);
@@ -970,7 +969,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     const classId = classKey.slice(classKey.indexOf(":") + 1);
     const alert = notifications?.cases.find(item => needsNotificationContact(item) && item.notification.source === source && item.notification.class_id === classId && item.notification.student_id === studentKey && item.notification.category !== "absence");
     const message = alert ? notificationMessage(alert.notification, notifications?.settings?.activity_message_template ?? DEFAULT_ACTIVITY_MESSAGE) : `Olá! Sou o professor de ${name}. Gostaria de conversar sobre as atividades e o acompanhamento das aulas.`;
-    return <button type="button" className="activity-whatsapp-button" aria-label={`Mensagem aos responsáveis de ${name}`} title={`WhatsApp dos responsáveis de ${name}`} onClick={() => setWhatsAppDraft({ studentName: name, phone: student?.guardian_phone ?? "", guardian: true, message, activityTarget: { source, class_id: classId, student_id: studentKey } })}>
+    return <button type="button" className="activity-whatsapp-button" aria-label={`Mensagem para ${name}`} title={`WhatsApp de ${name}`} onClick={() => setWhatsAppDraft({ studentName: name, phone: student?.phone ?? "", guardian: false, message, activityTarget: { source, class_id: classId, student_id: studentKey } })}>
       <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M20.5 3.5A11.9 11.9 0 0 0 12 0C5.4 0 0 5.4 0 12c0 2.1.5 4.2 1.6 6L0 24l6.2-1.6A12 12 0 0 0 12 24c6.6 0 12-5.4 12-12 0-3.2-1.2-6.2-3.5-8.5ZM12 22a10 10 0 0 1-5.1-1.4l-.4-.2-3.7 1 1-3.6-.3-.4A10 10 0 1 1 12 22Zm5.5-7.5c-.3-.1-1.8-.9-2.1-1-.3-.1-.5-.1-.7.2l-1 1.2c-.2.2-.4.2-.7.1-1.8-.9-3-1.6-4.2-3.6-.3-.5.3-.5.9-1.8.1-.2 0-.4 0-.6L7.8 6.5c-.2-.5-.4-.4-.7-.4h-.6c-.2 0-.6.1-.9.4-.3.4-1.2 1.2-1.2 2.9s1.3 3.3 1.5 3.5c.2.2 2.5 3.8 6 5.3 2.2.9 3.1 1 4.2.8.7-.1 1.8-.8 2.1-1.5.2-.8.2-1.4.2-1.5-.1-.2-.3-.3-.6-.5Z" /></svg>
     </button>;
   }

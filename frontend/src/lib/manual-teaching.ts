@@ -3,8 +3,10 @@ import type { RatePeriod, RecurringClass, WeeklySlot } from "@/lib/teaching-fina
 export type ManualStudent = {
   id: string;
   name: string;
-  email: string;
+  /** @deprecated Legacy records may contain this field; new records omit it. */
+  email?: string;
   phone: string;
+  /** @deprecated Legacy notification snapshots may contain these fields. */
   guardian_name?: string;
   guardian_phone?: string;
   notes?: string;
@@ -79,10 +81,13 @@ export type ManualClassInput = {
 export type ManualStudentInput = {
   id?: string;
   name: string;
+  /** @deprecated Accepted for old imports but never persisted. */
   email?: string;
   phone?: string;
+  /** @deprecated Accepted for old imports but never persisted. */
   guardian_name?: string;
   guardian_phone?: string;
+  /** @deprecated Accepted for old imports but never persisted. */
   notes?: string;
   active?: boolean;
 };

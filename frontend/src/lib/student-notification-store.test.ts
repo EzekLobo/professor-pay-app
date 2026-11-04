@@ -13,7 +13,7 @@ vi.mock("firebase/firestore", () => ({
 }));
 import { createDemoStudentNotificationStore, createStudentNotificationStore, reconcileNotificationCases } from "./student-notification-store";
 import { defaultNotificationSettings, evaluateStudentNotifications, needsNotificationContact, type NotificationLesson } from "./student-notification-rules";
-const lesson: NotificationLesson = { source: "manual", class_id: "c", class_name: "Python", student_id: "s", student_name: "Ana", occurrence_id: "l", lesson_label: "M1L1", lesson_date: "2026-10-26", ended_at: "2026-10-26T21:00:00Z", active: true, cancelled: false, attendance: "absent", guardian_name: "Maria", guardian_phone: "" };
+const lesson: NotificationLesson = { source: "manual", class_id: "c", class_name: "Python", student_id: "s", student_name: "Ana", occurrence_id: "l", lesson_label: "M1L1", lesson_date: "2026-10-26", ended_at: "2026-10-26T21:00:00Z", active: true, cancelled: false, attendance: "absent", guardian_name: "", guardian_phone: "" };
 const settings = { ...defaultNotificationSettings("2026-10-01"), enabled: true };
 const timestamp = "2026-10-28T15:00:00Z";
 const item = evaluateStudentNotifications([lesson], [], settings, new Date(timestamp))[0];

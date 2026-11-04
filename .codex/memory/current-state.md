@@ -1,5 +1,10 @@
 # Estado atual
 
+## Percentual do curso pela aula atual — 04/11/2026
+
+- O indicador compacto das turmas usa `next_lesson_number` como posição atual (limitada ao total de aulas catalogadas) e calcula `aula atual / total de aulas`; snapshots antigos usam a quantidade de aulas passadas como fallback. O tooltip informa o numerador e denominador.
+- Validação: teste da tela de acompanhamento (13 testes) e typecheck do frontend passaram. Novidade 2026110413.
+
 ## Minimização de dados de alunos — 04/11/2026
 
 - O limite de privacidade aplicado a sincronização Kodland, Firestore, cache do navegador, cadastros manuais, demo e backup/exportação mantém nome normalizado (nome e sobrenome), telefone e saldo de aulas, além dos identificadores/status/progresso necessários ao funcionamento da grade. E-mail, perfil, notas e dados nominais de responsáveis não são exibidos nem gravados em novos registros.

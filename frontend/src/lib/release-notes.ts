@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110413, date: "2026-11-04", title: "Percentual do curso pela aula atual",
+    description: "O indicador de cada turma agora compara a aula atual com o total de aulas do curso, sem depender da marcação de aula concluída.",
+    href: "/classes", action: "Abrir alunos",
+  },
+  {
     version: 2026110412, date: "2026-11-04", title: "Dados de alunos minimizados",
     description: "Alunos agora mantêm somente nome e sobrenome, telefone e saldo de aulas para a operação. E-mail e dados de responsáveis não são exibidos nem persistidos nos registros de alunos.",
     href: "/classes", action: "Abrir alunos",

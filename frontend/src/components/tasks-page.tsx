@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Archive, ArchiveRestore, ArrowDown, ArrowLeft, ArrowUp, Columns3, Copy, GripVertical, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
+import { observeOperation } from "@/lib/operation-log-client";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Modal } from "@/components/modal";
@@ -64,7 +65,7 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
   async function persist(card: TaskCard) {
     setBusy(true); setError(""); setDraftError("");
     try {
-      const saved = await store.save(validateTaskCard({ ...card, updated_at: new Date().toISOString() }));
+      const saved = await observeOperation("task_save", () => store.save(validateTaskCard({ ...card, updated_at: new Date().toISOString() })));
       setCards((current) => [...current.filter((item) => item.id !== saved.id), saved]);
       setSyncStatus(store.status?.() ?? { pending: 0, error: null });
       setNotice(`Tarefa ${saved.completed_at ? "concluída" : "salva"}: ${saved.title}.`);
@@ -157,12 +158,12 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
     </Modal>
     {listEditor !== null && <TaskListManager lists={lists} cards={cards} initialId={listEditor} onClose={() => setListEditor(null)} onApply={async (next, changes, removedIds) => {
       if (!store.updateLists) throw new Error("Não foi possível atualizar as listas.");
-      await store.updateLists(next, changes, removedIds);
+      await observeOperation("task_lists", () => store.updateLists!(next, changes, removedIds));
       setLists(next); setCards((current) => [...current.filter((card) => !removedIds.includes(card.id) && !changes.some((item) => item.id === card.id)), ...changes]);
       setSyncStatus(store.status?.() ?? { pending: 0, error: null });
       setNotice("Listas atualizadas.");
     }} />}
-    <ConfirmDialog open={confirm !== null} title={confirm?.type === "delete" ? "Excluir tarefa" : "Concluir com itens pendentes"} confirmLabel={confirm?.type === "delete" ? "Excluir" : "Concluir mesmo assim"} danger={confirm?.type === "delete"} onClose={() => setConfirm(null)} onConfirm={async () => { if (!confirm) return; if (confirm.type === "delete") { await store.remove(confirm.card.id); setCards((current) => current.filter((item) => item.id !== confirm.card.id)); setDraft(null); setNotice("Tarefa excluída."); } else { await persist(confirm.card); setDraft(null); } }}><p>{confirm?.type === "delete" ? "A tarefa será excluída definitivamente. Esta ação não pode ser desfeita." : "Ainda há itens não concluídos no checklist. Deseja concluir a tarefa mantendo esses itens pendentes?"}</p></ConfirmDialog>
+    <ConfirmDialog open={confirm !== null} title={confirm?.type === "delete" ? "Excluir tarefa" : "Concluir com itens pendentes"} confirmLabel={confirm?.type === "delete" ? "Excluir" : "Concluir mesmo assim"} danger={confirm?.type === "delete"} onClose={() => setConfirm(null)} onConfirm={async () => { if (!confirm) return; if (confirm.type === "delete") { await observeOperation("task_delete", () => store.remove(confirm.card.id)); setCards((current) => current.filter((item) => item.id !== confirm.card.id)); setDraft(null); setNotice("Tarefa excluída."); } else { await persist(confirm.card); setDraft(null); } }}><p>{confirm?.type === "delete" ? "A tarefa será excluída definitivamente. Esta ação não pode ser desfeita." : "Ainda há itens não concluídos no checklist. Deseja concluir a tarefa mantendo esses itens pendentes?"}</p></ConfirmDialog>
   </div>;
 }
 

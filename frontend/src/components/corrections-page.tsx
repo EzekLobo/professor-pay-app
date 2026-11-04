@@ -1,25 +1,27 @@
 "use client";
+import { ActivityMissingList } from "./activity-missing-list";
+import type { ActivityTarget } from "@/lib/activity-missing-list";
 import type { StudentNotification } from "@/lib/student-notification-rules";
-import { NotificationResolution } from "./student-notifications";
+import { NotificationResolution, useStudentNotifications } from "./student-notifications";
+import { subscribeStudentNotifications } from "@/lib/student-notification-store";
+import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { MessageCircle, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { Modal } from "@/components/modal";
-import { kodlandApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
+import { ApiError, kodlandApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
 import { attendanceDateFromSchedule, attendanceLessonParts, lessonForAttendance } from "@/lib/attendance-schedule";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
-import { runActivitiesSync } from "@/lib/auto-sync-runtime";
-import { getFirebaseAuth } from "@/lib/firebase";
-import { subscribeSyncDataChanged } from "@/lib/sync-events";
+import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
+import { restoreKodlandCredentials } from "@/lib/browser-credentials";
 import { isActiveKodlandStudent } from "@/lib/student-ranking";
 import { whatsappUrl } from "@/lib/whatsapp";
 import { ManualAttendanceGrid } from "@/components/manual-attendance-grid";
-import { ClassesContent } from "@/components/classes-page";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
@@ -69,7 +71,7 @@ export type CompactActivityClass = {
   rows: CompactActivityRow[];
 };
 export type CompactActivitiesModel = CompactActivityClass[];
-type WhatsAppDraft = { studentName: string; phone: string; message: string };
+type WhatsAppDraft = { studentName: string; phone: string; message: string; guardian?: boolean; activityTarget?: ActivityTarget };
 const lessonLabel = (review: KodlandReview, lessons: KodlandLesson[]) =>
   `${compactKodlandLessonLabel(review, lessons)}: ${review.lesson_title || "Sem título"}`;
 const groupBy = <T,>(items: T[], keyFor: (item: T) => string) =>
@@ -286,8 +288,8 @@ function LessonLinks({ lesson, demo }: { lesson: KodlandLesson | undefined; demo
   const hasMaterial = links.length > 0;
   return (
     <>
-      {links.map(([label, href]) => demo ? <button type="button" className="button button-ghost button-small" onClick={() => demo.onMaterial?.(lesson)} key={label}>{label}</button> : <a className="button button-ghost button-small" href={absoluteUrl(href)} target="_blank" rel="noreferrer" key={label}>{label}</a>)}
-      {!hasMaterial && (demo ? <button type="button" className="button button-ghost button-small" onClick={() => demo.onMaterial?.(lesson)}>Abrir aula</button> : <a className="button button-ghost button-small" href={absoluteUrl(lesson.external_url)} target="_blank" rel="noreferrer">Abrir aula</a>)}
+      {links.map(([label, href]) => demo ? <button type="button" className="button button-ghost button-small" onClick={() => demo.onMaterial?.(lesson)} aria-label={label} title={label} key={label}>{label === "Slides" ? <Presentation size={18} aria-hidden="true" /> : <FileText size={18} aria-hidden="true" />}</button> : <a className="button button-ghost button-small" href={absoluteUrl(href)} target="_blank" rel="noreferrer" aria-label={label} title={label} key={label}>{label === "Slides" ? <Presentation size={18} aria-hidden="true" /> : <FileText size={18} aria-hidden="true" />}</a>)}
+      {!hasMaterial && (demo ? <button type="button" className="button button-ghost button-small" aria-label="Abrir aula" title="Abrir aula" onClick={() => demo.onMaterial?.(lesson)}><BookOpen size={18} aria-hidden="true" /></button> : <a className="button button-ghost button-small" href={absoluteUrl(lesson.external_url)} target="_blank" rel="noreferrer" aria-label="Abrir aula" title="Abrir aula"><BookOpen size={18} aria-hidden="true" /></a>)}
     </>
   );
 }
@@ -400,7 +402,6 @@ function AttendanceClassGrid({
       event.preventDefault();
       element.scrollLeft = next;
     };
-    // React delegates wheel listeners passively, so cancellation needs a native listener.
     element.addEventListener("wheel", scrollWithMouseWheel, { passive: false });
     return () => element.removeEventListener("wheel", scrollWithMouseWheel);
   }, []);
@@ -418,7 +419,7 @@ function AttendanceClassGrid({
         const recordsByColumn = new Map(history.records.map((item) => [attendanceColumnKey(item, lessons), item]));
         return <div className="attendance-grid-row" style={gridStyle} role="row" key={history.id}>
           <div className="attendance-student-summary" role="rowheader">
-            <div className="attendance-student-copy"><h4>{history.name}</h4>{history.student?.email && <span>{history.student.email}</span>}</div>
+            <div className="attendance-student-copy"><h4>{history.name}</h4></div>
           </div>
           {columns.map((column) => {
             const item = recordsByColumn.get(column.key);
@@ -449,7 +450,9 @@ export function CompactActivitiesGrid({
   demo,
   onCorrectManual,
   pendingOnly = false,
+  contactButton,
 }: {
+  contactButton?: (classKey: string, studentKey: string, name: string) => ReactNode;
   model: CompactActivitiesModel;
   demo?: CorrectionsDemoAdapter;
   onCorrectManual: (activity: ManualActivity) => void;
@@ -460,11 +463,11 @@ export function CompactActivitiesGrid({
       const gridStyle = { "--attendance-columns": classModel.columns.length } as CSSProperties;
       return <details className="correction-class-group attendance-class-group compact-activities-class" key={classModel.key}>
         <summary className="correction-class-heading">
-          <div><h3>{classModel.name}</h3><span>{classModel.rows.length} aluno{classModel.rows.length === 1 ? "" : "s"}</span></div>
+          <div><h3>{classModel.name}</h3><span aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={13} aria-hidden="true" />{classModel.rows.length}</span></div>
           <span className="correction-disclosure" aria-hidden="true">⌄</span>
         </summary>
         <div className="correction-class-body attendance-class-body">
-          <div className="attendance-grid-scroll compact-activities-grid-scroll" tabIndex={0} role={pendingOnly ? "list" : "grid"} aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={pendingOnly ? undefined : classModel.rows.length + 1} aria-colcount={pendingOnly ? undefined : classModel.columns.length + 1}>
+          <div className={`attendance-grid-scroll compact-activities-grid-scroll${pendingOnly ? " compact-pending-list" : ""}`} tabIndex={0} role={pendingOnly ? "list" : "grid"} aria-label={`Atividades pendentes da turma ${classModel.name}`} aria-rowcount={pendingOnly ? undefined : classModel.rows.length + 1} aria-colcount={pendingOnly ? undefined : classModel.columns.length + 1}>
             {!pendingOnly && <div className="attendance-grid-header" style={gridStyle} role="row">
               <div className="attendance-grid-corner" role="columnheader">Aluno</div>
               {classModel.columns.map((column) => <div className="attendance-column-heading compact-activity-column-heading" role="columnheader" key={column.key} title={`${column.lessonLabel} · ${column.taskLabel}`}>
@@ -473,17 +476,17 @@ export function CompactActivitiesGrid({
             </div>}
             {classModel.rows.map((row) => <div className={pendingOnly ? "compact-pending-row" : "attendance-grid-row"} style={pendingOnly ? undefined : gridStyle} role={pendingOnly ? "listitem" : "row"} key={row.key}>
               <div className="attendance-student-summary" role={pendingOnly ? undefined : "rowheader"}>
-                <div className="attendance-student-copy"><h4>{row.name}</h4>{row.email && <span>{row.email}</span>}</div>
+                <div className="attendance-student-copy"><div className="activity-student-heading"><h4>{row.name}</h4>{contactButton?.(classModel.key, row.key, row.name)}</div></div>
               </div>
               {classModel.columns.map((column) => {
                 const cell = row.cells[column.key];
                 if (!cell) return pendingOnly ? null : <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
                 return <div className="compact-activity-cell" role={pendingOnly ? "group" : "gridcell"} key={column.key}>
-                  {pendingOnly && <><strong className="compact-pending-lesson">{column.lessonLabel}</strong><small className="compact-pending-task" title={column.taskLabel}>{column.taskLabel}</small></>}
-                  {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} data-tooltip={column.taskLabel} onClick={() => onCorrectManual(cell.activity)}>Corrigir</button>
-                    : demo ? <button type="button" className="compact-activity-action" aria-label={label} data-tooltip={column.taskLabel} onClick={() => demo.onCorrect(cell.review)}>Corrigir</button>
-                      : <a className="compact-activity-action" aria-label={label} data-tooltip={column.taskLabel} href={cell.review.correction_url} target="_blank" rel="noreferrer">Corrigir</a>}
+                  {pendingOnly && <><strong className="compact-pending-lesson" title={column.lessonLabel}>{column.lessonLabel}</strong><small className="compact-pending-task" title={column.taskLabel}>{column.taskLabel}</small></>}
+                  {cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} data-tooltip={column.taskLabel} onClick={() => onCorrectManual(cell.activity)}><ClipboardCheck size={18} aria-hidden="true" /></button>
+                    : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} data-tooltip={column.taskLabel} onClick={() => demo.onCorrect(cell.review)}><ClipboardCheck size={18} aria-hidden="true" /></button>
+                      : <a className="compact-activity-action" aria-label={label} title={label} data-tooltip={column.taskLabel} href={cell.review.correction_url} target="_blank" rel="noreferrer"><ClipboardCheck size={18} aria-hidden="true" /></a>}
                 </div>;
               })}
             </div>)}
@@ -499,10 +502,12 @@ function ReviewCard({
   lessons,
   showStudent = true,
   demo,
+  contact,
 }: {
   review: KodlandReview;
   lessons: KodlandLesson[];
   showStudent?: boolean;
+  contact?: ReactNode;
   demo?: CorrectionsDemoAdapter;
 }) {
   const lesson = lessonForReview(review, lessons);
@@ -510,24 +515,25 @@ function ReviewCard({
     <article className="entity-card correction-card" key={review.id}>
       <div className="correction-card-copy">
         <div className="correction-card-top">
-          {showStudent && <h4>{review.student_name}</h4>}
+          {showStudent && <div className="activity-student-heading"><h4>{review.student_name}</h4>{contact}</div>}
           <StatusBadge tone="warning">{review.status_label}</StatusBadge>
         </div>
-        <p className="correction-card-lesson">{lessonLabel(review, lessons)}</p>
-        <p className="correction-card-task">
-          <span>Atividade</span>
+        <p className="correction-card-lesson" title={lessonLabel(review, lessons)}>{lessonLabel(review, lessons)}</p>
+        <p className="correction-card-task" title={`${review.task_number ? `${review.task_number}. ` : ""}${review.task_title || "Sem título"}`}>
+          <span className="sr-only">Atividade</span>
           {review.task_number ? `${review.task_number}. ` : ""}{review.task_title || "Sem título"}
         </p>
       </div>
       <div className="card-actions">
         <LessonLinks lesson={lesson} demo={demo} />
-        {demo ? <button type="button" className="button button-primary correction-action" onClick={() => demo.onCorrect(review)}>Corrigir</button> : <a
+        {demo ? <button type="button" className="button button-primary correction-action" aria-label="Corrigir" title="Corrigir atividade" onClick={() => demo.onCorrect(review)}><ClipboardCheck size={18} aria-hidden="true" /></button> : <a
           className="button button-primary correction-action"
+          aria-label="Corrigir" title="Corrigir atividade"
           target="_blank"
           rel="noreferrer"
           href={review.correction_url}
         >
-          Corrigir
+          <ClipboardCheck size={18} aria-hidden="true" />
         </a>}
       </div>
     </article>
@@ -535,14 +541,16 @@ function ReviewCard({
 }
 
 type CorrectionsViewPreferences = {
-  viewMode: "attendance" | "activities" | "students";
+  viewMode: "attendance" | "activities";
   activitiesView: "list" | "compact";
   pendingOnly: boolean;
   grouping: ReviewGrouping;
   attendanceFilter: AttendanceFilter;
 };
 
-export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string }) {
+export function CorrectionsContent({ demo, preferenceKey = "default", studentsContent }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string; studentsContent?: ReactNode }) {
+  const unified = Boolean(studentsContent);
+  const notifications = useStudentNotifications();
   const [storedReviews, setReviews] = useState<KodlandReview[]>([]);
   const [storedLessons, setLessons] = useState<KodlandLesson[]>([]);
   const [storedAttendance, setAttendance] = useState<KodlandAttendance[]>([]);
@@ -555,8 +563,10 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   const groups = demo?.groups ?? storedGroups;
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
-  const [viewMode, setViewMode] = useState<CorrectionsViewPreferences["viewMode"]>("activities");
+  const [viewMode, setViewMode] = useState<"attendance" | "activities" | "students">(studentsContent ? "students" : "activities");
   const [activitiesView, setActivitiesView] = useState<"list" | "compact">("list");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(true);
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
   const [openAttendanceClasses, setOpenAttendanceClasses] = useState<Set<string>>(() => new Set());
@@ -591,14 +601,14 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
     } catch { /* Prefer defaults when browser storage is unavailable or malformed. */ }
     queueMicrotask(() => {
       if (!active) return;
-      if (stored?.viewMode === "attendance" || stored?.viewMode === "activities" || stored?.viewMode === "students") setViewMode(stored.viewMode);
+      if (!unified && (stored?.viewMode === "attendance" || stored?.viewMode === "activities")) setViewMode(stored.viewMode);
       if (stored?.activitiesView === "list" || stored?.activitiesView === "compact") setActivitiesView(stored.activitiesView);
       setPendingOnly(typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : true);
       if (stored?.grouping === "class" || stored?.grouping === "student" || stored?.grouping === "lesson") setGrouping(stored.grouping);
       if (stored?.attendanceFilter === "ABSENT" || stored?.attendanceFilter === "ALL" || stored?.attendanceFilter === "PRESENT") setAttendanceFilter(stored.attendanceFilter);
       const context = new URLSearchParams(window.location.search);
       const requestedTab = context.get("tab");
-      if (requestedTab === "activities" || requestedTab === "attendance" || requestedTab === "students") setViewMode(requestedTab);
+      if (requestedTab === "activities" || requestedTab === "attendance" || (unified && requestedTab === "students")) setViewMode(requestedTab);
       if (context.has("notification")) {
         setViewMode(context.get("tab") === "attendance" ? "attendance" : "activities");
         setQuery(""); setAttendanceFilter("ALL");
@@ -607,10 +617,10 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
       setViewPreferencesLoaded(true);
     });
     return () => { active = false; };
-  }, [preferenceKey]);
+  }, [preferenceKey, unified]);
 
   useEffect(() => {
-    if (!viewPreferencesLoaded || new URLSearchParams(window.location.search).has("notification")) return;
+    if (!viewPreferencesLoaded || viewMode === "students" || new URLSearchParams(window.location.search).has("notification")) return;
     try {
       localStorage.setItem(`nexusclass.corrections.view.${preferenceKey}`, JSON.stringify({ viewMode, activitiesView, grouping, attendanceFilter, pendingOnly } satisfies CorrectionsViewPreferences));
     } catch { /* The screen remains usable when storage is blocked. */ }
@@ -622,33 +632,33 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
-  const load = useCallback(async (keepContent = false) => {
+  const load = useCallback(async (background = false) => {
     if (demo) {
       const enabled = (await demo.manualAdapter?.preferences.get())?.kodland_enabled === true;
-      setKodlandEnabled(enabled); setHasKodlandGroups(enabled && (demo.groups?.length ?? 0) > 0); return false;
+      setKodlandEnabled(enabled); setHasKodlandGroups(enabled && (demo.groups?.length ?? 0) > 0); return;
     }
-    if (!keepContent) { setLoading(true); setError(""); }
+    if (!background) setLoading(true);
+    setError("");
     try {
-      const preferences = await tutorPreferencesApi.get();
+      const localOnly = Boolean((await kodlandApi.browserState())?.active);
+      const preferences = localOnly ? { kodland_enabled: true } : await tutorPreferencesApi.get();
       setKodlandEnabled(preferences.kodland_enabled);
       const empty = Promise.resolve({ items: [] });
       const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents] = await Promise.all([
         preferences.kodland_enabled ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled ? kodlandApi.attendance() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty,
-        manualPedagogyApi.activities(), manualTeachingApi.classes(), manualTeachingApi.students(),
+        localOnly ? Promise.resolve(null) : manualPedagogyApi.activities(), localOnly ? Promise.resolve(null) : manualTeachingApi.classes(), localOnly ? Promise.resolve(null) : manualTeachingApi.students(),
       ]);
       setReviews(reviewResult.items);
       setLessons(lessonResult.items);
       setAttendance(attendanceResult.items);
       setGroups(groupResult.items);
       setHasKodlandGroups(groupResult.items.length > 0);
-      setManualActivities(ownActivities);
-      setManualClasses(ownClasses);
-      setManualStudents(ownStudents);
+      if (ownActivities) setManualActivities(ownActivities);
+      if (ownClasses) setManualClasses(ownClasses);
+      if (ownStudents) setManualStudents(ownStudents);
       setStudents(studentResult.items);
-      return preferences.kodland_enabled && groupResult.items.length > 0;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");
-      return false;
     } finally {
       setLoading(false);
     }
@@ -668,48 +678,47 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
       }
       return;
     }
-    const uid = getFirebaseAuth().currentUser?.uid;
-    if (!uid) return;
-    setSyncing(true); setError(""); setNotice("");
+    const credentials = await restoreKodlandCredentials();
+    if (!credentials) {
+      setError("Salve as credenciais em Dados e backup antes de atualizar as correções.");
+      return;
+    }
+    setSyncing(true);
+    setError("");
+    setNotice("");
     try {
-      const result = await runActivitiesSync(uid, { manual: true });
-      if (result.status === "skipped") setNotice("A atualização está aguardando conexão ou outra consulta em andamento.");
-      else {
-        setNotice(result.value.ranking_complete === false ? "Atividades atualizadas; a pontuação do ranking ficou pendente." : "Atividades e ranking atualizados.");
-      }
+      const result = await kodlandApi.sync(
+        credentials.username.trim(),
+        credentials.password,
+        "corrections",
+      );
+      await load();
+      setNotice(
+        `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
+      );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível atualizar as atividades.");
-    } finally { setSyncing(false); }
+      setError(
+        reason instanceof ApiError || reason instanceof KodlandSyncResponseError || reason instanceof KodlandSyncPersistenceError
+          ? reason.message
+          : "Não foi possível atualizar as correções.",
+      );
+    } finally {
+      setSyncing(false);
+    }
   }
 
-  // One entry action. Rerenders, filters and the internal attendance tab do not trigger a new source lookup.
   useEffect(() => {
-    let active = true;
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        const eligible = await load();
-        if (!active || demo || !eligible) return;
-        const uid = getFirebaseAuth().currentUser?.uid;
-        if (!uid) return;
-        setSyncing(true);
-        try {
-          await runActivitiesSync(uid);
-        } catch (reason) {
-          if (active) setError(reason instanceof Error ? reason.message : "A atualização automática ficou pendente. Os dados salvos foram preservados.");
-        } finally { if (active) setSyncing(false); }
-      })();
-    }, 0);
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [load, demo]);
+    if (viewMode === "students") return;
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load, demo, viewMode]);
 
   useEffect(() => {
-    if (demo) return;
-    const uid = getFirebaseAuth().currentUser?.uid;
-    if (!uid) return;
-    return subscribeSyncDataChanged(uid, event => {
-      if (event.domains.some(domain => ["activities", "attendance", "ranking", "agenda"].includes(domain))) void load(true);
-    });
-  }, [demo, load]);
+    if (demo || viewMode === "students") return;
+    let timer: ReturnType<typeof setTimeout>;
+    const unsubscribe = subscribeStudentNotifications(change => { if (change !== "source") return; clearTimeout(timer); timer = setTimeout(() => { void load(true); }, 150); });
+    return () => { clearTimeout(timer); unsubscribe(); };
+  }, [demo, load, viewMode]);
 
   const visibleReviews = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -761,18 +770,34 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
   }, [attendance, attendanceFilter, attendanceStudents, query]);
   const attendanceByClass = useMemo(() => groupBy(attendanceHistories, (history) => history.records[0]?.external_class_name || "Turma não informada"), [attendanceHistories]);
 
+  function contactButton(classKey: string, studentKey: string, name: string) {
+    const student = classKey.startsWith("manual:")
+      ? manualStudents.find((item) => item.id === studentKey)
+      : attendanceStudents.find((item) => `kodland:${item.external_class_id}` === classKey && (item.external_id === studentKey || item.id === studentKey));
+    const source = classKey.startsWith("manual:") ? "manual" : "kodland";
+    const classId = classKey.slice(classKey.indexOf(":") + 1);
+    const alert = notifications?.cases.find(item => needsNotificationContact(item) && item.notification.source === source && item.notification.class_id === classId && item.notification.student_id === studentKey && item.notification.category !== "absence");
+    const message = alert ? notificationMessage(alert.notification, notifications?.settings?.activity_message_template ?? DEFAULT_ACTIVITY_MESSAGE) : `Olá! Sou o professor de ${name}. Gostaria de conversar sobre as atividades e o acompanhamento das aulas.`;
+    return <button type="button" className="activity-whatsapp-button" aria-label={`Mensagem aos responsáveis de ${name}`} title={`WhatsApp dos responsáveis de ${name}`} onClick={() => setWhatsAppDraft({ studentName: name, phone: student?.guardian_phone ?? "", guardian: true, message, activityTarget: { source, class_id: classId, student_id: studentKey } })}>
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M20.5 3.5A11.9 11.9 0 0 0 12 0C5.4 0 0 5.4 0 12c0 2.1.5 4.2 1.6 6L0 24l6.2-1.6A12 12 0 0 0 12 24c6.6 0 12-5.4 12-12 0-3.2-1.2-6.2-3.5-8.5ZM12 22a10 10 0 0 1-5.1-1.4l-.4-.2-3.7 1 1-3.6-.3-.4A10 10 0 1 1 12 22Zm5.5-7.5c-.3-.1-1.8-.9-2.1-1-.3-.1-.5-.1-.7.2l-1 1.2c-.2.2-.4.2-.7.1-1.8-.9-3-1.6-4.2-3.6-.3-.5.3-.5.9-1.8.1-.2 0-.4 0-.6L7.8 6.5c-.2-.5-.4-.4-.7-.4h-.6c-.2 0-.6.1-.9.4-.3.4-1.2 1.2-1.2 2.9s1.3 3.3 1.5 3.5c.2.2 2.5 3.8 6 5.3 2.2.9 3.1 1 4.2.8.7-.1 1.8-.8 2.1-1.5.2-.8.2-1.4.2-1.5-.1-.2-.3-.3-.6-.5Z" /></svg>
+    </button>;
+  }
+
   return (
     <div className="management-grid page-fill-grid">
       <NotificationResolution onContext={resolveNotificationContext} />
       <Modal open={Boolean(whatsAppDraft)} title="Mensagem pelo WhatsApp" onClose={() => setWhatsAppDraft(null)} className="attendance-whatsapp-modal">
         {whatsAppDraft && <div className="form management-form attendance-whatsapp-form">
           <p className="muted">Revise a mensagem para {whatsAppDraft.studentName} antes de enviar.</p>
+          <label className="field">{whatsAppDraft.guardian ? "WhatsApp do responsável" : "Número do WhatsApp"}<Input type="tel" inputMode="tel" autoComplete="off" placeholder="DDD e número" value={whatsAppDraft.phone} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, phone: event.target.value } : current)} /></label>
+          {!whatsAppDraft.phone.trim() && <p className="muted">{whatsAppDraft.guardian ? "Telefone do responsável não cadastrado. Informe o número para enviar." : "Informe o número para enviar."}</p>}
+          {whatsAppDraft.activityTarget && notifications && <ActivityMissingList key={`${whatsAppDraft.activityTarget.source}:${whatsAppDraft.activityTarget.class_id}:${whatsAppDraft.activityTarget.student_id}`} target={whatsAppDraft.activityTarget} loadSource={notifications.activitySource} onInsert={(block, previous) => setWhatsAppDraft(current => current ? { ...current, message: previous && current.message.includes(previous) ? current.message.replace(previous, block) : `${current.message.trimEnd()}\n\n${block}` } : current)} />}
           <label className="field">Mensagem
-            <textarea className="input" rows={10} value={whatsAppDraft.message} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, message: event.target.value } : current)} />
+            <textarea aria-label="Mensagem" className="input" rows={5} value={whatsAppDraft.message} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, message: event.target.value } : current)} />
           </label>
           <div className="form-actions">
             <Button type="button" className="button-ghost" onClick={() => setWhatsAppDraft(null)}>Cancelar</Button>
-            <a className="button button-primary" href={whatsappUrl(whatsAppDraft.phone, whatsAppDraft.message)} target="_blank" rel="noreferrer" onClick={() => setWhatsAppDraft(null)}>
+            <a className="button button-primary" aria-disabled={!/^\d{10,15}$/.test(whatsAppDraft.phone.replace(/\D/g, ""))} href={/^\d{10,15}$/.test(whatsAppDraft.phone.replace(/\D/g, "")) ? whatsappUrl(whatsAppDraft.phone, whatsAppDraft.message) : undefined} target="_blank" rel="noreferrer" onClick={(event) => { if (!/^\d{10,15}$/.test(whatsAppDraft.phone.replace(/\D/g, ""))) event.preventDefault(); else setWhatsAppDraft(null); }}>
               <MessageCircle size={17} aria-hidden="true" /> Enviar no WhatsApp
             </a>
           </div>
@@ -800,53 +825,44 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
       </Modal>
       <section className="page-heading">
         <div>
-          <p className="eyebrow">Atividades, presença e alunos</p>
-          <h1>Turmas</h1>
+          <p className="eyebrow">{studentsContent ? "Alunos, atividades e presença" : "Presença e atividades"}</p>
+          <h1>{studentsContent ? "Turmas" : "Acompanhamento"}</h1>
         </div>
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
       <div className="corrections-topbar">
-        <nav className="corrections-page-tabs" data-tour="classes-tabs" role="tablist" aria-label="Áreas de turmas">
-          <button id="activities-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => { if (viewMode === "students") void load(true); setViewMode("activities"); }}>
+        <nav className="corrections-page-tabs" data-tour={studentsContent ? "classes-tabs" : undefined} role="tablist" aria-label={studentsContent ? "Áreas de turmas" : "Páginas do acompanhamento"}>
+          {studentsContent && <button id="students-tab" type="button" role="tab" aria-controls="students-content" aria-selected={viewMode === "students"} className={viewMode === "students" ? "active" : ""} onClick={() => setViewMode("students")}>Alunos</button>}
+          <button id="activities-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>
             Atividades
           </button>
-          <button id="attendance-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => { if (viewMode === "students") void load(true); setViewMode("attendance"); }}>
+          <button id="attendance-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>
             Presença
           </button>
-          <button id="students-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "students"} className={viewMode === "students" ? "active" : ""} onClick={() => setViewMode("students")}>
-            Alunos
-          </button>
         </nav>
-        {viewMode !== "students" && <div className={`correction-heading-actions${viewMode === "activities" ? " correction-heading-actions-activities" : ""}${viewMode === "activities" && activitiesView === "compact" ? " correction-heading-actions-compact" : ""}`} data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
-            {viewMode === "attendance" ? (
-              <label className="correction-toolbar-control"><span>Mostrar</span><select className="input correction-header-select" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}>
-                <option value="ABSENT">Faltas</option>
-                <option value="ALL">Todos</option>
-                <option value="PRESENT">Presentes</option>
-              </select></label>
-            ) : (
-              <>
-              <div className="correction-toolbar-control"><span>Visualização</span><div className="correction-view-switch correction-activity-view-switch" role="group" aria-label="Formato de visualização das atividades">
-                <button type="button" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}>Lista</button>
-                <button type="button" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}>Compacto</button>
-              </div></div>
-              {activitiesView === "compact" && <label className="correction-toolbar-control"><span>Mostrar</span><select className="input correction-header-select" aria-label="Filtrar atividades" value={pendingOnly ? "pending" : "all"} onChange={event => setPendingOnly(event.target.value === "pending")}><option value="pending">Somente pendências</option><option value="all">Todos os alunos</option></select></label>}
-              {activitiesView === "list" && <label className="correction-toolbar-control"><span>Agrupar por</span><select className="input correction-header-select" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}>
-                <option value="class">Turma</option>
-                <option value="student">Aluno</option>
-                <option value="lesson">Aula</option>
-              </select></label>}
-              </>
-            )}
-            <Input aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} />
-            {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}>
-              <RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} />
-            </Button>}
+        {viewMode !== "students" && <div className="correction-icon-toolbar" data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
+          {viewMode === "activities" && <div className="correction-view-switch" role="group" aria-label="Formato de visualização das atividades">
+            <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>
+            <button type="button" aria-label="Compacto" title="Visualização compacta" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}><LayoutGrid size={18} aria-hidden="true" /></button>
+          </div>}
+          <Button type="button" className="button-ghost symbol-action" aria-label="Abrir filtros" title="Filtros do acompanhamento" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}><Filter size={18} aria-hidden="true" /></Button>
+          <Button type="button" className="button-ghost symbol-action" aria-label={searchOpen ? "Fechar busca" : "Abrir busca"} title={searchOpen ? "Fechar e limpar busca" : "Buscar aluno, turma ou atividade"} aria-expanded={searchOpen} aria-controls="correction-search-field" onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
+          {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}
         </div>}
       </div>
-      <section id="corrections-content" role="tabpanel" aria-labelledby={`${viewMode}-tab`} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
-        {viewMode === "students" ? <ClassesContent uid={demo ? undefined : preferenceKey} demo={demo ? { groups: demo.groups ?? [], students: demo.students ?? [], manualAdapter: demo.manualAdapter, onSync: demo.onSync } : undefined} /> : viewMode === "attendance" ? <>
+      {viewMode === "students" && <div id="students-content" role="tabpanel" aria-labelledby="students-tab">{studentsContent}</div>}
+      {viewMode !== "students" && searchOpen && <Input id="correction-search-field" className="correction-revealed-search" autoFocus aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setQuery(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-label="Fechar busca"]')?.focus(); } }} />}
+      <Modal open={filtersOpen} title="Filtros do acompanhamento" onClose={() => setFiltersOpen(false)} className="correction-filters-modal">
+        <div className="form">
+          {viewMode === "attendance" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}><option value="ABSENT">Faltas</option><option value="ALL">Todos</option><option value="PRESENT">Presentes</option></select></label>
+            : activitiesView === "compact" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar atividades" value={pendingOnly ? "pending" : "all"} onChange={event => setPendingOnly(event.target.value === "pending")}><option value="pending">Somente pendências</option><option value="all">Todos os alunos</option></select></label>
+              : <label className="field">Agrupar por<select className="input" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}><option value="class">Turma</option><option value="student">Aluno</option><option value="lesson">Aula</option></select></label>}
+          <div className="form-actions"><Button type="button" onClick={() => setFiltersOpen(false)}>Concluir</Button></div>
+        </div>
+      </Modal>
+      {viewMode !== "students" && <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
+        {viewMode === "attendance" ? <>
         <div className="attendance-legend" aria-label="Legenda das cores de presença">
           {([
             ["present", "Presente"],
@@ -878,6 +894,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
         </> : <>
         {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
+          contactButton={contactButton}
           pendingOnly={pendingOnly}
           demo={demo}
           onCorrectManual={(activity) => { setEditingManual(activity); setFeedback(activity.feedback); }}
@@ -888,18 +905,18 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
               : item.occurrence_id);
             const card = (item: ManualActivity, showStudent: boolean) => <article className="entity-card correction-card" key={item.id}>
               <div className="correction-card-copy"><div className="correction-card-top">
-                {showStudent && <h4>{manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno"}</h4>}
+                {showStudent && <div className="activity-student-heading"><h4>{manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno"}</h4>{contactButton(`manual:${item.class_id}`, item.student_id, manualStudents.find((student) => student.id === item.student_id)?.name || "Aluno")}</div>}
                 <StatusBadge tone="warning">Entregue</StatusBadge>
               </div><p className="correction-card-lesson">Aula {item.occurrence_id.split(":").at(-1)}</p>
-                <p className="correction-card-task"><span>Atividade</span>{item.title}</p></div>
-              <div className="card-actions"><Button type="button" className="correction-action" onClick={() => { setEditingManual(item); setFeedback(item.feedback); }}>Corrigir</Button></div>
+                <p className="correction-card-task" title={item.title}><span className="sr-only">Atividade</span>{item.title}</p></div>
+              <div className="card-actions"><Button type="button" className="correction-action" aria-label="Corrigir" title="Corrigir atividade" onClick={() => { setEditingManual(item); setFeedback(item.feedback); }}><ClipboardCheck size={18} aria-hidden="true" /></Button></div>
             </article>;
             return <details className="correction-class-group" key={`manual:${className}`}>
               <summary className="correction-class-heading"><div><h3>{className}</h3><span>{classActivities.length} pendência{classActivities.length === 1 ? "" : "s"}</span></div><span className="correction-disclosure" aria-hidden="true">⌄</span></summary>
               <div className="correction-class-body">{grouping === "class"
                 ? <div className="entity-list">{classActivities.map((item) => card(item, true))}</div>
                 : <div className="correction-subgroup-list">{ownGroups.map(([label, items]) => <section className={`correction-subgroup${grouping === "student" ? " correction-subgroup-student" : ""}`} key={label}>
-                  <div className="correction-subgroup-heading"><h4>{label}</h4><span>{items.length} pendência{items.length === 1 ? "" : "s"}</span></div>
+                  <div className="correction-subgroup-heading"><div className="activity-student-heading"><h4>{label}</h4>{grouping === "student" && contactButton(`manual:${items[0].class_id}`, items[0].student_id, label)}</div><span>{items.length} pendência{items.length === 1 ? "" : "s"}</span></div>
                   <div className="entity-list">{items.map((item) => card(item, grouping !== "student"))}</div>
                 </section>)}</div>}</div>
             </details>;
@@ -924,15 +941,15 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
               <div className="correction-class-body">
                 {grouping === "class" ? (
                   <div className="entity-list">
-                    {classReviews.map((review) => <ReviewCard review={review} lessons={lessons} demo={demo} key={review.id} />)}
+                    {classReviews.map((review) => <ReviewCard contact={contactButton(`kodland:${review.external_class_id}`, review.external_student_id, review.student_name)} review={review} lessons={lessons} demo={demo} key={review.id} />)}
                   </div>
                 ) : (
                   <div className="correction-subgroup-list">
                     {internalGroups.map(([label, groupedReviews]) => (
                       <section className={`correction-subgroup${grouping === "student" ? " correction-subgroup-student" : ""}`} key={label}>
-                        <div className="correction-subgroup-heading"><h4>{label}</h4><span>{groupedReviews.length} pendência{groupedReviews.length === 1 ? "" : "s"}</span></div>
+                        <div className="correction-subgroup-heading"><div className="activity-student-heading"><h4>{label}</h4>{grouping === "student" && contactButton(`kodland:${groupedReviews[0].external_class_id}`, groupedReviews[0].external_student_id, label)}</div><span>{groupedReviews.length} pendência{groupedReviews.length === 1 ? "" : "s"}</span></div>
                         <div className="entity-list">
-                          {groupedReviews.map((review) => <ReviewCard review={review} lessons={lessons} showStudent={grouping !== "student"} demo={demo} key={review.id} />)}
+                          {groupedReviews.map((review) => <ReviewCard contact={contactButton(`kodland:${review.external_class_id}`, review.external_student_id, review.student_name)} review={review} lessons={lessons} showStudent={grouping !== "student"} demo={demo} key={review.id} />)}
                         </div>
                       </section>
                     ))}
@@ -943,7 +960,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default" }: { demo?:
           })}
         </div>}
         </>}
-      </section>
+      </section>}
     </div>
   );
 }

@@ -27,12 +27,15 @@ for (const width of [320, 390, 1440]) {
     await expect(page.getByRole("button", { name: "Adicionar turma", exact: true })).toBeVisible();
     await expect(page.getByLabel("Buscar correção")).toHaveCount(0);
     await page.screenshot({ path: `test-results/unified-classes-students-${width}.png`, fullPage: true });
-    await page.reload();
+    await page.goto("/demo?tab=students#classes");
     await expect(tablist.getByRole("tab", { name: "Alunos", exact: true })).toHaveAttribute("aria-selected", "true");
     await tablist.getByRole("tab", { name: "Presença", exact: true }).click();
+    await page.getByRole("button", { name: "Abrir filtros", exact: true }).click();
     await expect(page.getByLabel("Filtrar presença")).toBeVisible();
+    await page.getByRole("button", { name: "Concluir", exact: true }).click();
     await expect(page.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "attendance-tab");
     await tablist.getByRole("tab", { name: "Atividades", exact: true }).click();
+    await page.getByRole("button", { name: "Abrir busca", exact: true }).click();
     await expect(page.getByLabel("Buscar correção")).toBeVisible();
     const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }));
     expect(dimensions.content).toBeLessThanOrEqual(dimensions.width + 1);

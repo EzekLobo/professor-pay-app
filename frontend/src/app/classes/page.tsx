@@ -1,1 +1,1 @@
-export { default } from "@/components/corrections-page";
+export { default } from "@/components/classes-page";

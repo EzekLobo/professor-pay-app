@@ -6,5 +6,6 @@ export default async function LegacyCorrectionsPage({ searchParams }: { searchPa
   for (const [key, value] of Object.entries(await searchParams)) {
     for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, item);
   }
+  if (!query.has("tab")) query.set("tab", "activities");
   redirect(`/classes${query.size ? `?${query}` : ""}`);
 }

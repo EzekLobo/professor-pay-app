@@ -1,22 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { AutoSyncController } from "./auto-sync-controller";
-import { clearAutoSyncRuntimes } from "@/lib/auto-sync-runtime";
-import { clearSyncCoordinators } from "@/lib/sync-coordinator";
+import { OperationalErrorBoundary, OperationTelemetry } from "./operation-telemetry";
 import { StudentNotificationsProvider, StudentNotificationBell } from "./student-notifications";
 import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { type MouseEvent, type ReactNode, useState } from "react";
-import { CalendarDays, HelpCircle, MoreHorizontal, ShieldCheck } from "lucide-react";
+import { type MouseEvent, type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { CalendarDays, HelpCircle, Settings } from "lucide-react";
 import type { User } from "@/lib/api";
 import { logoutFromFirebase } from "@/lib/firebase-auth";
 import { appRoutes, pageTitle } from "@/lib/routes";
 import { GuidedTourDialog, useGuidedTour } from "@/components/guided-tour";
 import { AccessTelemetry, endStoredAccessSession } from "@/components/access-telemetry";
-import { ReleaseNotes } from "@/components/release-notes";
-import { Modal } from "@/components/modal";
+import { ReleaseNotesProvider } from "@/components/release-notes";
 import { HolidayCalendarDialog } from "@/components/holiday-calendar-dialog";
 
 type ShellFrameProps = {
@@ -34,27 +31,29 @@ type ShellFrameProps = {
 };
 
 export function ShellFrame({ user, pathname, children, routeHref = (href) => href, onNavigate, onLogout, logoutLabel = "Sair", headerActions, banner, notificationSnapshot, onNotificationDemoChange }: ShellFrameProps) {
-  const [moreOpen, setMoreOpen] = useState(false);
-  const primaryPaths = ["/dashboard", "/payments", "/classes", "/lessons"];
-  const secondaryRoutes = appRoutes.filter((item) => !primaryPaths.includes(item.href));
-  const isActive = (href: string) => pathname === href;
+  const navigation = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (window.matchMedia("(max-width: 720px)").matches) navigation.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [pathname]);
+  const isActive = (href: string) => pathname === href || (href === "/classes" && pathname === "/corrections");
   const settingsRoutes = appRoutes.filter((item) => item.href === "/data" || item.label === "Configurações");
-  const mainRoutes = appRoutes.filter((item) => !settingsRoutes.includes(item));
-  const renderNavLink = (item: (typeof appRoutes)[number], inMore = false) => {
+  const mainRoutes = appRoutes.filter((item) => !settingsRoutes.includes(item) && item.href !== "/corrections");
+  const renderNavLink = (item: (typeof appRoutes)[number]) => {
     const Icon = item.icon;
     return <Link
-      className={`nav-link${!inMore && !primaryPaths.includes(item.href) ? " nav-link-secondary" : ""}${isActive(item.href) ? " nav-link-active" : ""}`}
+      className={`nav-link${isActive(item.href) ? " nav-link-active" : ""}`}
       href={routeHref(item.href)} key={item.href}
       aria-current={isActive(item.href) ? "page" : undefined} aria-label={item.label}
-      onClick={(event: MouseEvent<HTMLAnchorElement>) => { setMoreOpen(false); if (onNavigate) { event.preventDefault(); onNavigate(item.href); } }}
+      onClick={(event: MouseEvent<HTMLAnchorElement>) => { if (onNavigate) { event.preventDefault(); onNavigate(item.href); } }}
     >
       <span aria-hidden="true"><Icon size={19} strokeWidth={2.1} /></span>
       <span className="nav-link-label" aria-hidden="true"><span className="nav-label-full">{item.label}</span><span className="nav-label-mobile">{item.mobileLabel}</span></span>
     </Link>;
   };
   return (
-    <StudentNotificationsProvider key={user.id} uid={user.id} snapshot={notificationSnapshot} onDemoChange={onNotificationDemoChange}>
+    <ReleaseNotesProvider key={user.id} userId={user.id} routeHref={routeHref}><StudentNotificationsProvider uid={user.id} pathname={pathname} snapshot={notificationSnapshot} onDemoChange={onNotificationDemoChange}>
     <div className="app-shell">
+      <OperationTelemetry uid={user.id} />
       <a className="skip-link" href="#main-content">Pular para o conteúdo</a>
       <aside className="sidebar">
         <Link className="brand" href={routeHref("/dashboard")} aria-label="Ir para o resumo" onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate("/dashboard"); } : undefined}>
@@ -62,12 +61,11 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
           <span>NexusClass</span>
         </Link>
         <p className="sidebar-caption">NAVEGAÇÃO</p>
-        <nav className="nav" aria-label="Navegação principal">
+        <nav ref={navigation} className="nav" aria-label="Navegação principal">
           {mainRoutes.map((item) => renderNavLink(item))}
-          <button className={`nav-link mobile-more-trigger${secondaryRoutes.some((item) => isActive(item.href)) ? " nav-link-active" : ""}`} type="button" aria-label="Mais opções" aria-expanded={moreOpen} aria-controls="mobile-more-options" aria-current={secondaryRoutes.some((item) => isActive(item.href)) ? "page" : undefined} onClick={() => setMoreOpen(true)}><span aria-hidden="true"><MoreHorizontal size={19} /></span><span>Mais</span></button>
+
         </nav>
         <div className="sidebar-bottom">
-          <nav className="sidebar-settings" aria-label="Configurações e dados">{settingsRoutes.map((item) => renderNavLink(item))}</nav>
           <button className="logout-button" type="button" onClick={onLogout}>
             <span aria-hidden="true">↪</span>
             <span>{logoutLabel}</span>
@@ -79,6 +77,7 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
           <h1 className="shell-title">{pageTitle(pathname)}</h1>
           <div className="header-actions">
             <StudentNotificationBell />
+            <Link className="button button-ghost header-settings-button" aria-label="Configurações" title="Configurações" aria-current={pathname === "/settings" ? "page" : undefined} href={routeHref("/settings")} onClick={onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate("/settings"); } : undefined}><Settings size={20} aria-hidden="true" /></Link>
             {headerActions}
             <div className="profile-chip" aria-label={`Perfil de ${user.name}`}>
               <span>{user.name.slice(0, 1).toUpperCase()}</span>
@@ -88,12 +87,12 @@ export function ShellFrame({ user, pathname, children, routeHref = (href) => hre
         </header>
         <main className="page-content" id="main-content" tabIndex={-1}>
           {banner}
-          <div className="page-stage">{children}</div>
+          <div className="page-stage"><OperationalErrorBoundary key={pathname}>{children}</OperationalErrorBoundary></div>
         </main>
       </section>
-      <Modal open={moreOpen} title="Mais opções" onClose={() => setMoreOpen(false)} className="mobile-more-modal"><nav id="mobile-more-options" className="mobile-more-options" aria-label="Outras áreas">{secondaryRoutes.map((item) => renderNavLink(item, true))}</nav></Modal>
+
     </div>
-    </StudentNotificationsProvider>
+    </StudentNotificationsProvider></ReleaseNotesProvider>
   );
 }
 
@@ -102,11 +101,8 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
   const router = useRouter();
   const tour = useGuidedTour({ userId: user.id, pathname });
   const [holidayCalendarOpen, setHolidayCalendarOpen] = useState(false);
-  const canOpenAdmin = user.email.trim().toLowerCase() === "ezeklobo.dev@gmail.com";
 
   async function logout() {
-    clearAutoSyncRuntimes();
-    clearSyncCoordinators();
     endStoredAccessSession();
     await logoutFromFirebase().catch(() => undefined);
     router.replace("/login");
@@ -117,17 +113,10 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
       <AccessTelemetry user={user} pathname={pathname} />
       <ShellFrame user={user} pathname={pathname} onLogout={logout} headerActions={
         <>
-          <ReleaseNotes userId={user.id} blocked={tour.isOpen || holidayCalendarOpen} />
           <button className="button button-ghost header-calendar-button" type="button" aria-label="Abrir calendário de feriados" title="Feriados" onClick={() => setHolidayCalendarOpen(true)}>
             <CalendarDays size={18} strokeWidth={2.2} aria-hidden="true" />
             <span>Feriados</span>
           </button>
-          {canOpenAdmin && (
-            <Link className="header-admin-link" href="/admin" title="Abrir administração">
-              <ShieldCheck size={17} strokeWidth={2.2} aria-hidden="true" />
-              Administração
-            </Link>
-          )}
           {tour.tutorial && (
             <button
               className="button button-ghost header-tour-button"
@@ -140,7 +129,7 @@ export function Shell({ user, children }: { user: User; children: ReactNode }) {
             </button>
           )}
         </>
-      }><AutoSyncController uid={user.id} pathname={pathname} />{children}</ShellFrame>
+      }>{children}</ShellFrame>
       <GuidedTourDialog tour={tour} />
       <HolidayCalendarDialog open={holidayCalendarOpen} onClose={() => setHolidayCalendarOpen(false)} />
     </>

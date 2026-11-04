@@ -23,6 +23,7 @@ declare module "firebase/firestore" {
   export type Query = unknown;
   export type QuerySnapshot = { docs: Array<{ id: string; data(): DocumentData }> };
   export function getFirestore(app: unknown): Firestore;
+  export function initializeFirestore(app: unknown, settings: { experimentalForceLongPolling?: boolean; experimentalAutoDetectLongPolling?: boolean; experimentalLongPollingOptions?: { timeoutSeconds?: number } }): Firestore;
   export function collection(...args: unknown[]): unknown;
   export function doc(...args: unknown[]): DocumentReference;
   export function getDocs(query: unknown): Promise<QuerySnapshot>;

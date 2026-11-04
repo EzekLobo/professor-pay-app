@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ScheduleEntryAction } from "@/components/schedule-entry-action";
+import { Info, RefreshCw } from "lucide-react";
 import { type MouseEvent, useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { DashboardContent } from "@/components/dashboard-content";
@@ -181,6 +182,7 @@ export function WeekSchedule({
     window.addEventListener("focus", resume);
     return () => { window.removeEventListener("focus", resume); if (timer !== null) window.clearTimeout(timer); };
   }, [scheduleNow, timeZone]);
+  const [scheduleInfoOpen, setScheduleInfoOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
   const [selectedCatalogLessonId, setSelectedCatalogLessonId] = useState("");
   const [modalTab, setModalTab] = useState<"lesson" | "students">("lesson");
@@ -336,6 +338,41 @@ export function WeekSchedule({
       <div className="section-heading">
         <div className="week-heading-copy">
           <h2>Grade de horários</h2>
+
+        </div>
+        <div className="week-actions">
+          <button type="button" className="button button-ghost symbol-action" aria-label="Informações da grade" title="Atualização e legenda da grade" onClick={() => setScheduleInfoOpen(true)}><Info size={18} aria-hidden="true" /></button>
+          {externalSyncEnabled && (groups.length > 0 || manualClasses.length === 0) && <button
+            className="button button-ghost symbol-action"
+            type="button"
+            aria-label="Atualizar grade" title={refreshing ? "Atualizando grade" : "Atualizar grade"} aria-busy={refreshing}
+            onClick={onRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw size={18} aria-hidden="true" className={refreshing ? "sync-icon-spinning" : undefined} />
+          </button>}
+          <div className="week-navigation" aria-label="Navegação semanal">
+            <button
+              className="button button-ghost compact"
+              type="button"
+              onClick={() => setWeekOffset((value) => value - 1)}
+              aria-label="Semana anterior"
+            >
+              ←
+            </button>
+            <span className="week-state">{weekState}</span>
+            <button
+              className="button button-ghost compact"
+              type="button"
+              onClick={() => setWeekOffset((value) => value + 1)}
+              aria-label="Próxima semana"
+            >
+              →
+            </button>
+          </div>
+        </div>
+      </div>
+      <Modal open={scheduleInfoOpen} title="Informações da grade" onClose={() => setScheduleInfoOpen(false)} className="schedule-info-modal">
           <p className="muted week-last-updated">
             {manualClasses.length > 0 && groups.length === 0 ? "Turmas próprias atualizadas ao salvar" : <>Última atualização: {scheduleLastUpdatedAt ? (
               <time dateTime={scheduleLastUpdatedAt}>
@@ -347,37 +384,6 @@ export function WeekSchedule({
               </time>
             ) : "não registrada"}</>}
           </p>
-        </div>
-        <div className="week-actions">
-          {externalSyncEnabled && (groups.length > 0 || manualClasses.length === 0) && <button
-            className="button button-ghost button-small"
-            type="button"
-            onClick={onRefresh}
-            disabled={refreshing}
-          >
-            {refreshing ? "Atualizando…" : "Atualizar grade"}
-          </button>}
-          <div className="week-navigation" aria-label="Navegação semanal">
-            <button
-              className="button secondary compact"
-              type="button"
-              onClick={() => setWeekOffset((value) => value - 1)}
-              aria-label="Semana anterior"
-            >
-              ←
-            </button>
-            <span className="week-state">{weekState}</span>
-            <button
-              className="button secondary compact"
-              type="button"
-              onClick={() => setWeekOffset((value) => value + 1)}
-              aria-label="Próxima semana"
-            >
-              →
-            </button>
-          </div>
-        </div>
-      </div>
       <div className="week-schedule-legend" aria-label="Legenda da grade">
         <span className="week-legend-class">Turma</span>
         <span className="week-legend-extra">Extra pendente</span>
@@ -385,6 +391,7 @@ export function WeekSchedule({
         <span className="week-legend-availability">Disponível</span>
         <span className="week-legend-holiday">Feriado</span>
       </div>
+      </Modal>
       <div
         className="week-grid"
         data-tour="dashboard-lesson-details"
@@ -873,6 +880,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
   const [manualClasses, setManualClasses] = useState<ManualClass[]>([]);
   const [manualStudents, setManualStudents] = useState<ManualStudent[]>([]);
   const [manualPendingCount, setManualPendingCount] = useState(0);
+  const [localOnly, setLocalOnly] = useState(false);
   const [failed, setFailed] = useState(false);
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
   const [refreshNotice, setRefreshNotice] = useState("");
@@ -889,6 +897,13 @@ function DashboardPageContent({ uid }: { uid: string }) {
     setFailed(false);
     if (!keepContent) setDashboard(null);
     try {
+      const browser = await kodlandApi.browserState();
+      setLocalOnly(Boolean(browser?.active));
+      if (browser?.active) {
+        const [groups, students, lessons, reviews, extras, availability] = await Promise.all([kodlandApi.groups(), kodlandApi.students(), kodlandApi.lessons(), kodlandApi.reviews(), kodlandApi.extraLessons(), kodlandApi.availability()]);
+        setKodlandEnabled(true); setGroups(groups.items); setStudents(students.items); setLessons(lessons.items); setReviews(reviews.items); setExtraLessons(extras.items); setAvailability(availability.items); setScheduleLastUpdatedAt(browser.coreAt);
+        return true;
+      }
       const [preferences, notificationSettings] = await Promise.all([tutorPreferencesApi.get(), createStudentNotificationStore(uid).settings().catch(() => ({ time_zone: DEFAULT_SYNC_TIME_ZONE }))]);
       setTimeZone(syncTimeZone(notificationSettings.time_zone));
       setKodlandEnabled(preferences.kodland_enabled);
@@ -962,6 +977,27 @@ function DashboardPageContent({ uid }: { uid: string }) {
     window.addEventListener("nexusclass:manual-teaching-changed", reload);
     return () => window.removeEventListener("nexusclass:manual-teaching-changed", reload);
   }, [load]);
+  useEffect(() => {
+    let alive = true;
+    const updated = async (event: Event) => {
+      const { mode, scope } = (event as CustomEvent<{ mode: string; scope?: string }>).detail;
+      try {
+        if (mode === "classroom") {
+          const result = await kodlandApi.groups();
+          if (alive) setGroups(result.items);
+        } else if (mode === "schedule" || mode === "essential") {
+          const [groups, lessons, extras, availability, stamp] = await Promise.all([kodlandApi.groups(), kodlandApi.lessons(), kodlandApi.extraLessons(), kodlandApi.availability(), kodlandApi.scheduleLastUpdatedAt()]);
+          if (alive) { setGroups(groups.items); setLessons(lessons.items); setExtraLessons(extras.items); setAvailability(availability.items); setScheduleLastUpdatedAt(stamp); }
+        } else if (mode === "corrections" && scope !== "attendance") {
+          const result = await kodlandApi.reviews();
+          if (alive) setReviews(result.items);
+        }
+      } catch { /* Preserve the currently displayed data; manual reload remains available. */ }
+    };
+    const listener = (event: Event) => { void updated(event); };
+    window.addEventListener("nexusclass:kodland-synced", listener);
+    return () => { alive = false; window.removeEventListener("nexusclass:kodland-synced", listener); };
+  }, []);
   const refreshSchedule = useCallback(async () => {
     if (refreshingSchedule) return;
     const credentials = await restoreKodlandCredentials();
@@ -1020,6 +1056,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
     return () => window.clearTimeout(timer);
   }, [load]);
   if (failed) return <DashboardContent state="error" onRetry={load} />;
+  if (localOnly) return <KodlandSummary groups={groups} students={students} reviews={reviews} lessons={lessons} extraLessons={extraLessons} availability={availability} onRefresh={() => void refreshSchedule()} refreshing={refreshingSchedule} refreshNotice={refreshNotice} scheduleLastUpdatedAt={scheduleLastUpdatedAt} onUpdateExtraStatus={updateExtraStatus} onMaterialsLoaded={updated => setLessons(items => items.map(item => item.id === updated.id ? updated : item))} customHolidays={[]} manualClasses={[]} manualStudents={[]} manualPendingCount={0} />;
   if (!dashboard) return <DashboardContent state="loading" />;
   return (
     <>

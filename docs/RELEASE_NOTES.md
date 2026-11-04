@@ -1,14 +1,14 @@
 # Novidades da aplicação
 
-Ao entrar na conta, o aplicativo apresenta as novidades que ainda não foram
-vistas. Na primeira visita ao recurso, apresenta o catálogo recente. Sem
-novidades, nenhum modal é aberto. Fechar pelo X, Escape, fundo, Entendi ou
-seguir um atalho confirma a leitura da lista apresentada.
+As novidades aparecem como uma entrada **Novidades da aplicação** no sino de notificações.
+Não existe botão próprio no cabeçalho nem abertura automática ao entrar. Quando há versões
+não lidas, essa entrada soma uma pendência ao contador do sino, mesmo com alertas de alunos
+desativados. Após a leitura, continua disponível na lista de notificações.
 
-O botão **Novidades** no cabeçalho permite rever o catálogo completo. No
-celular, aparece como um ícone com o mesmo nome acessível. A abertura automática
-aguarda outros modais e guias; a demonstração oferece apenas consulta manual,
-sem usar contas reais.
+Tocar na entrada fecha a lista suspensa e abre o modal **Novidades do NexusClass**, com as
+melhorias em ordem decrescente e seus atalhos. Entendi, X, Escape, clique no fundo ou um
+atalho fecham o modal e confirmam a leitura. O foco retorna ao sino. A demonstração usa o
+mesmo fluxo com progresso local, sem acessar contas reais.
 
 ## Publicar uma novidade
 
@@ -22,7 +22,7 @@ sem usar contas reais.
 4. Descreva apenas o comportamento entregue ao usuário. Não anuncie propostas,
    integrações ainda não verificadas, informações privadas ou funções de
    administração em um catálogo destinado a todas as contas.
-5. Execute os testes de `release-notes` e verifique o modal no celular.
+5. Execute os testes de `release-notes` e verifique o sino e o modal no celular.
 
 Os IDs, e não o relógio do dispositivo, determinam o que é novo. O catálogo é
 ordenado da versão mais recente para a mais antiga.
@@ -51,5 +51,4 @@ entradas é parte da entrega de funcionalidades, sem precisar editar cada conta.
 - `frontend/e2e/release-notes.spec.ts`: consulta, fechamento, confirmação,
   persistência local e atalhos na demo em 1440, 390 e 320 px, sem chamadas
   privadas.
-- A abertura automática autenticada é exercitada em desenvolvimento com o mesmo
-  componente e um adaptador de progresso simulado; não exige alterar contas reais.
+- A abertura depende de clique; fechar e reabrir pela lista preserva a leitura e o foco.

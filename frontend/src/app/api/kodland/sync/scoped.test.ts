@@ -8,7 +8,7 @@ const token = `header.${Buffer.from(JSON.stringify({ user_id: 22 })).toString("b
 const occurrence: KodlandScopedOccurrence = { kind: "lesson", id: "group-g1-lesson-l1", group_id: "g1", source_lesson_id: "l1", lesson_date: "2026-10-29", start_time: "18:00", end_time: "19:00" };
 const student = { main_info: { student_id: 7, full_name: "Aluno", status: "active" }, progress_info: [{ module_current_grade: 15, module_max_grade: 20, lessons_data: [{ lesson_id: "l1", attendance_status: 9 }] }] };
 const fields = (item = occurrence) => Object.fromEntries(Object.entries({ external_class_id: item.group_id, source_lesson_id: item.source_lesson_id, lesson_date: item.lesson_date, start_time: item.start_time, end_time: item.end_time }).map(([key, value]) => [key, { stringValue: value }]));
-const request = (input: KodlandScopedRequest) => new NextRequest("https://example.test/api/kodland/sync", { method: "POST", headers: { authorization: "Bearer firebase-token", "content-type": "application/json" }, body: JSON.stringify({ username: "tutor", password: "secret", mode: "scoped", scoped_request: input }) });
+const request = (input: KodlandScopedRequest, browser = false) => new NextRequest("https://example.test/api/kodland/sync", { method: "POST", headers: { authorization: "Bearer firebase-token", "content-type": "application/json" }, body: JSON.stringify({ username: "tutor", password: "secret", mode: "scoped", scoped_request: input, browser_occurrence: browser }) });
 function mockSource(overrides: Record<string, unknown> = {}) {
   const fetch = vi.fn(async (url: string | URL | Request) => {
     const path = String(url);
@@ -32,7 +32,7 @@ describe("operational synchronization scopes", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ scoped: { complete: true, ranking_complete: true }, ranking: [{ id: "kodland-student-7", progress_summary: "15/20" }] });
     const calls = fetch.mock.calls.map(call => String(call[0]));
-    expect(calls).toHaveLength(5);
+    expect(calls).toHaveLength(6); // Includes the bounded second timeline page to confirm completeness.
     expect(calls.some(url => /attendance|schedule_view|teacher_timetables|student_profiles|course_lessons|zoom_recording/.test(url))).toBe(false);
   });
   it("preserves ranking when the provider has no grade data", async () => {
@@ -109,5 +109,36 @@ describe("ranking retry scope", () => {
     const fetch = mockSource(); const response = await POST(request({ scope: "ranking", group_ids: ["g1"] }));
     expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ ranking: [{ progress_summary: "15/20" }], reviews: [], task_progress: [], scoped: { ranking_complete: true } });
     expect(fetch.mock.calls).toHaveLength(4); expect(fetch.mock.calls.some(call => String(call[0]).includes("/lessons/"))).toBe(false);
+  });
+});
+
+describe("browser classroom links", () => {
+  it("authorizes the teacher roster and exact provider session without a Firestore occurrence", async () => {
+    const fetch = mockSource({ get_nearest_by_group_id: { lesson_id: "l1", session_id: "session-browser", session_start_time: "2026-10-29T21:00:00Z", session_end_time: "2026-10-29T22:00:00Z" } });
+    const response = await POST(request({ scope: "call_link", occurrence }, true));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ scoped: { complete: true, call_url: classroomUrl("session-browser"), occurrence_key: scopedOccurrenceKey(occurrence) } });
+    expect(fetch.mock.calls.some(call => String(call[0]).includes("firestore.googleapis.com"))).toBe(false);
+  });
+  it("limits browser occurrence hints to the teacher's roster while allowing scoped attendance", async () => {
+    mockSource({ get_students_main_data: [{ ...student, progress_info: [{ module_current_grade: 15, module_max_grade: 20, lessons_data: [{ lesson_id: "l1", attendance_status: 2 }] }] }] });
+    const attendance = await POST(request({ scope: "attendance", occurrence }, true));
+    expect(attendance.status).toBe(200);
+    expect(await attendance.json()).toMatchObject({ scoped: { complete: true }, attendance: [{ lesson_id: "l1", status: "PRESENT" }] });
+    expect((await POST(request({ scope: "call_link", occurrence: { ...occurrence, group_id: "someone-else" } }, true))).status).toBe(403);
+  });
+  it("validates browser extras against the live teacher calendar without Firestore", async () => {
+    const extraOccurrence: KodlandScopedOccurrence = { kind: "extra", id: "kodland-extra-55", group_id: "g1", source_lesson_id: "55", lesson_date: "2026-10-28", start_time: "18:00", end_time: "19:00" };
+    const fetch = mockSource({ get_teacher_extra_lessons_timetable: [{ id: 55, group_id: "g1", student_id: 7, start_time: "2026-10-28T21:00:00Z", end_time: "2026-10-28T22:00:00Z" }], extra_lesson_reports: { outcome: "cancelled" } });
+    const response = await POST(request({ scope: "extra_final_check", occurrence: extraOccurrence }, true));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ scoped: { complete: true, final_completed: false } });
+    expect(fetch.mock.calls.some(call => String(call[0]).includes("firestore.googleapis.com"))).toBe(false);
+  });
+  it("ignores a supplied schedule that disagrees with the actual provider session", async () => {
+    mockSource({ get_nearest_by_group_id: { lesson_id: "l1", session_id: "session-other", session_start_time: "2026-10-30T21:00:00Z", session_end_time: "2026-10-30T22:00:00Z" } });
+    const response = await POST(request({ scope: "call_link", occurrence }, true));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ scoped: { complete: false, call_url: "" } });
   });
 });

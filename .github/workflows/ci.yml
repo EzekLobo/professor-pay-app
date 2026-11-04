@@ -37,7 +37,8 @@ jobs:
       - run: npm run web:coverage
       - run: npm run web:build
   e2e:
-    runs-on: ubuntu-latest
+    # Playwright 1.57 supports Ubuntu 24.04; ubuntu-latest can advance independently.
+    runs-on: ubuntu-24.04
     needs: web
     steps:
       - uses: actions/checkout@v4

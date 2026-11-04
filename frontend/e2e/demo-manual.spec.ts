@@ -10,7 +10,6 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   });
   await page.goto("/demo");
   await page.getByRole("link", { name: "Turmas" }).click();
-  await page.getByRole("tab", { name: "Alunos", exact: true }).click();
   const personalGroups = page.locator("details.manual-group-panel");
   await expect(personalGroups.getByText("Turmas autônomas", { exact: true })).toBeVisible();
   await expect(personalGroups.first()).not.toHaveAttribute("open", "");
@@ -55,33 +54,28 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await page.getByRole("tab", { name: "Presença" }).click();
   await expect(page.getByRole("tab", { name: "Presença" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByLabel("Filtrar presença")).toHaveValue("ABSENT");
+  await page.getByRole("button", { name: "Abrir filtros" }).click();
   await page.getByLabel("Filtrar presença").selectOption("ALL");
+  await page.getByRole("button", { name: "Concluir", exact: true }).click();
   const attendanceClass = page.locator("details.attendance-class-group").first();
   await expect(attendanceClass).not.toHaveAttribute("open", "");
   await attendanceClass.locator("summary").click();
+  await expect(attendanceClass.locator(".attendance-student-summary").first()).not.toContainText("@");
   const attendanceGrid = attendanceClass.getByLabel(/Presença da turma/);
   await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
-  await attendanceGrid.hover();
-  // The initial focus uses smooth scrolling; measure only after it and hover positioning settle.
-  await attendanceGrid.evaluate((element) => new Promise<void>((resolve) => {
-    let previous = element.scrollLeft;
-    let stableFrames = 0;
-    const check = () => {
-      const current = element.scrollLeft;
-      stableFrames = Math.abs(current - previous) < 0.01 ? stableFrames + 1 : 0;
-      previous = current;
-      if (stableFrames >= 3) resolve();
-      else requestAnimationFrame(check);
-    };
-    requestAnimationFrame(check);
+  await attendanceGrid.hover({ position: { x: 20, y: 10 } });
+  await attendanceGrid.evaluate(element => new Promise<void>(resolve => {
+    let previous = element.scrollLeft, stable = 0;
+    const frame = () => { const current = element.scrollLeft; stable = Math.abs(current - previous) < .01 ? stable + 1 : 0; previous = current; if (stable >= 3) resolve(); else requestAnimationFrame(frame); };
+    requestAnimationFrame(frame);
   }));
-  const scroll = await attendanceGrid.evaluate((element) => ({ current: element.scrollLeft, max: element.scrollWidth - element.clientWidth }));
+  const scroll = await attendanceGrid.evaluate(element => ({ current: element.scrollLeft, max: element.scrollWidth - element.clientWidth }));
   const scrollLeft = scroll.current >= scroll.max - 1;
-  const pageScroll = await page.evaluate(() => window.scrollY);
+  const pageScroll = await page.evaluate(() => scrollY);
   await page.mouse.wheel(0, scrollLeft ? -300 : 300);
-  if (scrollLeft) await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeLessThan(scroll.current);
-  else await expect.poll(() => attendanceGrid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(scroll.current);
-  expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
+  if (scrollLeft) await expect.poll(() => attendanceGrid.evaluate(element => element.scrollLeft)).toBeLessThan(scroll.current);
+  else await expect.poll(() => attendanceGrid.evaluate(element => element.scrollLeft)).toBeGreaterThan(scroll.current);
+  expect(await page.evaluate(() => scrollY)).toBe(pageScroll);
   await expect(page.getByLabel("Legenda das cores de presença").getByText("Falta sem justificativa")).toBeVisible();
   await expect(attendanceClass.locator(".attendance-column-heading strong").first()).toHaveText(/^\d{2}\/\d{2}$/);
   await expect(attendanceClass.getByText("Sem data", { exact: true })).toHaveCount(0);
@@ -95,13 +89,16 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await whatsAppDialog.getByRole("button", { name: "Cancelar" }).click();
   await page.getByRole("tab", { name: "Atividades" }).click();
   await expect(page.getByRole("tab", { name: "Atividades" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "Abrir filtros" }).click();
   await page.getByLabel("Organizar atividades").selectOption("student");
+  await page.getByRole("button", { name: "Concluir", exact: true }).click();
   const compactView = page.getByRole("button", { name: "Compacto" });
   await expect(compactView).toHaveAttribute("aria-pressed", "false");
   await compactView.click();
   await expect(compactView).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("Sem pendências para os filtros atuais.")).toBeVisible();
   await page.reload();
+  await page.getByRole("tab", { name: "Atividades", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Atividades" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("button", { name: "Compacto" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Lista" }).click();

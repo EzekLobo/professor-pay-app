@@ -21,28 +21,18 @@ for (const viewport of [
   });
 }
 
-test("navegação móvel mantém áreas principais e oferece as demais em Mais", async ({ page }) => {
+test("navegação móvel desliza entre áreas e mantém Configurações no cabeçalho", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/demo#data");
   const navigation = page.getByRole("navigation", { name: "Navegação principal" });
-  for (const label of ["Resumo", "Pagamentos", "Turmas", "Aulas"]) {
-    const link = navigation.getByRole("link", { name: label, exact: true });
-    await expect(link).toBeVisible();
-    await expect(link).toBeInViewport();
-  }
-  const more = navigation.getByRole("button", { name: "Mais opções", exact: true });
-  await expect(more).toBeInViewport();
-  await expect(more).toHaveAttribute("aria-current", "page");
-  await more.click();
-  const dialog = page.getByRole("dialog", { name: "Mais opções", exact: true });
-  const extras = dialog.getByRole("navigation", { name: "Outras áreas" });
-  for (const label of ["Tarefas", "Configurações"]) {
-    await expect(extras.getByRole("link", { name: label, exact: true })).toBeVisible();
-  }
-  await expect(extras.getByRole("link", { name: "Configurações", exact: true })).toHaveAttribute("aria-current", "page");
-  await extras.getByRole("link", { name: "Tarefas", exact: true }).click();
-  await expect(dialog).not.toBeVisible();
-  await expect(page).toHaveURL(/demo#tasks$/);
+  for (const label of ["Resumo", "Pagamentos", "Turmas", "Aulas", "Tarefas"]) await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mais opções", exact: true })).toHaveCount(0);
+  await expect(page.locator(".shell-header").getByRole("link", { name: "Configurações", exact: true })).toHaveAttribute("aria-current", "page");
+  await navigation.getByRole("link", { name: "Tarefas", exact: true }).click();
+  await expect(page).toHaveURL(/#tasks$/);
+  await expect(navigation.getByRole("link", { name: "Tarefas", exact: true })).toBeInViewport();
+  await page.locator(".shell-header").getByRole("link", { name: "Configurações", exact: true }).click();
+  await expect(page).toHaveURL(/#settings$/);
 });
 
 test("atalho de teclado e importação possuem nomes acessíveis", async ({ page }) => {
@@ -57,17 +47,24 @@ for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/demo#corrections");
     const compact = page.getByRole("button", { name: "Compacto", exact: true });
-    const grouping = page.getByRole("combobox", { name: "Organizar atividades" });
     await expect(compact).toBeVisible();
-    await expect(grouping).toBeVisible();
+    await expect(page.getByLabel("Buscar correção")).not.toBeVisible();
+    const filter = page.getByRole("button", { name: "Abrir filtros" });
     const switchBox = await compact.boundingBox();
-    const groupingBox = await grouping.boundingBox();
-    expect(switchBox).not.toBeNull();
-    expect(groupingBox).not.toBeNull();
-    expect(switchBox!.y + switchBox!.height).toBeLessThanOrEqual(groupingBox!.y);
+    const filterBox = await filter.boundingBox();
+    expect(Math.abs(switchBox!.y - filterBox!.y)).toBeLessThan(5);
+    await filter.click();
+    await expect(page.getByRole("combobox", { name: "Organizar atividades" })).toBeVisible();
+    await page.getByRole("button", { name: "Concluir", exact: true }).click();
     await compact.click();
     await expect(compact).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByLabel("Buscar correção")).toBeVisible();
+    await page.getByRole("button", { name: "Abrir busca" }).click();
+    await expect(page.getByLabel("Buscar correção")).toBeFocused();
+    await page.getByLabel("Buscar correção").fill("nenhum-aluno");
+    await page.getByLabel("Buscar correção").press("Escape");
+    await expect(page.getByLabel("Buscar correção")).not.toBeVisible();
+    await page.getByRole("button", { name: "Abrir busca" }).click();
+    await expect(page.getByLabel("Buscar correção")).toHaveValue("");
   });
 }
 
@@ -244,4 +241,58 @@ test("pagamentos aproveitam a largura e mantêm navegação de competências", a
     await periods.getByRole("button", { name: "Próxima competência" }).click();
     await expect(month).toHaveText(initial!);
   }
+});
+
+for (const width of [320, 390, 520, 768]) {
+  test(`presença mantém filtro, busca e atualização separados (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/demo#settings");
+    await page.getByRole("tab", { name: "Integrações", exact: true }).click();
+    await page.getByText("Kodland", { exact: true }).click();
+    await page.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible();
+      await page.getByRole("link", { name: "Turmas", exact: true }).click();
+    await page.getByRole("tab", { name: "Presença", exact: true }).click();
+    const controls = [page.getByRole("button", { name: "Abrir filtros" }), page.getByRole("button", { name: "Abrir busca" }), page.getByRole("button", { name: "Atualizar correções", exact: true })];
+    const boxes = [];
+    for (const control of controls) {
+      await expect(control).toBeVisible();
+      const box = await control.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
+      boxes.push(box!);
+    }
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      const overlap = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) > 1 && Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) > 1;
+      expect(overlap).toBe(false);
+    }
+    await page.screenshot({ path: `/tmp/nexus-presenca-${width}.png`, fullPage: true });
+  });
+}
+
+test("controles do resumo e configurações preservam o tema escuro", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/demo#dashboard");
+  const settings = page.locator(".shell-header").getByRole("link", { name: "Configurações", exact: true });
+  await expect(settings).toHaveClass(/button-ghost/);
+  for (const label of ["Semana anterior", "Próxima semana"]) {
+    const button = page.getByRole("button", { name: label, exact: true });
+    await expect(button).toHaveClass(/button-ghost/);
+    const box = await button.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+  }
+  await page.screenshot({ path: "/tmp/nexus-resumo-390.png", fullPage: true });
+  await page.goto("/demo#settings");
+  await page.getByRole("tab", { name: "Integrações", exact: true }).click();
+  await page.getByText("Kodland", { exact: true }).click();
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Turmas", exact: true }).click();
+  const summary = page.locator(".group-has-actions .group-accordion-summary").first();
+  const copy = await summary.locator(".group-summary-copy").boundingBox();
+  const menu = await summary.getByRole("button", { name: /Ações da turma/ }).boundingBox();
+  expect(menu!.x).toBeGreaterThanOrEqual(copy!.x + copy!.width);
+  await page.screenshot({ path: "/tmp/nexus-turmas-390.png", fullPage: true });
 });

@@ -8,6 +8,7 @@ const fake = vi.hoisted(() => ({
   batchSizes: [] as number[],
   queued: [] as string[],
   failMigration: false,
+  failBatch: false,
   userId: "test-user",
 }));
 
@@ -37,6 +38,7 @@ vi.mock("firebase/firestore", () => {
     doc: (collection: unknown, id: string) => `${path(collection)}/${id}`,
     query: (collection: unknown) => collection,
     orderBy: () => ({}),
+    where: () => ({}),
     getDocs: async (collection: unknown) => ({ docs: [...fake.docs]
       .filter(([key]) => key.startsWith(`${path(collection)}/`) && key.slice(path(collection).length + 1).indexOf("/") < 0)
       .map(([key]) => ({ id: key.split("/").at(-1)!, data: () => fake.docs.get(key)! })) }),
@@ -54,7 +56,7 @@ vi.mock("firebase/firestore", () => {
         update: (key: unknown, value: Record<string, unknown>) =>
           writes.push(() => set(path(key), value, true)),
         delete: (key: unknown) => writes.push(() => { fake.docs.delete(path(key)); }),
-        commit: async () => { fake.batchSizes.push(writes.length); writes.forEach((write) => write()); },
+        commit: async () => { if (fake.failBatch) throw new Error("write failed"); fake.batchSizes.push(writes.length); writes.forEach((write) => write()); },
       };
     },
     runTransaction: async (_db: unknown, update: (transaction: {
@@ -88,6 +90,7 @@ beforeEach(() => {
   fake.batchSizes.length = 0;
   fake.queued.length = 0;
   fake.failMigration = false;
+  fake.failBatch = false;
   fake.userId = "test-user";
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -240,6 +243,7 @@ describe("backup e migração", () => {
     expect((await dashboardApi.get()).payments.find((item) => item.payment_date === "2026-11-15")?.total_cents).toBe(3000);
     expect(fake.docs.get(key("payments", "2026-11-15"))?.payment_snapshot).toBeUndefined();
     fake.failMigration = false;
+  fake.failBatch = false;
     await dashboardApi.get();
     expect((fake.docs.get(key("payments", "2026-11-15"))?.payment_snapshot as { total_cents: number }).total_cents).toBe(3000);
     fake.docs.set(key("lessons", "lesson-1"), { ...lesson("lesson-1"), hourly_rate_cents: 9000 });
@@ -283,14 +287,63 @@ describe("ephemeral classroom state in portable backups", () => {
 });
 
 
-describe("legacy synchronization uses the shared queue", () => {
-  it("runs manual snapshot and backup restore through distinct non-nested jobs", async () => {
+describe("remote synchronization lock and backup queue remain distinct", () => {
+  it("uses the remote sync lock without creating legacy scheduler leases, and queues backup restore", async () => {
     const fetch = vi.fn<(url: unknown, options?: RequestInit) => Promise<Response>>().mockResolvedValue(Response.json({ groups: [], students: [], reviews: [], lessons: [], extra_lessons: [], availability: [] }));
     vi.stubGlobal("fetch", fetch);
     await kodlandApi.sync("teacher", "secret", "schedule");
-    expect(fake.queued).toEqual(["sync:schedule:all"]);
+    expect(fake.queued).toEqual([]);
     expect(fetch.mock.calls[0][1]).toMatchObject({ signal: expect.any(AbortSignal) });
     await dataApi.import({ schema_version: "4.0", exported_at: "queued-restore" });
-    expect(fake.queued).toEqual(["sync:schedule:all", "backup-import"]);
+    expect(fake.queued).toEqual(["backup-import"]);
   });
+});
+
+describe("persistência e atualização dos alertas Kodland", () => {
+  const install = (groups: Array<{ external_id: string; archived: boolean }> = []) => {
+    fake.docs.set(key("kodland_students", "s"), { guardian_phone: "5511999990000", local_note: "Preservar" });
+    fake.docs.set(key("kodland_lessons", "l"), { title: "M1L1", classroom_tasks: [{ title: "Projeto", url: "https://example.test/task/1" }], materials_status: "ready" });
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ groups, students: [], reviews: [], lessons: [], extra_lessons: [], availability: [], review_group_ids: ["g"], attendance_group_ids: ["g"], attendance: [{ id: "a", external_class_id: "g", external_student_id: "s", status: "ABSENT" }], task_progress: [{ id: "p", external_class_id: "g", external_student_id: "s", lesson_id: "l", task_id: "t", task_title: "Projeto", state: "missing" }] })));
+  };
+  it("sinaliza notificações somente após persistir presença/progresso e concluir os marcadores", async () => {
+    install();
+    const event = vi.fn((dispatched: Event) => {
+      expect(["nexusclass:notifications-changed", "nexusclass:sync-data-changed", "nexusclass:kodland-synced"]).toContain(dispatched.type);
+      expect(fake.docs.get(key("sync_status", "kodland"))?.status).toBe("complete");
+      expect(fake.docs.get(key("sync_status", "corrections"))?.status).toBe("complete");
+      expect(fake.docs.get(key("kodland_attendance", "a"))?.status).toBe("ABSENT");
+      expect(fake.docs.get(key("kodland_task_progress", "p"))?.state).toBe("missing");
+      return true;
+    });
+    vi.stubGlobal("window", { dispatchEvent: event });
+    await kodlandApi.sync("fixture", "fixture", "corrections", { correctionGroupIds: ["g"], refreshSchedule: false });
+    expect(event.mock.calls.map(([event]) => event.type)).toEqual(["nexusclass:notifications-changed", "nexusclass:sync-data-changed", "nexusclass:kodland-synced"]);
+    expect(fake.docs.get(key("kodland_students", "s"))?.guardian_phone).toBe("5511999990000");
+    expect(fake.docs.get(key("kodland_lessons", "l"))?.materials_status).toBe("ready");
+    expect((await kodlandApi.followupState()).updatedAt.g).toBeTruthy();
+  });
+  it("desativa uma turma arquivada na Kodland sem substituir contatos e materiais", async () => {
+    install([{ external_id: "g", archived: true }]);
+    fake.docs.set(key("kodland_groups", "g"), { id: "g", external_id: "g", archived: false, local_class_id: "own-link" });
+    await kodlandApi.sync("fixture", "fixture", "corrections", { refreshSchedule: false });
+    expect(fake.docs.get(key("kodland_groups", "g"))).toMatchObject({ archived: true, local_class_id: "own-link" });
+    expect(fake.docs.get(key("kodland_students", "s"))?.guardian_phone).toBe("5511999990000");
+  });
+  it("falha de gravação não notifica nem pode ser encoberta por outra sincronização", async () => {
+    install(); fake.failBatch = true;
+    const event = vi.fn(); vi.stubGlobal("window", { dispatchEvent: event });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await expect(kodlandApi.sync("fixture", "fixture", "corrections", { refreshSchedule: false })).rejects.toThrow("NexusClass");
+      expect(event).not.toHaveBeenCalled();
+      fake.docs.set(key("sync_status", "kodland"), { status: "complete", sync_id: "schedule-refresh" });
+      expect(await kodlandApi.notificationSyncStatus()).toMatchObject({ status: "failed", followup_status: "failed" });
+    } finally { errorLog.mockRestore(); }
+  });
+});
+
+it("uma turma atualizada não encobre uma turma cujo progresso ficou incompleto", async () => {
+  fake.docs.set(key("sync_status", "kodland"), { status: "complete", sync_id: "newer" });
+  fake.docs.set(key("sync_status", "corrections"), { status: "complete", group_status: { a: "failed", b: "complete" } });
+  expect(await kodlandApi.notificationSyncStatus()).toMatchObject({ status: "failed" });
 });

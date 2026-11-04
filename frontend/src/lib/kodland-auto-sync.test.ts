@@ -1,0 +1,113 @@
+import { describe, expect, it, vi } from "vitest";
+import { createKodlandAutoSync, type AutoSyncContext, type AutoSyncStatus } from "./kodland-auto-sync";
+import { defaultNotificationSettings, evaluateStudentNotifications, needsNotificationContact, notificationMessage, type NotificationLesson, type NotificationObligation } from "./student-notification-rules";
+import { reconcileNotificationCases } from "./student-notification-store";
+
+function setup() {
+  let time = Date.parse("2026-10-31T22:00:00Z");
+  let owner = true;
+  const context: AutoSyncContext = { enabled: true, groups: ["a", "b"], updatedAt: {} };
+  const status = vi.fn<(value: AutoSyncStatus) => void>();
+  const sync = vi.fn<(id: string) => Promise<void>>(async () => undefined);
+  const runTask = vi.fn(async () => undefined);
+  const credentials = vi.fn(async () => ({ username: "demo", password: "not-real" }));
+  const controller = createKodlandAutoSync({ owner: () => owner, context: vi.fn(async () => context), credentials, sync, runTask, status, now: () => time });
+  const tick = (options = {}) => controller.tick({ active: true, online: true, following: true, ...options });
+  return { context, sync, runTask, status, credentials, tick, advance: (minutes: number) => { time += minutes * 60000; }, owner: (value: boolean) => { owner = value; } };
+}
+describe("atualização automática da Kodland", () => {
+  it("atualiza atividades por turma a cada seis horas, independente da tela", async () => {
+    const app = setup(); await app.tick(); expect(app.sync.mock.calls.map(call => call[0])).toEqual(["a", "b"]);
+    app.advance(359); await app.tick(); expect(app.sync).toHaveBeenCalledTimes(2);
+    app.advance(1); await app.tick(); expect(app.sync).toHaveBeenCalledTimes(4);
+    app.advance(359); await app.tick({ following: false }); expect(app.sync).toHaveBeenCalledTimes(4);
+    app.advance(1); await app.tick({ following: false }); expect(app.sync).toHaveBeenCalledTimes(6);
+  });
+  it("atualiza novamente ao entrar em Turmas mesmo que a última consulta tenha sido recente", async () => {
+    const app = setup();
+    app.context.updatedAt.a = "2026-10-31T22:00:00Z";
+    app.context.updatedAt.b = "2026-10-31T22:00:00Z";
+    await app.tick({ following: false });
+    expect(app.sync).not.toHaveBeenCalled();
+    await app.tick({ following: true });
+    expect(app.sync.mock.calls.map(call => call[0])).toEqual(["a", "b"]);
+  });
+  it("limita a cinco tarefas por varredura para evitar rajadas de consultas", async () => {
+    const app = setup();
+    app.context.tasks = Array.from({ length: 7 }, (_, index) => ({ id: `followup-${index}`, kind: "extras_discovery" as const, weekDate: "2026-10-31", knownExtraIds: [] }));
+    await app.tick();
+    expect(app.runTask).toHaveBeenCalledTimes(5);
+  });
+  it("não consulta sem conexão, na aba oculta, conta trocada ou integração desativada", async () => {
+    const app = setup(); await app.tick({ online: false }); await app.tick({ active: false }); app.owner(false); await app.tick();
+    expect(app.credentials).not.toHaveBeenCalled(); app.owner(true); app.context.enabled = false; await app.tick();
+    expect(app.sync).not.toHaveBeenCalled(); expect(app.status).toHaveBeenLastCalledWith({ phase: "disabled" });
+  });
+  it("não importa cadastros sem turmas, nem insiste quando faltam credenciais", async () => {
+    const app = setup(); app.context.groups = []; await app.tick(); expect(app.credentials).not.toHaveBeenCalled();
+    app.advance(1); app.context.groups = ["a"]; app.credentials.mockResolvedValue(null as never); await app.tick();
+    expect(app.sync).not.toHaveBeenCalled(); expect(app.status.mock.lastCall?.[0].phase).toBe("credentials");
+  });
+  it("respeita atualização manual já persistida e não sobrepõe execuções", async () => {
+    const app = setup(); app.context.updatedAt.a = "2026-10-31T21:59:00Z";
+    let finish!: () => void; app.sync.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
+    const running = app.tick({ following: false }); await vi.waitFor(() => expect(app.sync).toHaveBeenCalledTimes(1)); await app.tick({ following: false });
+    expect(app.sync.mock.calls[0][0]).toBe("b"); finish(); await running; expect(app.sync).toHaveBeenCalledTimes(1);
+  });
+  it("repara uma gravação incompleta mesmo se houver uma atualização recente em cache", async () => {
+    const app = setup(); await app.tick();
+    app.context.blockedGroups = ["a"]; app.advance(1); await app.tick();
+    expect(app.sync.mock.calls.map(call => call[0])).toEqual(["a", "b", "a"]);
+  });
+  it("para na falha e faz nova tentativa com espera progressiva", async () => {
+    const app = setup(); app.sync.mockRejectedValueOnce(new Error("offline")); await app.tick();
+    expect(app.sync).toHaveBeenCalledTimes(1); expect(app.status.mock.lastCall?.[0].message).toContain("preservados");
+    app.advance(1); await app.tick(); expect(app.sync).toHaveBeenCalledTimes(1);
+    app.advance(1); await app.tick(); expect(app.sync).toHaveBeenCalledTimes(3);
+  });
+  it("abandona a sequência quando a conta muda durante a sincronização", async () => {
+    const app = setup(); app.sync.mockImplementation(async () => { app.owner(false); }); await app.tick(); expect(app.sync).toHaveBeenCalledTimes(1);
+    expect(app.status.mock.calls.some(([value]) => value.phase === "ready")).toBe(false);
+  });
+  it("reavalia faltas e entregas após atualizar, sem duplicar nem presumir envio", async () => {
+    const settings = { ...defaultNotificationSettings("2026-10-01"), enabled: true, activity_message_template: "{responsavel}: {aluno} deve {atividades}" };
+    let lesson: NotificationLesson = { source: "kodland", class_id: "a", class_name: "Python", student_id: "s", student_name: "Ana", occurrence_id: "l", lesson_label: "M1L1", lesson_date: "2026-10-31", ended_at: "2026-10-31T21:00:00Z", active: true, cancelled: false, attendance: "unknown", guardian_name: "Maria", guardian_phone: "5511999990000" };
+    let obligations: NotificationObligation[] = [];
+    let cases: ReturnType<typeof reconcileNotificationCases> = [];
+    const app = setup(); app.context.groups = ["a"];
+    app.sync.mockImplementation(async () => {
+      lesson = { ...lesson, attendance: "absent" };
+      obligations = [{ id: "task", source: "kodland", class_id: "a", student_id: "s", occurrence_id: "l", title: "Projeto", kind: "classroom", due_at: null, state: "missing", required: true, exempt: false }];
+      const stamp = "2026-10-31T22:00:00Z";
+      cases = reconcileNotificationCases(cases, evaluateStudentNotifications([lesson], obligations, settings, new Date(stamp)), stamp);
+    });
+    await app.tick(); expect(cases.filter(needsNotificationContact)).toHaveLength(2);
+    const activity = cases.find(item => item.notification.category === "classroom")!;
+    expect(notificationMessage(activity.notification, settings.activity_message_template)).toBe("Maria: Ana deve Projeto");
+    app.advance(5); await app.tick(); expect(cases).toHaveLength(2);
+    lesson.attendance = "other"; obligations[0].state = "delivered";
+    cases = reconcileNotificationCases(cases, evaluateStudentNotifications([lesson], obligations, settings, new Date("2026-10-31T22:10:00Z")), "2026-10-31T22:10:00Z");
+    expect(cases.filter(needsNotificationContact)).toHaveLength(0); expect(cases).toHaveLength(2);
+  });
+});
+
+it("ocupação da fila pausa automática sem erro nem marcar turma como atualizada",async()=>{
+ const {KodlandAutoSyncBusyError}=await import("./kodland-sync-lock");
+ const app=setup();app.sync.mockRejectedValueOnce(new KodlandAutoSyncBusyError("pausada"));
+ await app.tick();expect(app.status.mock.lastCall?.[0].phase).toBe("paused");
+ app.advance(1);await app.tick();expect(app.sync.mock.calls.map(call=>call[0])).toEqual(["a","a","b"]);
+ expect(app.status.mock.calls.some(call=>call[0].phase==="error")).toBe(false);
+});
+it("pausa antes de ler contexto ou credenciais quando uma operação manual está ativa",async()=>{
+ const context=vi.fn();const credentials=vi.fn();const sync=vi.fn();const status=vi.fn();
+ const app=createKodlandAutoSync({owner:()=>true,available:()=>false,context,credentials,sync,status});
+ await app.tick({active:true,online:true,following:true});
+ expect(context).not.toHaveBeenCalled();expect(credentials).not.toHaveBeenCalled();expect(sync).not.toHaveBeenCalled();
+ expect(status).toHaveBeenCalledWith(expect.objectContaining({phase:"paused"}));
+});
+
+it("não insiste contra quota esgotada antes de seis horas",async()=>{
+ const app=setup();app.sync.mockRejectedValueOnce(Object.assign(new Error("quota"),{code:"resource-exhausted"}));
+ await app.tick();app.advance(359);await app.tick();expect(app.sync).toHaveBeenCalledTimes(1);
+ app.advance(1);await app.tick();expect(app.sync).toHaveBeenCalledTimes(3);
+});

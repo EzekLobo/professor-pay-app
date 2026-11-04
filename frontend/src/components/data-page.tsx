@@ -1,4 +1,8 @@
 "use client";
+import { KodlandBrowserStorageError } from "@/lib/kodland-browser-cache";
+import { pauseKodlandAutoSync } from "@/lib/kodland-sync-lock";
+import { reportOperation } from "@/lib/operation-log-client";
+import { watchKodlandSync, KodlandSyncWaitError } from "@/lib/kodland-sync-client";
 
 import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import { Database, Download, RefreshCw, Upload } from "lucide-react";
@@ -54,13 +58,23 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
   const [syncProgress, setSyncProgress] = useState("");
   const [syncUsername, setSyncUsername] = useState("");
   const [syncPassword, setSyncPassword] = useState("");
+  const [integrationUnavailable, setIntegrationUnavailable] = useState(false);
   const [saveCredentials, setSaveCredentials] = useState(true);
   const [storedKodlandEnabled, setStoredKodlandEnabled] = useState(false);
   const kodlandEnabled = demo ? demo.kodlandEnabled === true : storedKodlandEnabled;
+  useEffect(() => {
+    if (demo || !syncOpen) return;
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (uid) return pauseKodlandAutoSync(uid);
+  }, [demo, syncOpen]);
 
   useEffect(() => {
     if (demo) return;
-    void tutorPreferencesApi.get().then((preferences) => setStoredKodlandEnabled(preferences.kodland_enabled)).catch(() => setStoredKodlandEnabled(false));
+    void kodlandApi.browserState().then(async state => {
+      if (state?.active) { setStoredKodlandEnabled(true); return; }
+      const preferences = await tutorPreferencesApi.get();
+      setStoredKodlandEnabled(preferences.kodland_enabled);
+    }).catch(() => { setIntegrationUnavailable(true); });
   }, [demo]);
 
   const message = (reason: unknown) =>
@@ -109,33 +123,31 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
     setSyncProgress("");
     try {
       let savedInBrowser = false;
-      const result = await kodlandApi.syncAll(
-        username,
-        syncPassword,
-        setSyncProgress,
-      );
+      const result = await watchKodlandSync((report, assertActive) => kodlandApi.syncAll(username, syncPassword, report, { assertActive }), setSyncProgress);
       if (saveCredentials) {
         try {
           if (!ownerId || getFirebaseAuth().currentUser?.uid !== ownerId) throw new Error("A conta conectada mudou durante a sincronização.");
-          savedInBrowser = await rememberKodlandCredentials(
-            { username, password: syncPassword },
-            form,
-          );
+          setSyncProgress("Dados sincronizados. Salvando acesso neste navegador…");
+          savedInBrowser = await watchKodlandSync(() => rememberKodlandCredentials({ username, password: syncPassword }, form), () => {}, 10_000);
         } catch {
           // Browser password storage is optional and controlled by the browser.
         }
       }
       setSyncPassword("");
       setSyncOpen(false);
+      if (result.storage === "browser") setStoredKodlandEnabled(true);
       if (result.payroll_warning) setError(`Aulas e turmas sincronizadas. Folha oficial: ${result.payroll_warning}`);
       setNotice(
         `Sincronização concluída: ${result.group_count} turma(s), ${result.student_count} aluno(s), ${result.lesson_count} aula(s), ${result.extra_lesson_count} extra(s) e ${result.review_count} correção(ões).${saveCredentials ? savedInBrowser ? " Credenciais salvas neste navegador." : " O navegador não permitiu salvar as credenciais." : ""}`,
       );
     } catch (reason) {
+      if (reason instanceof KodlandSyncWaitError) reportOperation("kodland_sync", "warning", { scope: "complete", trigger: "manual", errorCode: "timeout", reference: reason.syncId });
       setSyncError(
-        reason instanceof ApiError ||
+        reason instanceof KodlandSyncWaitError ||
+          reason instanceof ApiError ||
           reason instanceof KodlandSyncResponseError ||
-          reason instanceof KodlandSyncPersistenceError
+          reason instanceof KodlandSyncPersistenceError ||
+          reason instanceof KodlandBrowserStorageError
           ? reason.message
           : "Não foi possível sincronizar os dados da Kodland.",
       );
@@ -277,7 +289,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       >
         <form id="kodland-sync" name="kodland-sync" className="form management-form" autoComplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" onSubmit={synchronize}>
           <p className="muted">
-            Atualiza turmas, alunos, aulas, presença, materiais e pagamentos.
+            Atualiza turmas, alunos, aulas, presença e atividades.
           </p>
           {demo ? <p className="notice">Na demonstração, esta operação utiliza apenas dados fictícios e não solicita credenciais.</p> : <><label className="field">
             Usuário ou e-mail
@@ -324,7 +336,8 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
             <span>Salvar credenciais da Kodland neste navegador</span>
           </label>
           </>}
-          {syncProgress && <p className="notice" role="status">{syncProgress}</p>}
+          {!demo && <p className="muted sync-auto-pause">A atualização automática aguarda enquanto você usa esta janela.</p>}
+          {syncProgress && <p className="sync-progress" role="status" aria-live="polite">{syncProgress}</p>}
           {syncError && <p className="form-error" role="alert">{syncError}</p>}
           <div className="form-actions">
             <Button type="submit" disabled={busy}>
@@ -341,7 +354,7 @@ export function DataContent({ demo }: { demo?: DataDemoAdapter }) {
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
 
-      {kodlandEnabled && <section className="panel data-sync-card" data-tour="data-sync">
+      {(kodlandEnabled || integrationUnavailable || !demo) && <section className="panel data-sync-card" data-tour="data-sync">
         <div className="data-section-copy">
           <h2><RefreshCw size={19} aria-hidden="true" /> Sincronização Kodland</h2>
         </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { DashboardContent } from "@/components/dashboard-content";
 import { KodlandSummary } from "@/components/dashboard-page";
+import { ClassesContent } from "@/components/classes-page";
 import { LessonsContent } from "@/components/lessons-page";
 import { PaymentsContent, type PaymentsAdapter } from "@/components/payments-page";
 import { CorrectionsContent } from "@/components/corrections-page";
@@ -11,8 +12,6 @@ import { TasksContent } from "@/components/tasks-page";
 import { demoTaskBoardStore, resetDemoTaskBoard } from "@/lib/demo-task-board-store";
 import type { TaskCard, TaskList } from "@/lib/task-board";
 import { SettingsContent } from "@/components/settings-page";
-import { ReleaseNotes } from "@/components/release-notes";
-import { localReleaseNotesStore } from "@/lib/release-notes-store";
 import { ShellFrame } from "@/components/shell";
 import { HolidayCalendarDialog } from "@/components/holiday-calendar-dialog";
 import { CalendarDays } from "lucide-react";
@@ -27,6 +26,8 @@ import { appRoutes } from "@/lib/routes";
 import type { DashboardLesson, ExtraLessonPayload, KodlandReview } from "@/lib/api";
 import type { CustomHoliday } from "@/lib/holidays";
 import "../visitor.css";
+
+const demoRouteHref = (href: string) => href === "/settings#data" ? "/demo#data" : href === "/settings#notifications" ? "/demo?section=notifications#settings" : `/demo#${href.slice(1)}`;
 
 type View = "/dashboard" | "/payments" | "/classes" | "/lessons" | "/corrections" | "/settings" | "/data" | "/tasks";
 
@@ -53,14 +54,32 @@ export default function DemoPage() {
     setSnapshot(next);
   }, []);
   useEffect(() => {
-    const syncView = () => { const requested = `/${window.location.hash.slice(1)}`; const href = requested === "/corrections" ? "/classes" : requested; if (requested === "/corrections") window.history.replaceState(null, "", `/demo${window.location.search}#classes`); setView((href === "/data" || appRoutes.some((item) => item.href === href)) ? href as View : "/dashboard"); };
+    const syncView = () => {
+      const requested = "/" + window.location.hash.slice(1);
+      const href = requested === "/corrections" ? "/classes" : requested;
+      if (requested === "/corrections") {
+        const search = new URLSearchParams(window.location.search);
+        if (!search.has("tab")) search.set("tab", "activities");
+        window.history.replaceState(null, "", "/demo?" + search + "#classes");
+      }
+      setView((href === "/data" || appRoutes.some(item => item.href === href)) ? href as View : "/dashboard");
+    };
     const timer = window.setTimeout(() => { const seed = createDemoSnapshot(); let state = { snapshot: seed, holidays: [] as CustomHoliday[] }; try { state = restoreDemoState(seed, window.localStorage.getItem(DEMO_STATE_KEY)); } catch { /* Local storage is optional. */ } snapshotRef.current = state.snapshot; holidaysRef.current = state.holidays; setManualAdapter(createDemoManualAdapter(() => { if (!snapshotRef.current) throw new Error("Demonstração ainda não carregada."); return snapshotRef.current; }, mutate)); setSnapshot(state.snapshot); setHolidays(state.holidays); setUpdatedAt(new Date().toISOString()); syncView(); }, 0);
     window.addEventListener("hashchange", syncView);
     return () => { window.clearTimeout(timer); window.removeEventListener("hashchange", syncView); };
   }, [mutate]);
   useEffect(() => { if (!snapshot) return; try { window.localStorage.setItem(DEMO_STATE_KEY, JSON.stringify({ version: 2, snapshot, holidays })); } catch { /* The demo remains functional without storage. */ } }, [snapshot, holidays]);
   useEffect(() => { if (view !== "/data" && view !== "/settings") return; let active = true; void Promise.all([demoTaskBoardStore.list(), demoTaskBoardStore.columns!()]).then(([items, lists]) => { if (active) { setDemoTasks(items); setDemoLists(lists); } }); return () => { active = false; }; }, [view]);
-  const navigate = (href: string) => { const [path, search] = href.split("?"); if (!appRoutes.some((item) => item.href === path)) return; setView(path as View); window.history.replaceState(null, "", `/demo${search ? `?${search}` : ""}#${path === "/settings#data" ? "data" : path.slice(1)}`); setNotice(""); };
+  const navigate = (href: string) => {
+    const [requested, query] = href.split("?");
+    const path = requested === "/corrections" ? "/classes" : requested;
+    if (!appRoutes.some(item => item.href === path)) return;
+    const search = new URLSearchParams(query);
+    if (requested === "/corrections" && !search.has("tab")) search.set("tab", "activities");
+    setView(path as View);
+    window.history.replaceState(null, "", "/demo" + (search.size ? "?" + search : "") + "#" + path.slice(1));
+    setNotice("");
+  };
   const update = useCallback(() => {
     const confirmedExtras = new Set(createDemoSnapshot().extras.filter((extra) => extra.completed).map((extra) => extra.id));
     mutate((current) => ({ ...current, extras: current.extras.map((extra) => confirmedExtras.has(extra.id) ? { ...extra, completed: true, manual_status: "DONE" } : extra) }));
@@ -103,16 +122,17 @@ export default function DemoPage() {
   }), [getDashboard, mutate, saveExtra]);
   const holidayActions = useMemo(() => ({ list: async () => holidaysRef.current, save: async ({ date, name }: { date: string; name: string }) => { const saved: CustomHoliday = { id: `demo-holiday-${date}`, date, name, source: "CUSTOM", affects_financial_total: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }; const next = [...holidaysRef.current.filter((item) => item.date !== date), saved]; holidaysRef.current = next; setHolidays(next); return saved; } }), []);
   const lessonData = useMemo(() => snapshot ? { groups: snapshot.groups, lessons: snapshot.lessons } : undefined, [snapshot]);
+  const classData = useMemo(() => snapshot && manualAdapter ? { groups: snapshot.groups, students: snapshot.students, onSync: update, manualAdapter } : undefined, [snapshot, update, manualAdapter]);
   const dashboard = snapshot ? demoDashboard(snapshot, holidays) : null;
 
   return <div onClick={interceptMaterial}>
-    <ShellFrame notificationSnapshot={snapshot} onNotificationDemoChange={mutate} user={{ id: "demo-profile", name: "Marina", email: "marina@example.test" }} pathname={view === "/data" ? "/settings" : view} routeHref={(href) => `/demo#${href === "/settings#data" ? "data" : href.slice(1)}`} onNavigate={navigate} onLogout={() => router.push("/login")} logoutLabel="Acessar minha conta" headerActions={<><ReleaseNotes userId="demo-profile" store={localReleaseNotesStore} autoShow={false} routeHref={(href) => `/demo#${href === "/settings#data" ? "data" : href.slice(1)}`} /><button className="button button-ghost header-calendar-button" type="button" aria-label="Abrir calendário de feriados" title="Feriados" onClick={() => setCalendarOpen(true)}><CalendarDays size={18} aria-hidden="true" /><span>Feriados</span></button></>} banner={<div className="visitor-demo-banner" role="note"><strong>Demonstração — dados fictícios</strong><span>Explore o NexusClass com ações locais. Nenhuma conta ou plataforma real é acessada.</span></div>}>
+    <ShellFrame notificationSnapshot={snapshot} onNotificationDemoChange={mutate} user={{ id: "demo-profile", name: "Marina", email: "marina@example.test" }} pathname={view === "/data" ? "/settings" : view} routeHref={demoRouteHref} onNavigate={navigate} onLogout={() => router.push("/login")} logoutLabel="Acessar minha conta" headerActions={<><button className="button button-ghost header-calendar-button" type="button" aria-label="Abrir calendário de feriados" title="Feriados" onClick={() => setCalendarOpen(true)}><CalendarDays size={18} aria-hidden="true" /><span>Feriados</span></button></>} banner={<div className="visitor-demo-banner" role="note"><strong>Demonstração — dados fictícios</strong><span>Explore o NexusClass com ações locais. Nenhuma conta ou plataforma real é acessada.</span></div>}>
     {notice && <div className="visitor-demo-notice" role="status">{notice}<button type="button" aria-label="Fechar aviso" onClick={() => setNotice("")}>×</button></div>}
     {!snapshot || !dashboard || !manualAdapter ? <p className="muted">Carregando demonstração…</p> : <>
       {view === "/dashboard" && <><KodlandSummary {...snapshot} extraLessons={snapshot.extras} customHolidays={holidays} manualClasses={snapshot.manualClasses} manualStudents={snapshot.manualStudents} manualPendingCount={pendingManualActivities(snapshot.manualActivities).length} onRefresh={update} refreshing={false} refreshNotice="" scheduleLastUpdatedAt={updatedAt} onUpdateExtraStatus={async (id, status) => { const item = snapshot.extras.find((extra) => extra.id === id)!; const updated = { ...item, manual_status: status, completed: status === "DONE" }; mutate((current) => ({ ...current, extras: current.extras.map((extra) => extra.id === id ? updated : extra) })); return updated; }} onMaterialsLoaded={() => undefined} demoMode onOpenCorrections={() => navigate("/classes?tab=activities")} /><DashboardContent state="ready" dashboard={dashboard} storageKey="nexusclass.demo.payments.visible" actions={{ updateLesson: async (date, lesson, status) => { await paymentAdapter.updateLessonFinancialStatus(date, lesson.id, lesson.financial_source_id, status); }, createExtra: saveExtra, setPaymentStatus: async (date, status) => { await paymentAdapter.setStatus(date, status); } }} /></>}
       {view === "/payments" && <PaymentsContent adapter={paymentAdapter} />}
+      {view === "/classes" && <CorrectionsContent preferenceKey="demo" studentsContent={<ClassesContent demo={classData} />} demo={{ reviews: snapshot.reviews, lessons: snapshot.lessons, attendance: snapshot.attendance, students: snapshot.students, groups: snapshot.groups, manualActivities: snapshot.manualActivities, manualClasses: snapshot.manualClasses, manualStudents: snapshot.manualStudents, manualAdapter, onSaveManualActivity: (item) => manualAdapter.pedagogy.saveActivity(item), onSync: update, onCorrect: (item) => { setReview(item); setFeedback(""); }, onMaterial: () => setResource("Materiais da aula") }} />}
       {view === "/lessons" && <LessonsContent demoData={lessonData} manualAdapter={manualAdapter} onDemoAction={() => setResource("Importar curso")} />}
-      {view === "/classes" && <CorrectionsContent preferenceKey="demo" demo={{ reviews: snapshot.reviews, lessons: snapshot.lessons, attendance: snapshot.attendance, students: snapshot.students, groups: snapshot.groups, manualActivities: snapshot.manualActivities, manualClasses: snapshot.manualClasses, manualStudents: snapshot.manualStudents, manualAdapter, onSaveManualActivity: (item) => manualAdapter.pedagogy.saveActivity(item), onSync: update, onCorrect: (item) => { setReview(item); setFeedback(""); }, onMaterial: () => setResource("Materiais da aula") }} />}
       {view === "/tasks" && <TasksContent store={demoTaskBoardStore} />}
 
       {(view === "/settings" || view === "/data") && <SettingsContent key={view} adapter={manualAdapter} initialSection={view === "/data" ? "data" : undefined} dataContent={<DataContent demo={{ snapshot: { ...snapshot, task_cards: demoTasks, task_settings: [{ id: "lists", lists: demoLists }] } as unknown as Record<string, unknown>, csvAdapter: manualAdapter, kodlandEnabled: snapshot.tutorPreferences.kodland_enabled, onSync: update, onReset: reset, onNotice: setNotice }} />} />}

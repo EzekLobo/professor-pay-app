@@ -700,7 +700,10 @@ async function groupsForTeacher(
         token,
       ),
     );
-    const items = list(payload.results);
+    if (!Array.isArray(payload.results)) {
+      throw new Error("A Kodland retornou uma lista de turmas inválida.");
+    }
+    const items = payload.results;
     groups.push(
       ...items
         .map((value) => {
@@ -1384,9 +1387,9 @@ async function reviewsForGroup(
   token: string,
   taskProgress: KodlandTaskProgress[],
 ): Promise<Review[]> {
-    const lessonsPayload = await get(`student_groups/${group.external_id}/lessons/`, token);
-    if (!validListPayload(lessonsPayload)) throw new SyncFailure("kodland_unavailable", 502);
-    const lessons = list(lessonsPayload).filter((value) => record(value).lesson_passed === true);
+    const timeline = await completeGroupTimeline(`student_groups/${group.external_id}/lessons/`, token);
+    if (timeline === null) throw new SyncFailure("kodland_unavailable", 502);
+    const lessons = timeline.filter((value) => record(value).lesson_passed === true);
     const results = await mapWithConcurrency(
       lessons,
       KODLAND_CONCURRENCY,
@@ -1560,6 +1563,7 @@ async function attendanceForGroup(group: Group, token: string): Promise<Attendan
     if (payload !== null) break;
   }
   const studentsPayload = await getOptional(`student_groups/${group.external_id}/get_students_main_data`, token);
+  if (payload === null && studentsPayload === null) throw new SyncFailure("kodland_unavailable", 502);
   const fromStudentGrid = studentsPayload ? attendanceFromStudentsPayload(studentsPayload, group) : [];
   const fromAttendanceEndpoint = payload === null ? [] : list(payload).flatMap((value) => {
     const container = record(value);
@@ -1792,10 +1796,11 @@ async function storedScopedOccurrence(request: NextRequest, uid: string, supplie
   return { kind: supplied.kind, id: supplied.id, group_id: field("external_class_id"), source_lesson_id: field("source_lesson_id") || supplied.id, lesson_date: field("lesson_date").slice(0, 10), start_time: field("start_time").slice(0, 5), end_time: field("end_time").slice(0, 5), booking_id: field("recording_booking_id"), external_student_id: field("external_student_id") };
 }
 /** Scope payloads are patches; absence never authorizes deleting unrelated collections. */
-async function scopedSnapshot(input: KodlandScopedRequest, groups: Group[], teacherId: string, token: string): Promise<KodlandScopedPayload> {
+async function scopedSnapshot(input: KodlandScopedRequest, groups: Group[], teacherId: string, token: string, browserOccurrence = false): Promise<KodlandScopedPayload> {
   const result: KodlandScopedPayload = { scoped: { scope: input.scope, complete: true, updated: 0 } };
   const occurrence = input.occurrence;
   if (!["activities", "ranking", "attendance", "extras_discovery", "extra_final_check", "recordings", "call_link"].includes(input.scope)) throw new SyncFailure("kodland_unavailable", 400);
+  if (browserOccurrence && !["extras_discovery", "attendance", "extra_final_check", "recordings", "call_link"].includes(input.scope)) throw new SyncFailure("kodland_unavailable", 403);
   if (input.scope === "activities" || input.scope === "ranking") {
     const ids = new Set(input.group_ids ?? groups.filter(group => !group.archived).map(group => group.external_id));
     if (ids.size > 100 || [...ids].some(id => !groups.some(group => group.external_id === id))) throw new SyncFailure("kodland_unavailable", 403);
@@ -1938,8 +1943,9 @@ export async function POST(request: NextRequest) {
     let body: {
       username?: string;
       password?: string;
-      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles" | "payroll" | "scoped";
+      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles" | "payroll" | "classroom" | "scoped";
       scoped_request?: KodlandScopedRequest;
+      browser_occurrence?: boolean;
       payroll_year?: number;
       payroll_period_id?: string;
       payroll_period_start?: string;
@@ -1951,6 +1957,8 @@ export async function POST(request: NextRequest) {
       }>;
       pending_extra_student_ids?: string[];
       correction_group_ids?: string[];
+      refresh_schedule?: boolean;
+      followup_scope?: "activities" | "attendance";
     };
     try {
       body = (await request.json()) as typeof body;
@@ -1969,10 +1977,11 @@ export async function POST(request: NextRequest) {
       return syncResponse(syncId, { code: "missing_credentials" }, 400);
     }
     const mode = body.mode ?? "essential";
-    if (!["essential", "schedule", "corrections", "materials", "profiles", "payroll", "scoped"].includes(mode)) {
+    if (!["essential", "schedule", "corrections", "materials", "profiles", "payroll", "classroom", "scoped"].includes(mode)) {
       trace("invalid_request");
       return syncResponse(syncId, { code: "invalid_request" }, 400);
     }
+    if (body.followup_scope !== undefined && !["activities", "attendance"].includes(body.followup_scope)) return syncResponse(syncId, { code: "invalid_request" }, 400);
     const token = await runStage("kodland_auth", () => kodlandLogin(username, password));
     if (mode === "payroll") {
       const teacherId = userId(token);
@@ -2024,8 +2033,18 @@ export async function POST(request: NextRequest) {
     if (mode === "scoped") {
       if (!body.scoped_request || typeof body.scoped_request !== "object") return syncResponse(syncId, { code: "invalid_request" }, 400);
       const input = { ...body.scoped_request };
-      if (input.occurrence) input.occurrence = await runStage("scoped_resource", () => storedScopedOccurrence(request, firebaseUid, input.occurrence!));
-      const scoped = await runStage("scoped_" + input.scope, () => scopedSnapshot(input, groups, userId(token), token));
+      const suppliedOccurrence = input.occurrence;
+      if (suppliedOccurrence) {
+        // Browser snapshots have no Firestore lesson document. These scoped
+        // requests remain limited to groups/extras authorized by the teacher.
+        if (body.browser_occurrence === true) {
+          if (!["attendance", "extra_final_check", "recordings", "call_link"].includes(input.scope) || !active.some(group => group.external_id === suppliedOccurrence.group_id)) return syncResponse(syncId, { code: "invalid_request" }, 403);
+          if (input.scope === "attendance" && suppliedOccurrence.kind !== "lesson") return syncResponse(syncId, { code: "invalid_request" }, 403);
+          if (input.scope === "extra_final_check" && suppliedOccurrence.kind !== "extra") return syncResponse(syncId, { code: "invalid_request" }, 403);
+        } else input.occurrence = await runStage("scoped_resource", () => storedScopedOccurrence(request, firebaseUid, suppliedOccurrence));
+      }
+      if (body.browser_occurrence === true && !["extras_discovery", "attendance", "extra_final_check", "recordings", "call_link"].includes(input.scope)) return syncResponse(syncId, { code: "invalid_request" }, 403);
+      const scoped = await runStage("scoped_" + input.scope, () => scopedSnapshot(input, groups, userId(token), token, body.browser_occurrence === true));
       return syncResponse(syncId, { ...emptyCollections(), ...scoped });
     }
     if (mode === "materials") {
@@ -2161,6 +2180,7 @@ export async function POST(request: NextRequest) {
         materials: materialResults,
       });
     }
+    if (mode === "classroom") return syncResponse(syncId, { ...emptyCollections(), groups });
     if (mode === "corrections") {
       const requestedGroupIds = new Set(
         Array.isArray(body.correction_group_ids)
@@ -2178,10 +2198,10 @@ export async function POST(request: NextRequest) {
         async (group) => {
           const taskProgress: KodlandTaskProgress[] = [];
           const [reviews, attendance, lessons, ranking] = await Promise.all([
-            reviewsForGroup(group, token, taskProgress),
-            attendanceForGroup(group, token),
-            lessonsForGroup(group, token, courseLessonCache),
-            get(`student_groups/${group.external_id}/get_students_main_data/`, token).then(payload => rankingPatches(payload, group)).catch(() => []),
+            body.followup_scope === "attendance" ? Promise.resolve([]) : reviewsForGroup(group, token, taskProgress),
+            body.followup_scope === "activities" ? Promise.resolve([]) : attendanceForGroup(group, token),
+            body.refresh_schedule === false ? Promise.resolve([]) : lessonsForGroup(group, token, courseLessonCache),
+            body.followup_scope === "attendance" ? Promise.resolve([]) : get(`student_groups/${group.external_id}/get_students_main_data/`, token).then(payload => rankingPatches(payload, group)).catch(() => []),
           ]);
           return { reviews, taskProgress, ranking, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
         },
@@ -2196,13 +2216,14 @@ export async function POST(request: NextRequest) {
       trace("completed", { groupCount: correctionGroups.length, reviewCount: items.length, attendanceCount: attendanceItems.length, lessonCount: lessons.length });
       return syncResponse(syncId, {
         ...emptyCollections(),
+        groups,
         reviews: items,
-        task_progress: snapshots.flatMap(item => item.taskProgress),
+        ...(body.followup_scope === "attendance" ? {} : { task_progress: snapshots.flatMap(item => item.taskProgress) }),
         ranking: snapshots.flatMap(item => item.ranking),
         attendance: attendanceItems,
         lessons,
-        review_group_ids: correctionGroups.map((group) => group.external_id),
-        attendance_group_ids: correctionGroups.map((group) => group.external_id),
+        review_group_ids: body.followup_scope === "attendance" ? [] : correctionGroups.map((group) => group.external_id),
+        attendance_group_ids: body.followup_scope === "activities" ? [] : correctionGroups.map((group) => group.external_id),
       });
     }
     const profileCache = new Map<

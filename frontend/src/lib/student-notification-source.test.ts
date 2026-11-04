@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { kodlandApi } from "./api";
+import { missingActivityList } from "./activity-missing-list";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mock = vi.hoisted(() => ({ uid: "a", status: { status: "complete", sync_id: "1" }, failProgress: false }));
 vi.mock("./firebase", () => ({ getFirebaseAuth: () => ({ currentUser: { uid: mock.uid } }) }));
 vi.mock("./api", () => ({
@@ -43,6 +45,15 @@ describe("fontes de alertas", () => {
     const source = normalizeNotificationSource(data, settings);
     expect(source.obligations.map(item => item.kind)).toEqual(["classroom", "homework", "unknown"]);
     expect(source.lessons).toHaveLength(1);
+    // Catalog metadata supplies the module even when the lesson title has no code.
+    data.lessons[0].title = "Adicionando moedas";
+    data.lessons[0].module_number = "7";
+    data.lessons[0].lesson_number = 2;
+    const missing = missingActivityList(normalizeNotificationSource(data, settings), { source: "kodland", class_id: "k", student_id: "s" }, new Date("2026-10-28T12:00:00Z"));
+    expect(missing.currentModule).toBe("7");
+    expect(missing.items).toHaveLength(3);
+    expect(missing.items.every(item => item.module === "7" && item.lesson.startsWith("M7L"))).toBe(true);
+
     expect(evaluateStudentNotifications(source.lessons, source.obligations, { ...settings, classroom_rule: "none_submitted" }, new Date("2026-10-28T12:00:00Z"))).toEqual([]);
     expect(evaluateStudentNotifications(source.lessons, source.obligations, { ...settings, homework_days_after_lesson: 1 }, new Date("2026-10-28T12:00:00Z")).map(item => item.category)).toEqual(["classroom", "homework"]);
   });
@@ -58,4 +69,21 @@ describe("fontes de alertas", () => {
     await expect(loadStudentNotificationSource("a", settings)).rejects.toThrow("alterada");
     expect((await loadStudentNotificationSource("b", settings)).lessons).toEqual([]);
   });
+});
+
+afterEach(()=>vi.restoreAllMocks());
+it("reutiliza fontes por seis horas e permite atualização manual antes do prazo",async()=>{
+ let now=Date.parse("2026-10-31T10:00:00Z");vi.spyOn(Date,"now").mockImplementation(()=>now);
+ const reads=vi.spyOn(kodlandApi,"groups");
+ await loadStudentNotificationSource("a",settings);expect(reads).toHaveBeenCalledTimes(1);
+ now+=359*60000;await loadStudentNotificationSource("a",settings);expect(reads).toHaveBeenCalledTimes(1);
+ now+=60000;await loadStudentNotificationSource("a",settings);expect(reads).toHaveBeenCalledTimes(2);
+ await loadStudentNotificationSource("a",settings,true);expect(reads).toHaveBeenCalledTimes(3);
+});
+
+it("falha de uma turma no Firebase não bloqueia as demais nem autoriza apagar seus casos",async()=>{
+ Object.assign(mock.status,{status:"failed",mode:"corrections",main_status:"failed",group_status:{ready:"complete",blocked:"failed"}});
+ vi.spyOn(kodlandApi,"groups").mockResolvedValue({items:[{external_id:"ready",archived:false},{external_id:"blocked",archived:false}] as NotificationSourceSnapshot["groups"]});
+ const source=await loadStudentNotificationSource("a",settings,true);
+ expect(source.coverage).toEqual({manual:true,attendance:["ready"],activities:["ready"]});
 });

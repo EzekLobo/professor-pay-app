@@ -1,19 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import { readKodlandLocal } from "@/lib/kodland-sync-client";
+import { useReleaseNotes } from "./release-notes";
+import { observeOperation, reportOperation } from "@/lib/operation-log-client";
+import { classifyOperationError } from "@/lib/operation-log";
+import { HeaderDropdown } from "./header-dropdown";
+import { ActivityMissingList } from "./activity-missing-list";
+import { ActivityMessageEditor } from "./activity-message-editor";
+import { useKodlandAutoSync } from "./use-kodland-auto-sync";
+import type { AutoSyncStatus } from "@/lib/kodland-auto-sync";
 import { useSearchParams } from "next/navigation";
-import { Bell, RefreshCw } from "lucide-react";
-import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Modal } from "./modal";
+import { Bell, ChevronRight, RefreshCw, Settings, X } from "lucide-react";
+import { Suspense, createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button, Input } from "./ui";
 import { kodlandApi, manualTeachingApi, tutorPreferencesApi } from "@/lib/api";
 import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import { DEFAULT_ABSENCE_MESSAGE } from "@/lib/manual-operations";
-import { defaultNotificationSettings, validateNotificationSettings, evaluateStudentNotifications, nextStudentNotificationEvaluationAt, needsNotificationContact, notificationMessage, notificationTarget, type NotificationCase, type NotificationSettings, type StudentNotification } from "@/lib/student-notification-rules";
-import { clearStudentNotificationSourceCache, demoStudentNotificationSource, loadStudentNotificationSource, type NotificationSource } from "@/lib/student-notification-source";
-import { createDemoStudentNotificationStore, createStudentNotificationStore, subscribeStudentNotifications } from "@/lib/student-notification-store";
+import { defaultNotificationSettings, validateActivityMessageTemplate, validateNotificationSettings, evaluateStudentNotifications, needsNotificationContact, notificationMessage, notificationTarget, type NotificationCase, type NotificationSettings, type StudentNotification } from "@/lib/student-notification-rules";
+import { clearStudentNotificationSourceCache, demoStudentNotificationSource, loadStudentNotificationSource, loadBrowserKodlandNotificationSource, type NotificationSource } from "@/lib/student-notification-source";
+import { createDemoStudentNotificationStore, createStudentNotificationStore, subscribeStudentNotifications, notifyStudentNotificationsChanged } from "@/lib/student-notification-store";
 import { whatsappUrl } from "@/lib/whatsapp";
-import { subscribeNotificationDataChanges } from "@/lib/student-notification-updates";
 
 type NotificationContext = {
   settings: NotificationSettings | null; cases: NotificationCase[]; warnings: string[]; error: string; loading: boolean; updated: string; demo: boolean;
@@ -23,13 +30,16 @@ type NotificationContext = {
   confirm: (item: NotificationCase) => Promise<void>;
   read: (item: NotificationCase) => Promise<void>;
   contact: (item: StudentNotification, name: string, phone: string) => Promise<void>;
+  activitySource: (force?: boolean) => Promise<NotificationSource>;
   absenceTemplate: string;
+  autoSync: AutoSyncStatus;
 };
 const Context = createContext<NotificationContext | null>(null);
 export const useStudentNotifications = () => useContext(Context);
 
-export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, children }: { uid: string; snapshot?: DemoSnapshot | null; onDemoChange?: (change: (value: DemoSnapshot) => DemoSnapshot) => void; children: ReactNode }) {
+export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, pathname, children }: { uid: string; snapshot?: DemoSnapshot | null; onDemoChange?: (change: (value: DemoSnapshot) => DemoSnapshot) => void; pathname?: string; children: ReactNode }) {
   const demo = uid === "demo-profile";
+  const autoSync = useKodlandAutoSync(uid, demo, pathname);
   const store = useMemo(() => demo ? createDemoStudentNotificationStore() : createStudentNotificationStore(uid), [uid, demo]);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [cases, setCases] = useState<NotificationCase[]>([]);
@@ -44,83 +54,78 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
     return demoStudentNotificationSource(snapshot, value);
   }, [demo, uid, snapshot]);
   const generation = useRef(0);
+  const cached = useRef<{ at: number; settings: NotificationSettings; history: NotificationCase[]; signature: string } | null>(null);
   const refreshing = useRef(false);
-  const cachedEvaluation = useRef<{ uid: string; data: NotificationSource; settings: NotificationSettings } | null>(null);
-  const retryAt = useRef<{ at: number; source: boolean } | null>(null);
-  const [evaluationRevision, setEvaluationRevision] = useState(0);
+  const refreshPending = useRef(false);
+  const lastLogged = useRef("");
+  const lastLoggedAt = useRef(0);
   const refresh = useCallback(async (force = false) => {
-    const run = ++generation.current;
+    if (refreshing.current) { refreshPending.current = true; return; }
     refreshing.current = true;
+    const run = ++generation.current;
     const startedAt = new Date().toISOString();
     setLoading(true);
     try {
-      const [value, history] = await Promise.all([store.settings(), store.cases()]);
+      const previous = cached.current;
+      const remote = force || !previous || Date.now() - previous.at >= 6 * 3600000;
+      const [value, history] = remote ? await Promise.all([store.settings(force), store.cases(force)]) : [previous.settings, previous.history];
       if (run !== generation.current) return;
       setSettings(value); setCases(history);
-      const prefs = demo ? snapshot?.tutorPreferences : await tutorPreferencesApi.get();
+      const prefs = demo ? snapshot?.tutorPreferences : remote ? await readKodlandLocal(() => tutorPreferencesApi.get(), crypto.randomUUID(), "Mensagem de ausência", 3000).catch(() => null) : null;
       if (run !== generation.current) return;
-      setAbsenceTemplate(prefs?.absence_message_template || DEFAULT_ABSENCE_MESSAGE);
+      if (prefs || demo) setAbsenceTemplate(prefs?.absence_message_template || DEFAULT_ABSENCE_MESSAGE);
       const data = value.enabled ? await source(value, force) : null;
       if (run !== generation.current) return;
-      cachedEvaluation.current = data ? { uid, data, settings: value } : null;
-      retryAt.current = null;
       const items = data ? evaluateStudentNotifications(data.lessons, data.obligations, value, new Date()) : [];
-      const rows = await store.reconcile(items, startedAt);
+      const itemSignature = JSON.stringify(items);
+      const rows = remote || previous?.signature !== itemSignature ? await store.reconcile(items, startedAt, data?.coverage) : history;
+      cached.current = { at: remote ? Date.now() : previous.at, settings: value, history: rows, signature: itemSignature };
       if (run !== generation.current) return;
       setCases(rows); setWarnings(data?.warnings ?? []); setUpdated(data?.loaded_at ?? ""); setError("");
-    } catch (reason) {
-      if (run === generation.current) {
-        setError(reason instanceof Error ? reason.message : "Não foi possível atualizar os alertas. O histórico foi preservado.");
-        retryAt.current = { at: Date.now() + 5 * 60000, source: true };
+      const summary = { alerts: rows.filter(item => item.active).length, pending: rows.filter(needsNotificationContact).length, warnings: data?.warnings.length ?? 0 };
+      const signature = JSON.stringify(summary);
+      if (!demo && (signature !== lastLogged.current || Date.now() - lastLoggedAt.current >= 6 * 3600000)) {
+        lastLogged.current = signature; lastLoggedAt.current = Date.now();
+        reportOperation("notifications_refresh", summary.warnings ? "warning" : "success", { counts: summary, durationMs: Math.min(3600000, Math.max(0, Date.now() - Date.parse(startedAt))) }, 0);
       }
-    } finally {
-      if (run === generation.current) { refreshing.current = false; setLoading(false); setEvaluationRevision(value => value + 1); }
+    } catch (reason) { if (run === generation.current) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível atualizar os alertas. O histórico foi preservado.");
+      if (!demo) { lastLogged.current = ""; const errorCode = classifyOperationError(reason); reportOperation("notifications_refresh", errorCode === "sync_incomplete" ? "warning" : "error", { errorCode }); }
+    } }
+    finally {
+      refreshing.current = false;
+      if (run === generation.current) {
+        setLoading(false);
+        if (refreshPending.current) { refreshPending.current = false; window.setTimeout(() => notifyStudentNotificationsChanged("history"), 0); }
+      }
     }
-  }, [demo, uid, snapshot, store, source]);
-  // Cached source is reevaluated only at its next temporal boundary.
+  }, [demo, snapshot, store, source]);
   useEffect(() => {
-    const cached = cachedEvaluation.current?.uid === uid ? cachedEvaluation.current : null;
-    const due = cached ? nextStudentNotificationEvaluationAt(cached.data.lessons, cached.data.obligations, cached.settings, Date.now()) : null;
-    const retry = retryAt.current;
-    const at = retry ? retry.at : due;
-    if (at === null) return;
-    const timer = window.setTimeout(() => {
-      if (document.visibilityState === "hidden" || navigator.onLine === false) return;
-      if (retry?.source) { void refresh(true); return; }
-      if (!cached || refreshing.current) { retryAt.current = { at: Date.now() + 1000, source: false }; setEvaluationRevision(value => value + 1); return; }
-      const run = generation.current;
-      const timestamp = new Date().toISOString();
-      void store.reconcile(evaluateStudentNotifications(cached.data.lessons, cached.data.obligations, cached.settings, new Date()), timestamp).then(rows => {
-        if (run !== generation.current) return;
-        setCases(rows); setError(""); retryAt.current = null;
-      }).catch(reason => {
-        if (run !== generation.current) return;
-        setError(reason instanceof Error ? reason.message : "Não foi possível conferir o vencimento dos alertas.");
-        retryAt.current = { at: Date.now() + 5 * 60000, source: false };
-      }).finally(() => { if (run === generation.current) setEvaluationRevision(value => value + 1); });
-    }, Math.max(1, Math.min(at - Date.now(), 2_147_000_000)));
-    return () => window.clearTimeout(timer);
-  }, [evaluationRevision, uid, refresh, store]);
-
-  useEffect(() => {
-    const reload = () => { void refresh(); };
-    const forceReload = () => { clearStudentNotificationSourceCache(); void refresh(true); };
+    cached.current = null;
+    const reload = () => { if (document.visibilityState !== "hidden" && navigator.onLine) void refresh(); };
     const timer = window.setTimeout(reload, 0);
-    const unsubscribe = subscribeStudentNotifications(forceReload);
-    const unsubscribeSync = demo ? () => undefined : subscribeNotificationDataChanges(uid, () => { void refresh(true); });
-    const onStorage = (event: StorageEvent) => { if (!event.key || event.key.startsWith("nexusclass.demo") || event.key.includes("notification")) forceReload(); };
-    window.addEventListener("focus", reload); window.addEventListener("online", forceReload); window.addEventListener("storage", onStorage);
-    window.addEventListener("nexusclass:manual-teaching-changed", forceReload);
+    const interval = window.setInterval(reload, 60000);
+    const unsubscribe = subscribeStudentNotifications(change => { if (change === "source") clearStudentNotificationSourceCache(); cached.current = null; reload(); });
+    const storageChanged = (event: StorageEvent) => {
+      if (event.key === `nexusclass:kodland-change:${uid}`) { clearStudentNotificationSourceCache(); cached.current = null; }
+      reload();
+    };
+    window.addEventListener("focus", reload); window.addEventListener("online", reload); window.addEventListener("storage", storageChanged); document.addEventListener("visibilitychange", reload);
     const runGeneration = generation;
-    return () => { runGeneration.current++; clearTimeout(timer); unsubscribe(); unsubscribeSync(); window.removeEventListener("focus", reload); window.removeEventListener("online", forceReload); window.removeEventListener("storage", onStorage); window.removeEventListener("nexusclass:manual-teaching-changed", forceReload); };
-  }, [demo, uid, refresh]);
+    return () => { runGeneration.current++; clearTimeout(timer); clearInterval(interval); unsubscribe(); window.removeEventListener("focus", reload); window.removeEventListener("online", reload); window.removeEventListener("storage", storageChanged); document.removeEventListener("visibilitychange", reload); };
+  }, [refresh, uid]);
   const value: NotificationContext = {
-    settings, cases, warnings, error, loading, updated, demo, absenceTemplate,
+    settings, cases, warnings, error, loading, updated, demo, absenceTemplate, autoSync,
     refresh: (force) => refresh(force),
-    save: async input => { await store.saveSettings(input); await refresh(true); },
+    save: async input => { await observeOperation("notifications_settings", () => store.saveSettings(input)); await refresh(true); },
+    activitySource: async (force = false) => {
+      const value = settings ?? defaultNotificationSettings();
+      if (!demo && (await kodlandApi.browserState())?.active) return loadBrowserKodlandNotificationSource(uid, value);
+      return source(value, force);
+    },
     preview: async input => { const checked = validateNotificationSettings(input); const data = await source(checked, true); return evaluateStudentNotifications(data.lessons, data.obligations, checked, new Date()).length; },
     read: item => store.markRead(item.id, item.notification.revision),
-    confirm: async item => { await store.confirmContact(item.id, item.notification.revision); await refresh(); },
+    confirm: async item => { await observeOperation("notifications_contact", () => store.confirmContact(item.id, item.notification.revision)); await refresh(); },
     contact: async (item, name, phone) => {
       if (!name.trim() || !phone.trim() || phone.replace(/\D/g, "").length < 10) throw new Error("Informe nome e telefone válido do responsável.");
       if (demo) {
@@ -144,24 +149,43 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, chil
 const labels = { absence: "Falta", classroom: "Atividade de aula", homework: "Dever de casa" };
 export function StudentNotificationBell() {
   const state = useStudentNotifications();
+  const news = useReleaseNotes();
   const [open, setOpen] = useState(false);
-  const [history, setHistory] = useState(false);
-  const [filter, setFilter] = useState("all");
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
   if (!state) return null;
   const NavigationLink = state.demo ? "a" : Link;
   const pending = state.settings?.enabled ? state.cases.filter(needsNotificationContact) : [];
-  const list = (history ? state.cases.filter(item => !needsNotificationContact(item)) : pending).filter(item => filter === "all" || item.notification.category === filter);
-  return <><button type="button" className="button button-ghost notification-bell" aria-label={`Notificações: ${pending.length} pendentes`} title="Notificações" onClick={() => setOpen(true)}><Bell size={20} aria-hidden="true" />{pending.length > 0 && <span className="notification-counter" aria-hidden="true">{pending.length > 99 ? "99+" : pending.length}</span>}</button>
-    <Modal open={open} title="Notificações" onClose={() => setOpen(false)} className="notification-modal"><div className="notification-toolbar"><Button className="button-ghost" onClick={() => setHistory(false)} aria-pressed={!history}>Pendentes ({pending.length})</Button><Button className="button-ghost" onClick={() => setHistory(true)} aria-pressed={history}>Histórico</Button><button className="button button-ghost" type="button" aria-label="Atualizar notificações" disabled={state.loading} onClick={() => void state.refresh(true)}><RefreshCw size={18} /></button></div>
-      <NavigationLink className="button button-ghost" href={state.demo ? "/demo?section=notifications#settings" : "/settings#notifications"} onClick={() => { setOpen(false); window.dispatchEvent(new Event("nexusclass:open-notification-settings")); }}>Configurar notificações</NavigationLink>
-      {!state.settings?.enabled && <p>Ative e configure os alertas para começar o acompanhamento.</p>}
-      {state.loading && <p role="status">Atualizando alertas…</p>}{state.error && <p className="form-error" role="alert">{state.error}</p>}
-      {state.warnings.map(item => <p className="muted" key={item}>{item}</p>)}
-      {state.updated && <small className="muted">Atualizado: {new Date(state.updated).toLocaleString("pt-BR")}</small>}
-      <label className="field">Motivo<select className="input" aria-label="Motivo" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">Todos</option>{Object.entries(labels).map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select></label>
-      {!state.loading && !list.length && <p className="muted">{history ? "Nenhum alerta no histórico." : "Nenhum contato pendente pelas regras atuais."}</p>}
-      <div className="notification-list">{list.map(item => <article className="notification-card" key={item.id}><small>{labels[item.notification.category]} · {item.notification.lesson_date.split("-").reverse().join("/")}</small><strong>{item.notification.student_name}</strong><span>{item.notification.class_name} · {item.notification.lesson_label}</span><p>{item.notification.reason}</p>{history && <small>{item.active ? "Contato confirmado" : "Fora das pendências atuais"}</small>}<NavigationLink className="button button-primary" href={notificationTarget(item.notification, state.demo)} onClick={() => { setOpen(false); void state.read(item).catch(() => undefined); }}>{history ? "Ver detalhes" : "Resolver"}</NavigationLink></article>)}</div>
-    </Modal></>;
+  const newsUnread = (news?.unread ?? 0) > 0;
+  const count = pending.length + (newsUnread ? 1 : 0);
+  const list = [...state.cases].sort((a, b) => Number(needsNotificationContact(b)) - Number(needsNotificationContact(a)) || b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
+  return <div className="notifications-anchor"><div><button ref={trigger} aria-expanded={open} aria-controls={panelId} type="button" className="button button-ghost notification-bell" aria-label={`Notificações: ${count} pendentes`} title="Notificações" onClick={() => setOpen(value => !value)}><Bell size={20} aria-hidden="true" />{count > 0 && <span className="notification-counter" aria-hidden="true">{count > 99 ? "99+" : count}</span>}</button>
+    <HeaderDropdown open={open} id={panelId} label="Notificações" trigger={trigger} onClose={() => setOpen(false)} className="student-alerts-dropdown">
+      <div className="notifications-heading"><div><h2>Notificações</h2><small>{count ? `${count} pendente${count === 1 ? "" : "s"}` : "Tudo em dia"}</small></div><div className="notification-heading-actions">
+        <button type="button" aria-label="Atualizar notificações" title="Atualizar notificações" disabled={state.loading} onClick={() => void state.refresh(true)}><RefreshCw size={18} aria-hidden="true" /></button>
+        <NavigationLink aria-label="Configurar notificações" title="Configurar notificações" href={state.demo ? "/demo?section=notifications#settings" : "/settings#notifications"} onClick={() => { setOpen(false); window.dispatchEvent(new Event("nexusclass:open-notification-settings")); }}><Settings size={18} aria-hidden="true" /></NavigationLink>
+        <button type="button" aria-label="Fechar notificações" title="Fechar notificações" onClick={() => setOpen(false)}><X size={18} aria-hidden="true" /></button>
+      </div></div>
+      <div className="notifications-scroll">
+        {state.error && <p className="form-error notification-status" role="alert">{state.error}</p>}
+        {!state.demo && state.autoSync.phase === "error" && state.autoSync.message && <p className="form-error notification-status" role="status">{state.autoSync.message}</p>}
+        {state.warnings.map(item => <p className="muted notification-status" key={item}>{item}</p>)}
+        {!state.settings?.enabled && <p className="muted notification-status">Ative os alertas nas configurações para acompanhar seus alunos.</p>}
+        {state.loading && !state.cases.length && <p className="muted notification-status" role="status">Atualizando notificações…</p>}
+        <div className="notification-list">
+          {news && <button className="notification-news-row" type="button" onClick={() => { setOpen(false); news.open(() => trigger.current?.focus()); }}><span className="notification-row-icon" aria-hidden="true"><Bell size={18} /></span><span className="notification-row-content"><strong>Novidades da aplicação</strong><small>{newsUnread ? `${news.unread} melhorias para conferir` : "Confira as últimas melhorias"}</small></span><ChevronRight size={18} aria-hidden="true" /></button>}
+          {list.map(item => {
+            const isPending = needsNotificationContact(item);
+            return <article className="notification-card" key={item.id}><NavigationLink className="notification-row" href={notificationTarget(item.notification, state.demo)} onClick={() => { setOpen(false); void state.read(item).catch(() => undefined); }}>
+              <span className={`notification-row-icon${isPending ? " is-pending" : ""}`} aria-hidden="true"><Bell size={18} /></span>
+              <span className="notification-row-content"><strong>{item.notification.student_name}</strong><span>{item.notification.reason}</span><small>{labels[item.notification.category]} · {item.notification.class_name} · {item.notification.lesson_label} · {item.notification.lesson_date.split("-").reverse().join("/")}</small><small>{isPending ? "Contato pendente" : item.active ? "Contato confirmado" : "Fora das pendências atuais"}</small></span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </NavigationLink></article>;
+          })}
+        </div>
+        {!state.loading && !list.length && <p className="muted notification-status">Nenhuma notificação de alunos por enquanto.</p>}
+      </div>
+    </HeaderDropdown></div></div>;
 }
 
 export function NotificationSettingsPanel() {
@@ -175,15 +199,16 @@ export function NotificationSettingsPanel() {
   if (!state) return <p>Notificações indisponíveis neste contexto.</p>;
   if (!draft) return <div><p role="status">Carregando notificações…</p>{state.error && <p role="alert">{state.error}</p>}</div>;
   const change = (patch: Partial<NotificationSettings>) => { setDraft({ ...draft, ...patch }); setPreview(null); setNotice(""); };
-  const run = async (save: boolean) => { setBusy(true); setError(""); try { if (save) { await state.save(draft); setNotice("Regras de notificações salvas."); } else setPreview(await state.preview(draft)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível salvar."); } finally { setBusy(false); } };
-  return <section className="panel notification-settings"><h3>Notificações de acompanhamento</h3><p className="muted">Alertas dentro do NexusClass, atualizados enquanto o aplicativo estiver aberto. O contato com os responsáveis é revisado por você.</p><form onSubmit={event => { event.preventDefault(); void run(true); }}><fieldset disabled={busy} className="settings-fieldset notification-fields">
+  const run = async (save: boolean) => { setBusy(true); setError(""); try { validateActivityMessageTemplate(draft.activity_message_template); if (save) { await state.save(draft); setNotice("Regras de notificações salvas."); } else setPreview(await state.preview(draft)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível salvar."); } finally { setBusy(false); } };
+  return <section className="panel notification-settings"><h3>Notificações de acompanhamento</h3><p className="muted">Alertas dentro do NexusClass, atualizados enquanto o aplicativo estiver aberto. Para atualizar a Kodland automaticamente, mantenha a integração ativa e o acesso salvo em Dados e backup. O contato com os responsáveis é revisado por você.</p><form onSubmit={event => { event.preventDefault(); void run(true); }}><fieldset disabled={busy} className="settings-fieldset notification-fields">
     <label><input type="checkbox" checked={draft.enabled} onChange={event => change({ enabled: event.target.checked })} /> Ativar notificações</label>
     <label><input type="checkbox" checked={draft.attendance_enabled} onChange={event => change({ attendance_enabled: event.target.checked })} /> Alertar faltas sem justificativa</label>
     <label className="field">Atividades de aula<select className="input" value={draft.classroom_rule} onChange={event => change({ classroom_rule: event.target.value as NotificationSettings["classroom_rule"] })}><option value="off">Não alertar</option><option value="none_submitted">Nenhuma atividade da aula entregue</option><option value="more_than">Mais de N atividades sem entregar</option></select></label>
     {draft.classroom_rule === "more_than" && <label className="field">Limite de atividades (N)<Input type="number" min="0" max="1000" value={draft.classroom_threshold} onChange={event => change({ classroom_threshold: Number(event.target.value) })} /><small>Mais de 2 significa 3 ou mais pendentes.</small></label>}
     <label><input type="checkbox" checked={draft.homework_enabled} onChange={event => change({ homework_enabled: event.target.checked })} /> Alertar deveres de casa vencidos</label>
     <div className="notification-form-grid"><label className="field">Tolerância em minutos<Input type="number" min="0" max="43200" value={draft.tolerance_minutes} onChange={event => change({ tolerance_minutes: Number(event.target.value) })} /></label><label className="field">Casa sem prazo: dias após a aula<Input type="number" min="0" max="365" placeholder="Não cobrar sem prazo" value={draft.homework_days_after_lesson ?? ""} onChange={event => change({ homework_days_after_lesson: event.target.value === "" ? null : Number(event.target.value) })} /><small>Prazo às 23:59 no fuso escolhido. Vazio desativa cobrança sem prazo explícito.</small></label><label className="field">Acompanhar aulas a partir de<Input type="date" required value={draft.start_date} onChange={event => change({ start_date: event.target.value })} /></label><label className="field">Fuso horário<Input required value={draft.time_zone} onChange={event => change({ time_zone: event.target.value })} /></label></div>
-    <label className="field">Mensagem de atividades<textarea className="input" required rows={5} value={draft.activity_message_template} onChange={event => change({ activity_message_template: event.target.value })} /></label><small>Variáveis: {"{responsavel}, {aluno}, {turma}, {aula}, {data}, {atividades}, {prazo}"}. Para faltas, use o modelo em Mensagens.</small>
+    <ActivityMessageEditor value={draft.activity_message_template} onChange={value => change({ activity_message_template: value })} disabled={busy} />
+    <small>Para faltas, use o modelo em Configurações → Mensagens. Salvar as notificações também salva este modelo de atividades.</small>
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}{preview !== null && <p role="status">Prévia: {preview} alerta(s) pelas regras selecionadas.</p>}
     <div className="form-actions"><Button type="button" className="button-ghost" onClick={() => void run(false)}>Ver prévia</Button><Button type="submit">{busy ? "Salvando…" : "Salvar notificações"}</Button></div>
   </fieldset></form></section>;
@@ -219,7 +244,8 @@ function NotificationResolutionCard({ item }: { item: NotificationCase }) {
     {notification.activities.length > 0 && <ul>{notification.activities.map(activity => <li key={activity.id}>{activity.title}{activity.due_at ? ` · Prazo: ${new Date(activity.due_at).toLocaleString("pt-BR")}` : ""}</li>)}</ul>}
     <p>Responsável: {notification.guardian_name || "Não cadastrado"} · {notification.guardian_phone || "Telefone não cadastrado"}</p><Button type="button" className="button-ghost" onClick={() => setEditingContact(!editingContact)}>Cadastrar ou editar contato</Button>
     {editingContact && <form onSubmit={event => { event.preventDefault(); void run(async () => { await state.contact(notification, name, phone); setEditingContact(false); }); }}><fieldset disabled={busy} className="settings-fieldset notification-fields"><label className="field">Nome do responsável<Input value={name} required onChange={event => setName(event.target.value)} /></label><label className="field">Telefone do responsável<Input type="tel" value={phone} required onChange={event => setPhone(event.target.value)} /></label><Button type="submit">Salvar contato</Button></fieldset></form>}
-    <label className="field">Mensagem para o responsável<textarea className="input" rows={6} value={message} onChange={event => setMessage(event.target.value)} /></label>
+    {notification.category !== "absence" && <ActivityMissingList target={{ source: notification.source, class_id: notification.class_id, student_id: notification.student_id }} loadSource={state.activitySource} onInsert={(block, previous) => setMessage(current => previous && current.includes(previous) ? current.replace(previous, block) : `${current.trimEnd()}\n\n${block}`)} />}
+    <label className="field">Mensagem para o responsável<textarea aria-label="Mensagem para o responsável" className="input" rows={6} value={message} onChange={event => setMessage(event.target.value)} /></label>
     <div className="form-actions">{notification.guardian_phone && message.trim() && <a className="button button-primary" href={whatsappUrl(notification.guardian_phone, message)} target="_blank" rel="noreferrer" onClick={() => setOpened(true)}>Abrir WhatsApp</a>}<Button type="button" className="button-ghost" disabled={busy || !item.active || !needsNotificationContact(item)} onClick={() => void run(() => state.confirm(item))}>Confirmar contato realizado</Button></div>
     {opened && <p className="muted">WhatsApp aberto. Após enviar a mensagem, confirme que realizou o contato.</p>}{!needsNotificationContact(item) && item.active && <p role="status">Contato confirmado para esta pendência.</p>}{error && <p className="form-error" role="alert">{error}</p>}
   </section>;

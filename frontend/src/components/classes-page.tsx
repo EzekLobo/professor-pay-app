@@ -1,4 +1,5 @@
 "use client";
+import { CorrectionsContent } from "./corrections-page";
 
 import { useCallback, useEffect, useState } from "react";
 import { MoreVertical, RefreshCw, Settings, Trash2 } from "lucide-react";
@@ -20,7 +21,6 @@ import type { KodlandClassSettings } from "@/lib/manual-teaching";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { whatsappUrl } from "@/lib/whatsapp";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
-import { subscribeSyncDataChanged } from "@/lib/sync-events";
 import {
   activeStudentsRankedByPoints,
   kodlandStudentPoints,
@@ -78,8 +78,9 @@ export function GroupAccordion({
   onDelete?: () => void;
   onRename?: (name: string) => void;
 }) {
-  const [selectedStudentState, setSelectedStudent] = useState<KodlandStudent | null>(null);
-  const selectedStudent = students.find(item => item.id === selectedStudentState?.id) ?? selectedStudentState;
+  const [selectedStudent, setSelectedStudent] = useState<KodlandStudent | null>(
+    null,
+  );
   const contact = selectedStudent?.guardian_phone || selectedStudent?.phone;
   const contactLabel = selectedStudent?.guardian_phone
     ? "WhatsApp responsável"
@@ -217,7 +218,7 @@ export function GroupAccordion({
   );
 }
 
-export function ClassesContent({ demo, uid }: { uid?: string; demo?: { groups: KodlandGroup[]; students: KodlandStudent[]; onSync: () => void; manualAdapter?: ManualAdapters } } = {}) {
+export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; students: KodlandStudent[]; onSync: () => void; manualAdapter?: ManualAdapters } } = {}) {
   const [groups, setGroups] = useState<KodlandGroup[]>([]);
   const [students, setStudents] = useState<KodlandStudent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -246,24 +247,25 @@ export function ClassesContent({ demo, uid }: { uid?: string; demo?: { groups: K
     setError("");
     const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
     const preferencesApi = demo?.manualAdapter?.preferences ?? tutorPreferencesApi;
-    const preferences = await preferencesApi.get().catch(() => ({ kodland_enabled: false }));
+    const localOnly = !demo && Boolean((await kodlandApi.browserState())?.active);
+    const preferences = localOnly ? { kodland_enabled: true } : await preferencesApi.get().catch(() => ({ kodland_enabled: false }));
     setKodlandEnabled(preferences.kodland_enabled);
     if (!preferences.kodland_enabled) { setGroups([]); setStudents([]); setLoading(false); return; }
     if (demo) {
       const currentSettings = await settingsApi.list();
       setGroups(demo.groups.filter((group) => !hiddenKodlandGroups.includes(group.external_id)).map((group) => ({ ...group, title: kodlandGroupNames[group.external_id] || group.title }))); setStudents(demo.students);
-      setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
+      if (currentSettings) setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
       setLoading(false); return;
     }
     try {
       const [groupResult, studentResult, currentSettings] = await Promise.all([
         kodlandApi.groups(),
         kodlandApi.students(),
-        settingsApi.list(),
+        localOnly ? Promise.resolve(null) : settingsApi.list(),
       ]);
       setGroups(groupResult.items.filter((group) => !hiddenKodlandGroups.includes(group.external_id)).map((group) => ({ ...group, title: kodlandGroupNames[group.external_id] || group.title })));
       setStudents(studentResult.items);
-      setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
+      if (currentSettings) setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -277,18 +279,13 @@ export function ClassesContent({ demo, uid }: { uid?: string; demo?: { groups: K
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(timer);
+    const onSync = (event: Event) => {
+      const mode = (event as CustomEvent<{ mode?: string }>).detail?.mode;
+      if (mode === "essential" || mode === "schedule") void load();
+    };
+    window.addEventListener("nexusclass:kodland-synced", onSync);
+    return () => { window.clearTimeout(timer); window.removeEventListener("nexusclass:kodland-synced", onSync); };
   }, [load]);
-
-  useEffect(() => {
-    if (demo || !uid) return;
-    let active = true;
-    const unsubscribe = subscribeSyncDataChanged(uid, event => {
-      if (!event.domains.includes("ranking")) return;
-      void kodlandApi.students().then(result => { if (active) setStudents(result.items); }).catch(() => { if (active) setNotice("O ranking foi atualizado. Recarregue a página para conferir os pontos."); });
-    });
-    return () => { active = false; unsubscribe(); };
-  }, [demo, uid]);
 
   async function syncClasses() {
     if (syncing) return;
@@ -306,13 +303,8 @@ export function ClassesContent({ demo, uid }: { uid?: string; demo?: { groups: K
         credentials.password,
         "essential",
       );
-      const profiles = await kodlandApi.sync(
-        credentials.username.trim(),
-        credentials.password,
-        "profiles",
-      );
       setNotice(
-        `${result.student_count} aluno(s) atualizado(s), com ${profiles.student_count} perfil(is) consultado(s). ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda.`,
+        `${result.group_count} turma(s) e ${result.student_count} aluno(s) atualizado(s). ${result.extra_lesson_count ?? 0} aula(s) extra encontrada(s) na agenda.`,
       );
       await load();
     } catch (reason) {
@@ -455,7 +447,7 @@ export default function ClassesPage() {
     <AuthGuard>
       {(user) => (
         <Shell user={user}>
-          <ClassesContent uid={user.id} />
+          <CorrectionsContent preferenceKey={user.id} studentsContent={<ClassesContent />} />
         </Shell>
       )}
     </AuthGuard>

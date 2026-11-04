@@ -9,9 +9,91 @@ export type ReleaseNote = {
 
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
-  { version: 2026110401, date: "2026-11-04", title: "Tudo sobre suas turmas em um só lugar", description: "Turmas reúne Atividades, Presença e Alunos. Acompanhe as aulas e acesse os cadastros e as configurações das turmas pelas abas da mesma tela.", href: "/classes", action: "Abrir Turmas" },
-  { version: 2026103001, date: "2026-10-30", title: "Sincronização e pagamentos mais consistentes", description: "Links de chamada e gravação são preservados ao atualizar a mesma aula. Desligar a Kodland interrompe novas consultas automáticas, e pagamentos atrasados continuam editáveis.", href: "/settings#data", action: "Abrir dados e backup" },
-  { version: 2026102901, date: "2026-10-29", title: "Atualizações no momento certo", description: "Atividades e ranking atualizam ao abrir Acompanhamento. A Agenda verifica presença, extras e gravações por necessidade e sinaliza chamadas disponíveis para abrir com dois cliques ou toques.", href: "/dashboard", action: "Abrir Agenda" },
+  {
+    version: 2026110403, date: "2026-11-04", title: "Chamadas e atualizações mais consistentes",
+    description: "A Agenda indica quando o link da chamada está disponível e permite abri-lo com dois cliques ou toques. A rotina verifica extras, presença e gravações por ocorrência, sem atualizar cadastro, disponibilidade ou materiais automaticamente.",
+    href: "/dashboard", action: "Abrir Agenda",
+  },
+  {
+    version: 2026110402, date: "2026-11-04", title: "Turmas em um só lugar",
+    description: "Alunos, atividades e presença agora ficam juntos na tela de Turmas.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
+    version: 2026110401, date: "2026-11-04", title: "Notificações mais simples",
+    description: "Pendências, alertas anteriores e novidades aparecem em uma lista compacta no sino.",
+    href: "/settings#notifications", action: "Configurar notificações",
+  },
+  {
+    version: 2026110302, date: "2026-11-03", title: "Materiais na sincronização",
+    description: "A sincronização completa também prepara os materiais das aulas para acesso nas telas.",
+    href: "/lessons", action: "Ver aulas",
+  },
+  {
+    version: 2026110301, date: "2026-11-03", title: "Alertas da última aula",
+    description: "O sino identifica faltas e atividades não entregues da última aula de cada turma conforme suas regras. Registros desconhecidos aguardam confirmação, e uma turma pendente não bloqueia as demais.",
+    href: "/settings#notifications", action: "Revisar alertas",
+  },
+  {
+    version: 2026110101, date: "2026-11-01", title: "Navegação mais compacta",
+    description: "No celular, arraste a barra inferior para acessar todas as áreas. Configurações fica no topo, e as novidades agora aparecem no sino de notificações e abrem ao tocar.",
+    href: "/settings", action: "Abrir configurações",
+  },
+  {
+    version: 2026103109, date: "2026-10-31", title: "Sincronização conforme a necessidade",
+    description: "Presença é consultada após a aula, com até duas tentativas. Atividades atualizam a cada seis horas; turmas e grade, diariamente. As notificações reaproveitam os dados carregados, reduzindo consultas repetidas.",
+    href: "/settings#data", action: "Abrir sincronização",
+  },
+  {
+    version: 2026103108, date: "2026-10-31", title: "Menos regravações na sincronização",
+    description: "Turmas, alunos, aulas, presença e atividades já atualizados deixam de ser regravados. O andamento mostra alterações confirmadas por lote, e a automática consulta os registros da turma em atualização.",
+    href: "/settings#data", action: "Abrir sincronização",
+  },
+  {
+    version: 2026103107, date: "2026-10-31", title: "Sincronização manual com prioridade",
+    description: "Novas atualizações automáticas aguardam enquanto você usa a sincronização manual e não entram em uma fila ocupada. A primeira tentativa automática começa após 30 segundos; os intervalos de 5 e 15 minutos foram mantidos.",
+    href: "/settings#data", action: "Abrir sincronização",
+  },
+  {
+    version: 2026103106, date: "2026-10-31", title: "Atividades não feitas na mensagem",
+    description: "Ao preparar uma mensagem para o responsável, consulte as não entregas confirmadas por módulo e insira a lista sem perder seu texto. O filtro começa no módulo da última aula realizada e também permite escolher todos os módulos.",
+    href: "/corrections", action: "Abrir acompanhamento",
+  },
+  {
+    version: 2026103105, date: "2026-10-31", title: "Competências com gesto no celular",
+    description: "Arraste o cartão para trocar de competência no Resumo e em Pagamentos. Na grade, atualizar usa um ícone; a data de atualização e a legenda ficam no botão de informações.",
+    href: "/dashboard", action: "Abrir resumo",
+  },
+  {
+    version: 2026103104, date: "2026-10-31", title: "Barra compacta de acompanhamento",
+    description: "Lista, grade, filtros, busca e atualização ficam na mesma linha. O filtro abre em um modal e a lupa revela o campo de busca quando precisar.",
+    href: "/corrections", action: "Abrir acompanhamento",
+  },
+  {
+    version: 2026103103, date: "2026-10-31", title: "Telas mais organizadas no celular",
+    description: "Acompanhamento tem filtros alinhados e pendências agrupadas abaixo de cada aluno. Presença, turmas e competências têm itens mais compactos e botões com espaço adequado para toque.",
+    href: "/corrections", action: "Abrir acompanhamento",
+  },
+  {
+    version: 2026103102, date: "2026-10-31", title: "Recuperação de telas em caso de falha",
+    description: "Se uma tela apresentar uma falha inesperada, você pode tentar novamente ou continuar pelo menu. Registros técnicos ajudam na investigação sem incluir senhas ou conteúdo das mensagens.",
+    href: "/dashboard", action: "Abrir resumo",
+  },
+  {
+    version: 2026103101, date: "2026-10-31", title: "Acompanhamento automático da Kodland",
+    description: "Com o acesso salvo e a aplicação ativa, presença e atividades são atualizadas automaticamente. O sino reavalia os alertas conforme suas regras, e a mensagem de atividades tem variáveis e prévia.",
+    href: "/settings#notifications", action: "Configurar alertas e mensagem",
+  },
+  {
+    version: 2026102902, date: "2026-10-29", title: "Criação de cursos mais compacta",
+    description: "Organize módulos e aulas em seções recolhíveis, edite uma aula por vez e mantenha as ações de salvar sempre acessíveis, inclusive no celular.",
+    href: "/lessons", action: "Organizar meus cursos",
+  },
+  {
+    version: 2026102901, date: "2026-10-29", title: "Notificações rápidas e contato com responsáveis",
+    description: "Consulte alertas recentes em uma lista suspensa no sino. Em Atividades, use o WhatsApp ao lado do aluno para revisar a mensagem e o contato do responsável antes de enviar.",
+    href: "/corrections", action: "Abrir atividades",
+  },
   { version: 2026102801, date: "2026-10-28", title: "Alertas para acompanhar seus alunos", description: "Ative notificações de faltas e atividades com dados suficientes. O sino leva à pendência para revisar a mensagem ao responsável e registrar o contato.", href: "/settings#notifications", action: "Configurar notificações" },
   { version: 2026102606, date: "2026-10-26", title: "Dados e backup nas Configurações", description: "Encontre sincronização, cópias de segurança e planilhas na seção Dados e backup das Configurações.", href: "/settings#data", action: "Abrir dados e backup" },
   {

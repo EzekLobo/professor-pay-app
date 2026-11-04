@@ -1,5 +1,7 @@
 # Estado atual
 
+- Filtros de Alunos/Presença abrem dropdown junto ao ícone, sem modal nem Concluir; aplicação imediata, foco no seletor, fechamento externo/Escape com retorno ao botão.
+
 - Cabeçalhos de Alunos exibem curso abaixo da turma, com fonte menor e tooltip; Kodland usa course_name e turmas próprias resolvem course_id no catálogo manual.
 
 - Nome do feriado posicionado no espaço inferior do cabeçalho diário da Agenda, sem aumentar altura nem deslocar aulas; nome longo truncado com tooltip.

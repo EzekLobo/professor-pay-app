@@ -602,6 +602,23 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
   const [activitiesView, setActivitiesView] = useState<"list" | "compact">(unified ? "compact" : "list");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterRoot = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!filtersOpen) return;
+    filterRoot.current?.querySelector<HTMLSelectElement>("select")?.focus();
+    const onPointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !filterRoot.current?.contains(event.target)) setFiltersOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setFiltersOpen(false);
+      filterRoot.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onPointer); document.removeEventListener("keydown", onKey); };
+  }, [filtersOpen]);
   const [legendOpen, setLegendOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(true);
@@ -892,21 +909,22 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
             <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>
             <button type="button" aria-label="Compacto" title="Visualização compacta" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}><LayoutGrid size={18} aria-hidden="true" /></button>
           </div>}
-          <Button type="button" className="button-ghost symbol-action" aria-label="Abrir filtros" title="Filtros do acompanhamento" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}><Filter size={18} aria-hidden="true" /></Button>
+          <div className="correction-filter-anchor" ref={filterRoot}>
+            <Button type="button" className="button-ghost symbol-action" aria-label="Abrir filtros" title="Filtros" aria-expanded={filtersOpen} aria-controls="correction-filter-dropdown" onClick={() => setFiltersOpen(open => !open)}><Filter size={18} aria-hidden="true" /></Button>
+            {filtersOpen && <div id="correction-filter-dropdown" className="correction-filter-dropdown" role="region" aria-label="Filtros do acompanhamento">
+        <div className="form">
+          {viewMode === "attendance" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}><option value="ABSENT">Faltas</option><option value="ALL">Todos</option><option value="PRESENT">Presentes</option></select></label>
+            : activitiesView === "compact" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar atividades" value={pendingOnly ? "pending" : "all"} onChange={event => setPendingOnly(event.target.value === "pending")}><option value="pending">Somente pendências</option><option value="all">Todos os alunos</option></select></label>
+              : <label className="field">Agrupar por<select className="input" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}><option value="class">Turma</option><option value="student">Aluno</option><option value="lesson">Aula</option></select></label>}
+        </div>
+            </div>}
+          </div>
           <Button type="button" className="button-ghost symbol-action" aria-label={searchOpen ? "Fechar busca" : "Abrir busca"} title={searchOpen ? "Fechar e limpar busca" : "Buscar aluno, turma ou atividade"} aria-expanded={searchOpen} aria-controls="correction-search-field" onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
           {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}
           <Button type="button" className="button-ghost symbol-action" aria-label={viewMode === "activities" ? "Legenda das atividades" : "Legenda de presença"} title={viewMode === "activities" ? "Legenda das atividades" : "Legenda de presença"} aria-haspopup="dialog" aria-expanded={legendOpen} onClick={() => setLegendOpen(true)}><Info size={18} aria-hidden="true" /></Button>
         </div>
       </div>
       {searchOpen && <Input id="correction-search-field" className="correction-revealed-search" autoFocus aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setQuery(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-label="Fechar busca"]')?.focus(); } }} />}
-      <Modal open={filtersOpen} title="Filtros do acompanhamento" onClose={() => setFiltersOpen(false)} className="correction-filters-modal">
-        <div className="form">
-          {viewMode === "attendance" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}><option value="ABSENT">Faltas</option><option value="ALL">Todos</option><option value="PRESENT">Presentes</option></select></label>
-            : activitiesView === "compact" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar atividades" value={pendingOnly ? "pending" : "all"} onChange={event => setPendingOnly(event.target.value === "pending")}><option value="pending">Somente pendências</option><option value="all">Todos os alunos</option></select></label>
-              : <label className="field">Agrupar por<select className="input" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}><option value="class">Turma</option><option value="student">Aluno</option><option value="lesson">Aula</option></select></label>}
-          <div className="form-actions"><Button type="button" onClick={() => setFiltersOpen(false)}>Concluir</Button></div>
-        </div>
-      </Modal>
       <Modal open={legendOpen} title={viewMode === "activities" ? "Legenda das atividades" : "Legenda de presença"} onClose={() => setLegendOpen(false)} className="correction-legend-modal">
         {viewMode === "activities" ? <div className="correction-legend-list" aria-label="Origem das atividades pendentes"><span><i className="activity-legend-swatch is-kodland" aria-hidden="true" />Atividade Kodland pendente de correção</span><span><i className="activity-legend-swatch is-manual" aria-hidden="true" />Atividade própria pendente de correção</span></div>
           : <div className="correction-legend-list" aria-label="Estados de presença">{([

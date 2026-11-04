@@ -71,7 +71,7 @@ export function ManualClassesPanel({ adapter, hasKodlandGroups = false, kodlandL
   }, [load]);
 
   useEffect(() => {
-    setToolbarTarget(document.getElementById("students-toolbar-slot"));
+    setToolbarTarget(document.getElementById("classes-toolbar-slot"));
   }, []);
 
   const save = async (action: () => Promise<unknown>, message: string) => {

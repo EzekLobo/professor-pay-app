@@ -2147,8 +2147,7 @@ summary:focus-visible {
   gap: 20px;
   border-bottom: 1px solid var(--border);
 }
-.corrections-topbar-students { align-items: center; }
-.students-toolbar-slot { position: relative; display: flex; flex: 0 0 auto; justify-content: flex-end; min-width: 0; }
+.classes-toolbar-slot { position: relative; display: flex; flex: 0 0 auto; justify-content: flex-end; min-width: 0; }
 .corrections-page-tabs {
   display: flex;
   width: fit-content;
@@ -2502,7 +2501,6 @@ summary:focus-visible {
     margin-left: 0;
   }
   .corrections-topbar { align-items: stretch; flex-direction: column; gap: 10px; }
-  .corrections-topbar.corrections-topbar-students { align-items: center; flex-direction: row; gap: 12px; }
   .corrections-topbar .correction-heading-actions { flex: 0 0 auto; width: 100%; max-width: none; margin: 0 0 10px; }
 }
 @media (min-width: 721px) and (max-width: 900px) {
@@ -2522,8 +2520,8 @@ summary:focus-visible {
   }
 }
 @media (max-width: 720px) {
-  .corrections-topbar.corrections-topbar-students { align-items: stretch; flex-direction: column; }
-  .students-toolbar-slot { width: 100%; }
+  .classes-toolbar-slot { width: 100%; flex-basis: 100%; }
+  .classes-toolbar-slot .manual-teaching-toolbar-actions { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
   .corrections-page-tabs { width: 100%; }
   .corrections-page-tabs button { flex: 1 1 0; min-width: 0; padding-inline: 12px; }
   .corrections-panel { border-top-right-radius: 0; }
@@ -2791,6 +2789,9 @@ summary:focus-visible {
 .classes-compact-heading { gap: 10px; }
 .classes-compact-heading h2 { margin: 0; }
 .manual-teaching-toolbar-actions, .manual-add-actions { display: flex; align-items: center; gap: 6px; }
+.classes-activity-management { margin-bottom: 20px; }
+.classes-management-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.classes-management-grid > .page-fill-panel { min-height: auto; flex: none; }
 .manual-search-toggle { display: inline-grid; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 8px; place-items: center; }
 .manual-class-search-popover { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; width: min(420px,calc(100vw - 48px)); padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: #0e1b30; box-shadow: 0 16px 48px #0008; }
 .manual-class-search { display: block; width: 100%; min-width: 0; }
@@ -3648,12 +3649,13 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 
 .correction-icon-toolbar { display: flex; align-items: center; flex-wrap: nowrap; gap: 8px; padding: 0 0 12px; }
 .correction-icon-toolbar .button, .correction-icon-toolbar .sync-icon-button { width: 44px; min-width: 44px; max-width: 44px; height: 44px; min-height: 44px; padding: 8px; }
+.correction-icon-toolbar .manual-add-action { width: auto; min-width: max-content; max-width: none; height: 44px; padding: 8px 10px; }
 .correction-icon-toolbar .correction-view-switch { display: inline-flex; padding: 2px; gap: 2px; }
 .correction-icon-toolbar .correction-view-switch button { width: 44px; flex: 0 0 44px; }
 .correction-revealed-search { width: 100%; margin: 0 0 14px; min-height: 44px; }
 .correction-filters-modal { width: min(420px, calc(100vw - 24px)); }
 .correction-filters-modal .field { display: grid; gap: 8px; }
-@media (max-width: 760px) { .correction-icon-toolbar { width: 100%; gap: 6px; } }
+@media (max-width: 760px) { .correction-icon-toolbar { width: 100%; flex-wrap: wrap; justify-content: flex-end; gap: 6px; } }
 @media (max-width: 420px) { .correction-icon-toolbar { gap: 4px; } }
 
 /* Follow-up rows show identity once and align content/actions consistently. */

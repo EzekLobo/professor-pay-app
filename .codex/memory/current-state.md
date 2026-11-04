@@ -4,7 +4,7 @@
 
 - Menu Tarefas renomeado para Meu quadro (Quadro no celular), com Minhas tarefas mantido como título interno. A busca abre por ícone no topo em um popover sobreposto; criar tarefa continua como ação textual principal e a barra não cresce ao abrir busca.
 - A legenda contextual de Atividades e Presença fica no ícone de informações, em modal, sem ocupar espaço fixo do conteúdo. Cores dos tipos de atividade e estados de presença são explicadas sob demanda.
-- Em Alunos, busca, Grupo e Turma ficam compactos à direita na mesma linha das abas em telas largas; a busca abre sobre o conteúdo. Em telas estreitas, os controles descem para preservar a largura e evitar sobreposição.
+- A tela Turmas reúne ranking de alunos com seus perfis, atividades e gestão de grupos e turmas em uma aba; Presença fica na outra. Busca e criação de grupo/turma ficam na barra de atividades; a gestão inclui sincronização, configuração, renomear, editar e excluir.
 - Na grade de atividades, cada retângulo de correção tem 54px de altura e mostra o identificador da aula e o título da atividade; o texto da atividade ocupa até duas linhas e rótulos externos repetidos foram removidos.
 
 ## Integração e rotina de sincronização — 04/11/2026
@@ -23,9 +23,9 @@
 
 ## Turmas unificadas — 04/11/2026
 
-- /classes reúne estrutura de CorrectionsContent com abas Atividades, Presença e Alunos. ClassesContent reaproveitado em Alunos preserva turmas/grupos/alunos manuais e Kodland. Navegação principal tem só Turmas; dashboard/notificações/guia apontam ao novo destino. /corrections redireciona preservando query; demo#corrections normaliza para #classes.
-- Preferência visual legada preservada; tab explícita prevalece. Retorno de Alunos relê dados persistidos, sem nova sincronização de atividades por troca de aba. Layout320/390/1440 inspecionado; até420px abas13px com toque45px e teste geométrico dos rótulos.
-- Confirmado: quality:web passou (lint, tipos,437 testes e build24 páginas);24 E2E afetados passaram e4 unified repetidos após ajuste visual passaram. Novidade2026110401. Plano docs/plans/unified-classes-2026-11-04.md. Sem deploy, conta real ou alteração Expo.
+- /classes reúne ranking, gestão de turmas/grupos, atividades e presença em duas abas: Alunos e atividades, e Presença. Navegação principal tem só Turmas; dashboard/notificações/guia apontam ao novo destino. /corrections redireciona preservando query; o parâmetro legado `tab=students` abre a área combinada; demo#corrections normaliza para #classes.
+- Preferência visual legada preservada; tab explícita prevalece. Retornar de Presença relê dados persistidos sem disparar sincronização Kodland. Layout320/390/1440 e fluxo anterior foram verificados na unificação inicial.
+- Validação da unificação inicial: quality:web e24 E2E afetados passaram. Nesta extensão, `npm run typecheck` passou; E2E não foram executados. Novidades 2026110401 e 2026110404. Plano docs/plans/unified-classes-2026-11-04.md.
 
 
 ## Correções da revisão — 30/10/2026

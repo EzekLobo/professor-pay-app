@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110404, date: "2026-11-04", title: "Alunos e atividades em uma só tela",
+    description: "A tela de Turmas reúne ranking por pontuação e perfil dos alunos, atividades e ferramentas para criar e administrar grupos e turmas próprias e Kodland.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
     version: 2026110403, date: "2026-11-04", title: "Chamadas e atualizações mais consistentes",
     description: "A Agenda indica quando o link da chamada está disponível e permite abri-lo com dois cliques ou toques. A rotina verifica extras, presença e gravações por ocorrência, sem atualizar cadastro, disponibilidade ou materiais automaticamente.",
     href: "/dashboard", action: "Abrir Agenda",

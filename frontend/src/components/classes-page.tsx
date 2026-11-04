@@ -376,7 +376,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
   };
 
   return (
-    <div className="management-grid page-fill-grid">
+    <div className="management-grid classes-management-grid">
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -447,7 +447,7 @@ export default function ClassesPage() {
     <AuthGuard>
       {(user) => (
         <Shell user={user}>
-          <CorrectionsContent preferenceKey={user.id} studentsContent={<ClassesContent />} />
+          <CorrectionsContent preferenceKey={user.id} classesContent={<ClassesContent />} />
         </Shell>
       )}
     </AuthGuard>

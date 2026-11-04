@@ -45,10 +45,10 @@ const tutorials: readonly TutorialDefinition[] = [
   {
     id: "classes",
     pathname: "/classes",
-    version: 6,
+    version: 7,
     steps: [
-      { id: "welcome", title: "Turmas", description: "Atividades, presença e alunos agora ficam em Turmas. Use Alunos para cadastrar e organizar turmas próprias e importadas.", placement: "center" },
-      { id: "tabs", title: "Três áreas na mesma tela", description: "Atividades reúne correções e entregas; Presença mostra o histórico; Alunos reúne cadastros, turmas e ranking.", target: '[data-tour="classes-tabs"]', placement: "bottom" },
+      { id: "welcome", title: "Turmas", description: "Alunos, ranking, atividades e presença agora ficam em Turmas. Crie e organize grupos e turmas sem sair da tela.", placement: "center" },
+      { id: "tabs", title: "Duas áreas na mesma tela", description: "Alunos e atividades reúne ranking, perfis, correções e gestão de turmas e grupos; Presença mostra o histórico.", target: '[data-tour="classes-tabs"]', placement: "bottom" },
       { id: "activities-sync", title: "Sincronização", description: "Atualize as atividades importadas quando precisar.", target: '[data-tour="corrections-sync"]', placement: "bottom" },
       { id: "activities-filters", title: "Filtros", description: "Filtre e agrupe as atividades para encontrar o que procura.", target: '[data-tour="corrections-filters"]', placement: "bottom" },
       { id: "activities-cards", title: "Atividades", description: "A primeira turma foi expandida para mostrar as atividades pendentes. Abra uma atividade para conferir os detalhes e corrigir.", target: '[data-tour="corrections-cards"]', placement: "top", reveal: "details" },

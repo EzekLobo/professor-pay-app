@@ -548,8 +548,8 @@ type CorrectionsViewPreferences = {
   attendanceFilter: AttendanceFilter;
 };
 
-export function CorrectionsContent({ demo, preferenceKey = "default", studentsContent }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string; studentsContent?: ReactNode }) {
-  const unified = Boolean(studentsContent);
+export function CorrectionsContent({ demo, preferenceKey = "default", classesContent }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string; classesContent?: ReactNode }) {
+  const unified = Boolean(classesContent);
   const notifications = useStudentNotifications();
   const [storedReviews, setReviews] = useState<KodlandReview[]>([]);
   const [storedLessons, setLessons] = useState<KodlandLesson[]>([]);
@@ -563,7 +563,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
   const groups = demo?.groups ?? storedGroups;
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState<ReviewGrouping>("class");
-  const [viewMode, setViewMode] = useState<"attendance" | "activities" | "students">(studentsContent ? "students" : "activities");
+  const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
   const [activitiesView, setActivitiesView] = useState<"list" | "compact">("list");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -602,14 +602,14 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
     } catch { /* Prefer defaults when browser storage is unavailable or malformed. */ }
     queueMicrotask(() => {
       if (!active) return;
-      if (!unified && (stored?.viewMode === "attendance" || stored?.viewMode === "activities")) setViewMode(stored.viewMode);
+      if (stored?.viewMode === "attendance" || stored?.viewMode === "activities") setViewMode(stored.viewMode);
       if (stored?.activitiesView === "list" || stored?.activitiesView === "compact") setActivitiesView(stored.activitiesView);
       setPendingOnly(typeof stored?.pendingOnly === "boolean" ? stored.pendingOnly : true);
       if (stored?.grouping === "class" || stored?.grouping === "student" || stored?.grouping === "lesson") setGrouping(stored.grouping);
       if (stored?.attendanceFilter === "ABSENT" || stored?.attendanceFilter === "ALL" || stored?.attendanceFilter === "PRESENT") setAttendanceFilter(stored.attendanceFilter);
       const context = new URLSearchParams(window.location.search);
       const requestedTab = context.get("tab");
-      if (requestedTab === "activities" || requestedTab === "attendance" || (unified && requestedTab === "students")) setViewMode(requestedTab);
+      if (requestedTab === "activities" || requestedTab === "attendance" || (unified && requestedTab === "students")) setViewMode(requestedTab === "attendance" ? "attendance" : "activities");
       if (context.has("notification")) {
         setViewMode(context.get("tab") === "attendance" ? "attendance" : "activities");
         setQuery(""); setAttendanceFilter("ALL");
@@ -621,7 +621,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
   }, [preferenceKey, unified]);
 
   useEffect(() => {
-    if (!viewPreferencesLoaded || viewMode === "students" || new URLSearchParams(window.location.search).has("notification")) return;
+    if (!viewPreferencesLoaded || new URLSearchParams(window.location.search).has("notification")) return;
     try {
       localStorage.setItem(`nexusclass.corrections.view.${preferenceKey}`, JSON.stringify({ viewMode, activitiesView, grouping, attendanceFilter, pendingOnly } satisfies CorrectionsViewPreferences));
     } catch { /* The screen remains usable when storage is blocked. */ }
@@ -709,13 +709,12 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
   }
 
   useEffect(() => {
-    if (viewMode === "students") return;
     const timer = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(timer);
   }, [load, demo, viewMode]);
 
   useEffect(() => {
-    if (demo || viewMode === "students") return;
+    if (demo) return;
     let timer: ReturnType<typeof setTimeout>;
     const unsubscribe = subscribeStudentNotifications(change => { if (change !== "source") return; clearTimeout(timer); timer = setTimeout(() => { void load(true); }, 150); });
     return () => { clearTimeout(timer); unsubscribe(); };
@@ -826,24 +825,23 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
       </Modal>
       <section className="page-heading">
         <div>
-          <p className="eyebrow">{studentsContent ? "Alunos, atividades e presença" : "Presença e atividades"}</p>
-          <h1>{studentsContent ? "Turmas" : "Acompanhamento"}</h1>
+          <p className="eyebrow">{classesContent ? "Alunos, atividades e presença" : "Presença e atividades"}</p>
+          <h1>{classesContent ? "Turmas" : "Acompanhamento"}</h1>
         </div>
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
-      <div className={`corrections-topbar${viewMode === "students" ? " corrections-topbar-students" : ""}`}>
-        <nav className="corrections-page-tabs" data-tour={studentsContent ? "classes-tabs" : undefined} role="tablist" aria-label={studentsContent ? "Áreas de turmas" : "Páginas do acompanhamento"}>
-          {studentsContent && <button id="students-tab" type="button" role="tab" aria-controls="students-content" aria-selected={viewMode === "students"} className={viewMode === "students" ? "active" : ""} onClick={() => setViewMode("students")}>Alunos</button>}
+      <div className="corrections-topbar">
+        <nav className="corrections-page-tabs" data-tour={classesContent ? "classes-tabs" : undefined} role="tablist" aria-label={classesContent ? "Áreas de turmas" : "Páginas do acompanhamento"}>
           <button id="activities-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "activities"} className={viewMode === "activities" ? "active" : ""} onClick={() => setViewMode("activities")}>
-            Atividades
+            {classesContent ? "Alunos e atividades" : "Atividades"}
           </button>
           <button id="attendance-tab" type="button" role="tab" aria-controls="corrections-content" aria-selected={viewMode === "attendance"} className={viewMode === "attendance" ? "active" : ""} onClick={() => setViewMode("attendance")}>
             Presença
           </button>
         </nav>
-        {viewMode === "students" && <div id="students-toolbar-slot" className="students-toolbar-slot" />}
-        {viewMode !== "students" && <div className="correction-icon-toolbar" data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
+        <div className="correction-icon-toolbar" data-tour="corrections-filters" role="group" aria-label={`Ferramentas de ${viewMode === "activities" ? "atividades" : "presença"}`}>
+          {viewMode === "activities" && classesContent && <div id="classes-toolbar-slot" className="classes-toolbar-slot" />}
           {viewMode === "activities" && <div className="correction-view-switch" role="group" aria-label="Formato de visualização das atividades">
             <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>
             <button type="button" aria-label="Compacto" title="Visualização compacta" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}><LayoutGrid size={18} aria-hidden="true" /></button>
@@ -852,10 +850,9 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
           <Button type="button" className="button-ghost symbol-action" aria-label={searchOpen ? "Fechar busca" : "Abrir busca"} title={searchOpen ? "Fechar e limpar busca" : "Buscar aluno, turma ou atividade"} aria-expanded={searchOpen} aria-controls="correction-search-field" onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
           {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando correções" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}
           <Button type="button" className="button-ghost symbol-action" aria-label={viewMode === "activities" ? "Legenda das atividades" : "Legenda de presença"} title={viewMode === "activities" ? "Legenda das atividades" : "Legenda de presença"} aria-haspopup="dialog" aria-expanded={legendOpen} onClick={() => setLegendOpen(true)}><Info size={18} aria-hidden="true" /></Button>
-        </div>}
+        </div>
       </div>
-      {viewMode === "students" && <div id="students-content" role="tabpanel" aria-labelledby="students-tab">{studentsContent}</div>}
-      {viewMode !== "students" && searchOpen && <Input id="correction-search-field" className="correction-revealed-search" autoFocus aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setQuery(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-label="Fechar busca"]')?.focus(); } }} />}
+      {searchOpen && <Input id="correction-search-field" className="correction-revealed-search" autoFocus aria-label="Buscar correção" placeholder="Buscar aluno, turma ou atividade" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setQuery(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-label="Fechar busca"]')?.focus(); } }} />}
       <Modal open={filtersOpen} title="Filtros do acompanhamento" onClose={() => setFiltersOpen(false)} className="correction-filters-modal">
         <div className="form">
           {viewMode === "attendance" ? <label className="field">Mostrar<select className="input" aria-label="Filtrar presença" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as AttendanceFilter)}><option value="ABSENT">Faltas</option><option value="ALL">Todos</option><option value="PRESENT">Presentes</option></select></label>
@@ -874,7 +871,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
             ["unknown", "Sem confirmação"],
           ] as const).map(([status, label]) => <span key={status}><i className={`attendance-legend-swatch attendance-status-${status}`} aria-hidden="true" />{label}</span>)}</div>}
       </Modal>
-      {viewMode !== "students" && <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
+      <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
         {viewMode === "attendance" ? <>
         <ManualAttendanceGrid adapter={demo?.manualAdapter} />
         {loading ? <p className="muted">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro.</p> : <div className="correction-class-list attendance-list">
@@ -896,6 +893,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
           </details>)}
         </div>}
         </> : <>
+        {classesContent && <div className="classes-activity-management" data-tour="classes-management">{classesContent}</div>}
         {loading ? <p className="muted">Carregando correções…</p> : visibleReviews.length + visibleOwn.length === 0 ? <p className="muted correction-empty-state">Sem pendências para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
           contactButton={contactButton}
@@ -964,7 +962,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", studentsCo
           })}
         </div>}
         </>}
-      </section>}
+      </section>
     </div>
   );
 }

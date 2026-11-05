@@ -1880,7 +1880,7 @@ export const kodlandPayrollApi = {
 };
 
 export const dashboardApi = {
-  get: async () => {
+  get: async (options: { useLocalKodland?: boolean } = {}) => {
     const operationUid = authUser().uid;
     const [legacyClasses, manualClasses, settings, kodlandSettings, manualOccurrences,
       lessons, payments, groups, kodlandLessons, extras, overrides, holidays, payrollState] = await forAccount(operationUid, () => Promise.all([
@@ -1888,8 +1888,8 @@ export const dashboardApi = {
       getDoc(doc(ref("teaching_settings", operationUid), "finance")),
       rows("kodland_class_settings"),
       rows("manual_occurrences"),
-      rows("lessons"), rows("payments"), rows("kodland_groups", true),
-      rows("kodland_lessons", true), rows("kodland_extra_lessons", true),
+      rows("lessons"), rows("payments"), rows("kodland_groups", !options.useLocalKodland),
+      rows("kodland_lessons", !options.useLocalKodland), rows("kodland_extra_lessons", !options.useLocalKodland),
       rows("kodland_financial_overrides"), rows("holidays"),
       kodlandPayrollApi.get(),
     ]));

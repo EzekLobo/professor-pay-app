@@ -786,6 +786,10 @@ e estilos privados, sem autenticação, telemetria ou chamadas de APIs na demo.
 
 ## Histórico incorporado de origin/master (até 61c827a)
 
+## Carrossel financeiro no Resumo — 05/11/2026
+
+- Modo Kodland browser mantém KodlandSummary e carrega dashboard financeiro separadamente, usando snapshot Kodland local e configurações/lançamentos financeiros remotos. Timeout e falha isolados com opção de tentar novamente, sem bloquear agenda. Atualização essential/schedule refaz leitura financeira. O financeiro não funciona inteiramente offline; valores oficiais e lançamentos próprios continuam remotos.
+
 ## Turmas unificadas — 04/11/2026
 
 - /classes reaproveita CorrectionsContent com aba inicial Alunos (ClassesContent), seguida de Atividades e Presença; /corrections permanece compatível com links e notificações existentes. Shell oculta acesso duplicado e destaca Turmas na rota antiga. Demo também inclui as três abas.

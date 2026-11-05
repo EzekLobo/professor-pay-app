@@ -77,6 +77,7 @@ vi.mock("firebase/firestore", () => {
 
 import { dashboardApi, dataApi, kodlandApi, kodlandPayrollApi, manualTeachingApi } from "./api";
 import { normalizePayroll } from "./kodland-payroll";
+import * as browserCache from "./kodland-browser-cache";
 
 const key = (collection: string, id: string) => `users/test-user/${collection}/${id}`;
 const lesson = (id: string, date = "2026-10-13") => ({
@@ -248,6 +249,18 @@ describe("backup e migração", () => {
     expect((fake.docs.get(key("payments", "2026-11-15"))?.payment_snapshot as { total_cents: number }).total_cents).toBe(3000);
     fake.docs.set(key("lessons", "lesson-1"), { ...lesson("lesson-1"), hourly_rate_cents: 9000 });
     expect((await dashboardApi.get()).payments.find((item) => item.payment_date === "2026-11-15")?.total_cents).toBe(3000);
+  });
+
+  it("resumo financeiro usa dados Kodland do navegador e preserva lançamentos remotos", async () => {
+    fake.docs.set(key("lessons", "lesson-1"), lesson("lesson-1"));
+    const cached = vi.spyOn(browserCache, "readKodlandBrowserRows").mockImplementation(async (_uid, name) =>
+      ["kodland_groups", "kodland_lessons", "kodland_extra_lessons"].includes(name) ? [] : null,
+    );
+    try {
+      const result = await dashboardApi.get({ useLocalKodland: true });
+      expect(result.payments.find(item => item.payment_date === "2026-11-15")?.total_cents).toBe(3000);
+      for (const name of ["kodland_groups", "kodland_lessons", "kodland_extra_lessons"]) expect(cached).toHaveBeenCalledWith("test-user", name);
+    } finally { cached.mockRestore(); }
   });
 
   it("não duplica a aula materializada quando uma turma legada recebe recorrência", async () => {

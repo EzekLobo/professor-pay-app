@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110501, date: "2026-11-05", title: "Pagamentos no Resumo",
+    description: "As competências mensais voltaram à tela de Resumo, inclusive quando os dados da Kodland estão no navegador.",
+    href: "/dashboard", action: "Abrir resumo",
+  },
+  {
     version: 2026110413, date: "2026-11-04", title: "Percentual do curso pela aula atual",
     description: "O indicador de cada turma agora compara a aula atual com o total de aulas do curso, sem depender da marcação de aula concluída.",
     href: "/classes", action: "Abrir alunos",

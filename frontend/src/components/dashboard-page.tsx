@@ -32,6 +32,7 @@ import {
 } from "@/lib/api";
 import { holidaysForDate, type CustomHoliday } from "@/lib/holidays";
 import { kodlandLessonLocation } from "@/lib/kodland-lessons";
+import { readKodlandLocal } from "@/lib/kodland-sync-client";
 import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { freeAvailabilityWindows } from "@/lib/availability-windows";
 import {
@@ -881,6 +882,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
   const [manualStudents, setManualStudents] = useState<ManualStudent[]>([]);
   const [manualPendingCount, setManualPendingCount] = useState(0);
   const [localOnly, setLocalOnly] = useState(false);
+  const [financialFailed, setFinancialFailed] = useState(false);
   const [failed, setFailed] = useState(false);
   const [refreshingSchedule, setRefreshingSchedule] = useState(false);
   const [refreshNotice, setRefreshNotice] = useState("");
@@ -893,6 +895,13 @@ function DashboardPageContent({ uid }: { uid: string }) {
     const timeout = window.setTimeout(() => setRefreshNotice(""), 6000);
     return () => window.clearTimeout(timeout);
   }, [refreshNotice]);
+  const loadLocalFinance = useCallback(async () => {
+    setFinancialFailed(false);
+    try {
+      const financial = await readKodlandLocal(() => dashboardApi.get({ useLocalKodland: true }), crypto.randomUUID(), "Resumo financeiro", 8000);
+      setDashboard(financial);
+    } catch { setFinancialFailed(true); }
+  }, []);
   const load = useCallback(async (keepContent = false) => {
     setFailed(false);
     if (!keepContent) setDashboard(null);
@@ -902,6 +911,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
       if (browser?.active) {
         const [groups, students, lessons, reviews, extras, availability] = await Promise.all([kodlandApi.groups(), kodlandApi.students(), kodlandApi.lessons(), kodlandApi.reviews(), kodlandApi.extraLessons(), kodlandApi.availability()]);
         setKodlandEnabled(true); setGroups(groups.items); setStudents(students.items); setLessons(lessons.items); setReviews(reviews.items); setExtraLessons(extras.items); setAvailability(availability.items); setScheduleLastUpdatedAt(browser.coreAt);
+        void loadLocalFinance();
         return true;
       }
       const [preferences, notificationSettings] = await Promise.all([tutorPreferencesApi.get(), createStudentNotificationStore(uid).settings().catch(() => ({ time_zone: DEFAULT_SYNC_TIME_ZONE }))]);
@@ -952,7 +962,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
       setFailed(true);
       return false;
     }
-  }, [uid]);
+  }, [uid, loadLocalFinance]);
   useEffect(() => {
     let active = true;
     const unsubscribe = subscribeSyncDataChanged(uid, event => {
@@ -962,11 +972,11 @@ function DashboardPageContent({ uid }: { uid: string }) {
       if (domains.has("agenda") || domains.has("recordings") || domains.has("call_link")) updates.push(Promise.all([kodlandApi.lessons(), kodlandApi.extraLessons(), kodlandApi.scheduleLastUpdatedAt()]).then(([nextLessons, nextExtras, updatedAt]) => { if (active) { setLessons(nextLessons.items); setExtraLessons(nextExtras.items); setScheduleLastUpdatedAt(updatedAt); } }));
       if (domains.has("ranking")) updates.push(kodlandApi.students().then(result => { if (active) setStudents(result.items); }));
       if (domains.has("activities")) updates.push(kodlandApi.reviews().then(result => { if (active) setReviews(result.items); }));
-      if (domains.has("payments")) updates.push(dashboardApi.get().then(result => { if (active) setDashboard(result); }));
+      if (domains.has("payments")) updates.push(dashboardApi.get({ useLocalKodland: localOnly }).then(result => { if (active) setDashboard(result); }));
       void Promise.all(updates).catch(() => { if (active) setRefreshNotice("Os dados foram atualizados. Não foi possível recarregar esta área; tente atualizar a página."); });
     });
     return () => { active = false; unsubscribe(); };
-  }, [uid]);
+  }, [uid, localOnly]);
   useEffect(() => {
     const reloadHolidays = () => void holidaysApi.list().then(setCustomHolidays).catch(() => undefined);
     window.addEventListener("nexusclass:holidays-changed", reloadHolidays);
@@ -987,7 +997,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
           if (alive) setGroups(result.items);
         } else if (mode === "schedule" || mode === "essential") {
           const [groups, lessons, extras, availability, stamp] = await Promise.all([kodlandApi.groups(), kodlandApi.lessons(), kodlandApi.extraLessons(), kodlandApi.availability(), kodlandApi.scheduleLastUpdatedAt()]);
-          if (alive) { setGroups(groups.items); setLessons(lessons.items); setExtraLessons(extras.items); setAvailability(availability.items); setScheduleLastUpdatedAt(stamp); }
+          if (alive) { setGroups(groups.items); setLessons(lessons.items); setExtraLessons(extras.items); setAvailability(availability.items); setScheduleLastUpdatedAt(stamp); if (localOnly) void loadLocalFinance(); }
         } else if (mode === "corrections" && scope !== "attendance") {
           const result = await kodlandApi.reviews();
           if (alive) setReviews(result.items);
@@ -997,7 +1007,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
     const listener = (event: Event) => { void updated(event); };
     window.addEventListener("nexusclass:kodland-synced", listener);
     return () => { alive = false; window.removeEventListener("nexusclass:kodland-synced", listener); };
-  }, []);
+  }, [localOnly, loadLocalFinance]);
   const refreshSchedule = useCallback(async () => {
     if (refreshingSchedule) return;
     const credentials = await restoreKodlandCredentials();
@@ -1056,7 +1066,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
     return () => window.clearTimeout(timer);
   }, [load]);
   if (failed) return <DashboardContent state="error" onRetry={load} />;
-  if (localOnly) return <KodlandSummary groups={groups} students={students} reviews={reviews} lessons={lessons} extraLessons={extraLessons} availability={availability} onRefresh={() => void refreshSchedule()} refreshing={refreshingSchedule} refreshNotice={refreshNotice} scheduleLastUpdatedAt={scheduleLastUpdatedAt} onUpdateExtraStatus={updateExtraStatus} onMaterialsLoaded={updated => setLessons(items => items.map(item => item.id === updated.id ? updated : item))} customHolidays={[]} manualClasses={[]} manualStudents={[]} manualPendingCount={0} />;
+  if (localOnly) return <><KodlandSummary groups={groups} students={students} reviews={reviews} lessons={lessons} extraLessons={extraLessons} availability={availability} onRefresh={() => void refreshSchedule()} refreshing={refreshingSchedule} refreshNotice={refreshNotice} scheduleLastUpdatedAt={scheduleLastUpdatedAt} onUpdateExtraStatus={updateExtraStatus} onMaterialsLoaded={updated => setLessons(items => items.map(item => item.id === updated.id ? updated : item))} customHolidays={[]} manualClasses={[]} manualStudents={[]} manualPendingCount={0} />{dashboard ? <DashboardContent state="ready" dashboard={dashboard} onRefresh={loadLocalFinance} /> : financialFailed ? <section className="panel" role="alert"><h2>Competências mensais</h2><p>Não foi possível carregar os dados financeiros.</p><button className="button button-ghost" type="button" onClick={() => void loadLocalFinance()}>Tentar novamente</button></section> : <DashboardContent state="loading" />}</>;
   if (!dashboard) return <DashboardContent state="loading" />;
   return (
     <>

@@ -3870,4 +3870,6 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .compact-activity-lesson { display: flex; align-items: center; gap: 4px; }
 .compact-activity-lesson svg { flex: none; color: #9adfff; }
 .compact-activity-status-icon { position: absolute; right: 6px; top: 5px; font-size: .7rem; font-weight: 900; line-height: 1; }
-.compact-older-modules { display: block; min-height: 44px; margin: 10px auto; }
+
+.compact-activity-submitted { border-color: rgb(255 190 62 / 70%); background: rgb(194 118 12 / 35%); }
+.compact-activity-corrected { border-color: rgb(80 200 150 / 60%); background: rgb(20 110 80 / 30%); }

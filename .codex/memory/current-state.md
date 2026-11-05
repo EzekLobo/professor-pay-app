@@ -1,5 +1,10 @@
 # Estado atual
 
+## Rolagem de módulos e estados de atividades — 05/11/2026
+
+- Botão removido; módulo anterior é exibido por rolagem, gesto horizontal ou teclado no fim da grade, inclusive sem overflow. Limite por turma e debounce evitam disparos duplicados.
+- Kodland TASK_NOT_SUBMITTED => missing, TASK_SUBMITTED(_LATE) => submitted, TASK_CHECKED => corrected; notificações tratam submitted/corrected como entregues. Dados legados delivered não distinguem correção; TASK_NOT_GRADED e códigos desconhecidos continuam sem classificação para não inventar estado. Necessário testar registros reais e atualizar progresso após deploy para verificar os casos remanescentes.
+
 ## Grade de atividades por módulo — 05/11/2026
 
 - Grade de Turmas ordena módulos/aulas recentes primeiro e renderiza inicialmente um módulo por turma; rolagem horizontal ao fim ou botão adiciona um módulo anterior. Cabeçalhos agrupam colunas da mesma aula. Status visual usa cor e símbolo, com descrição acessível e título, sem rótulos repetidos. Tarefa de casa tem ícone apenas quando vínculo por URL ou tipo manual é confirmado. Paginação é de renderização: não reduz dados já sincronizados.

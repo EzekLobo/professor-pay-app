@@ -51,6 +51,14 @@ describe("organização da grade por módulos", () => {
     const groups = activityModules([column("M1L1", "M1"), column("M10L1", "M10"), column("M2L1", "M2"), column("M2L3", "M2"), column("Aula sem módulo")]);
     expect(groups.map(items => items.map(item => item.lessonLabel))).toEqual([["M10L1"], ["M2L3", "M2L1"], ["M1L1"], ["Aula sem módulo"]]);
   });
+  it("mostra os estados conhecidos sem interpretar códigos desconhecidos", () => {
+    const states = ["missing", "submitted", "corrected", "unknown"] as const;
+    const model = compactActivitiesModel({ groups: [group()], students: [student()], lessons: [lesson()], reviews: [], manualActivities: [], manualClasses: [], manualStudents: [], complete: true,
+      taskProgress: states.map((state, index) => ({ id: `p${index}`, external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: `t${index}`, task_title: `Atividade ${index}`, state })) });
+    const markup = renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode="complete" onCorrectManual={() => undefined} />);
+    expect(markup).toContain("Sem fazer"); expect(markup).toContain("Feita, aguardando correção"); expect(markup).toContain("Corrigida"); expect(markup).toContain("Situação não informada pela Kodland");
+    expect(markup).not.toContain("compact-activity-state");
+  });
   it("identifica tarefa de casa apenas com vínculo confirmado", () => {
     const model = compactActivitiesModel({ groups: [group()], students: [student()], lessons: [lesson({ homework_url: "https://learn.kodland.org/pt/task/home-1/", classroom_tasks: [] })], reviews: [], manualActivities: [], manualClasses: [], manualStudents: [], complete: true,
       taskProgress: [{ id: "p1", external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: "home-1", task_title: "Casa", state: "unknown" }, { id: "p2", external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: "other", task_title: "Outra", state: "unknown" }] });

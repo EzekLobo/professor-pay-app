@@ -10,12 +10,9 @@ for (const width of [320, 1440]) test(`módulos começam pela aula recente e per
   await expect(grid.getByRole('columnheader', { name: /M1L/ })).toHaveCount(0);
   await expect(target.getByText('Atividades por módulo:', { exact: false })).toHaveCount(0);
   await expect(target.locator('.compact-activity-state')).toHaveCount(0);
-  const older = target.getByRole('button', { name: 'Carregar módulos anteriores' });
-  await expect(older).toBeVisible();
-  if (width === 320) {
-    expect(await grid.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
-    await grid.evaluate(el => { el.scrollLeft = el.scrollWidth; el.dispatchEvent(new Event("scroll")); });
-  } else await older.click();
+  await expect(target.getByRole('button', { name: 'Carregar módulos anteriores' })).toHaveCount(0);
+  await grid.evaluate(el => { el.scrollTo({ left: el.scrollWidth, behavior: "instant" }); el.dispatchEvent(new Event("scroll")); });
+  if (width === 1440) { await grid.focus(); await page.keyboard.press('ArrowRight'); }
   await expect(grid.getByRole('columnheader', { name: /M1L/ }).first()).toBeAttached();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

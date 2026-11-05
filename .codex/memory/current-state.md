@@ -1,5 +1,9 @@
 # Estado atual
 
+## Grade de atividades por módulo — 05/11/2026
+
+- Grade de Turmas ordena módulos/aulas recentes primeiro e renderiza inicialmente um módulo por turma; rolagem horizontal ao fim ou botão adiciona um módulo anterior. Cabeçalhos agrupam colunas da mesma aula. Status visual usa cor e símbolo, com descrição acessível e título, sem rótulos repetidos. Tarefa de casa tem ícone apenas quando vínculo por URL ou tipo manual é confirmado. Paginação é de renderização: não reduz dados já sincronizados.
+
 ## Atualização da grade em destaque — 05/11/2026
 
 - Cabeçalho da grade exibe data e hora da última atualização entre o título e informações, com organização responsiva; quando não registrada, informa explicitamente.

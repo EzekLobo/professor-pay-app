@@ -8,7 +8,7 @@ import { subscribeStudentNotifications } from "@/lib/student-notification-store"
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical, ChevronDown, Percent, Settings, EyeOff } from "lucide-react";
+import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical, ChevronDown, Percent, Settings, EyeOff, House } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
@@ -62,6 +62,7 @@ export type CompactActivityColumn = {
   taskLabel: string;
   sortKey: string;
   moduleLabel?: string;
+  kind?: "homework" | "classroom" | "unknown";
 };
 export type CompactActivityRow = {
   key: string;
@@ -123,6 +124,26 @@ const compactKodlandLessonLabel = (review: KodlandReview, lessons: KodlandLesson
   } as KodlandAttendance, lessons);
   return parts.module ? `${parts.module}${parts.lesson}` : review.lesson_title || "Aula";
 };
+
+const taskIdInUrl = (url?: string) => String(url ?? "").match(/\/task\/([^/?#]+)(?:[/?#]|$)/)?.[1] ?? "";
+function lessonTaskKind(lesson: KodlandLesson | undefined, taskId: string): CompactActivityColumn["kind"] {
+  if (!lesson || !taskId) return "unknown";
+  const homework = taskIdInUrl(lesson.homework_url) === taskId;
+  const classroom = lesson.classroom_tasks?.some(task => taskIdInUrl(task.url) === taskId) ?? false;
+  return homework === classroom ? "unknown" : homework ? "homework" : "classroom";
+}
+/** Most recent numbered modules and lessons first; unknown modules remain accessible last. */
+export function activityModules(columns: readonly CompactActivityColumn[]): CompactActivityColumn[][] {
+  const groups = new Map<string, CompactActivityColumn[]>();
+  for (const column of columns) {
+    const key = column.moduleLabel?.match(/^M\d+$/i)?.[0].toUpperCase() ?? "";
+    groups.set(key, [...(groups.get(key) ?? []), column]);
+  }
+  return [...groups.entries()].sort(([a], [b]) => (Number(b.slice(1)) || 0) - (Number(a.slice(1)) || 0)).map(([, items]) => [...items].sort((a, b) => {
+    const lesson = (value: string) => Number(value.match(/L(\d+)/i)?.[1] ?? 0);
+    return lesson(b.lessonLabel) - lesson(a.lessonLabel) || a.sortKey.localeCompare(b.sortKey, "pt-BR");
+  }));
+}
 
 /**
  * Transforms the pending work queue into the same matrix shape used by
@@ -212,6 +233,7 @@ export function compactActivitiesModel({
           lessonLabel,
           moduleLabel: lessonLabel.match(/^M\d+/)?.[0],
           taskLabel: `${review.task_number ? `${review.task_number}. ` : ""}${review.task_title || "Atividade"}`,
+          kind: lessonTaskKind(matchedLesson, review.task_id),
           sortKey: `${String(review.lesson_number).padStart(5, "0")}:${String(review.task_number).padStart(5, "0")}:${review.lesson_title}:${review.task_title}`,
         });
       }
@@ -229,7 +251,7 @@ export function compactActivitiesModel({
       const key = existing?.key || `kodland:${catalog?.source_lesson_id || catalog?.id || progress.lesson_id}:${progress.task_id}`;
       const parts = attendanceLessonParts({ external_class_id: externalClassId, lesson_id: catalog?.id || progress.lesson_id, lesson_title: catalog?.title || "Aula" } as KodlandAttendance, [...lessons]);
       const label = parts.module ? `${parts.module}${parts.lesson}` : catalog?.title || "Aula";
-      if (!draft.columns.has(key)) draft.columns.set(key, { key, lessonLabel: label, moduleLabel: parts.module || undefined, taskLabel: progress.task_title, sortKey: `${String(catalog?.course_index || catalog?.lesson_number || 0).padStart(5, "0")}:00000:${progress.task_title}` });
+      if (!draft.columns.has(key)) draft.columns.set(key, { key, lessonLabel: label, moduleLabel: parts.module || undefined, taskLabel: progress.task_title, kind: lessonTaskKind(catalog, progress.task_id), sortKey: `${String(catalog?.course_index || catalog?.lesson_number || 0).padStart(5, "0")}:00000:${progress.task_title}` });
       row.cells[key] ??= { source: "progress", progress };
     }
   }
@@ -263,6 +285,7 @@ export function compactActivitiesModel({
           lessonLabel: manualOccurrences.find(item => item.id === activity.occurrence_id)?.course_code || compactManualLessonLabel(activity),
           moduleLabel: manualOccurrences.find(item => item.id === activity.occurrence_id)?.course_code.match(/^M\d+/)?.[0],
           taskLabel: activity.title || "Atividade",
+          kind: activity.kind ?? "unknown",
           sortKey: `${activity.occurrence_id}:${activity.title}`,
         });
       }
@@ -579,6 +602,7 @@ export function CompactActivitiesGrid({
     return () => root.removeEventListener("wheel", onWheel);
   }, []);
   const [openClassKey, setOpenClassKey] = useState<string | null>(null);
+  const [moduleLimits, setModuleLimits] = useState<Record<string, number>>({});
   const [openClassMenu, setOpenClassMenu] = useState<string | null>(null);
   const [editingClassKey, setEditingClassKey] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
@@ -616,7 +640,18 @@ export function CompactActivitiesGrid({
       const classModel = { ...original, name: names[original.key] || original.name };
       const isPending = mode === "pending";
       const studentsOnly = mode === "students";
-      const gridStyle = { "--attendance-columns": Math.max(1, classModel.columns.length) } as CSSProperties;
+      const modules = activityModules(classModel.columns);
+      const limit = moduleLimits[classModel.key] ?? 1;
+      const columns = modules.slice(0, limit).flat();
+      const hasMore = limit < modules.length;
+      const loadOlder = () => setModuleLimits(current => ({ ...current, [classModel.key]: Math.min(modules.length, (current[classModel.key] ?? 1) + 1) }));
+      const lessonGroups = columns.reduce<Array<{ label: string; count: number }>>((groups, column) => {
+        const label = column.lessonLabel || "Aula";
+        const previous = groups[groups.length - 1];
+        if (previous?.label === label) previous.count++; else groups.push({ label, count: 1 });
+        return groups;
+      }, []);
+      const gridStyle = { "--attendance-columns": Math.max(1, columns.length) } as CSSProperties;
       const classMenuOpen = openClassMenu === classModel.key;
       const classIsBeingRenamed = editingClassKey === classModel.key;
       const menuId = `compact-class-actions-${classModel.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
@@ -627,31 +662,30 @@ export function CompactActivitiesGrid({
         </summary>
         <div className="correction-class-body attendance-class-body">
           {studentsOnly ? <div className="class-students-view" role="table" aria-label={`Alunos da turma ${classModel.name}`}><div className="class-students-header" role="row"><span role="columnheader">Aluno</span><span role="columnheader">Pontuação</span><span role="columnheader" title="Saldo global de créditos de aulas no perfil da Kodland">Saldo de aulas</span></div>{classModel.rows.map(row => <div className="class-students-row" role="row" key={row.key}><div role="cell">{studentSummary(row, classModel.key, true)}</div><span role="cell">{pointsFor(row) == null ? "Não informado" : `${new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts`}</span><span role="cell" title={row.student?.lesson_credits_updated_at ? `Saldo atualizado em ${new Date(row.student.lesson_credits_updated_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : "Saldo global de aulas. Para carregar, use Atualizar perfis e saldos no modo Alunos."}>{creditFor(row.student)}</span></div>)}</div> : <>
-          {!isPending && <p className="complete-activities-note">{classModel.columns.length ? "Atividades por módulo: entregue, não entregue ou sem informação. Entregue não significa corrigida." : "Nenhuma informação de atividades sincronizada para esta turma."}</p>}
-          <div className={`attendance-grid-scroll compact-activities-grid-scroll${isPending ? " compact-pending-list" : ""}`} tabIndex={0} role="grid" aria-label={`Atividades da turma ${classModel.name}`} aria-rowcount={classModel.rows.length + 1} aria-colcount={classModel.columns.length + 1}>
+          {!isPending && !classModel.columns.length && <p className="complete-activities-note">Nenhuma informação de atividades sincronizada para esta turma.</p>}
+          <div className={`attendance-grid-scroll compact-activities-grid-scroll${isPending ? " compact-pending-list" : ""}`} tabIndex={0} role="grid" aria-label={`Atividades da turma ${classModel.name}`} aria-rowcount={classModel.rows.length + 1} aria-colcount={columns.length + 1} onScroll={event => { const el = event.currentTarget; if (hasMore && el.scrollWidth > el.clientWidth + 1 && el.scrollLeft + el.clientWidth >= el.scrollWidth - 24) loadOlder(); }}>
             {!isPending && <div className="attendance-grid-header compact-activities-grid-header" style={gridStyle} role="row">
               <div className="attendance-grid-corner" role="columnheader">Aluno</div>
-              {classModel.columns.map((column) => <div className="attendance-column-heading compact-activity-column-heading" role="columnheader" key={column.key} title={`${column.lessonLabel} · ${column.taskLabel}`}>
-                <span>{column.moduleLabel || column.lessonLabel}</span>
-              </div>)}
+              {lessonGroups.map((group, index) => <div className="attendance-column-heading compact-activity-column-heading compact-lesson-group" role="columnheader" key={`${group.label}-${index}`} style={{ gridColumn: `span ${group.count}` }}><span>{group.label}</span></div>)}
             </div>}
             {classModel.rows.map((row) => <div className={isPending ? "compact-pending-row" : "attendance-grid-row"} style={isPending ? undefined : gridStyle} role="row" key={row.key}>
               <div className="attendance-student-summary" role="rowheader">
                 <div className="attendance-student-copy">{studentSummary(row, classModel.key)}</div>
               </div>
-              {classModel.columns.map((column) => {
+              {columns.map((column, columnIndex) => {
                 const cell = row.cells[column.key];
                 if (!cell) return isPending ? null : <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
-                const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}`;
-                const actionContent = <><span className="compact-activity-lesson" title={column.lessonLabel}>{column.lessonLabel}</span><span className="compact-activity-task" title={column.taskLabel}>{column.taskLabel}</span></>;
-                return <div className="compact-activity-cell" role="gridcell" key={column.key}>
-                  {cell.source === "progress" ? <div className={`compact-activity-action compact-activity-progress compact-activity-${cell.progress.state}`} aria-label={`${row.name}: ${column.taskLabel}, ${cell.progress.state === "delivered" ? "Entregue" : cell.progress.state === "missing" ? "Não entregue" : "Sem informação"}`}>{actionContent}<span className="compact-activity-state">{cell.progress.state === "delivered" ? "Entregue" : cell.progress.state === "missing" ? "Não entregue" : "Sem informação"}</span></div> : cell.source === "manual" && !pendingManualActivities([cell.activity]).length ? <div className={`compact-activity-action compact-activity-manual compact-activity-${cell.activity.status === "corrected" ? "delivered" : "missing"}`}>{actionContent}<span className="compact-activity-state">{cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}</span></div> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
+                const kindLabel = column.kind === "homework" ? " · Atividade de casa" : "";
+                const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}${kindLabel}`;
+                const actionContent = <><span className="compact-activity-lesson" title={column.lessonLabel}>{column.lessonLabel}{column.kind === "homework" && <House size={12} aria-label="Atividade de casa" />}</span><span className="compact-activity-task" title={column.taskLabel}>{column.taskLabel}</span></>;
+                return <div className={`compact-activity-cell${columnIndex === 0 || columns[columnIndex - 1].lessonLabel !== column.lessonLabel ? " compact-lesson-start" : ""}`} role="gridcell" key={column.key}>
+                  {cell.source === "progress" ? <div className={`compact-activity-action compact-activity-progress compact-activity-${cell.progress.state}`} role="img" aria-label={`${row.name}: ${column.taskLabel}${kindLabel}, ${cell.progress.state === "delivered" ? "Entregue" : cell.progress.state === "missing" ? "Não entregue" : "Sem informação"}`} title={`${column.taskLabel}${kindLabel} · ${cell.progress.state === "delivered" ? "Entregue" : cell.progress.state === "missing" ? "Não entregue" : "Sem informação"}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.progress.state === "delivered" ? "✓" : cell.progress.state === "missing" ? "!" : "?"}</span></div> : cell.source === "manual" && !pendingManualActivities([cell.activity]).length ? <div className={`compact-activity-action compact-activity-manual compact-activity-${cell.activity.status === "corrected" ? "delivered" : "missing"}`} role="img" aria-label={`${row.name}: ${column.taskLabel}${kindLabel}, ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`} title={`${column.taskLabel}${kindLabel} · ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.activity.status === "corrected" ? "✓" : "!"}</span></div> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
                     : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>{actionContent}</button>
                       : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} target="_blank" rel="noreferrer">{actionContent}</a>}
                 </div>;
               })}
             </div>)}
-          </div></>}
+          </div>{hasMore && <button type="button" className="button button-ghost compact-older-modules" onClick={loadOlder}>Carregar módulos anteriores</button>}</>}
         </div>
       </details>;
     })}

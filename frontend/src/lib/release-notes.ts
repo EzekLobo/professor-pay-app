@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110503, date: "2026-11-05", title: "Atividades organizadas por módulo",
+    description: "A grade começa pelas aulas recentes, agrupa as atividades e permite carregar módulos anteriores. Tarefas de casa identificadas têm um símbolo próprio.",
+    href: "/classes", action: "Ver turmas",
+  },
+  {
     version: 2026110502, date: "2026-11-05", title: "Atualização da grade visível",
     description: "A data e a hora da última atualização agora aparecem no cabeçalho da grade de horários.",
     href: "/dashboard", action: "Abrir resumo",

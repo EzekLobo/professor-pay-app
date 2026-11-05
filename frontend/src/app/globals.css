@@ -3863,3 +3863,11 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .week-section-heading .week-actions { grid-column: 1 / -1; }
   .week-header-updated time { white-space: normal; }
 }
+/* Atividades agrupadas por aula; histórico avança por módulos. */
+.compact-activities-grid-header .compact-lesson-group { justify-content: center; border-left: 2px solid rgba(105, 215, 255, .45); background: rgba(55, 98, 143, .12); font-weight: 800; }
+.compact-lesson-start { border-left: 2px solid rgba(105, 215, 255, .45); padding-left: 3px; }
+.compact-activity-action { position: relative; padding-right: 22px; }
+.compact-activity-lesson { display: flex; align-items: center; gap: 4px; }
+.compact-activity-lesson svg { flex: none; color: #9adfff; }
+.compact-activity-status-icon { position: absolute; right: 6px; top: 5px; font-size: .7rem; font-weight: 900; line-height: 1; }
+.compact-older-modules { display: block; min-height: 44px; margin: 10px auto; }

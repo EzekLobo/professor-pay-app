@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { KodlandGroup, KodlandLesson, KodlandReview, KodlandStudent } from "@/lib/api";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
-import { compactActivitiesModel, filterCompactActivitiesModel, CompactActivitiesGrid } from "./corrections-page";
+import { compactActivitiesModel, filterCompactActivitiesModel, CompactActivitiesGrid, activityModules } from "./corrections-page";
 
 const timestamp = "2026-10-21T12:00:00.000Z";
 
@@ -43,6 +43,20 @@ const manualActivity = (overrides: Partial<ManualActivity> = {}): ManualActivity
   id: "activity-1", class_id: "manual-class-1", student_id: "manual-student-1", occurrence_id: "manual-class-1:5",
   title: "Projeto", description: "", submission_text: "Entrega", submission_url: "", feedback: "", status: "pending",
   created_at: timestamp, updated_at: timestamp, ...overrides,
+});
+
+describe("organização da grade por módulos", () => {
+  it("ordena os módulos e aulas mais recentes primeiro e mantém módulos desconhecidos", () => {
+    const column = (lessonLabel: string, moduleLabel?: string) => ({ key: lessonLabel, lessonLabel, moduleLabel, taskLabel: lessonLabel, sortKey: lessonLabel });
+    const groups = activityModules([column("M1L1", "M1"), column("M10L1", "M10"), column("M2L1", "M2"), column("M2L3", "M2"), column("Aula sem módulo")]);
+    expect(groups.map(items => items.map(item => item.lessonLabel))).toEqual([["M10L1"], ["M2L3", "M2L1"], ["M1L1"], ["Aula sem módulo"]]);
+  });
+  it("identifica tarefa de casa apenas com vínculo confirmado", () => {
+    const model = compactActivitiesModel({ groups: [group()], students: [student()], lessons: [lesson({ homework_url: "https://learn.kodland.org/pt/task/home-1/", classroom_tasks: [] })], reviews: [], manualActivities: [], manualClasses: [], manualStudents: [], complete: true,
+      taskProgress: [{ id: "p1", external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: "home-1", task_title: "Casa", state: "unknown" }, { id: "p2", external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: "other", task_title: "Outra", state: "unknown" }] });
+    expect(model[0].columns.find(item => item.taskLabel === "Casa")?.kind).toBe("homework");
+    expect(model[0].columns.find(item => item.taskLabel === "Outra")?.kind).toBe("unknown");
+  });
 });
 
 describe("compactActivitiesModel", () => {

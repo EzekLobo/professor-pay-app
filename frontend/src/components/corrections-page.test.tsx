@@ -132,11 +132,43 @@ describe("compactActivitiesModel", () => {
     expect(compactActivitiesModel({ groups: [group()], students: [], reviews: [], lessons: [], manualActivities: [], manualClasses: [], manualStudents: [] })[0].completionPercent).toBeNull();
   });
 
-  it("calcula o percentual pela aula atual do curso, não pela flag de aula concluída", () => {
+  it("conta apenas aulas dadas, sem usar o número da próxima aula", () => {
     const currentGroup = group({ next_lesson_number: 12 });
-    const lessons = Array.from({ length: 40 }, (_, index) => lesson({ id: `lesson-${index + 1}`, course_index: index + 1, lesson_number: index + 1, lesson_passed: false }));
+    const lessons = Array.from({ length: 40 }, (_, index) => lesson({ id: `lesson-${index + 1}`, course_index: index + 1, lesson_number: index + 1, lesson_passed: index < 11 }));
     const model = compactActivitiesModel({ groups: [currentGroup], students: [student()], reviews: [], lessons, manualActivities: [], manualClasses: [], manualStudents: [] });
-    expect(model[0]).toMatchObject({ currentLessonNumber: 12, totalLessons: 40, completionPercent: 30 });
+    expect(model[0]).toMatchObject({ completedLessons: 11, totalLessons: 40, completionPercent: 28 });
+    const markup = renderToStaticMarkup(<CompactActivitiesGrid model={model} onCorrectManual={() => undefined} />);
+    expect(markup).toContain("11 de 40 aulas dadas");
+    expect(markup).not.toContain("Aula 12 de 40");
+  });
+  it("não infere conclusão pela data e mantém turmas isoladas com 0%, 100% ou sem total", () => {
+    const input = { students: [], reviews: [], manualActivities: [], manualClasses: [], manualStudents: [] };
+    const model = compactActivitiesModel({ ...input, groups: [group({ next_lesson_number: 99 }), group({ external_id: "other" }), group({ external_id: "empty" })], lessons: [
+      lesson({ lesson_passed: false, lesson_date: "2020-01-01" }),
+      lesson({ id: "future", lesson_passed: false, lesson_date: "2099-01-01" }),
+      lesson({ id: "done", external_class_id: "other", lesson_passed: false, status: "Completed" }),
+    ] });
+    expect(model.find(item => item.key === "kodland:kodland-1")).toMatchObject({ completedLessons: 0, totalLessons: 2, completionPercent: 0 });
+    expect(model.find(item => item.key === "kodland:other")).toMatchObject({ completedLessons: 1, totalLessons: 1, completionPercent: 100 });
+    expect(model.find(item => item.key === "kodland:empty")?.completionPercent).toBeNull();
+  });
+  it("deduplica o catálogo sem apagar conclusão e exclui cancelamentos e remarcações", () => {
+    const model = compactActivitiesModel({ groups: [group()], students: [], reviews: [], manualActivities: [], manualClasses: [], manualStudents: [], lessons: [
+      lesson({ id: "schedule", source_lesson_id: "catalog", lesson_passed: true }),
+      lesson({ id: "copy", source_lesson_id: "catalog", lesson_passed: false }),
+      lesson({ id: "cancelled", status: "Cancelled", lesson_passed: true }),
+      lesson({ id: "rescheduled", status: "Rescheduled", lesson_passed: true }),
+      lesson({ id: "planned", lesson_passed: false }),
+    ] });
+    expect(model[0]).toMatchObject({ completedLessons: 1, totalLessons: 2, completionPercent: 50 });
+  });
+  it("conta turmas próprias por ocorrência dada, sem duplicatas ou remarcações", () => {
+    const occurrence = (id: string, status: import("@/lib/manual-operations").ManualOccurrenceStatus): import("@/lib/manual-operations").ManualOccurrence => ({
+      id, status, class_id: "manual-class-1", recurrence_id: "r", slot_id: "s", lesson_date: "2026-10-01", start_time: "19:00", duration_minutes: 60, hourly_rate_cents: 0, payment_date: "2026-10-01", course_lesson_id: null, course_code: "", title_snapshot: "Aula", replacement_for_id: null, recording_url: "", content: "", guide: "", slides_url: "", homework: "", notes: "", created_at: timestamp, updated_at: timestamp,
+    });
+    const held = occurrence("held", "held");
+    const model = compactActivitiesModel({ groups: [], students: [], reviews: [], lessons: [], manualActivities: [], manualClasses: [manualClass()], manualStudents: [], manualOccurrences: [held, held, occurrence("planned", "planned"), occurrence("cancelled", "cancelled"), occurrence("rescheduled", "rescheduled")] });
+    expect(model[0]).toMatchObject({ completedLessons: 1, totalLessons: 2, completionPercent: 50 });
   });
   it("modo completo mantém todos os estados manuais e pendências só aceita entregas sem correção", () => {
     const activities = [manualActivity(), manualActivity({ id: "done", title: "Feita", status: "corrected" }), manualActivity({ id: "assigned", title: "A fazer", status: "assigned", submission_text: "" })];

@@ -434,6 +434,8 @@ export type CourseImportResult = {
 };
 export type { KodlandLesson } from "@/lib/kodland-lessons";
 type KodlandSnapshot = {
+  /** Complete rosters successfully fetched from Kodland; permits scoped reconciliation. */
+  student_group_ids?: string[];
   ranking?: KodlandScopedPayload["ranking"];
   task_progress?: KodlandTaskProgress[];
   groups: Omit<KodlandGroup, "id" | "local_class_id" | "created_at">[];
@@ -2732,6 +2734,11 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
   await updateKodlandBrowser(uid, state => {
     assert();
     const collection = (name: string) => state.collections[name] ?? [];
+    if (["essential", "schedule", "profiles"].includes(mode) && snapshot.student_group_ids) {
+      const groups = new Set(snapshot.student_group_ids);
+      const incomingIds = new Set(snapshot.students.map(student => student.id));
+      state.collections.kodland_students = collection("kodland_students").filter(student => !groups.has(String(student.external_class_id)) || incomingIds.has(String(student.id)));
+    }
     const merge = (name: string, incoming: BrowserRow[]) => {
       const map = new Map(collection(name).map(item => [
         item.id,
@@ -3437,7 +3444,10 @@ export const kodlandApi = {
       persistencePhase = "gravação";
       options.assertActive?.();
       progress("Salvando alunos no Firebase…");
-      await commitWrites(writes, beforePersist);
+      const rosterGroups = new Set(snapshot.student_group_ids ?? []);
+      const incomingIds = new Set(students.map(student => student.id));
+      const stale = previousStudents.filter(student => rosterGroups.has(String(student.external_class_id)) && !incomingIds.has(String(student.id)));
+      await commitWrites([...writes, ...stale.map(student => (batch: FirebaseWriteBatch) => batch.delete(doc(syncCollection("kodland_students"), String(student.id))))], beforePersist);
       return finish({ group_count: 0, student_count: writes.length, review_count: 0, lesson_count: 0, extra_lesson_count: 0 });
     }
     progress("Lendo turmas, alunos, aulas e agenda salvos…");
@@ -3481,6 +3491,11 @@ export const kodlandApi = {
       ...item, id: item.external_id, local_class_id: links.get(item.external_id) ?? null,
       created_at: previousCollections.get("kodland_groups")?.get(item.external_id)?.created_at ?? createdAt,
     }));
+    const rosterGroups = new Set(snapshot.student_group_ids ?? []);
+    const incomingStudentIds = new Set(students.map(student => student.id));
+    oldStudents.filter(student => rosterGroups.has(String(student.external_class_id)) && !incomingStudentIds.has(String(student.id))).forEach(student => {
+      deletes.push(batch => batch.delete(doc(syncCollection("kodland_students"), String(student.id))));
+    });
     students.forEach((item) => {
       const previous = oldStudentsById.get(item.id);
       enqueue("kodland_students", item.id, sanitizeKodlandStudentRecord({

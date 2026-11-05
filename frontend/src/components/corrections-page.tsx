@@ -80,7 +80,6 @@ export type CompactActivityClass = {
   courseName?: string;
   completedLessons?: number;
   totalLessons?: number;
-  currentLessonNumber?: number;
   completionPercent?: number | null;
   pendingCount?: number;
   columns: CompactActivityColumn[];
@@ -105,7 +104,6 @@ type CompactActivityClassDraft = {
   courseName?: string;
   completedLessons?: number;
   totalLessons?: number;
-  currentLessonNumber?: number;
   columns: Map<string, CompactActivityColumn>;
   rows: Map<string, CompactActivityRow>;
 };
@@ -213,14 +211,18 @@ export function compactActivitiesModel({
     const group = groupsByExternalId.get(externalClassId);
     const draft = ensureClass(`kodland:${externalClassId}`, group?.title || classReviews[0]?.external_class_name || "Turma Kodland");
     draft.courseName = group?.course_name;
-    const uniqueLessons = [...new Map(lessons.filter(item => item.external_class_id === externalClassId && !/cancel/i.test(item.status)).map(item => [item.source_lesson_id || item.id, item])).values()];
+    const classLessons = new Map<string, KodlandLesson>();
+    const isHeld = (item: KodlandLesson) => item.lesson_passed || /^(held|completed|done|passed|conducted|finished)$/i.test(item.status.trim());
+    for (const item of lessons) {
+      if (item.external_class_id !== externalClassId || /cancel|resched|postpon/i.test(item.status)) continue;
+      const key = item.source_lesson_id || item.id;
+      // Catalog/schedule duplicates must not erase a confirmed completion.
+      const previous = classLessons.get(key);
+      if (!previous || isHeld(item) || !isHeld(previous)) classLessons.set(key, item);
+    }
+    const uniqueLessons = [...classLessons.values()];
     draft.totalLessons = uniqueLessons.length;
-    draft.completedLessons = uniqueLessons.filter(item => item.lesson_passed || /^(held|completed|done|passed|conducted|finished)$/i.test(item.status)).length;
-    // The course progress is based on the current lesson position, not on
-    // whether Kodland marked each synced occurrence as passed. The group
-    // carries the authoritative next/current lesson number; older snapshots
-    // fall back to the number of passed lessons.
-    draft.currentLessonNumber = Math.max(0, Math.min(draft.totalLessons, Number(group?.next_lesson_number) || draft.completedLessons));
+    draft.completedLessons = uniqueLessons.filter(isHeld).length;
     for (const [index, student] of activeStudentsRankedByPoints(students.filter((item) => item.external_class_id === externalClassId)).entries()) {
       const row = ensureRow(draft, student.external_id || student.id, student.name);
       row.student = student; row.rank = index + 1; row.points = kodlandStudentPoints(student.progress_summary);
@@ -274,10 +276,9 @@ export function compactActivitiesModel({
     const manualClass = manualClassesById.get(classId);
     const draft = ensureClass(`manual:${classId}`, manualClass?.name || "Turma própria");
     draft.courseName = manualCourseNames[manualClass?.course_id ?? ""];
-    const classOccurrences = manualOccurrences.filter(item => item.class_id === classId && item.status !== "cancelled" && item.status !== "rescheduled");
+    const classOccurrences = [...new Map(manualOccurrences.filter(item => item.class_id === classId && item.status !== "cancelled" && item.status !== "rescheduled").map(item => [item.id, item])).values()];
     draft.totalLessons = classOccurrences.length;
     draft.completedLessons = classOccurrences.filter(item => item.status === "held").length;
-    draft.currentLessonNumber = draft.completedLessons;
     for (const studentId of manualClass?.student_ids ?? []) {
       const student = manualStudentsById.get(studentId);
       if (student?.active) { const row = ensureRow(draft, student.id, student.name); row.manualStudent = student; }
@@ -306,8 +307,7 @@ export function compactActivitiesModel({
     courseName: draft.courseName,
     completedLessons: draft.completedLessons,
     totalLessons: draft.totalLessons,
-    currentLessonNumber: draft.currentLessonNumber,
-    completionPercent: draft.totalLessons && draft.currentLessonNumber != null ? Math.round(draft.currentLessonNumber * 100 / draft.totalLessons) : null,
+    completionPercent: draft.totalLessons && draft.completedLessons != null ? Math.round(draft.completedLessons * 100 / draft.totalLessons) : null,
     pendingCount: [...draft.rows.values()].reduce((count, row) => count + Object.values(row.cells).filter(cell => cell.source === "kodland" || cell.source === "manual" && pendingManualActivities([cell.activity]).length > 0).length, 0),
     columns: [...draft.columns.values()].sort((first, second) => first.sortKey.localeCompare(second.sortKey, "pt-BR")),
     rows: [...draft.rows.values()].filter(row => !pendingOnly || Object.keys(row.cells).length > 0).sort((first, second) => (first.rank ?? Infinity) - (second.rank ?? Infinity) || first.name.localeCompare(second.name, "pt-BR")),
@@ -597,7 +597,6 @@ export function CompactActivitiesGrid({
   const pendingPrepend = useRef<{ key: string; width: number; left: number } | null>(null);
   const positionedKey = useRef<string | null>(null);
   const ignoreScroll = useRef(false);
-  const loadCooldown = useRef<Record<string, number>>({});
   useEffect(() => {
     const root = activitiesRoot.current;
     if (!root) return;
@@ -608,7 +607,9 @@ export function CompactActivitiesGrid({
       event.preventDefault();
       const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       const scale = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? grid.clientWidth : 1;
-      grid.scrollLeft += delta * scale;
+      // Wheel events already provide a continuous stream; smooth scrolling
+      // restarts its animation on every event and loses distance during a gesture.
+      grid.scrollBy({ left: delta * scale, behavior: "instant" });
     };
     root.addEventListener("wheel", onWheel, { passive: false });
     return () => root.removeEventListener("wheel", onWheel);
@@ -674,8 +675,7 @@ export function CompactActivitiesGrid({
       const columns = modules.slice(0, limit).reverse().flat();
       const hasMore = limit < modules.length;
       const loadOlder = (grid: HTMLElement) => {
-        if (!hasMore || ignoreScroll.current || Date.now() - (loadCooldown.current[classModel.key] ?? 0) < 350) return;
-        loadCooldown.current[classModel.key] = Date.now();
+        if (!hasMore || ignoreScroll.current || pendingPrepend.current) return;
         pendingPrepend.current = { key: classModel.key, width: grid.scrollWidth, left: grid.scrollLeft };
         setModuleLimits(current => ({ ...current, [classModel.key]: Math.min(modules.length, (current[classModel.key] ?? 1) + 1) }));
       };
@@ -692,12 +692,12 @@ export function CompactActivitiesGrid({
       return <details className={`correction-class-group attendance-class-group compact-activities-class${classMenuOpen ? " has-actions-menu" : ""}`} key={classModel.key} open={openClassKey === classModel.key} onToggle={event => { const isOpen = event.currentTarget.open; setOpenClassKey(current => isOpen ? classModel.key : current === classModel.key ? null : current); if (isOpen && openClassMenu && openClassMenu !== classModel.key) { setOpenClassMenu(null); setEditingClassKey(null); } }}>
         <summary className="correction-class-heading">
           <div className="compact-class-copy"><h3>{classModel.name}</h3><small className="compact-class-course" title={classModel.courseName || "Curso não informado"}>{classModel.courseName || "Curso não informado"}</small></div>
-          <span className="compact-class-actions"><span className="class-count-badge" aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={14} aria-hidden="true" />{classModel.rows.length}</span><span className="class-count-badge class-pending-badge" aria-label={`${classModel.pendingCount ?? 0} atividades sem corrigir`} title="Atividades sem corrigir"><ClipboardCheck size={14} aria-hidden="true" />{classModel.pendingCount ?? 0}</span><span className="class-count-badge class-completion-badge" aria-label={classModel.completionPercent == null ? "Percentual do curso não informado" : `${classModel.completionPercent}% do curso`} title={classModel.completionPercent == null ? "Percentual do curso não informado" : `Aula ${classModel.currentLessonNumber ?? 0} de ${classModel.totalLessons ?? 0}`}><Percent size={14} aria-hidden="true" />{classModel.completionPercent == null ? "—" : `${classModel.completionPercent}%`}</span><span className="compact-class-actions-menu-anchor"><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" aria-haspopup="menu" aria-expanded={classMenuOpen} aria-controls={classMenuOpen ? menuId : undefined} onClick={event => { event.preventDefault(); event.stopPropagation(); setOpenClassMenu(current => current === classModel.key ? null : classModel.key); setEditingClassKey(null); }}><MoreVertical size={18} aria-hidden="true" /></button>{classMenuOpen && <div id={menuId} className="group-actions-menu compact-class-actions-menu" role="menu" aria-label={`Ações da turma ${classModel.name}`} onClick={event => { event.stopPropagation(); }}>{classIsBeingRenamed ? <form className="group-rename-form" onSubmit={event => { event.preventDefault(); const name = nameInput.trim(); if (!name) return; setNames(current => ({ ...current, [classModel.key]: name })); setEditingClassKey(null); setOpenClassMenu(null); }}><label><span className="sr-only">Novo nome da turma</span><input className="input" autoFocus value={nameInput} onChange={event => setNameInput(event.target.value)} aria-label="Novo nome da turma" /></label><div><button className="button button-ghost button-small" type="button" onClick={() => setEditingClassKey(null)}>Cancelar</button><button className="button button-small" type="submit" disabled={!nameInput.trim()}>Salvar</button></div></form> : <><button type="button" role="menuitem" onClick={() => { setNameInput(classModel.name); setEditingClassKey(classModel.key); }}><Settings size={15} aria-hidden="true" /> Renomear turma</button><button className="group-actions-menu-danger" type="button" role="menuitem" onClick={() => { if (window.confirm(`Ocultar a turma ${classModel.name} desta visualização?`)) setHidden(current => [...current, classModel.key]); setOpenClassMenu(null); }}><EyeOff size={15} aria-hidden="true" /> Ocultar turma</button></>}</div>}</span><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
+          <span className="compact-class-actions"><span className="class-count-badge" aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={14} aria-hidden="true" />{classModel.rows.length}</span><span className="class-count-badge class-pending-badge" aria-label={`${classModel.pendingCount ?? 0} atividades sem corrigir`} title="Atividades sem corrigir"><ClipboardCheck size={14} aria-hidden="true" />{classModel.pendingCount ?? 0}</span><span className="class-count-badge class-completion-badge" aria-label={classModel.completionPercent == null ? "Percentual de aulas dadas não informado" : `${classModel.completionPercent}% das aulas dadas, ${classModel.completedLessons ?? 0} de ${classModel.totalLessons ?? 0}`} title={classModel.completionPercent == null ? "Percentual de aulas dadas não informado" : `${classModel.completedLessons ?? 0} de ${classModel.totalLessons ?? 0} aulas dadas (aulas registradas, sem canceladas ou remarcadas)`}><Percent size={14} aria-hidden="true" />{classModel.completionPercent == null ? "—" : `${classModel.completionPercent}%`}</span><span className="compact-class-actions-menu-anchor"><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" aria-haspopup="menu" aria-expanded={classMenuOpen} aria-controls={classMenuOpen ? menuId : undefined} onClick={event => { event.preventDefault(); event.stopPropagation(); setOpenClassMenu(current => current === classModel.key ? null : classModel.key); setEditingClassKey(null); }}><MoreVertical size={18} aria-hidden="true" /></button>{classMenuOpen && <div id={menuId} className="group-actions-menu compact-class-actions-menu" role="menu" aria-label={`Ações da turma ${classModel.name}`} onClick={event => { event.stopPropagation(); }}>{classIsBeingRenamed ? <form className="group-rename-form" onSubmit={event => { event.preventDefault(); const name = nameInput.trim(); if (!name) return; setNames(current => ({ ...current, [classModel.key]: name })); setEditingClassKey(null); setOpenClassMenu(null); }}><label><span className="sr-only">Novo nome da turma</span><input className="input" autoFocus value={nameInput} onChange={event => setNameInput(event.target.value)} aria-label="Novo nome da turma" /></label><div><button className="button button-ghost button-small" type="button" onClick={() => setEditingClassKey(null)}>Cancelar</button><button className="button button-small" type="submit" disabled={!nameInput.trim()}>Salvar</button></div></form> : <><button type="button" role="menuitem" onClick={() => { setNameInput(classModel.name); setEditingClassKey(classModel.key); }}><Settings size={15} aria-hidden="true" /> Renomear turma</button><button className="group-actions-menu-danger" type="button" role="menuitem" onClick={() => { if (window.confirm(`Ocultar a turma ${classModel.name} desta visualização?`)) setHidden(current => [...current, classModel.key]); setOpenClassMenu(null); }}><EyeOff size={15} aria-hidden="true" /> Ocultar turma</button></>}</div>}</span><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
         </summary>
         <div className="correction-class-body attendance-class-body">
           {studentsOnly ? <div className="class-students-view" role="table" aria-label={`Alunos da turma ${classModel.name}`}><div className="class-students-header" role="row"><span role="columnheader">Aluno</span><span role="columnheader">Pontuação</span><span role="columnheader" title="Saldo global de créditos de aulas no perfil da Kodland">Saldo de aulas</span></div>{classModel.rows.map(row => <div className="class-students-row" role="row" key={row.key}><div role="cell">{studentSummary(row, classModel.key, true)}</div><span role="cell">{pointsFor(row) == null ? "Não informado" : `${new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts`}</span><span role="cell" title={row.student?.lesson_credits_updated_at ? `Saldo atualizado em ${new Date(row.student.lesson_credits_updated_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : "Saldo global de aulas. Para carregar, use Atualizar perfis e saldos no modo Alunos."}>{creditFor(row.student)}</span></div>)}</div> : <>
           {!isPending && !classModel.columns.length && <p className="complete-activities-note">Nenhuma informação de atividades sincronizada para esta turma.</p>}
-          <div className={`attendance-grid-scroll compact-activities-grid-scroll${isPending ? " compact-pending-list" : ""}`} tabIndex={0} role="grid" aria-label={`Atividades da turma ${classModel.name}`} data-class-key={classModel.key} aria-rowcount={classModel.rows.length + 1} aria-colcount={columns.length + 1} onScroll={event => { const el = event.currentTarget; if (hasMore && el.scrollWidth > el.clientWidth + 1 && el.scrollLeft <= 24) loadOlder(el); }} onWheel={event => { const el = event.currentTarget; const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY; if (hasMore && delta < 0 && el.scrollLeft <= 2) { event.preventDefault(); loadOlder(el); } }} onTouchStart={event => { const el = event.currentTarget; const touch = event.touches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY, atStart: el.scrollLeft <= 2 } : null; }} onTouchEnd={event => { const start = touchStart.current; touchStart.current = null; const touch = event.changedTouches[0]; if (start && touch && start.atStart && touch.clientX - start.x > 30 && touch.clientX - start.x > Math.abs(start.y - touch.clientY)) loadOlder(event.currentTarget); }} onKeyDown={event => { const el = event.currentTarget; if (hasMore && ["ArrowLeft", "PageUp", "Home"].includes(event.key) && el.scrollLeft <= 2) { event.preventDefault(); loadOlder(el); } }}>
+          <div className={`attendance-grid-scroll compact-activities-grid-scroll${isPending ? " compact-pending-list" : ""}`} tabIndex={0} role="grid" aria-label={`Atividades da turma ${classModel.name}`} data-class-key={classModel.key} aria-rowcount={classModel.rows.length + 1} aria-colcount={columns.length + 1} onScroll={event => { const el = event.currentTarget; if (hasMore && el.scrollWidth > el.clientWidth + 1 && el.scrollLeft <= Math.max(300, el.clientWidth / 2)) loadOlder(el); }} onWheel={event => { const el = event.currentTarget; const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY; if (!event.ctrlKey && hasMore && delta < 0 && el.scrollLeft <= Math.max(300, el.clientWidth / 2)) { loadOlder(el); } }} onTouchStart={event => { const el = event.currentTarget; const touch = event.touches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY, atStart: el.scrollLeft <= 2 } : null; }} onTouchEnd={event => { const start = touchStart.current; touchStart.current = null; const touch = event.changedTouches[0]; if (start && touch && start.atStart && touch.clientX - start.x > 30 && touch.clientX - start.x > Math.abs(start.y - touch.clientY)) loadOlder(event.currentTarget); }} onKeyDown={event => { const el = event.currentTarget; if (hasMore && ["ArrowLeft", "PageUp", "Home"].includes(event.key) && el.scrollLeft <= 2) { event.preventDefault(); loadOlder(el); } }}>
             {!isPending && <div className="attendance-grid-header compact-activities-grid-header" style={gridStyle} role="row">
               <div className="attendance-grid-corner" role="columnheader">Aluno</div>
               {lessonGroups.map((group, index) => <div className="attendance-column-heading compact-activity-column-heading compact-lesson-group" role="columnheader" key={`${group.label}-${index}`} style={{ gridColumn: `span ${group.count}` }}><span>{group.label}</span></div>)}

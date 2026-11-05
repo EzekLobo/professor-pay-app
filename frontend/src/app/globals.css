@@ -2836,6 +2836,8 @@ summary:focus-visible {
 .attendance-absence-action:hover, .attendance-absence-action:focus-visible { filter: brightness(1.18); outline: 2px solid #ffd7db; outline-offset: 1px; transform: translateY(-1px); }
 .attendance-absence-action:disabled { cursor: not-allowed; filter: saturate(.65); opacity: .72; transform: none; }
 .compact-activities-list { margin-top: 0; }
+/* Keep wheel and touch gestures native; smooth restarts on each wheel event. */
+.compact-activities-grid-scroll { scroll-behavior: auto; overflow-anchor: none; }
 .compact-activities-class .attendance-class-body { padding: 0; }
 .compact-activities-grid-scroll .attendance-grid-header, .compact-activities-grid-scroll .attendance-grid-row { grid-template-columns: 180px repeat(var(--attendance-columns), 146px); }
 .compact-activities-grid-header { min-height: 32px; }

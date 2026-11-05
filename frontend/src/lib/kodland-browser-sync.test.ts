@@ -154,3 +154,17 @@ it("preserva saldo de aulas no cache e aceita um zero confirmado na leitura de p
  expect(state.disk!.collections.kodland_students[0]).toMatchObject({lesson_credits_remaining:0,lesson_credits_updated_at:"new"});
  expect(state.disk!.collections.kodland_students[0]).not.toHaveProperty("local_note");
 });
+
+it.each(["essential", "schedule", "profiles"] as const)("%s reconcilia alunos ativos no cache apenas com lista completa", async mode => {
+ await kodlandApi.sync("teacher","fixture","essential",{storage:"browser"});
+ state.disk!.collections.kodland_students.push({id:"outside",external_class_id:"other",name:"Outra turma"});
+ vi.stubGlobal("fetch",vi.fn(async()=>Response.json({...base(),students:[],student_group_ids:["g"]})));
+ await kodlandApi.sync("teacher","fixture",mode,{storage:"browser"});
+ expect(state.disk!.collections.kodland_students.map(student=>student.id)).toEqual(["outside"]);
+});
+it("lista parcial não apaga alunos do cache",async()=>{
+ await kodlandApi.sync("teacher","fixture","essential",{storage:"browser"});
+ vi.stubGlobal("fetch",vi.fn(async()=>Response.json({...base(),students:[]})));
+ await kodlandApi.sync("teacher","fixture","essential",{storage:"browser"});
+ expect(state.disk!.collections.kodland_students.map(student=>student.id)).toEqual(["s"]);
+});

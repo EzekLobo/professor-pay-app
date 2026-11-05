@@ -10,6 +10,7 @@ import {
   type KodlandLesson,
 } from "@/lib/kodland-lessons";
 import { parseStudentContact, parseStudentLessonCredits } from "@/lib/student-profile";
+import { isActiveKodlandStudent } from "@/lib/student-ranking";
 import { normalizeStudentName } from "@/lib/student-privacy";
 import { normalizePayroll, payrollList } from "@/lib/kodland-payroll";
 import { kodlandDeliveryState, type KodlandTaskProgress } from "@/lib/kodland-task-progress";
@@ -781,13 +782,13 @@ async function groupsForTeacher(
   return groups;
 }
 
-function studentsFromPayload(payload: unknown, group: Group): Student[] {
+export function studentsFromPayload(payload: unknown, group: Group): Student[] {
   return list(payload).flatMap((value) => {
     const item = record(value);
     const info = record(item.main_info);
     const externalId = text(info.student_id);
     const name = normalizeStudentName(text(info.full_name));
-    if (!externalId || !name) return [];
+    if (!externalId || !name || !isActiveKodlandStudent(text(info.status))) return [];
     const progress = list(item.progress_info);
     const current = progress.reduce(
       (sum, item) => sum + number(record(item).module_current_grade),
@@ -2231,6 +2232,8 @@ export async function POST(request: NextRequest) {
           `student_groups/${group.external_id}/get_students_main_data/`,
           token,
         );
+        // An unexpected payload must never authorize pruning a saved roster.
+        if (record(payload).next || (!Array.isArray(payload) && !["results", "items", "data"].some(key => Array.isArray(record(payload)[key])))) throw new SyncFailure("kodland_unavailable", 502);
         const basicStudents = studentsFromPayload(payload, group);
         const students = mode === "profiles"
           ? await studentsWithProfiles(basicStudents, token, profileCache)
@@ -2245,7 +2248,7 @@ export async function POST(request: NextRequest) {
     const students = groupsWithStudents.flatMap((item) => item.students);
     if (mode === "profiles") {
       trace("completed", { groupCount: active.length, studentCount: students.length });
-      return syncResponse(syncId, { ...emptyCollections(), students });
+      return syncResponse(syncId, { ...emptyCollections(), students, student_group_ids: active.map(group => group.external_id) });
     }
     const teacherId = userId(token);
     const [extraSnapshot, availabilityPayload] = await runStage("calendar", () => Promise.all([
@@ -2280,6 +2283,7 @@ export async function POST(request: NextRequest) {
       return syncResponse(syncId, {
         groups,
         students,
+        student_group_ids: active.map(group => group.external_id),
         reviews: [],
         lessons: snapshots.flatMap((item) => item.lessons),
         extra_lessons: extraSnapshot.items,
@@ -2302,6 +2306,7 @@ export async function POST(request: NextRequest) {
     const response = syncResponse(syncId, {
       groups,
       students,
+      student_group_ids: active.map(group => group.external_id),
       reviews: [],
       lessons: snapshots.flatMap((item) => item.lessons),
       extra_lessons: extraSnapshot.items,

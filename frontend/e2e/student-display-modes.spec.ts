@@ -38,7 +38,17 @@ for (const width of [320, 390, 1440]) {
     await expect(secondClass).not.toHaveAttribute("open", "");
     await page.screenshot({ path: `test-results/student-roster-${width}.png`, fullPage: true });
     await expect(page.getByRole("button", { name: /campos vazios/ })).toHaveCount(0);
-    await expect(firstClass.locator(".class-completion-badge")).toBeVisible();
+    const completion = firstClass.locator(".class-completion-badge");
+    await expect(completion).toBeVisible();
+    for (const badge of await page.locator(".class-completion-badge").all()) {
+      const title = await badge.getAttribute("title");
+      const counts = title?.match(/^(\d+) de (\d+) aulas dadas/);
+      if (counts) {
+        expect(Number(counts[2])).toBeGreaterThan(0);
+        expect(Number(counts[1])).toBeLessThanOrEqual(Number(counts[2]));
+        await expect(badge).toHaveText(`${Math.round(Number(counts[1]) * 100 / Number(counts[2]))}%`);
+      } else await expect(badge).toHaveText("—");
+    }
     await firstClass.locator(".is-full-name").first().click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.keyboard.press("Escape");

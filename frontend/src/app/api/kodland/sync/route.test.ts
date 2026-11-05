@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import {
+  studentsFromPayload,
   availabilityFromTeacherTimetable,
   attachAttendanceSchedule,
   attendanceFromStudentsPayload,
@@ -552,5 +553,16 @@ describe("extra lesson reconciliation", () => {
     );
 
     expect(extra.completed).toBe(false);
+  });
+});
+
+describe("importação de alunos ativos", () => {
+  it("aceita apenas ativos/admitidos e não importa expulsos, inativos ou status desconhecido", () => {
+    const statuses = ["active", "Admitted", " Admitido ", "expelled", "Expulso", "inactive", "", "pending", "unknown"];
+    const group = { external_id: "g", title: "Turma", course_id: "c", course_name: "Curso", student_count: 9, start_date: "", next_lesson_date: "", next_lesson_number: 0, next_lesson_id: "", next_lesson_title: "", next_lesson_url: "", archived: false };
+    const payload = statuses.map((status, i) => ({ main_info: { student_id: String(i), full_name: `Aluno ${i}`, status }, progress_info: [] }));
+    expect(studentsFromPayload(payload, group).map(student => student.status)).toEqual(["active", "Admitted", "Admitido"]);
+    expect(studentsFromPayload({ results: payload }, group)).toHaveLength(3);
+    expect(studentsFromPayload([], group)).toEqual([]);
   });
 });

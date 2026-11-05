@@ -65,3 +65,22 @@ it.each([["TASK_NOT_SUBMITTED", "missing"], ["TASK_SUBMITTED", "submitted"], ["T
  mockProvider({ taskStatus }); const response = await POST(request({ followup_scope: "activities" }));
  expect(response.status).toBe(200); const data = await response.json(); expect(data.task_progress[0].state).toBe(expected);
 });
+
+it("não consulta perfil ou saldo de expulsos e confirma a lista vazia de ativos", async () => {
+ const calls=mockProvider();
+ const source=vi.mocked(fetch).getMockImplementation()!;
+ vi.mocked(fetch).mockImplementation(async(input,init)=>String(input).includes("get_students_main_data")
+  ? Response.json([{main_info:{student_id:"expelled",full_name:"Aluno Expulso",status:"expelled"},progress_info:[]}])
+  : source(input,init));
+ const response=await POST(request({mode:"profiles"}));
+ expect(response.status).toBe(200);
+ expect(await response.json()).toMatchObject({students:[],student_group_ids:["g"]});
+ expect(calls.some(url=>/get_general_info|\/balance\//.test(url))).toBe(false);
+});
+it.each([{error:"unavailable"},{results:[],next:"page=2"}])("não autoriza limpeza com lista inválida ou parcial de alunos",async(payload)=>{
+ mockProvider();const source=vi.mocked(fetch).getMockImplementation()!;
+ vi.mocked(fetch).mockImplementation(async(input,init)=>String(input).includes("get_students_main_data")?Response.json(payload):source(input,init));
+ const response=await POST(request({mode:"profiles"}));
+ expect(response.status).toBeGreaterThanOrEqual(500);
+ expect(await response.json()).not.toHaveProperty("student_group_ids");
+});

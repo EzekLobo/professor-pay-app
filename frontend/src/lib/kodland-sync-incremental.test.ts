@@ -115,3 +115,18 @@ it("preserva créditos em importação essencial e atualiza zero em perfis sem r
  expect(mocks.db.get(key)).toMatchObject({lesson_credits_remaining:0,lesson_credits_updated_at:"new",name:"Ana"});
  expect(mocks.db.get(key)).not.toHaveProperty("local_note");
 });
+
+it.each(["essential", "schedule", "profiles"] as const)("%s remove aluno que deixou de ser ativo apenas nas turmas confirmadas", async mode => {
+ await kodlandApi.sync("teacher","fixture","essential");
+ mocks.db.set("users/incremental/kodland_students/outside",{id:"outside",external_class_id:"other",status:"active",name:"Outra turma"});
+ vi.stubGlobal("fetch",vi.fn(async()=>Response.json({...snapshot(),students:[],student_group_ids:["g"]})));
+ await kodlandApi.sync("teacher","fixture",mode);
+ expect(mocks.db.has("users/incremental/kodland_students/s")).toBe(false);
+ expect(mocks.db.has("users/incremental/kodland_students/outside")).toBe(true);
+});
+it("lista parcial sem confirmação não remove aluno salvo", async () => {
+ await kodlandApi.sync("teacher","fixture","essential");
+ vi.stubGlobal("fetch",vi.fn(async()=>Response.json({...snapshot(),students:[]})));
+ await kodlandApi.sync("teacher","fixture","essential");
+ expect(mocks.db.has("users/incremental/kodland_students/s")).toBe(true);
+});

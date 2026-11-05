@@ -1,5 +1,21 @@
 # Estado atual
 
+## Importação apenas de alunos ativos — 05/11/2026
+
+- studentsFromPayload usa isActiveKodlandStudent (active/admitted/admitido), antes de perfis, saldos e descoberta de extras. Cadastro essencial/agenda/perfis retorna student_group_ids apenas após obter listas completas; resposta inválida ou paginada pendente falha sem autorizar limpeza.
+- API/cache removem alunos ausentes do roster ativo somente nas turmas confirmadas; perfil/essencial/agenda preservam outras turmas e snapshots antigos sem marcador. Não altera histórico financeiro. Novidade 2026110508; requer nova sincronização de cadastro/perfis para reconciliar registros antigos.
+- Validação: suíte web completa 608 testes aprovada, mais 3 novos casos de endpoint aprovados no arquivo followup (14 testes); typecheck/lint/diff check. Sem sincronização real ou publicação nesta sessão.
+
+## Percentual de aulas dadas — 05/11/2026
+
+- Substitui a regra anterior de posição da próxima aula: percentual usa completedLessons / totalLessons das aulas registradas por turma. Kodland exige lesson_passed ou status concluído explícito; data passada e next_lesson_number não inferem conclusão. Exclui canceladas/remarcadas/adiadas, deduplica por ID de catálogo preservando confirmação; próprias usam ocorrências held únicas. Sem total mostra travessão. Tooltip e nome acessível mostram numerador/denominador.
+- Validação: 30 testes unitários, typecheck, lint, diff check e 3 E2Es Chromium em 320/390/1440 passaram; conferência matemática dos indicadores na demo local. Sem validação na conta real e sem publicação. Novidade 2026110507.
+
+## Rolagem responsiva das atividades — 05/11/2026
+
+- Grade compacta usa scroll-behavior auto e scrollBy instant na roda, evitando reinício de animação por evento. Módulos anteriores entram a meia viewport do limite (mínimo 300px); trava por inserção pendente substitui cooldown de 350ms. Preserva âncora ao inserir e Ctrl+roda para zoom.
+- Validação: typecheck, lint, 27 testes unitários e 2 E2Es Chromium (320/1440) passaram, incluindo deslocamento imediato da roda e zoom. Dados fictícios locais; sem publicação ou validação de desempenho na conta real. Novidade 2026110506.
+
 ## Ordem cronológica das atividades — 05/11/2026
 
 - Grade abre no fim à direita, com aulas antigas à esquerda. Módulos mais antigos são inseridos à esquerda com rolagem, toque ou teclado; após inserção, preserva posição visual. Teste de desktop/celular cobre ordenação e posição.

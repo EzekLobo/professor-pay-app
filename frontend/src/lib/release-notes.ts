@@ -10,6 +10,21 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110508, date: "2026-11-05", title: "Sincronização de alunos ativos",
+    description: "A importação de alunos considera apenas os ativos. Ao atualizar a lista completa da turma, alunos expulsos ou inativos deixam de fazer parte do cadastro sincronizado.",
+    href: "/classes", action: "Ver turmas",
+  },
+  {
+    version: 2026110507, date: "2026-11-05", title: "Percentual de aulas dadas",
+    description: "O percentual da turma considera aulas confirmadas como dadas e informa a contagem sobre o total registrado, sem cancelamentos ou remarcações.",
+    href: "/classes", action: "Ver turmas",
+  },
+  {
+    version: 2026110506, date: "2026-11-05", title: "Rolagem das atividades",
+    description: "A grade responde diretamente à rolagem e antecipa os módulos anteriores, preservando a posição das atividades.",
+    href: "/classes", action: "Ver turmas",
+  },
+  {
     version: 2026110505, date: "2026-11-05", title: "Atividades em ordem cronológica",
     description: "A grade abre nas atividades mais recentes à direita. Role para a esquerda para consultar módulos anteriores.",
     href: "/classes", action: "Ver turmas",

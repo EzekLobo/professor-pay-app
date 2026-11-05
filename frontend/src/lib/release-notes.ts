@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110505, date: "2026-11-05", title: "Atividades em ordem cronológica",
+    description: "A grade abre nas atividades mais recentes à direita. Role para a esquerda para consultar módulos anteriores.",
+    href: "/classes", action: "Ver turmas",
+  },
+  {
     version: 2026110504, date: "2026-11-05", title: "Atividades e módulos",
     description: "Módulos anteriores aparecem ao continuar a rolagem. Atividades sincronizadas distinguem entrega e correção quando a Kodland informa o estado.",
     href: "/classes", action: "Ver turmas",

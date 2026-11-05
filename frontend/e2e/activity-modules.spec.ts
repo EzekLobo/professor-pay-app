@@ -11,8 +11,12 @@ for (const width of [320, 1440]) test(`módulos começam pela aula recente e per
   await expect(target.getByText('Atividades por módulo:', { exact: false })).toHaveCount(0);
   await expect(target.locator('.compact-activity-state')).toHaveCount(0);
   await expect(target.getByRole('button', { name: 'Carregar módulos anteriores' })).toHaveCount(0);
-  await grid.evaluate(el => { el.scrollTo({ left: el.scrollWidth, behavior: "instant" }); el.dispatchEvent(new Event("scroll")); });
-  if (width === 1440) { await grid.focus(); await page.keyboard.press('ArrowRight'); }
+  if (width === 320) await expect.poll(() => grid.evaluate(el => Math.abs(el.scrollWidth - el.clientWidth - el.scrollLeft) < 2)).toBe(true);
+  await grid.evaluate(el => { el.scrollTo({ left: 0, behavior: "instant" }); el.dispatchEvent(new Event("scroll")); });
+  if (width === 1440) { await grid.focus(); await page.keyboard.press('ArrowLeft'); }
   await expect(grid.getByRole('columnheader', { name: /M1L/ }).first()).toBeAttached();
+  if (width === 320) await expect.poll(() => grid.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
+  const headers = await grid.locator(".compact-lesson-group").allTextContents();
+  expect(headers.findIndex(text => text.includes("M1L"))).toBeLessThan(headers.findIndex(text => text.includes("M2L")));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

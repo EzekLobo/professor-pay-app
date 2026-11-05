@@ -7,7 +7,7 @@ import { NotificationResolution, useStudentNotifications } from "./student-notif
 import { subscribeStudentNotifications } from "@/lib/student-notification-store";
 import { notificationMessage, needsNotificationContact, DEFAULT_ACTIVITY_MESSAGE } from "@/lib/student-notification-rules";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { MessageCircle, RefreshCw, List, LayoutGrid, Filter, Search, X, ClipboardCheck, Users, Presentation, FileText, BookOpen, Info, MoreVertical, ChevronDown, Percent, Settings, EyeOff, House } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
@@ -148,7 +148,7 @@ export function activityModules(columns: readonly CompactActivityColumn[]): Comp
   }
   return [...groups.entries()].sort(([a], [b]) => (Number(b.slice(1)) || 0) - (Number(a.slice(1)) || 0)).map(([, items]) => [...items].sort((a, b) => {
     const lesson = (value: string) => Number(value.match(/L(\d+)/i)?.[1] ?? 0);
-    return lesson(b.lessonLabel) - lesson(a.lessonLabel) || a.sortKey.localeCompare(b.sortKey, "pt-BR");
+    return lesson(a.lessonLabel) - lesson(b.lessonLabel) || a.sortKey.localeCompare(b.sortKey, "pt-BR");
   }));
 }
 
@@ -593,7 +593,10 @@ export function CompactActivitiesGrid({
 }) {
   const mode = displayMode ?? (pendingOnly ? "pending" : "complete");
   const activitiesRoot = useRef<HTMLDivElement>(null);
-  const touchStart = useRef<{ x: number; y: number; atEnd: boolean } | null>(null);
+  const touchStart = useRef<{ x: number; y: number; atStart: boolean } | null>(null);
+  const pendingPrepend = useRef<{ key: string; width: number; left: number } | null>(null);
+  const positionedKey = useRef<string | null>(null);
+  const ignoreScroll = useRef(false);
   const loadCooldown = useRef<Record<string, number>>({});
   useEffect(() => {
     const root = activitiesRoot.current;
@@ -612,6 +615,23 @@ export function CompactActivitiesGrid({
   }, []);
   const [openClassKey, setOpenClassKey] = useState<string | null>(null);
   const [moduleLimits, setModuleLimits] = useState<Record<string, number>>({});
+  useLayoutEffect(() => {
+    if (!openClassKey || mode === "students") { positionedKey.current = null; return; }
+    const grid = [...(activitiesRoot.current?.querySelectorAll<HTMLElement>(".compact-activities-grid-scroll") ?? [])].find(item => item.dataset.classKey === openClassKey);
+    if (!grid) return;
+    const pending = pendingPrepend.current;
+    if (pending?.key === openClassKey) {
+      ignoreScroll.current = true;
+      grid.scrollTo({ left: pending.left + grid.scrollWidth - pending.width, behavior: "instant" });
+      pendingPrepend.current = null;
+    } else if (positionedKey.current !== openClassKey) {
+      ignoreScroll.current = true;
+      grid.scrollTo({ left: grid.scrollWidth, behavior: "instant" });
+      positionedKey.current = openClassKey;
+    } else return;
+    const frame = requestAnimationFrame(() => { ignoreScroll.current = false; });
+    return () => { cancelAnimationFrame(frame); ignoreScroll.current = false; };
+  }, [openClassKey, mode, moduleLimits]);
   const [openClassMenu, setOpenClassMenu] = useState<string | null>(null);
   const [editingClassKey, setEditingClassKey] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
@@ -651,11 +671,12 @@ export function CompactActivitiesGrid({
       const studentsOnly = mode === "students";
       const modules = activityModules(classModel.columns);
       const limit = moduleLimits[classModel.key] ?? 1;
-      const columns = modules.slice(0, limit).flat();
+      const columns = modules.slice(0, limit).reverse().flat();
       const hasMore = limit < modules.length;
-      const loadOlder = () => {
-        if (!hasMore || Date.now() - (loadCooldown.current[classModel.key] ?? 0) < 350) return;
+      const loadOlder = (grid: HTMLElement) => {
+        if (!hasMore || ignoreScroll.current || Date.now() - (loadCooldown.current[classModel.key] ?? 0) < 350) return;
         loadCooldown.current[classModel.key] = Date.now();
+        pendingPrepend.current = { key: classModel.key, width: grid.scrollWidth, left: grid.scrollLeft };
         setModuleLimits(current => ({ ...current, [classModel.key]: Math.min(modules.length, (current[classModel.key] ?? 1) + 1) }));
       };
       const lessonGroups = columns.reduce<Array<{ label: string; count: number }>>((groups, column) => {
@@ -676,7 +697,7 @@ export function CompactActivitiesGrid({
         <div className="correction-class-body attendance-class-body">
           {studentsOnly ? <div className="class-students-view" role="table" aria-label={`Alunos da turma ${classModel.name}`}><div className="class-students-header" role="row"><span role="columnheader">Aluno</span><span role="columnheader">Pontuação</span><span role="columnheader" title="Saldo global de créditos de aulas no perfil da Kodland">Saldo de aulas</span></div>{classModel.rows.map(row => <div className="class-students-row" role="row" key={row.key}><div role="cell">{studentSummary(row, classModel.key, true)}</div><span role="cell">{pointsFor(row) == null ? "Não informado" : `${new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts`}</span><span role="cell" title={row.student?.lesson_credits_updated_at ? `Saldo atualizado em ${new Date(row.student.lesson_credits_updated_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : "Saldo global de aulas. Para carregar, use Atualizar perfis e saldos no modo Alunos."}>{creditFor(row.student)}</span></div>)}</div> : <>
           {!isPending && !classModel.columns.length && <p className="complete-activities-note">Nenhuma informação de atividades sincronizada para esta turma.</p>}
-          <div className={`attendance-grid-scroll compact-activities-grid-scroll${isPending ? " compact-pending-list" : ""}`} tabIndex={0} role="grid" aria-label={`Atividades da turma ${classModel.name}`} aria-rowcount={classModel.rows.length + 1} aria-colcount={columns.length + 1} onScroll={event => { const el = event.currentTarget; if (hasMore && el.scrollWidth > el.clientWidth + 1 && el.scrollLeft + el.clientWidth >= el.scrollWidth - 24) loadOlder(); }} onWheel={event => { const el = event.currentTarget; const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY; if (hasMore && delta > 0 && el.scrollLeft + el.clientWidth >= el.scrollWidth - 2) { event.preventDefault(); loadOlder(); } }} onTouchStart={event => { const el = event.currentTarget; const touch = event.touches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY, atEnd: el.scrollLeft + el.clientWidth >= el.scrollWidth - 2 } : null; }} onTouchEnd={event => { const start = touchStart.current; touchStart.current = null; const touch = event.changedTouches[0]; if (start && touch && start.atEnd && start.x - touch.clientX > 30 && start.x - touch.clientX > Math.abs(start.y - touch.clientY)) loadOlder(); }} onKeyDown={event => { const el = event.currentTarget; if (hasMore && ["ArrowRight", "PageDown", "End"].includes(event.key) && el.scrollLeft + el.clientWidth >= el.scrollWidth - 2) { event.preventDefault(); loadOlder(); } }}>
+          <div className={`attendance-grid-scroll compact-activities-grid-scroll${isPending ? " compact-pending-list" : ""}`} tabIndex={0} role="grid" aria-label={`Atividades da turma ${classModel.name}`} data-class-key={classModel.key} aria-rowcount={classModel.rows.length + 1} aria-colcount={columns.length + 1} onScroll={event => { const el = event.currentTarget; if (hasMore && el.scrollWidth > el.clientWidth + 1 && el.scrollLeft <= 24) loadOlder(el); }} onWheel={event => { const el = event.currentTarget; const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY; if (hasMore && delta < 0 && el.scrollLeft <= 2) { event.preventDefault(); loadOlder(el); } }} onTouchStart={event => { const el = event.currentTarget; const touch = event.touches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY, atStart: el.scrollLeft <= 2 } : null; }} onTouchEnd={event => { const start = touchStart.current; touchStart.current = null; const touch = event.changedTouches[0]; if (start && touch && start.atStart && touch.clientX - start.x > 30 && touch.clientX - start.x > Math.abs(start.y - touch.clientY)) loadOlder(event.currentTarget); }} onKeyDown={event => { const el = event.currentTarget; if (hasMore && ["ArrowLeft", "PageUp", "Home"].includes(event.key) && el.scrollLeft <= 2) { event.preventDefault(); loadOlder(el); } }}>
             {!isPending && <div className="attendance-grid-header compact-activities-grid-header" style={gridStyle} role="row">
               <div className="attendance-grid-corner" role="columnheader">Aluno</div>
               {lessonGroups.map((group, index) => <div className="attendance-column-heading compact-activity-column-heading compact-lesson-group" role="columnheader" key={`${group.label}-${index}`} style={{ gridColumn: `span ${group.count}` }}><span>{group.label}</span></div>)}

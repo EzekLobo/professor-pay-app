@@ -49,7 +49,7 @@ describe("organização da grade por módulos", () => {
   it("ordena os módulos e aulas mais recentes primeiro e mantém módulos desconhecidos", () => {
     const column = (lessonLabel: string, moduleLabel?: string) => ({ key: lessonLabel, lessonLabel, moduleLabel, taskLabel: lessonLabel, sortKey: lessonLabel });
     const groups = activityModules([column("M1L1", "M1"), column("M10L1", "M10"), column("M2L1", "M2"), column("M2L3", "M2"), column("Aula sem módulo")]);
-    expect(groups.map(items => items.map(item => item.lessonLabel))).toEqual([["M10L1"], ["M2L3", "M2L1"], ["M1L1"], ["Aula sem módulo"]]);
+    expect(groups.map(items => items.map(item => item.lessonLabel))).toEqual([["M10L1"], ["M2L1", "M2L3"], ["M1L1"], ["Aula sem módulo"]]);
   });
   it("mostra os estados conhecidos sem interpretar códigos desconhecidos", () => {
     const states = ["missing", "submitted", "corrected", "unknown"] as const;

@@ -1,5 +1,9 @@
 # Estado atual
 
+## Ordem cronológica das atividades — 05/11/2026
+
+- Grade abre no fim à direita, com aulas antigas à esquerda. Módulos mais antigos são inseridos à esquerda com rolagem, toque ou teclado; após inserção, preserva posição visual. Teste de desktop/celular cobre ordenação e posição.
+
 ## Rolagem de módulos e estados de atividades — 05/11/2026
 
 - Botão removido; módulo anterior é exibido por rolagem, gesto horizontal ou teclado no fim da grade, inclusive sem overflow. Limite por turma e debounce evitam disparos duplicados.

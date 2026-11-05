@@ -1,5 +1,9 @@
 # Estado atual
 
+## Atualização da grade em destaque — 05/11/2026
+
+- Cabeçalho da grade exibe data e hora da última atualização entre o título e informações, com organização responsiva; quando não registrada, informa explicitamente.
+
 ## Percentual do curso pela aula atual — 04/11/2026
 
 - O indicador compacto das turmas usa `next_lesson_number` como posição atual (limitada ao total de aulas catalogadas) e calcula `aula atual / total de aulas`; snapshots antigos usam a quantidade de aulas passadas como fallback. O tooltip informa o numerador e denominador.

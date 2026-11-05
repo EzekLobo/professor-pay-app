@@ -51,3 +51,18 @@ test("grade mostra atualização e legenda somente ao consultar informações", 
   await expect(info.getByLabel("Legenda da grade")).toBeVisible();
   await expect(info).toContainText(/atualiza/i);
 });
+
+for (const width of [320, 1440]) test(`última atualização permanece visível no cabeçalho da grade (${width}px)`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 });
+  await page.goto('/demo#dashboard');
+  const heading = page.locator('.week-section-heading');
+  const title = heading.getByRole('heading', { name: 'Grade de horários' });
+  const timestamp = heading.locator('.week-header-updated');
+  const info = heading.getByRole('button', { name: 'Informações da grade' });
+  await expect(timestamp).toContainText('Última atualização:');
+  await expect(timestamp.locator('time')).toBeVisible();
+  const [left, middle, right] = await Promise.all([title.boundingBox(), timestamp.boundingBox(), info.boundingBox()]);
+  expect(middle!.x).toBeGreaterThanOrEqual(left!.x + left!.width - 1);
+  expect(middle!.x + middle!.width).toBeLessThanOrEqual(right!.x + 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

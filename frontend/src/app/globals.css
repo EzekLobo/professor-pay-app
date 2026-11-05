@@ -3845,3 +3845,21 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
   .class-students-row > span:nth-child(2)::before { content: "Pontuação: "; color: var(--muted); }
   .class-students-row > span:nth-child(3)::before { content: "Saldo: "; color: var(--muted); }
 }
+
+/* A atualização da grade permanece visível também em telas pequenas. */
+.week-section-heading { align-items: center; }
+.week-header-updated { flex: 1 1 auto; min-width: 0; margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.3; text-align: center; }
+.week-header-updated time { color: var(--text); font-weight: 700; white-space: nowrap; }
+.week-info-button { width: 44px; min-width: 44px; height: 44px; padding: 8px; }
+@media (max-width: 760px) { .week-section-heading .week-actions { flex: 1 0 100%; } .week-header-updated { font-size: .72rem; } }
+@media (max-width: 420px) {
+  .weekly-schedule > .week-section-heading { gap: 4px; }
+  .week-section-heading .week-heading-copy h2 { font-size: .82rem; }
+  .week-header-updated { font-size: .68rem; }
+}
+@media (max-width: 760px) {
+  .weekly-schedule > .week-section-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px; }
+  .week-heading-copy { min-width: 0; }
+  .week-section-heading .week-actions { grid-column: 1 / -1; }
+  .week-header-updated time { white-space: normal; }
+}

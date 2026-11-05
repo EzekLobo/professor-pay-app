@@ -336,13 +336,16 @@ export function WeekSchedule({
   });
   return (
     <section className="panel weekly-schedule page-fill-panel" data-tour="dashboard-schedule">
-      <div className="section-heading">
+      <div className="section-heading week-section-heading">
         <div className="week-heading-copy">
           <h2>Grade de horários</h2>
 
         </div>
+        <p className="week-header-updated">
+          {manualClasses.length > 0 && groups.length === 0 ? "Atualizadas ao salvar" : <>Última atualização: {scheduleLastUpdatedAt ? <time dateTime={scheduleLastUpdatedAt}>{new Intl.DateTimeFormat("pt-BR", { timeZone, dateStyle: "short", timeStyle: "short" }).format(new Date(scheduleLastUpdatedAt))}</time> : "não registrada"}</>}
+        </p>
+        <button type="button" className="button button-ghost symbol-action week-info-button" aria-label="Informações da grade" title="Atualização e legenda da grade" onClick={() => setScheduleInfoOpen(true)}><Info size={18} aria-hidden="true" /></button>
         <div className="week-actions">
-          <button type="button" className="button button-ghost symbol-action" aria-label="Informações da grade" title="Atualização e legenda da grade" onClick={() => setScheduleInfoOpen(true)}><Info size={18} aria-hidden="true" /></button>
           {externalSyncEnabled && (groups.length > 0 || manualClasses.length === 0) && <button
             className="button button-ghost symbol-action"
             type="button"

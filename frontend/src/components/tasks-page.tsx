@@ -46,13 +46,38 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
   const [syncStatus, setSyncStatus] = useState<{ pending: number; error: string | null }>({ pending: 0, error: null });
 
   useEffect(() => {
+    if (!searchOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Element && !event.target.closest('.tasks-search-popover, [aria-controls="task-search-field"]')) setSearchOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [searchOpen]);
+
+  useEffect(() => {
     let active = true;
+    let fetching = false;
     const refreshStatus = () => { if (active) setSyncStatus(store.status?.() ?? { pending: 0, error: null }); };
-    void Promise.all([store.list(), store.columns?.() ?? Promise.resolve(defaultTaskLists())]).then(([items, savedLists]) => { if (active) { setCards(items); setLists(recoverTaskLists(savedLists, items)); setLoading(false); refreshStatus(); } }).catch((reason) => { if (active) { setError(reason instanceof Error ? reason.message : "Não foi possível carregar as tarefas."); setLoading(false); } });
+    const refresh = async (initial = false) => {
+      if (fetching || !active || (!initial && (document.visibilityState !== "visible" || !navigator.onLine))) return;
+      fetching = true;
+      try {
+        const [items, savedLists] = await Promise.all([store.list(), store.columns?.() ?? Promise.resolve(defaultTaskLists())]);
+        if (active) { setCards(items); setLists(recoverTaskLists(savedLists, items)); setError(""); refreshStatus(); }
+      } catch (reason) {
+        if (active) setError(reason instanceof Error ? reason.message : "Não foi possível carregar as tarefas.");
+      } finally { fetching = false; if (active) setLoading(false); }
+    };
+    // Initial reads also expose the local offline queue; subsequent refreshes require connectivity.
+    void refresh(true);
     const unsubscribe = store.subscribe?.(refreshStatus);
-    const sync = () => { if (store.sync) void store.sync().then(refreshStatus).catch(refreshStatus); };
+    const sync = () => { void (store.sync?.() ?? Promise.resolve()).then(() => refresh()).catch(refreshStatus); };
+    const resume = () => { void refresh(); };
     window.addEventListener("online", sync);
-    return () => { active = false; unsubscribe?.(); window.removeEventListener("online", sync); };
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", resume);
+    const timer = window.setInterval(resume, 60000);
+    return () => { active = false; unsubscribe?.(); window.clearInterval(timer); window.removeEventListener("online", sync); window.removeEventListener("focus", resume); document.removeEventListener("visibilitychange", resume); };
   }, [store, reload]);
 
   const activeLists = lists.filter((list) => !list.archived_at);
@@ -122,7 +147,6 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
 
   return <div className="tasks-page">
     <div className="tasks-toolbar">
-      <div><h2>Minhas tarefas</h2><p className="muted">Organize suas atividades e problemas a resolver.</p></div>
       <div className="tasks-toolbar-actions">
         <Button type="button" className="button-ghost task-icon-button" aria-label={searchOpen ? "Fechar busca" : "Buscar tarefas"} title={searchOpen ? "Fechar e limpar busca" : "Buscar tarefas"} aria-expanded={searchOpen} aria-controls="task-search-field" onClick={() => { setSearchOpen((value) => !value); if (searchOpen) setSearch(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
         <Button type="button" onClick={create} disabled={loading || busy || activeLists.length === 0}><Plus size={17} aria-hidden="true" />Nova tarefa</Button>

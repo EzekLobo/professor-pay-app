@@ -3795,7 +3795,7 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .compact-class-course { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: .72rem; font-weight: 500; }
 
 .correction-filter-anchor { position: relative; flex: 0 0 auto; }
-.correction-filter-dropdown { position: absolute; z-index: 60; top: calc(100% + 8px); right: 0; width: min(260px, calc(100vw - 32px)); padding: 14px; border: 1px solid var(--border-bright); border-radius: 12px; background: #0d1b30; box-shadow: 0 12px 32px rgb(0 0 0 / 35%); }
+.correction-filter-dropdown { width: min(280px, calc(100vw - 24px)); padding: 14px; overflow-y: auto; border-color: var(--border-bright); border-radius: 12px; background: #0d1b30; box-shadow: 0 12px 32px rgb(0 0 0 / 35%); }
 .correction-filter-dropdown .field { display: grid; gap: 8px; font-size: .78rem; color: var(--muted); }
 .correction-filter-dropdown .input { width: 100%; min-width: 0; }
 

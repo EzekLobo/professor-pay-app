@@ -10,6 +10,16 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110602, date: "2026-11-06", title: "Atualização ao abrir as páginas",
+    description: "Tarefas, atividades dos alunos, presença e grade do Resumo consultam os dados ao abrir e voltam a conferir a cada minuto enquanto a página está visível. As respostas atualizam a tela automaticamente.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
+    version: 2026110601, date: "2026-11-06", title: "Dropdown de filtros e cursos completos",
+    description: "O filtro de Alunos e Presença permanece ancorado ao botão no celular, e cursos Roblox sem identificador compartilhado aparecem separados para preservar seus materiais.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
     version: 2026110505, date: "2026-11-05", title: "Atividades em ordem cronológica",
     description: "A grade abre nas atividades mais recentes à direita. Role para a esquerda para consultar módulos anteriores.",
     href: "/classes", action: "Ver turmas",

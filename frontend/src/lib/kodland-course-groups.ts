@@ -23,8 +23,17 @@ const cleanCourseName = (value: string) =>
   value.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
 
 const courseIdentity = (group: KodlandGroup) => {
-  const id = group.course_id?.trim() || group.course_name.match(/^\[(\d+)\]/)?.[1];
-  return id ? `course-${id}` : `name-${cleanCourseName(group.course_name || group.title).toLocaleLowerCase()}`;
+  const id = group.course_id?.trim() || group.course_name.match(/^\s*\[(\d+)\]/)?.[1];
+  if (id) return `course-${id}`;
+
+  // A missing provider course id is not evidence that two Roblox records are
+  // the same course. Keep each group as its own catalog so one course's
+  // materials cannot overwrite another's. Legacy rows without an external id
+  // still fall back to their normalized name.
+  const groupId = group.external_id?.trim();
+  return groupId
+    ? `group-${groupId}`
+    : `name-${cleanCourseName(group.course_name || group.title).toLocaleLowerCase()}`;
 };
 
 const legacyLessonModule = (lesson: ModuleLesson) =>

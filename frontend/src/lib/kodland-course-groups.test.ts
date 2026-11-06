@@ -61,6 +61,20 @@ describe("groupKodlandLessonsByCourse", () => {
     expect(groupKodlandLessonsByCourse([group("roblox", "Roblox"), python], [])).toHaveLength(2);
   });
 
+  it("keeps Roblox courses separate when legacy rows do not expose a course id", () => {
+    const first = { ...group("roblox-1192", "Roblox"), course_id: "", course_name: "Roblox" };
+    const second = { ...group("roblox-2048", "Roblox"), course_id: "", course_name: "Roblox" };
+
+    const courses = groupKodlandLessonsByCourse([first, second], [
+      lesson(first.external_id, 1),
+      lesson(second.external_id, 1, "https://example.test/second-course"),
+    ]);
+
+    expect(courses).toHaveLength(2);
+    expect(courses.map((item) => item.groups[0]?.external_id)).toEqual(["roblox-1192", "roblox-2048"]);
+    expect(courses[1]?.lessons[0]?.slides_url).toContain("second-course");
+  });
+
   it("organizes lessons by module while preserving the catalog order within each module", () => {
     const modules = groupLessonsByModule([
       { ...lesson("group-a", 5), module_number: "2", lesson_number: 1, title: "M2.L1" },

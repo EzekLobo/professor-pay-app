@@ -17,6 +17,19 @@
 
 - Cabeçalho da grade exibe data e hora da última atualização entre o título e informações, com organização responsiva; quando não registrada, informa explicitamente.
 
+## Atualização das páginas na entrada — 06/11/2026
+
+- O scheduler ativo atualiza atividades/ranking, presença por turma ou grade `schedule` ao entrar na área correspondente, retomar foco/conexão e a cada minuto visível. `corrections-page` anuncia a aba após restaurar preferências; consulta inicial da aba responde ao handshake do scheduler para não perder eventos na montagem.
+- Navegação durante requisição mantém revisão pendente; execução serial respeita UID/integração/prioridade manual. Falhas preservam dados e retomam após 30s. Eventos existentes recarregam respostas persistidas nas telas. Meu quadro também relê tarefas/listas na entrada e retomada/minuto visível.
+- Busca de Meu quadro fecha ao clicar fora, preservando o filtro e liberando os controles do celular. Operação e limites em `docs/AUTO_SYNC.md`; novidade 2026110602.
+- Confirmado: 592 testes web, typecheck/lint/build, 4 E2E de Turmas/Presença e 3 de Tarefas em 320/390/1440. Os 2 E2E mobile de Tarefas inicialmente expuseram o popover sobre Arquivo; passaram após corrigir clique externo. Consultas autenticadas à Kodland e publicação ainda não verificadas.
+
+## Dropdown de filtros e cursos Roblox separados — 06/11/2026
+
+- O dropdown de filtros de Alunos/Presença usa portal ancorado ao botão, acompanha viewport/rolagem e mantém clique externo, Escape e foco de retorno sem ser cortado pelo toolbar.
+- Catálogos Kodland sem `course_id` não são mais agrupados apenas pelo nome: cada `external_id` fica separado para preservar materiais específicos entre cursos Roblox legados.
+- Validação confirmada: 588 testes web, typecheck, lint, build e E2E do fluxo em 320/390/1440 px.
+
 ## Percentual do curso pela aula atual — 04/11/2026
 
 - O indicador compacto das turmas usa `next_lesson_number` como posição atual (limitada ao total de aulas catalogadas) e calcula `aula atual / total de aulas`; snapshots antigos usam a quantidade de aulas passadas como fallback. O tooltip informa o numerador e denominador.

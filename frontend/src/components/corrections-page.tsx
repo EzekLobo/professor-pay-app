@@ -26,6 +26,7 @@ import { activeStudentsRankedByPoints, kodlandStudentPoints, isActiveKodlandStud
 import { whatsappUrl } from "@/lib/whatsapp";
 import { ManualAttendanceGrid } from "@/components/manual-attendance-grid";
 import type { ManualAdapters } from "@/lib/manual-adapters";
+import { HeaderDropdown } from "@/components/header-dropdown";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => lessons.find((lesson) => {
@@ -803,22 +804,18 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const [viewMode, setViewMode] = useState<"attendance" | "activities">("activities");
   const [activitiesView, setActivitiesView] = useState<"list" | "compact">(unified ? "compact" : "list");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const filterRoot = useRef<HTMLDivElement>(null);
+  const filterButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!filtersOpen) return;
-    filterRoot.current?.querySelector<HTMLElement>("select, .favorite-filter-choice")?.focus();
-    const onPointer = (event: PointerEvent) => {
-      if (event.target instanceof Node && !filterRoot.current?.contains(event.target)) setFiltersOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setFiltersOpen(false);
-      filterRoot.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    };
-    document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("pointerdown", onPointer); document.removeEventListener("keydown", onKey); };
+    let focusFrame = 0;
+    const frame = window.requestAnimationFrame(() => {
+      // HeaderDropdown measures first and mounts its portal on the following
+      // render, so wait one more frame before moving focus into it.
+      focusFrame = window.requestAnimationFrame(() => {
+        document.getElementById("correction-filter-dropdown")?.querySelector<HTMLElement>("select, .favorite-filter-choice")?.focus();
+      });
+    });
+    return () => { window.cancelAnimationFrame(frame); window.cancelAnimationFrame(focusFrame); };
   }, [filtersOpen]);
   const [legendOpen, setLegendOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -927,6 +924,14 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       setLoading(false);
     }
   }, [demo]);
+
+  useEffect(() => {
+    if (demo || !viewPreferencesLoaded) return;
+    const announce = () => window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: viewMode }));
+    window.addEventListener("nexusclass:kodland-page-request", announce);
+    announce();
+    return () => window.removeEventListener("nexusclass:kodland-page-request", announce);
+  }, [demo, viewMode, viewPreferencesLoaded]);
 
   async function syncCorrections() {
     if (syncing) return;
@@ -1114,15 +1119,15 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
             <button type="button" aria-label="Lista" title="Visualização em lista" aria-pressed={activitiesView === "list"} className={activitiesView === "list" ? "active" : ""} onClick={() => setActivitiesView("list")}><List size={18} aria-hidden="true" /></button>
             <button type="button" aria-label="Compacto" title="Visualização compacta" aria-pressed={activitiesView === "compact"} className={activitiesView === "compact" ? "active" : ""} onClick={() => setActivitiesView("compact")}><LayoutGrid size={18} aria-hidden="true" /></button>
           </div>}
-          <div className="correction-filter-anchor" ref={filterRoot}>
-            <Button type="button" className="button-ghost symbol-action" aria-label="Abrir filtros" title="Filtros" aria-expanded={filtersOpen} aria-controls="correction-filter-dropdown" onClick={() => setFiltersOpen(open => !open)}><Filter size={18} aria-hidden="true" /></Button>
-            {filtersOpen && <div id="correction-filter-dropdown" className="correction-filter-dropdown" role="region" aria-label="Filtros do acompanhamento">
+          <div className="correction-filter-anchor">
+            <button ref={filterButton} type="button" className="button button-ghost symbol-action" aria-label="Abrir filtros" title="Filtros" aria-expanded={filtersOpen} aria-controls="correction-filter-dropdown" onClick={() => setFiltersOpen(open => !open)}><Filter size={18} aria-hidden="true" /></button>
+            <HeaderDropdown open={filtersOpen} id="correction-filter-dropdown" label="Filtros do acompanhamento" trigger={filterButton} onClose={() => setFiltersOpen(false)} className="correction-filter-dropdown">
         <div className="form">
           {viewMode === "attendance" ? <FavoriteFilterOptions key="attendance" scope={`attendance.${preferenceKey}`} value={attendanceFilter} options={[{ value: "ALL", label: "Todos" }, { value: "ABSENT", label: "Com faltas" }, { value: "PRESENT", label: "Com presença" }]} onChange={value => setAttendanceFilter(value as AttendanceFilter)} />
             : activitiesView === "compact" ? <FavoriteFilterOptions key="activities" scope={`activities.${preferenceKey}`} value={studentDisplayMode} options={[{ value: "complete", label: "Completo" }, { value: "pending", label: "Correções pendentes" }, { value: "students", label: "Alunos" }]} onChange={value => setStudentDisplayMode(value as StudentDisplayMode)} />
               : <label className="field">Agrupar por<select className="input" aria-label="Organizar atividades" value={grouping} onChange={(event) => setGrouping(event.target.value as ReviewGrouping)}><option value="class">Turma</option><option value="student">Aluno</option><option value="lesson">Aula</option></select></label>}
         </div>
-            </div>}
+            </HeaderDropdown>
           </div>
           <Button type="button" className="button-ghost symbol-action" aria-label={searchOpen ? "Fechar busca" : "Abrir busca"} title={searchOpen ? "Fechar e limpar busca" : "Buscar aluno, turma ou atividade"} aria-expanded={searchOpen} aria-controls="correction-search-field" onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
           {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label={studentDisplayMode === "students" && viewMode === "activities" ? "Atualizar perfis e saldos" : "Atualizar correções"} title={syncing ? "Atualizando" : studentDisplayMode === "students" && viewMode === "activities" ? "Atualizar perfis e saldos" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}

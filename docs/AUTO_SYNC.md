@@ -2,7 +2,11 @@
 
 ## Regras ativas
 
-A rotina autenticada é `use-kodland-auto-sync.ts`, com decisões em `kodland-auto-sync.ts` e `kodland-sync-policy.ts`. Funciona com a aplicação aberta, aba visível, conexão ativa e integração Kodland habilitada. O heartbeat ocorre a cada30segundos; scans comuns são limitados a uma vez por minuto e cada dado tem seu próprio gatilho e estado persistido. No máximo5tarefas de acompanhamento são iniciadas por scan. A sincronização manual tem prioridade.
+A rotina autenticada é `use-kodland-auto-sync.ts`, com decisões em `kodland-auto-sync.ts` e `kodland-sync-policy.ts`. Funciona com a aplicação aberta, aba visível, conexão ativa e integração Kodland habilitada. A página visível é atualizada imediatamente ao entrar, retomar o foco ou recuperar conexão, e novamente a cada minuto (heartbeat de 30 segundos). A atualização é por consulta, sem canal push da Kodland. Uma navegação durante requisição fica pendente para execução assim que ela termina; falhas preservam os dados e tentam novamente após 30 segundos. A sincronização manual tem prioridade e não há requisições automáticas simultâneas na mesma rotina.
+
+Entradas na aba Alunos consultam atividades/ranking por turma; entradas em Presença consultam presença por turma, sem aguardar uma hora após a aula nem depender do marcador da ocorrência. Entradas no Resumo usam o modo `schedule` para atualizar a grade completa. Cada resposta persistida notifica as telas para recarregar os dados. O Meu quadro relê tarefas e listas ao abrir, recuperar conexão/foco e a cada minuto visível, preservando a fila local offline.
+
+As regras abaixo continuam aplicáveis ao acompanhamento de ocorrências em segundo plano. Para as áreas visíveis, prevalecem as consultas de entrada e a conferência por minuto descritas acima.
 
 | Informação | Gatilho e encerramento |
 |---|---|

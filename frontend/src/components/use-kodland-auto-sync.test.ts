@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   preferenceChanged: null as ((change: TutorPreferencesChange) => void) | null,
   cleanups: [] as Array<() => void>,
   status: vi.fn(), tick: vi.fn(async () => undefined),
+  watch: vi.fn(),
   preferences: vi.fn(), browserState: vi.fn(), groups: vi.fn(), saveTask: vi.fn(), syncScope: vi.fn(), sync: vi.fn(), payroll: vi.fn(),
 }));
 vi.mock("react", () => ({
@@ -34,7 +35,7 @@ vi.mock("@/lib/auto-sync-payroll", () => ({ setAutomaticPayrollEnabled: state.pa
 vi.mock("@/lib/browser-credentials", () => ({ restoreKodlandCredentials: async () => ({ username: "test", password: "test" }) }));
 vi.mock("@/lib/student-notification-store", () => ({ subscribeStudentNotifications: () => () => undefined }));
 vi.mock("@/lib/operation-log-client", () => ({ reportOperation: vi.fn() }));
-vi.mock("@/lib/kodland-sync-client", () => ({ readKodlandLocal: (read: () => Promise<unknown>) => read(), watchKodlandSync: vi.fn() }));
+vi.mock("@/lib/kodland-sync-client", () => ({ readKodlandLocal: (read: () => Promise<unknown>) => read(), watchKodlandSync: state.watch }));
 vi.mock("@/lib/kodland-auto-sync", () => ({ createKodlandAutoSync: (deps: AutoSyncDependencies) => { state.deps = deps; return { tick: state.tick }; } }));
 
 import { useKodlandAutoSync } from "./use-kodland-auto-sync";
@@ -49,6 +50,7 @@ beforeEach(() => {
   state.preferences.mockResolvedValue({ kodland_enabled: true }); state.browserState.mockResolvedValue({ active: true });
   state.groups.mockResolvedValue({ items: [{ external_id: "group", archived: false }] });
   state.saveTask.mockResolvedValue(undefined); state.syncScope.mockResolvedValue({ complete: true, call_url: "https://learn.kodland.org/pt/class-room?sessionId=session" });
+  state.watch.mockImplementation(async (work: (report: () => void, assertActive: () => void) => Promise<unknown>) => work(() => undefined, () => undefined));
 });
 afterEach(() => {
   state.cleanups.splice(0).forEach(cleanup => cleanup());
@@ -95,6 +97,7 @@ describe("single Kodland scheduler integration", () => {
 
   it("checks extras and recordings through scoped requests and refreshes the Agenda cache", async () => {
     useKodlandAutoSync("account", false, "/dashboard");
+    await vi.advanceTimersByTimeAsync(0);
     await state.deps!.context();
     const extraOccurrence: KodlandScopedOccurrence = { kind: "extra", id: "extra", group_id: "group", source_lesson_id: "extra", lesson_date: "2026-11-03", start_time: "18:00", end_time: "19:00" };
     state.syncScope.mockResolvedValueOnce({ scope: "extras_discovery", complete: true, updated: 1 })
@@ -104,5 +107,53 @@ describe("single Kodland scheduler integration", () => {
     expect(state.syncScope).toHaveBeenNthCalledWith(1, "test", "test", expect.objectContaining({ scope: "extras_discovery", known_extra_ids: [] }), undefined, expect.objectContaining({ automatic: true }));
     expect(state.syncScope).toHaveBeenNthCalledWith(2, "test", "test", expect.objectContaining({ scope: "recordings", occurrence: extraOccurrence }), undefined, expect.objectContaining({ automatic: true }));
     expect(state.saveTask).toHaveBeenLastCalledWith("recordings:key", expect.objectContaining({ complete: true }));
+  });
+
+  it("refreshes the Resumo immediately and again after one minute while visible", async () => {
+    useKodlandAutoSync("account", false, "/dashboard");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync).toHaveBeenCalledWith("test", "test", "schedule", expect.objectContaining({ automatic: true, refreshSchedule: true }));
+    expect(state.sync).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(state.sync).toHaveBeenCalledTimes(2);
+    Object.assign(document, { visibilityState: "hidden" });
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(state.sync).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes activities and presence on entry without waiting for the occurrence deadline", async () => {
+    useKodlandAutoSync("account", false);
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "activities", refreshSchedule: false, correctionGroupIds: ["group"] }));
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "attendance" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "attendance", refreshSchedule: false }));
+  });
+
+  it("services navigation arriving during an unfinished request", async () => {
+    let finish!: () => void;
+    state.sync.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    useKodlandAutoSync("account", false);
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
+    await vi.advanceTimersByTimeAsync(0);
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "attendance" }));
+    expect(state.sync).toHaveBeenCalledTimes(1);
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync).toHaveBeenCalledTimes(2);
+    expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "attendance" }));
+  });
+
+  it("retries a failed page refresh and refreshes immediately when returning to the tab", async () => {
+    state.sync.mockRejectedValueOnce(new Error("temporarily offline"));
+    useKodlandAutoSync("account", false, "/dashboard");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.status).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "error" }));
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(state.sync).toHaveBeenCalledTimes(2);
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync).toHaveBeenCalledTimes(3);
   });
 });

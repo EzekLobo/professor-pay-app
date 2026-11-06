@@ -1,5 +1,14 @@
 # Decisões
 
+## 2026-11-06 — Atualização por página visível
+
+- A pedido do usuário, tarefas/atividades, presença e grade do Resumo consultam a fonte na entrada, retomada do foco/conexão e por minuto visível; respostas persistidas atualizam as telas pelos eventos existentes. Esta regra prevalece sobre a espera de seis horas para atividades e a espera por ocorrência de presença enquanto essas áreas estiverem abertas.
+- O scheduler mantém prioridade manual e serialização, pendência de navegação durante requisição e proteção de UID/integração. Atualização periódica por consulta não representa um canal push da plataforma externa.
+
+## 2026-11-06 — Identidade de cursos Kodland legados
+
+- O agrupamento de cursos usa `course_id` quando disponível. Quando o registro legado não informa esse identificador, usa `external_id` da turma em vez de normalizar apenas o nome; assim cursos Roblox com materiais específicos não sobrescrevem nem desaparecem no catálogo.
+
 ## 2026-11-04 — Limite de dados pessoais do aluno
 
 - Registros de alunos persistidos no app devem conter apenas nome normalizado (nome e sobrenome), telefone e saldo de aulas, junto dos identificadores/status/progresso necessários à operação. E-mail, nome/contato de responsável, perfil e notas ficam fora do limite de armazenamento.

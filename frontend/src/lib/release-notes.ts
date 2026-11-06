@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110611, date: "2026-11-06", title: "Cursos completos e tarefas por caixa",
+    description: "O menu Aulas agora se chama Cursos. O catálogo consulta todos os cursos liberados na Kodland, incluindo variantes de Roblox sem turma ativa, e mantém seus materiais separados. No Meu quadro, use o + de cada caixa para criar a tarefa diretamente nela.",
+    href: "/lessons", action: "Abrir cursos",
+  },
+  {
     version: 2026110610, date: "2026-11-06", title: "Abrir atividades pela grade",
     description: "Clique em uma atividade da grade para abrir a tarefa do aluno na Kodland em outra aba, inclusive corrigidas e não entregues. Atividades próprias abrem o detalhe dentro do NexusClass.",
     href: "/classes", action: "Abrir atividades",

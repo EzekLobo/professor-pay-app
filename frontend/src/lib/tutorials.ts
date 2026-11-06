@@ -63,7 +63,7 @@ const tutorials: readonly TutorialDefinition[] = [
     pathname: "/lessons",
     version: 4,
     steps: [
-      { id: "welcome", title: "Aulas", description: "Consulte cursos sincronizados e crie cursos próprios com módulos, aulas e materiais.", placement: "center" },
+      { id: "welcome", title: "Cursos", description: "Consulte cursos sincronizados e crie cursos próprios com módulos, aulas e materiais.", placement: "center" },
       { id: "courses", title: "Cursos disponíveis", description: "O primeiro curso foi expandido para você localizar os módulos e abrir os materiais de cada aula.", target: '[data-tour="lessons-courses"]', placement: "top", reveal: "details" },
     ],
   },

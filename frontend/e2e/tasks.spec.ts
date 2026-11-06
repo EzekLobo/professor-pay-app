@@ -9,7 +9,8 @@ for (const width of [1440, 390, 320]) {
       if (/firestore\.googleapis\.com|identitytoolkit\.googleapis\.com|\/api\/kodland\//.test(request.url())) privateCalls.push(request.url());
     });
     await page.goto("/demo#tasks");
-    await page.getByRole("button", { name: "Nova tarefa", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Nova tarefa", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: /^Adicionar tarefa em / }).first().click();
     const editor = page.getByRole("dialog", { name: "Nova tarefa", exact: true });
     await editor.getByLabel("Título", { exact: true }).fill("Resolver acesso de aluno");
     await editor.getByRole("textbox", { name: "Descrição", exact: true }).fill("Conferir o acesso antes da próxima aula.");
@@ -81,3 +82,18 @@ for (const width of [1440, 390, 320]) {
     expect(privateCalls).toEqual([]);
   });
 }
+
+test("cada caixa cria a tarefa na sua própria lista", async ({ page }) => {
+  await page.goto("/demo#tasks");
+  for (const label of ["A fazer", "Em andamento", "Aguardando", "Concluído"]) {
+    const add = page.getByRole("button", { name: `Adicionar tarefa em ${label}`, exact: true });
+    await expect(add).toBeEnabled();
+    const bounds = await add.boundingBox();
+    expect(bounds!.width).toBeGreaterThanOrEqual(44);
+    expect(bounds!.height).toBeGreaterThanOrEqual(44);
+    await add.click();
+    const editor = page.getByRole("dialog", { name: "Nova tarefa", exact: true });
+    await expect(editor.getByLabel("Lista", { exact: true }).locator("option:checked")).toHaveText(label);
+    await editor.getByRole("button", { name: "Cancelar", exact: true }).click();
+  }
+});

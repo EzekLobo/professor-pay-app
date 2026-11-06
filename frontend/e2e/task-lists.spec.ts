@@ -72,15 +72,15 @@ test("exclusão confirmada pode esvaziar o quadro e permite criar outra lista", 
     } else await deletion.getByRole("button", { name: "Excluir lista", exact: true }).click();
     await expect(manager).not.toBeVisible();
   }
-  await expect(page.getByRole("button", { name: "Nova tarefa", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Adicionar tarefa em / })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole("button", { name: "Nova tarefa", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Adicionar tarefa em / })).toHaveCount(0);
   await page.getByRole("button", { name: "Organizar listas", exact: true }).click();
   await manager.getByRole("button", { name: "Nova lista", exact: true }).click();
   await manager.getByRole("textbox", { name: "Nome da lista 1", exact: true }).fill("Meu fluxo");
   await manager.getByRole("button", { name: "Salvar listas", exact: true }).click();
   await expect(manager).not.toBeVisible();
-  await expect(page.getByRole("button", { name: "Nova tarefa", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Adicionar tarefa em Meu fluxo", exact: true })).toBeEnabled();
   await expect(page.getByRole("region", { name: "Meu fluxo", exact: true })).toBeVisible();
 });
 

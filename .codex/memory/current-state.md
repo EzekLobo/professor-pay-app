@@ -1,5 +1,12 @@
 # Estado atual
 
+## Catálogo completo e criação de tarefa por caixa — 06/11/2026
+
+- Menu /lessons passa a Cursos. A lista anterior só derivava cursos de turmas ativas. Novo mode courses em /api/kodland/sync consulta teachers/{teacherId}/get_teachers_courses e todas as páginas de lessons/get_lessons_list por curso; ID oficial é a identidade, nunca nome Roblox. Cursos sem turma ficam visíveis com outline e contador de aulas.
+- kodland-course-catalog-api usa cache auxiliar IndexedDB por UID (coleção kodland_course_catalog), sem ativar armazenamento browser, fabricar turmas ou inserir aulas na agenda/financeiro. Atualiza ao entrar e por ação, sem intervalos; falhas mantêm cache. Materiais carregam sob demanda, com nova checagem de curso atribuído ao professor e aula pertencente ao catálogo. IDs/note_keys próprios evitam misturar variantes; detalhes carregados sobrevivem à atualização de metadados.
+- Meu quadro remove Nova tarefa geral e adiciona + acessível de44px por caixa. O rascunho usa a lista clicada, incluindo role done e posicionamento. Sem caixas ativas, não exibe botões de criação; arquivo não ganha +.
+- Novidade2026110611. Testes reproduzem IDs2198/2197/1721/1192/1184 sem turmas ativas,40 aulas paginadas, autorização de materiais, isolamento UID/cache e preservação de variantes. Conferir testes/tipos/lint/build, E2E e publicação; catálogo da conta real requer sessão autenticada.
+
 ## Navegação pelos cartões de atividades — 06/11/2026
 
 - Cartões de progresso agora são links acessíveis em todos os estados, abrindo tarefa/aluno em nova aba. `kodland-task-link.ts` compartilha correctionUrlFor entre rota e cliente. Sync salva task_url (HTTP/S validado); registros legados usam IDs imediatamente, sem exigir reimportação.

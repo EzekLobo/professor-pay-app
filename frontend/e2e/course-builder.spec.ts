@@ -4,6 +4,8 @@ for (const width of [1440, 390, 320]) {
   test(`editor de curso compacto preserva materiais e valida aulas fechadas em ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/demo#lessons");
+    await expect(page.getByRole("link", { name: "Cursos", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Aulas", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Criar novo curso", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Criar novo curso", exact: true });
     await dialog.getByLabel("Nome do curso", { exact: true }).fill("Programação revisada");

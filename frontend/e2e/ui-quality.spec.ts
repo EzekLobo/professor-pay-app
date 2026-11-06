@@ -25,7 +25,7 @@ test("navegação móvel desliza entre áreas e mantém Configurações no cabe�
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/demo#data");
   const navigation = page.getByRole("navigation", { name: "Navegação principal" });
-  for (const label of ["Resumo", "Pagamentos", "Turmas", "Aulas", "Meu quadro"]) await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+  for (const label of ["Resumo", "Pagamentos", "Turmas", "Cursos", "Meu quadro"]) await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mais opções", exact: true })).toHaveCount(0);
   await expect(page.locator(".shell-header").getByRole("link", { name: "Configurações", exact: true })).toHaveAttribute("aria-current", "page");
   await navigation.getByRole("link", { name: "Meu quadro", exact: true }).click();

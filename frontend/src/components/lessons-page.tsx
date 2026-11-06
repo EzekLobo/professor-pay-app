@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, ArrowDown, ArrowUp, BookPlus, ChevronRight, Copy, Download, Pencil, Plus, Trash2 } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, BookPlus, ChevronRight, Copy, Download, Pencil, Plus, Trash2, RefreshCw } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -15,6 +15,9 @@ import { formatDate } from "@/lib/finance";
 import { kodlandLessonLocation } from "@/lib/kodland-lessons";
 import { LessonMaterialModal, type LessonMaterialDetails } from "@/components/lesson-material-modal";
 import { groupKodlandLessonsByCourse, groupLessonsByModule } from "@/lib/kodland-course-groups";
+import { kodlandCourseCatalogApi } from "@/lib/kodland-course-catalog-api";
+import type { KodlandCatalogCourse } from "@/lib/kodland-course-catalog";
+import { restoreKodlandCredentials } from "@/lib/browser-credentials";
 
 const now = () => new Date().toISOString();
 const newId = () => `manual-course-${crypto.randomUUID()}`;
@@ -35,6 +38,8 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
   const preferencesApi = manualAdapter?.preferences ?? tutorPreferencesApi;
   const [courseGroups, setCourseGroups] = useState<KodlandGroup[]>([]);
   const [courseLessons, setCourseLessons] = useState<KodlandLesson[]>([]);
+  const [availableCourses, setAvailableCourses] = useState<KodlandCatalogCourse[]>([]);
+  const [refreshingCatalog, setRefreshingCatalog] = useState(false);
   const [manualCourses, setManualCourses] = useState<ManualCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -66,14 +71,27 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
       } else if (demoData || !preferences.kodland_enabled) {
         setCourseGroups([]); setCourseLessons([]); setManualCourses(await coursesApi.list());
       } else {
-        const [groups, lessons, courses] = await Promise.all([kodlandApi.groups(), kodlandApi.lessons(), localOnly ? Promise.resolve(null) : coursesApi.list()]);
+        const [groups, lessons, courses, catalog] = await Promise.all([kodlandApi.groups(), kodlandApi.lessons(), localOnly ? Promise.resolve(null) : coursesApi.list(), kodlandCourseCatalogApi.get()]);
         setCourseGroups(groups.items.filter((group) => !group.archived)); setCourseLessons(lessons.items); if (courses) setManualCourses(courses);
+        setAvailableCourses(catalog);
       }
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível carregar os cursos."); }
     finally { setLoading(false); }
   }, [coursesApi, demoData, preferencesApi]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
-  const courseCatalog = useMemo(() => kodlandEnabled ? groupKodlandLessonsByCourse(courseGroups, courseLessons) : [], [courseGroups, courseLessons, kodlandEnabled]);
+  const refreshCatalog = useCallback(async () => {
+    if (demoData || !kodlandEnabled || loading) return;
+    setRefreshingCatalog(true);
+    try {
+      const credentials = await restoreKodlandCredentials();
+      if (!credentials) throw new Error("Salve o acesso à Kodland em Configurações > Dados e backup para consultar todos os cursos.");
+      setAvailableCourses(await kodlandCourseCatalogApi.refresh(credentials.username.trim(), credentials.password));
+      setError("");
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível atualizar o catálogo. Os cursos anteriores foram preservados."); }
+    finally { setRefreshingCatalog(false); }
+  }, [demoData, kodlandEnabled, loading]);
+  useEffect(() => { const timer = window.setTimeout(() => void refreshCatalog(), 0); return () => window.clearTimeout(timer); }, [refreshCatalog]);
+  const courseCatalog = useMemo(() => kodlandEnabled ? groupKodlandLessonsByCourse(courseGroups, courseLessons, availableCourses) : [], [courseGroups, courseLessons, availableCourses, kodlandEnabled]);
   const openBuilder = (course?: ManualCourse) => {
     setError(""); setEditingCourseId(course?.id ?? ""); setCourseName(course?.name ?? ""); setModuleCount(course?.modules.length ?? 1);
     setLessonsPerModule(course?.modules[0]?.lessons.length ?? 4); setDraftModules(course ? structuredClone(course.modules) : []); setExpandedModule(course?.modules[0]?.id ?? ""); setExpandedLesson(course?.modules[0]?.lessons[0]?.id ?? ""); setBuilderOpen(true);
@@ -121,10 +139,10 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
   return <div className="management-grid page-fill-grid">
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     <section className="panel lessons-catalog-panel page-fill-panel">
-      <div className="section-heading"><div><h2>Cursos</h2></div><Button type="button" className="create-course-button" onClick={() => openBuilder()}><BookPlus size={19} aria-hidden="true" /><span>Curso</span></Button></div>
+      <div className="section-heading"><div><h2>Cursos</h2></div>{!demoData && kodlandEnabled && <Button type="button" className="button-ghost sync-icon-button" aria-label="Atualizar cursos" title={refreshingCatalog ? "Atualizando cursos" : "Atualizar cursos"} aria-busy={refreshingCatalog} disabled={refreshingCatalog} onClick={() => void refreshCatalog()}><RefreshCw size={18} aria-hidden="true" className={refreshingCatalog ? "sync-icon-spinning" : undefined} /></Button>}<Button type="button" className="create-course-button" aria-label="Criar novo curso" title="Criar novo curso" onClick={() => openBuilder()}><BookPlus size={19} aria-hidden="true" /><span>Curso</span></Button></div>
       {loading ? <p className="muted">Carregando cursos…</p> : !courseCatalog.length && !manualCourses.length ? <p className="muted">Nenhum curso cadastrado. Crie o primeiro para organizar módulos, aulas e materiais.</p> : <div className="course-list" data-tour="lessons-courses">
         {manualCourses.map((course) => <details className={`course-card manual-course-card${course.archived ? " manual-course-archived" : ""}`} key={course.id}><summary><span><strong>{course.name}</strong><small>Curso próprio · {course.modules.length} módulo{course.modules.length === 1 ? "" : "s"}{course.archived ? " · Arquivado" : ""}</small></span><b>{manualCourseLessons(course).length} aulas</b></summary><div className="course-card-actions"><button className="button button-ghost button-small" type="button" onClick={() => openBuilder(course)}><Pencil size={15} aria-hidden="true" /> Editar curso</button><button className="button button-ghost button-small" type="button" onClick={() => void duplicateCourse(course)}><Copy size={15} /> Duplicar</button><button className="button button-ghost button-small" type="button" onClick={() => void toggleArchived(course)}><Archive size={15} /> {course.archived ? "Reativar" : "Arquivar"}</button><button className="button button-ghost button-small" type="button" onClick={() => { setError(""); setDeletingCourse(course); }}><Trash2 size={15} aria-hidden="true" /> Excluir curso</button></div><div className="course-lessons">{course.modules.map((module, moduleIndex) => <section className="course-module" key={module.id}><div className="course-module-heading"><h3>{module.title}</h3><span>{module.lessons.filter((lesson) => !lesson.archived).length} aulas</span></div><div className="course-module-lessons">{module.lessons.filter((lesson) => !lesson.archived).map((lesson, lessonIndex) => <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedManualLesson({ course, module, lesson, code: `M${moduleIndex + 1}L${lessonIndex + 1}` })}><div><strong>{`M${moduleIndex + 1}L${lessonIndex + 1}`} · {lesson.title}</strong><span>{[lesson.activities && "Atividades", lesson.guide && "Roteiro", lesson.slides && "Slides", lesson.homework && "Lição de casa"].filter(Boolean).join(" · ") || "Sem materiais cadastrados"}</span></div><span className="course-lesson-hint">Ver detalhes</span></button>)}</div></section>)}</div></details>)}
-        {courseCatalog.map((course) => <details className="course-card" key={course.id}><summary><span><strong>{course.name}</strong><small>{course.groups.length} turma{course.groups.length === 1 ? "" : "s"}: {course.groups.map((group) => group.title || group.external_id).join(", ")}</small></span><b>{course.lessons.length} aulas</b></summary><div className="course-lessons">{course.lessons.length ? groupLessonsByModule(course.lessons).map((module) => <section className="course-module" key={module.id}><div className="course-module-heading"><h3>{module.label}</h3><span>{module.lessons.length} aulas</span></div><div className="course-module-lessons">{module.lessons.map((lesson) => <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => openKodlandLesson(course.name, lesson)}><div><strong>Aula {(module.number ? lesson.lesson_number : lesson.course_index ?? lesson.lesson_number) || "—"}: {lesson.title || lesson.theme || "Aula"}</strong><span>{lesson.lesson_date ? formatDate(lesson.lesson_date) : "Data a confirmar"}</span></div><span className="course-lesson-hint">Ver materiais</span></button>)}</div></section>) : <p className="muted">Ainda não há aulas desta turma.</p>}</div></details>)}
+        {courseCatalog.map((course) => <details className="course-card" key={course.id}><summary><span><strong>{course.name}</strong><small>{course.id.startsWith("course-") ? `Kodland #${course.id.slice(7)} · ` : ""}{course.groups.length ? `${course.groups.length} turma${course.groups.length === 1 ? "" : "s"}: ${course.groups.map(group => group.title || group.external_id).join(", ")}` : "Disponível no catálogo do professor"}</small></span><b>{course.lessons.length} aulas</b></summary><div className="course-lessons">{course.lessons.length ? groupLessonsByModule(course.lessons).map((module) => <section className="course-module" key={module.id}><div className="course-module-heading"><h3>{module.label}</h3><span>{module.lessons.length} aulas</span></div><div className="course-module-lessons">{module.lessons.map((lesson) => <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => openKodlandLesson(course.name, lesson)}><div><strong>Aula {(module.number ? lesson.lesson_number : lesson.course_index ?? lesson.lesson_number) || "—"}: {lesson.title || lesson.theme || "Aula"}</strong><span>{lesson.external_class_id.startsWith("course:") ? "Aula do catálogo" : lesson.lesson_date ? formatDate(lesson.lesson_date) : "Data a confirmar"}</span></div><span className="course-lesson-hint">Ver materiais</span></button>)}</div></section>) : <p className="muted">Ainda não há aulas disponíveis neste curso.</p>}</div></details>)}
       </div>}
     </section>
 
@@ -181,7 +199,7 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
       </div>
     </Modal>
     <Modal open={Boolean(selectedManualLesson)} title={selectedManualLesson ? `${selectedManualLesson.code} · ${selectedManualLesson.lesson.title}` : "Aula"} onClose={() => setSelectedManualLesson(null)}>{selectedManualLesson && <div className="manual-course-lesson-details"><p className="muted">{selectedManualLesson.course.name} · {selectedManualLesson.module.title}</p>{([ ["Atividades", selectedManualLesson.lesson.activities], ["Roteiro", selectedManualLesson.lesson.guide], ["Slides", selectedManualLesson.lesson.slides], ["Lição de casa", selectedManualLesson.lesson.homework] ] as Array<[string, string]>).map(([label, value]) => value && <section key={label}><h3>{label}</h3>{/^https?:\/\//.test(value) ? <a href={value} target="_blank" rel="noreferrer"><Download size={16} aria-hidden="true" /> Abrir ou baixar material</a> : <p>{value}</p>}</section>)}</div>}</Modal>
-    <LessonMaterialModal demoMode={Boolean(demoData)} open={Boolean(selectedMaterial)} title={selectedMaterial ? `${selectedMaterial.source} · ${selectedMaterial.location}` : "Materiais da aula"} lesson={selectedMaterial} onClose={() => setSelectedMaterial(null)} onMaterialsLoaded={(updated) => setCourseLessons((items) => items.map((item) => item.id === updated.id ? updated : item))} />
+    <LessonMaterialModal demoMode={Boolean(demoData)} open={Boolean(selectedMaterial)} title={selectedMaterial ? `${selectedMaterial.source} · ${selectedMaterial.location}` : "Materiais da aula"} lesson={selectedMaterial} onClose={() => setSelectedMaterial(null)} onMaterialsLoaded={(updated) => { setCourseLessons(items => items.map(item => item.id === updated.id ? updated : item)); setAvailableCourses(courses => courses.map(course => ({ ...course, lessons: course.lessons.map(item => item.id === updated.id ? updated : item) }))); }} />
   </div>;
 }
 

@@ -74,6 +74,9 @@
 }
 .task-list-options { border: 0; background: none; color: var(--muted); cursor: pointer; min-width: 32px; min-height: 32px; }
 .tasks-column-heading h3 { flex: 1; overflow-wrap: anywhere; }
+.task-list-add { display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer; }
+.task-list-add:hover:not(:disabled) { background: rgb(255 255 255 / 8%); }
+.task-list-add:disabled { opacity: .5; cursor: default; }
 .task-lists-modal { width: min(640px,calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow: hidden; }
 .task-lists-modal[open] { display: flex; flex-direction: column; }
 .task-lists-modal > .modal-heading, .task-lists-modal > p, .task-lists-footer { flex-shrink: 0; }

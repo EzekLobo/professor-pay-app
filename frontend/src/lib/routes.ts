@@ -20,7 +20,7 @@ export const navigation: AppRoute[] = [
   { href: "/dashboard", label: "Resumo", mobileLabel: "Resumo", icon: LayoutDashboard },
   { href: "/payments", label: "Pagamentos", mobileLabel: "Pagamentos", icon: WalletCards },
   { href: "/classes", label: "Turmas", mobileLabel: "Turmas", icon: UsersRound },
-  { href: "/lessons", label: "Aulas", mobileLabel: "Aulas", icon: BookOpen },
+  { href: "/lessons", label: "Cursos", mobileLabel: "Cursos", icon: BookOpen },
 ];
 
 export const tasksNavigation: AppRoute = { href: "/tasks", label: "Meu quadro", mobileLabel: "Quadro", icon: ListTodo };

@@ -1,4 +1,5 @@
 import type { KodlandGroup, KodlandLesson } from "@/lib/api";
+import type { KodlandCatalogCourse } from "./kodland-course-catalog";
 
 export type KodlandCourseGroup = {
   id: string;
@@ -90,6 +91,7 @@ function mergeLessons(first: KodlandLesson, second: KodlandLesson): KodlandLesso
   return {
     ...first,
     course_index: first.course_index || second.course_index,
+    materials_status: ["ready", "empty"].includes(first.materials_status ?? "") ? first.materials_status : second.materials_status ?? first.materials_status,
     module_number: nonEmpty(first.module_number ?? "", second.module_number ?? "") || undefined,
     title: nonEmpty(first.title, second.title),
     theme: nonEmpty(first.theme, second.theme),
@@ -109,8 +111,10 @@ function mergeLessons(first: KodlandLesson, second: KodlandLesson): KodlandLesso
 export function groupKodlandLessonsByCourse(
   groups: KodlandGroup[],
   lessons: KodlandLesson[],
+  catalog: KodlandCatalogCourse[] = [],
 ): KodlandCourseGroup[] {
   const result = new Map<string, KodlandCourseGroup>();
+  for (const course of catalog) result.set(`course-${course.id}`, { id: `course-${course.id}`, name: course.name, groups: [], lessons: course.lessons });
 
   for (const group of groups) {
     const key = courseIdentity(group);

@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { kodlandApi, lessonNotesApi, type KodlandLesson } from "@/lib/api";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
+import { kodlandCourseCatalogApi } from "@/lib/kodland-course-catalog-api";
 
 export type LessonMaterialDetails = Pick<
   KodlandLesson,
@@ -71,7 +72,8 @@ export function LessonMaterialModal({
     setLoadingMaterials(true);
     setMaterialError("");
     try {
-      const updated = await kodlandApi.loadLessonMaterials({
+      const load = activeLesson.external_class_id.startsWith("course:") ? kodlandCourseCatalogApi.materials : kodlandApi.loadLessonMaterials;
+      const updated = await load({
         id: activeLesson.id,
         external_class_id: activeLesson.external_class_id,
         source_lesson_id: activeLesson.source_lesson_id,

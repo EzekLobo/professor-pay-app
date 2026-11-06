@@ -2,6 +2,7 @@ import { callFromNearest, classroomUrl, extraReportOutcome, scopedOccurrence, sc
 import { calendarDay, occurrenceTimes, weekBounds } from "@/lib/sync-policy";
 import { NextRequest } from "next/server";
 import { correctionUrlFor } from "@/lib/kodland-task-link";
+import { catalogLessons, parseCatalogCourses, catalogClassId, type KodlandCatalogCourse } from "@/lib/kodland-course-catalog";
 import {
   enrichKodlandLessons,
   kodlandLessonEntries,
@@ -1571,6 +1572,41 @@ type CourseLessonCache = {
   catalog: Map<string, Promise<KodlandCourseLesson[]>>;
 };
 
+async function courseCatalogPages(path: string, token: string): Promise<unknown[]> {
+  const result: unknown[] = [];
+  const initial = new URL(`${api}${path}`);
+  let current = `${path}${path.includes("?") ? "&" : "?"}page=1&page_size=100`;
+  const visited = new Set<string>();
+  for (let page = 1; page <= 100; page++) {
+    if (visited.has(current)) throw new SyncFailure("kodland_unavailable", 502);
+    visited.add(current);
+    const payload = await get(current, token);
+    const entries = Array.isArray(record(payload).courses) ? record(payload).courses as unknown[] : list(payload);
+    if (!Array.isArray(payload) && !["results", "items", "data", "courses"].some(key => Array.isArray(record(payload)[key]))) throw new SyncFailure("kodland_unavailable", 502);
+    result.push(...entries);
+    if (!record(payload).next) return result;
+    if (!entries.length) throw new SyncFailure("kodland_unavailable", 502);
+    const next = record(payload).next;
+    if (typeof next === "string") {
+      const url = new URL(next, `${api}${current}`);
+      if (url.origin !== initial.origin || url.pathname !== initial.pathname || url.searchParams.get("course") !== initial.searchParams.get("course")) throw new SyncFailure("kodland_unavailable", 502);
+      current = `${url.pathname.slice(new URL(api).pathname.length)}${url.search}`;
+    } else current = `${path}${path.includes("?") ? "&" : "?"}page=${page + 1}&page_size=100`;
+  }
+  throw new SyncFailure("kodland_unavailable", 502);
+}
+
+async function coursesForTeacher(token: string): Promise<KodlandCatalogCourse[]> {
+  const entries = await courseCatalogPages(`teachers/${encodeURIComponent(userId(token))}/get_teachers_courses`, token);
+  const courses = parseCatalogCourses(entries);
+  if (entries.length && !courses.length) throw new SyncFailure("kodland_unavailable", 502);
+  return courses;
+}
+
+function courseCatalogGroup(course: KodlandCatalogCourse): Group {
+  return { external_id: catalogClassId(course.id), course_id: course.id, title: course.name, course_name: course.name, student_count: 0, start_date: "", next_lesson_date: "", next_lesson_number: 0, next_lesson_id: "", next_lesson_title: "", next_lesson_url: "", archived: false };
+}
+
 async function courseLessons(
   courseId: string,
   token: string,
@@ -1581,10 +1617,8 @@ async function courseLessons(
   let catalogPromise = cache.catalog.get(courseId);
   if (!catalogPromise) {
     catalogPromise = (async () => {
-      const payload = await (required ? get : getOptional)(
-        `lessons/get_lessons_list?course=${encodeURIComponent(courseId)}`,
-        token,
-      );
+      const path = `lessons/get_lessons_list?course=${encodeURIComponent(courseId)}`;
+      const payload = required ? await courseCatalogPages(path, token) : await getOptional(path, token);
       return list(payload)
         .map((value): KodlandCourseLesson | null => {
           const item = record(value);
@@ -1592,6 +1626,7 @@ async function courseLessons(
           if (!id) return null;
           return {
             id,
+            module_number: text(item.module_number ?? record(item.module).number) || undefined,
             lesson_number: number(
               item.lesson_number ?? item.lessonNumber ?? item.number,
             ),
@@ -1909,7 +1944,7 @@ export async function POST(request: NextRequest) {
     let body: {
       username?: string;
       password?: string;
-      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles" | "payroll" | "classroom" | "scoped";
+      mode?: "essential" | "schedule" | "corrections" | "materials" | "profiles" | "payroll" | "classroom" | "scoped" | "courses";
       scoped_request?: KodlandScopedRequest;
       browser_occurrence?: boolean;
       payroll_year?: number;
@@ -1943,12 +1978,22 @@ export async function POST(request: NextRequest) {
       return syncResponse(syncId, { code: "missing_credentials" }, 400);
     }
     const mode = body.mode ?? "essential";
-    if (!["essential", "schedule", "corrections", "materials", "profiles", "payroll", "classroom", "scoped"].includes(mode)) {
+    if (!["essential", "schedule", "corrections", "materials", "profiles", "payroll", "classroom", "scoped", "courses"].includes(mode)) {
       trace("invalid_request");
       return syncResponse(syncId, { code: "invalid_request" }, 400);
     }
     if (body.followup_scope !== undefined && !["activities", "attendance"].includes(body.followup_scope)) return syncResponse(syncId, { code: "invalid_request" }, 400);
     const token = await runStage("kodland_auth", () => kodlandLogin(username, password));
+    if (mode === "courses") {
+      const available = await runStage("courses", () => coursesForTeacher(token));
+      const cache: CourseLessonCache = { catalog: new Map() };
+      const courses = await runStage("course_catalog", () => mapWithConcurrency(available, KODLAND_CONCURRENCY, async course => {
+        const lessons = catalogLessons(course, await courseLessons(course.id, token, cache, true));
+        return { ...course, lesson_count: lessons.length || course.lesson_count, lessons };
+      }));
+      trace("completed", { courseCount: courses.length, lessonCount: courses.reduce((total, course) => total + course.lessons.length, 0) });
+      return syncResponse(syncId, { groups: [], students: [], reviews: [], lessons: [], extra_lessons: [], availability: [], courses });
+    }
     if (mode === "payroll") {
       const teacherId = userId(token);
       const currentYear = new Date().getUTCFullYear();
@@ -2035,9 +2080,10 @@ export async function POST(request: NextRequest) {
         trace("invalid_material_request");
         return syncResponse(syncId, { code: "invalid_request" }, 400);
       }
+      const catalogGroups = uniqueRequests.some(request => request.group_id.startsWith("course:")) ? (await coursesForTeacher(token)).map(courseCatalogGroup) : [];
       const requestedGroups = uniqueRequests.map((request) => ({
         ...request,
-        group: active.find((item) => item.external_id === request.group_id),
+        group: [...active, ...catalogGroups].find((item) => item.external_id === request.group_id),
       }));
       if (requestedGroups.some((request) => !request.group?.course_id)) {
         trace("material_denied");

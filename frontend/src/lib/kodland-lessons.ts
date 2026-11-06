@@ -56,6 +56,7 @@ export function kodlandLessonLocation(lesson: {
 /** The course lesson endpoint keeps the links that are not present in the group schedule. */
 export type KodlandCourseLesson = {
   id: string;
+  module_number?: string;
   lesson_number: number;
   course_index?: number;
   title: string;

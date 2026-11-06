@@ -107,7 +107,7 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await page.getByRole("tab", { name: "Presença" }).click();
   await expect(page.getByLabel("Filtrar presença")).toHaveValue("ALL");
 
-  await page.getByRole("link", { name: "Aulas" }).click();
+  await page.getByRole("link", { name: "Cursos" }).click();
   const courses = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Cursos" }) });
   await expect(courses.getByRole("heading", { name: "Cursos" })).toBeVisible();
   await courses.getByRole("button", { name: "Criar novo curso" }).click();
@@ -124,7 +124,7 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await courseDialog.getByRole("button", { name: "Salvar curso" }).click();
   await expect(courses.getByText("Redação criativa", { exact: true })).toBeVisible();
   await page.reload();
-  await page.getByRole("link", { name: "Aulas" }).click();
+  await page.getByRole("link", { name: "Cursos" }).click();
   await expect(page.getByText("Redação criativa", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Aulas próprias", exact: true })).toHaveCount(0);
   await expect(courses.getByText("Matemática essencial", { exact: true })).toBeVisible();
@@ -136,7 +136,7 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await edit.getByLabel("Título", { exact: true }).fill("Argumentação revisada");
   await edit.getByRole("button", { name: "Salvar curso" }).click();
   await page.reload();
-  await page.getByRole("link", { name: "Aulas", exact: true }).click();
+  await page.getByRole("link", { name: "Cursos", exact: true }).click();
   const revised = page.locator("details.manual-course-card").filter({ hasText: "Redação revisada" });
   await revised.locator("summary").click();
   await expect(revised.getByText(/Argumentação revisada/)).toBeVisible();
@@ -147,7 +147,7 @@ test(`visitante gerencia turmas e cursos no mesmo catálogo sem serviços privad
   await page.getByRole("button", { name: "Confirmar exclusão" }).click();
   await expect(revised).toHaveCount(0);
   await page.reload();
-  await page.getByRole("link", { name: "Aulas", exact: true }).click();
+  await page.getByRole("link", { name: "Cursos", exact: true }).click();
   await expect(page.getByText("Redação revisada", { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(externalRequests).toEqual([]);

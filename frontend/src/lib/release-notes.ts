@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110609, date: "2026-11-06", title: "Rolagem contínua das atividades",
+    description: "A roda do mouse move a grade com suavização contínua e módulos anteriores carregam antes da borda. Gestos do touchpad e redução de movimento são respeitados. No filtro Completo, o código da aula fica apenas no cabeçalho da coluna; Correções pendentes mantém o código em cada atividade.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
     version: 2026110608, date: "2026-11-06", title: "Contatos e atividades em ordem",
     description: "O telefone do responsável é atualizado também em Presença. As atividades seguem a ordem da aula, com casa por último e rolagem sem atraso de animação. Atividades que a Kodland identifica como sem avaliação têm estado próprio, em vez de aparecer como informação desconhecida.",
     href: "/classes", action: "Abrir turmas",

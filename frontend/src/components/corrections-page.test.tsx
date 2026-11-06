@@ -78,6 +78,15 @@ describe("organização da grade por módulos", () => {
 });
 
 describe("compactActivitiesModel", () => {
+  it("shows the lesson code only in the complete header and keeps it on pending cards", () => {
+    const model = compactActivitiesModel({ groups: [group()], students: [student()], reviews: [review()], lessons: [lesson()], manualActivities: [], manualClasses: [], manualStudents: [] });
+    const complete = renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode="complete" onCorrectManual={() => undefined} />);
+    const pending = renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode="pending" onCorrectManual={() => undefined} />);
+    expect(complete).toContain("compact-lesson-group");
+    expect(complete).not.toContain('class="compact-activity-lesson"');
+    expect(pending).toContain('class="compact-activity-lesson"');
+    expect(pending).toContain("compact-pending-row");
+  });
   it("refreshes the open message with the responsible contact without overwriting typed numbers", () => {
     const draft = { studentName: "Ana", phone: "", guardian: true, message: "Olá" };
     const contact = { phone: "5511999991234", student_phone: "5511988884321" };

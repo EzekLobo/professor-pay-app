@@ -29,6 +29,7 @@ import { ManualAttendanceGrid } from "@/components/manual-attendance-grid";
 import type { ManualAdapters } from "@/lib/manual-adapters";
 import { HeaderDropdown } from "@/components/header-dropdown";
 import { kodlandCourseProgress } from "@/lib/course-progress";
+import { attachActivityWheelScroll } from "@/lib/activity-wheel-scroll";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => lessons.find((lesson) => {
@@ -614,21 +615,14 @@ export function CompactActivitiesGrid({
   const pendingPrepend = useRef<{ key: string; width: number; left: number } | null>(null);
   const positionedKey = useRef<string | null>(null);
   const ignoreScroll = useRef(false);
-  const loadCooldown = useRef<Record<string, number>>({});
+  const wheelScroller = useRef<ReturnType<typeof attachActivityWheelScroll> | null>(null);
+  const modulesByClass = useMemo(() => new Map(model.map(item => [item.key, activityModules(item.columns)])), [model]);
   useEffect(() => {
     const root = activitiesRoot.current;
     if (!root) return;
-    const onWheel = (event: WheelEvent) => {
-      if (event.ctrlKey || !(event.target instanceof Element)) return;
-      const grid = event.target.closest<HTMLElement>(".compact-activities-grid-scroll");
-      if (!grid || !root.contains(grid) || grid.scrollWidth <= grid.clientWidth + 1) return;
-      event.preventDefault();
-      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-      const scale = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? grid.clientWidth : 1;
-      grid.scrollTo({ left: grid.scrollLeft + delta * scale, behavior: "instant" });
-    };
-    root.addEventListener("wheel", onWheel, { passive: false });
-    return () => root.removeEventListener("wheel", onWheel);
+    const scroller = attachActivityWheelScroll(root);
+    wheelScroller.current = scroller;
+    return () => { scroller.dispose(); wheelScroller.current = null; };
   }, []);
   const [openClassKey, setOpenClassKey] = useState<string | null>(null);
   const [moduleLimits, setModuleLimits] = useState<Record<string, number>>({});
@@ -639,7 +633,9 @@ export function CompactActivitiesGrid({
     const pending = pendingPrepend.current;
     if (pending?.key === openClassKey) {
       ignoreScroll.current = true;
-      grid.scrollTo({ left: pending.left + grid.scrollWidth - pending.width, behavior: "instant" });
+      const offset = grid.scrollWidth - pending.width;
+      grid.scrollTo({ left: pending.left + offset, behavior: "instant" });
+      wheelScroller.current?.shift(grid, offset);
       pendingPrepend.current = null;
     } else if (positionedKey.current !== openClassKey) {
       ignoreScroll.current = true;
@@ -686,13 +682,12 @@ export function CompactActivitiesGrid({
     {model.filter(item => !hidden.includes(item.key)).map((original) => {
       const classModel = { ...original, name: names[original.key] || original.name };
       const isPending = mode === "pending";
-      const modules = activityModules(classModel.columns);
+      const modules = modulesByClass.get(classModel.key) ?? [];
       const limit = moduleLimits[classModel.key] ?? 1;
       const columns = modules.slice(0, limit).reverse().flat();
       const hasMore = limit < modules.length;
       const loadOlder = (grid: HTMLElement) => {
-        if (!hasMore || ignoreScroll.current || Date.now() - (loadCooldown.current[classModel.key] ?? 0) < 350) return;
-        loadCooldown.current[classModel.key] = Date.now();
+        if (!hasMore || ignoreScroll.current || pendingPrepend.current) return;
         pendingPrepend.current = { key: classModel.key, width: grid.scrollWidth, left: grid.scrollLeft };
         setModuleLimits(current => ({ ...current, [classModel.key]: Math.min(modules.length, (current[classModel.key] ?? 1) + 1) }));
       };
@@ -714,7 +709,7 @@ export function CompactActivitiesGrid({
         <div className="correction-class-body attendance-class-body">
           <>
           {!isPending && !classModel.columns.length && <p className="complete-activities-note">Nenhuma informação de atividades sincronizada para esta turma.</p>}
-          <div className={`attendance-grid-scroll compact-activities-grid-scroll${isPending ? " compact-pending-list" : ""}`} tabIndex={0} role="grid" aria-label={`Atividades da turma ${classModel.name}`} data-class-key={classModel.key} aria-rowcount={classModel.rows.length + 1} aria-colcount={columns.length + 1} onScroll={event => { const el = event.currentTarget; if (hasMore && el.scrollWidth > el.clientWidth + 1 && el.scrollLeft <= 24) loadOlder(el); }} onWheel={event => { const el = event.currentTarget; const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY; if (hasMore && delta < 0 && el.scrollLeft <= 2) { event.preventDefault(); loadOlder(el); } }} onTouchStart={event => { const el = event.currentTarget; const touch = event.touches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY, atStart: el.scrollLeft <= 2 } : null; }} onTouchEnd={event => { const start = touchStart.current; touchStart.current = null; const touch = event.changedTouches[0]; if (start && touch && start.atStart && touch.clientX - start.x > 30 && touch.clientX - start.x > Math.abs(start.y - touch.clientY)) loadOlder(event.currentTarget); }} onKeyDown={event => { const el = event.currentTarget; if (hasMore && ["ArrowLeft", "PageUp", "Home"].includes(event.key) && el.scrollLeft <= 2) { event.preventDefault(); loadOlder(el); } }}>
+          <div className={`attendance-grid-scroll compact-activities-grid-scroll${isPending ? " compact-pending-list" : ""}`} tabIndex={0} role="grid" aria-label={`Atividades da turma ${classModel.name}`} data-class-key={classModel.key} aria-rowcount={classModel.rows.length + 1} aria-colcount={columns.length + 1} onScroll={event => { const el = event.currentTarget; if (hasMore && el.scrollWidth > el.clientWidth + 1 && el.scrollLeft <= Math.max(120, el.clientWidth * 0.75)) loadOlder(el); }} onWheel={event => { const el = event.currentTarget; const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY; if (hasMore && delta < 0 && el.scrollLeft <= 2) { event.preventDefault(); loadOlder(el); } }} onTouchStart={event => { const el = event.currentTarget; const touch = event.touches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY, atStart: el.scrollLeft <= 2 } : null; }} onTouchEnd={event => { const start = touchStart.current; touchStart.current = null; const touch = event.changedTouches[0]; if (start && touch && start.atStart && touch.clientX - start.x > 30 && touch.clientX - start.x > Math.abs(start.y - touch.clientY)) loadOlder(event.currentTarget); }} onKeyDown={event => { const el = event.currentTarget; if (hasMore && ["ArrowLeft", "PageUp", "Home"].includes(event.key) && el.scrollLeft <= 2) { event.preventDefault(); loadOlder(el); } }}>
             {!isPending && <div className="attendance-grid-header compact-activities-grid-header" style={gridStyle} role="row">
               <div className="attendance-grid-corner" role="columnheader">Aluno</div>
               {lessonGroups.map((group, index) => <div className="attendance-column-heading compact-activity-column-heading compact-lesson-group" role="columnheader" key={`${group.label}-${index}`} style={{ gridColumn: `span ${group.count}` }}><span>{group.label}</span></div>)}
@@ -728,7 +723,7 @@ export function CompactActivitiesGrid({
                 if (!cell) return isPending ? null : <div className="attendance-grid-status attendance-status-empty compact-activity-empty" role="gridcell" aria-label={`${row.name}: sem pendência em ${column.lessonLabel}, ${column.taskLabel}`} key={column.key}>—</div>;
                 const kindLabel = column.kind === "homework" ? " · Atividade de casa" : "";
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}${kindLabel}`;
-                const actionContent = <><span className="compact-activity-lesson" title={column.lessonLabel}>{column.lessonLabel}{column.kind === "homework" && <House size={12} aria-label="Atividade de casa" />}</span><span className="compact-activity-task" title={column.taskLabel}>{column.taskLabel}</span></>;
+                const actionContent = <>{isPending && <span className="compact-activity-lesson" title={column.lessonLabel}>{column.lessonLabel}{column.kind === "homework" && <House size={12} aria-label="Atividade de casa" />}</span>}<span className="compact-activity-task" title={column.taskLabel}>{!isPending && column.kind === "homework" && <House size={12} aria-label="Atividade de casa" />}{column.taskLabel}</span></>;
                 return <div className={`compact-activity-cell${columnIndex === 0 || columns[columnIndex - 1].lessonLabel !== column.lessonLabel ? " compact-lesson-start" : ""}`} role="gridcell" key={column.key}>
                   {cell.source === "progress" ? <div className={`compact-activity-action compact-activity-progress compact-activity-${cell.progress.state}`} role="img" aria-label={`${row.name}: ${column.taskLabel}${kindLabel}, ${activityProgressLabel(cell.progress.state)}`} title={`${column.taskLabel}${kindLabel} · ${activityProgressLabel(cell.progress.state)}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.progress.state === "corrected" ? "✓" : cell.progress.state === "submitted" ? "◷" : cell.progress.state === "missing" ? "!" : cell.progress.state === "not_graded" ? "—" : "?"}</span></div> : cell.source === "manual" && !pendingManualActivities([cell.activity]).length ? <div className={`compact-activity-action compact-activity-manual compact-activity-${cell.activity.status === "corrected" ? "delivered" : "missing"}`} role="img" aria-label={`${row.name}: ${column.taskLabel}${kindLabel}, ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`} title={`${column.taskLabel}${kindLabel} · ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.activity.status === "corrected" ? "✓" : "!"}</span></div> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
                     : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>{actionContent}</button>

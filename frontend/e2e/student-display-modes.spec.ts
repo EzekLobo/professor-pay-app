@@ -28,6 +28,7 @@ for (const width of [320, 390, 1440]) {
     await expect(classActions).toBeHidden();
     await firstClass.locator("summary").click();
     await expect(firstClass.getByRole("grid")).toBeVisible();
+    await expect(firstClass.locator(".compact-activity-lesson")).toHaveCount(0);
     await expect(firstClass.locator(".compact-student-name").first()).toBeVisible();
     const secondClass = page.locator(".compact-activities-class").nth(1);
     await secondClass.locator("summary").click();

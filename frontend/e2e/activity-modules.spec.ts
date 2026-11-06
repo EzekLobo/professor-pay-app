@@ -19,13 +19,35 @@ for (const width of [320, 1440]) test(`módulos começam pela aula recente e per
   const headers = await grid.locator(".compact-lesson-group").allTextContents();
   expect(headers.findIndex(text => text.includes("M1L"))).toBeLessThan(headers.findIndex(text => text.includes("M2L")));
   if (width === 320) {
-    const movement = await grid.evaluate(el => {
+    const positions = await grid.evaluate(async el => {
       el.scrollTo({ left: 100, behavior: "instant" });
       const before = el.scrollLeft;
       el.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
-      return el.scrollLeft - before;
+      el.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+      const values = [el.scrollLeft - before];
+      for (let frame = 0; frame < 18; frame++) {
+        await new Promise(requestAnimationFrame);
+        values.push(el.scrollLeft - before);
+      }
+      return values;
     });
-    expect(movement).toBeGreaterThanOrEqual(119);
+    expect(positions[0]).toBe(0);
+    expect(new Set(positions).size).toBeGreaterThan(3);
+    expect(positions.every((value, index) => !index || value >= positions[index - 1])).toBe(true);
+    expect(positions.at(-1)).toBeGreaterThanOrEqual(239);
+    expect(positions.at(-1)).toBeLessThanOrEqual(240);
+    expect(await grid.evaluate(el => {
+      const horizontal = new WheelEvent("wheel", { deltaX: 60, deltaY: 80, bubbles: true, cancelable: true });
+      el.dispatchEvent(horizontal);
+      return horizontal.defaultPrevented;
+    })).toBe(false);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const immediate = await grid.evaluate(el => {
+      el.scrollTo({ left: 100, behavior: "instant" });
+      el.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+      return el.scrollLeft;
+    });
+    expect(immediate).toBe(220);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

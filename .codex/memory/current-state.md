@@ -1,5 +1,13 @@
 # Estado atual
 
+## Fluidez da rolagem de atividades — 06/11/2026
+
+- Somente Completo omite código da aula dentro dos cartões: fica no cabeçalho agrupado. Ícone de casa permanece junto ao título. Pendências mantém código em cada cartão; lista/demais modos não alterados.
+
+- `activity-wheel-scroll.ts` acumula roda vertical em um único requestAnimationFrame, suavização exponencial curta e cancelamento por toque/ponteiro/teclado. Gestos horizontais/Shift nativos; reduzir movimento aplica deslocamento imediato. Não usa smooth reiniciado por evento.
+- Módulo anterior é antecipado em 75% da largura visível (mínimo120px), sem cooldown350ms. Trava somente durante prepend; alvo da animação e posição recebem a mesma compensação de largura. Agrupamento de módulos memoizado por modelo.
+- E2E activity-modules verifica múltiplos quadros intermediários, soma de eventos, monotonicidade, gesto horizontal nativo e movimento reduzido; mantém navegação de módulos e preservação de posição. Novidade2026110609. Confirmado: 39 testes afetados, tipos/lint/build e 5 E2E locais. Conferir publicação e repetir E2E na demo de produção antes de encerrar.
+
 ## TASK_NOT_GRADED distinguido de informação ausente — 06/11/2026
 
 - O código conhecido TASK_NOT_GRADED era intencionalmente tratado como unknown por falta de evidência de entrega. Agora persiste como not_graded, com tradução “Atividade sem avaliação”, símbolo neutro e validação no cache/Firebase. Continua sem inferir entrega, correção ou falta; notificações conservam obrigação desconhecida, sem cobrança por esse estado.

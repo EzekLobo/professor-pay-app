@@ -1,5 +1,10 @@
 # Decisões
 
+## 2026-11-06 — Grade por requisição, sem polling de página
+
+- Correção explícita do usuário substitui a recarga por minuto: páginas consultam na entrada/retomada/ação e mostram cada resposta persistida imediatamente. Desabilitar também o polling de atividades de seis horas na rotina ativa; manter os gatilhos temporais específicos de ocorrências/chamadas.
+- Saldo pertence ao identificador Kodland do aluno: propagar para suas matrículas sem trocar IDs locais ou turmas. Mostrar saldo em todos os modos de atividades, não apenas no modo Alunos.
+
 ## 2026-11-06 — Atualização por página visível
 
 - A pedido do usuário, tarefas/atividades, presença e grade do Resumo consultam a fonte na entrada, retomada do foco/conexão e por minuto visível; respostas persistidas atualizam as telas pelos eventos existentes. Esta regra prevalece sobre a espera de seis horas para atividades e a espera por ocorrência de presença enquanto essas áreas estiverem abertas.

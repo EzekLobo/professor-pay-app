@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseStudentContact, parseStudentLessonCredits, studentLessonCreditsPatch } from "./student-profile";
+import { parseStudentContact, parseStudentLessonCredits, studentLessonCreditsPatch, studentProfileUpdates } from "./student-profile";
 import { normalizeStudentName, sanitizeKodlandStudentRecord } from "./student-privacy";
 
 describe("student profile contact parser", () => {
@@ -16,6 +16,9 @@ describe("student profile contact parser", () => {
 });
 
 describe("student lesson credits", () => {
+  it("does not apply a wallet to a different provider student sharing a local ID", () => {
+    expect(studentProfileUpdates([{id:"local",external_id:"student-a"}], [{id:"local",external_id:"student-b",lesson_credits_remaining:12}])).toEqual([]);
+  });
   it("reads the default lesson wallet only, retaining zero and negative balances", () => {
     expect(parseStudentLessonCredits([{ lesson_type: "MONEY", balance: 999 }, { lesson_type: "DEFAULT_LESSON", balance: "50" }])).toBe(50);
     expect(parseStudentLessonCredits([{ lesson_type: "DEFAULT_LESSON", balance: 0 }])).toBe(0);

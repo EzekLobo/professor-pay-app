@@ -661,7 +661,7 @@ export function CompactActivitiesGrid({
   const pointsFor = (row: CompactActivityRow) => row.points ?? (row.student ? kodlandStudentPoints(row.student.progress_summary) : null);
   const creditFor = (student?: KodlandStudent) => student && typeof student.lesson_credits_remaining === "number" ? `${new Intl.NumberFormat("pt-BR").format(student.lesson_credits_remaining)} aulas` : "Não informado";
   const openStudent = (row: CompactActivityRow) => setSelected(row.student ?? row.manualStudent ?? null);
-  const studentSummary = (row: CompactActivityRow, classKey: string, fullName = false) => <div className="activity-student-heading"><div className="compact-student-profile"><button type="button" className={`compact-student-name${fullName ? " is-full-name" : ""}`} onClick={() => openStudent(row)} disabled={!row.student && !row.manualStudent} aria-label={`Informações de ${row.name}`} title={row.name}>{row.rank ? `${row.rank}º · ` : ""}{fullName ? row.name : row.name.trim().split(/\s+/).filter((_, index, parts) => index === 0 || index === parts.length - 1).join(" ")}</button>{!fullName && pointsFor(row) !== null && <small>{new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts</small>}</div>{contactButton?.(classKey, row.key, row.name)}</div>;
+  const studentSummary = (row: CompactActivityRow, classKey: string, fullName = false) => <div className="activity-student-heading"><div className="compact-student-profile"><button type="button" className={`compact-student-name${fullName ? " is-full-name" : ""}`} onClick={() => openStudent(row)} disabled={!row.student && !row.manualStudent} aria-label={`Informações de ${row.name}`} title={row.name}>{row.rank ? `${row.rank}º · ` : ""}{fullName ? row.name : row.name.trim().split(/\s+/).filter((_, index, parts) => index === 0 || index === parts.length - 1).join(" ")}</button>{!fullName && pointsFor(row) !== null && <small>{new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts</small>}{!fullName && row.student && <small className="student-lesson-credits" aria-label={`Créditos de ${row.name}: ${creditFor(row.student)}`} title="Saldo global de aulas na Kodland">Créditos: {creditFor(row.student)}</small>}</div>{contactButton?.(classKey, row.key, row.name)}</div>;
   return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", "status" in selected ? selected.status : selected.active ? "Ativo" : "Inativo"], ["Pontuação", "progress_summary" in selected ? `${kodlandStudentPoints(selected.progress_summary)} pts` : "Não informado"], ["Saldo de aulas", "progress_summary" in selected ? creditFor(selected) : "Não informado"], ["Progresso", "progress_summary" in selected ? selected.progress_summary : ""], ["Telefone", selected.phone]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>}</Modal><div ref={activitiesRoot} className="correction-class-list compact-activities-list" aria-label="Alunos e atividades por turma">
     {model.filter(item => !hidden.includes(item.key)).map((original) => {
       const classModel = { ...original, name: names[original.key] || original.name };
@@ -884,7 +884,9 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  const loadGeneration = useRef(0);
   const load = useCallback(async (background = false) => {
+    const generation = ++loadGeneration.current;
     if (demo) {
       const courses = await demo.manualAdapter?.courses.list() ?? [];
       setManualCourseNames(Object.fromEntries(courses.map(course => [course.id, course.name])));
@@ -898,11 +900,13 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       const preferences = localOnly ? { kodland_enabled: true } : await tutorPreferencesApi.get();
       setKodlandEnabled(preferences.kodland_enabled);
       const empty = Promise.resolve({ items: [] });
-      const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents, progressResult, ownOccurrences] = await Promise.all([
+      const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents, progressResult, ownOccurrences, ownCourses] = await Promise.all([
         preferences.kodland_enabled ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled ? kodlandApi.attendance() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty,
         localOnly ? Promise.resolve(null) : manualPedagogyApi.activities(), localOnly ? Promise.resolve(null) : manualTeachingApi.classes(), localOnly ? Promise.resolve(null) : manualTeachingApi.students(),
         preferences.kodland_enabled ? kodlandApi.taskProgress() : empty, localOnly ? Promise.resolve(null) : manualOperationsApi.occurrences(),
+        localOnly ? Promise.resolve(null) : manualCoursesApi.list(),
       ]);
+      if (generation !== loadGeneration.current) return;
       setTaskProgress(progressResult.items);
       if (ownOccurrences) setManualOccurrences(ownOccurrences);
       setReviews(reviewResult.items);
@@ -912,13 +916,13 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       setHasKodlandGroups(groupResult.items.length > 0);
       if (ownActivities) setManualActivities(ownActivities);
       if (ownClasses) setManualClasses(ownClasses);
-      if (!localOnly) { const courses = await manualCoursesApi.list(); setManualCourseNames(Object.fromEntries(courses.map(course => [course.id, course.name]))); }
+      if (ownCourses) setManualCourseNames(Object.fromEntries(ownCourses.map(course => [course.id, course.name])));
       if (ownStudents) setManualStudents(ownStudents);
       setStudents(studentResult.items);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");
+      if (generation === loadGeneration.current) setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   }, [demo]);
 
@@ -953,14 +957,16 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     setError("");
     setNotice("");
     try {
+      const profilesOnly = viewMode === "activities" && studentDisplayMode === "students";
+      if (viewMode === "activities" && !profilesOnly) await kodlandApi.sync(credentials.username.trim(), credentials.password, "profiles");
       const result = await kodlandApi.sync(
         credentials.username.trim(),
         credentials.password,
-        studentDisplayMode === "students" ? "profiles" : "corrections",
+        profilesOnly ? "profiles" : "corrections",
       );
       await load();
       setNotice(
-        studentDisplayMode === "students" ? "Perfis e saldos de aulas atualizados." : `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
+        profilesOnly ? "Perfis e saldos de aulas atualizados." : `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
       );
     } catch (reason) {
       setError(
@@ -980,9 +986,18 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
 
   useEffect(() => {
     if (demo) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const unsubscribe = subscribeStudentNotifications(change => { if (change !== "source") return; clearTimeout(timer); timer = setTimeout(() => { void load(true); }, 150); });
-    return () => { clearTimeout(timer); unsubscribe(); };
+    let active = true;
+    let reading = false;
+    let pending = false;
+    const refresh = async () => {
+      if (reading) { pending = true; return; }
+      reading = true;
+      try {
+        do { pending = false; await load(true); } while (active && pending);
+      } finally { reading = false; }
+    };
+    const unsubscribe = subscribeStudentNotifications(change => { if (active && change === "source") void refresh(); });
+    return () => { active = false; unsubscribe(); };
   }, [demo, load, viewMode]);
 
   const visibleReviews = useMemo(() => {
@@ -1100,6 +1115,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
         </div>
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
+      {!demo && notifications?.autoSync.phase === "error" && <p className="form-error" role="status">{notifications.autoSync.message}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
       <div className="corrections-topbar">
         <nav className="corrections-page-tabs" data-tour={classesContent ? "classes-tabs" : undefined} role="tablist" aria-label={classesContent ? "Áreas de turmas" : "Páginas do acompanhamento"}>

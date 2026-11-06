@@ -68,6 +68,12 @@ describe("organização da grade por módulos", () => {
 });
 
 describe("compactActivitiesModel", () => {
+  it.each(["complete", "pending", "students"] as const)("mostra o saldo de créditos no modo %s", displayMode => {
+    const model=compactActivitiesModel({groups:[group()],students:[student({lesson_credits_remaining:12})],reviews:[review()],lessons:[lesson()],manualActivities:[],manualClasses:[],manualStudents:[]});
+    const markup=renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode={displayMode} onCorrectManual={()=>undefined} />);
+    expect(markup).toContain("12 aulas");
+    if(displayMode!=="students") expect(markup).toContain("student-lesson-credits");
+  });
   for (const mode of ["complete", "pending", "students"] as const) {
     it(`busca no modo ${mode} restringe alunos e células sem preservar linhas não correspondentes`, () => {
       const input = { groups: [group()], lessons: [lesson()], reviews: [review({ student_name: "Ana Maria" }), review({ id: "other-review", external_student_id: "other", student_name: "Bia Silva", task_id: "other-task", task_title: "Robô" })],

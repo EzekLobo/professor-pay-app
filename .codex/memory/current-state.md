@@ -1,5 +1,11 @@
 # Estado atual
 
+## Créditos em todos os modos e grade por resposta — 06/11/2026
+
+- Créditos visíveis junto ao aluno em Completo/Pendências; perfis/saldos consultados na entrada de todas as áreas de atividades. `studentProfileUpdates` vincula por external_id e atualiza cada matrícula existente, preservando IDs locais, turma, preferências e criação; não ignora cadastros legados nem duplica alunos no cache.
+- Grade/Meu quadro sem polling por minuto ou seis horas. Entrada, retomada e ações disparam consultas; cada persistência recarrega a grade imediatamente, com fila de leitura e proteção de geração. Falhas aguardam nova solicitação; solicitação bloqueada pela sincronização manual retoma após evento de conclusão. Timers de ocorrências/chamadas continuam separados da recarga da página.
+- Fonte de carteira reconferida no bundle público Kodland `wallet-lG0PJq85.js`: GET /balance/ com id/lesson_type, selecionando DEFAULT_LESSON. Confirmado: 620 testes, tipos/lint/build e 3 E2E em 320/390/1440. Novidade 2026110604; validar produção após envio, sem tratar testes/demo como confirmação do saldo real.
+
 ## Correção de créditos e percentual zerado — 06/11/2026
 
 - `course-progress.ts` resolve próxima aula por ID do catálogo, código local/schedule ou índice global; conta aulas anteriores e conclusões explícitas, sem contar a próxima aula como concluída. Ausência de posição/conclusões permanece desconhecida, distinguindo início confirmado em 0%. Tooltip informa concluídas/total.

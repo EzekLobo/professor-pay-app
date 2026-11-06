@@ -23,6 +23,18 @@ import {kodlandApi} from "./api";
 afterEach(()=>vi.unstubAllGlobals());
 const lesson={id:"l",source_lesson_id:"l",external_class_id:"g",external_class_name:"G",module_number:"1",lesson_number:1,course_index:1,schedule_code:"M1L1",title:"Aula",theme:"",lesson_date:"2026-10-01",start_time:"18:00",end_time:"19:00",status:"held",lesson_passed:true,external_url:"",slides_url:"",guide_url:"",homework_url:"",homework_title:"",classroom_tasks:[]};
 const snapshot=()=>({groups:[{id:"g",external_id:"g",title:"G",archived:false}],students:[{id:"s",external_id:"s",external_class_id:"g",name:"Ana",status:"active"}],lessons:[lesson],reviews:[],extra_lessons:[],availability:[],attendance:[]});
+
+it("atualiza créditos de documentos legados pelo aluno Kodland sem mover matrículas", async () => {
+ const prefix = "users/incremental/kodland_students/";
+ mocks.db.set(prefix + "legacy-a", { id:"legacy-a", external_id:"s", external_class_id:"g", name:"Ana", hidden:true, created_at:"old" });
+ mocks.db.set(prefix + "legacy-b", { id:"legacy-b", external_id:"s", external_class_id:"other", name:"Ana", created_at:"old" });
+ vi.stubGlobal("fetch", vi.fn(async () => { const payload=snapshot(); Object.assign(payload.students[0], { lesson_credits_remaining:12, lesson_credits_updated_at:"new" }); return Response.json(payload); }));
+ const result=await kodlandApi.sync("teacher","fixture","profiles");
+ expect(result.student_count).toBe(2);
+ expect(mocks.db.get(prefix+"legacy-a")).toMatchObject({id:"legacy-a",external_class_id:"g",lesson_credits_remaining:12,hidden:true,created_at:"old"});
+ expect(mocks.db.get(prefix+"legacy-b")).toMatchObject({id:"legacy-b",external_class_id:"other",lesson_credits_remaining:12});
+ expect(mocks.db.has(prefix+"s")).toBe(false);
+});
 beforeEach(()=>{mocks.db.clear();mocks.commits.length=0;mocks.reads.length=0;mocks.fail="";vi.stubGlobal("fetch",vi.fn(async()=>Response.json(snapshot())));});
 it("segunda importação igual limpa campos pessoais legados e preserva preferências técnicas",async()=>{
  await kodlandApi.sync("teacher","not-real","essential");expect(mocks.commits.reduce((a,b)=>a+b,0)).toBe(3);

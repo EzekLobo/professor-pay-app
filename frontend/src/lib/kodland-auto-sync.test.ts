@@ -16,6 +16,13 @@ function setup() {
   return { context, sync, runTask, status, credentials, tick, advance: (minutes: number) => { time += minutes * 60000; }, owner: (value: boolean) => { owner = value; } };
 }
 describe("atualização automática da Kodland", () => {
+  it("permite executar apenas tarefas de ocorrência sem polling de atividades", async () => {
+    const app=setup();
+    app.context.tasks=[{id:"due",kind:"extras_discovery",weekDate:"2026-11-06",knownExtraIds:[]}];
+    await app.tick({refreshActivities:false});
+    expect(app.sync).not.toHaveBeenCalled();
+    expect(app.runTask).toHaveBeenCalledTimes(1);
+  });
   it("atualiza atividades por turma a cada seis horas, independente da tela", async () => {
     const app = setup(); await app.tick(); expect(app.sync.mock.calls.map(call => call[0])).toEqual(["a", "b"]);
     app.advance(359); await app.tick(); expect(app.sync).toHaveBeenCalledTimes(2);

@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110604, date: "2026-11-06", title: "Créditos na grade e atualização por resposta",
+    description: "Os créditos aparecem junto ao aluno nos modos Completo e Correções pendentes. Cadastros antigos recebem o saldo pelo identificador Kodland. A grade atualiza ao receber cada resposta, sem recarga periódica por intervalo.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
     version: 2026110603, date: "2026-11-06", title: "Créditos e aulas concluídas",
     description: "O modo Alunos carrega os saldos de aulas automaticamente. O percentual resolve a próxima aula pelo catálogo e conta somente as aulas anteriores ou confirmadas como concluídas; ausência de dados deixa de aparecer como zero.",
     href: "/classes", action: "Ver alunos",

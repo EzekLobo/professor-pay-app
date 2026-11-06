@@ -1,4 +1,4 @@
-import { studentLessonCreditsPatch } from "@/lib/student-profile";
+import { studentLessonCreditsPatch, studentProfileUpdates } from "@/lib/student-profile";
 import { sanitizeKodlandStudentRecord, sanitizeManualStudentRecord } from "@/lib/student-privacy";
 import { publishTutorPreferencesChanged } from "./tutor-preference-events";
 import { occurrenceTimes } from "./sync-policy";
@@ -2761,7 +2761,7 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
       if (snapshot.extra_lessons_synced) merge("kodland_extra_lessons", snapshot.extra_lessons.map(item => ({ ...item, created_at: stamp })));
       if (snapshot.availability_synced) state.collections.kodland_availability = snapshot.availability.map(item => ({ ...item, created_at: stamp }));
     }
-    if (mode === "profiles") merge("kodland_students", snapshot.students.map(item => ({ ...item, created_at: stamp })));
+    if (mode === "profiles") merge("kodland_students", studentProfileUpdates(collection("kodland_students"), snapshot.students).map(item => ({ ...item, updated_at: stamp })) as BrowserRow[]);
     if (mode === "classroom") {
       const known = new Map(snapshot.groups.map(item => [item.external_id, item]));
       state.collections.kodland_groups = collection("kodland_groups").map(item => {
@@ -3413,26 +3413,16 @@ export const kodlandApi = {
     }
     if (mode === "profiles") {
       const previousStudents = await readLocal("kodland_students");
-      const students = uniqueBy(snapshot.students, (item) => item.id);
-      const previousById = new Map(
-        previousStudents.map((student) => [String(student.id), student]),
-      );
-      const writes: Array<(batch: FirebaseWriteBatch) => void> = students
-        .filter((student) => previousById.has(student.id))
+      const writes: Array<(batch: FirebaseWriteBatch) => void> = studentProfileUpdates(previousStudents, snapshot.students)
         .map((student) => {
-          const previous = previousById.get(student.id)!;
           const next = sanitizeKodlandStudentRecord({
-            ...previous,
             ...student,
-            ...studentLessonCreditsPatch(student, previous),
             id: student.id,
-            name: student.name || previous.name || "",
-            phone: student.phone || previous.phone || "",
-            hidden: Boolean(previous.hidden),
-            created_at: String(previous.created_at ?? createdAt),
+            hidden: Boolean(student.hidden),
+            created_at: String(student.created_at ?? createdAt),
             updated_at: createdAt,
           });
-          return (batch) => batch.set(doc(syncCollection("kodland_students"), student.id), firestorePayload(next));
+          return (batch) => batch.set(doc(syncCollection("kodland_students"), String(student.id)), firestorePayload(next));
         });
       persistencePhase = "gravação";
       options.assertActive?.();

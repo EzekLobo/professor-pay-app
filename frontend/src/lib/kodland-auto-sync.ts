@@ -21,7 +21,7 @@ export function createKodlandAutoSync(deps: AutoSyncDependencies) {
   let wasFollowing = false;
   const completed: Record<string, string> = {};
   return {
-    async tick({ active, online, following }: { active: boolean; online: boolean; following: boolean }) {
+    async tick({ active, online, following, refreshActivities = true }: { active: boolean; online: boolean; following: boolean; refreshActivities?: boolean }) {
       const now = deps.now ?? Date.now;
       if (!active || !online || !deps.owner() || running || now() < retryAt) return;
       if (deps.available?.() === false) { deps.status({ phase: "paused", message: "Atualização automática pausada durante a sincronização manual ou gravação em andamento." }); return; }
@@ -35,7 +35,7 @@ export function createKodlandAutoSync(deps: AutoSyncDependencies) {
         if (!context.enabled) { deps.status({ phase: "disabled" }); return; }
         if (!context.groups.length && !context.tasks?.length) { deps.status({ phase: "empty", message: "Importe suas turmas em Configurações > Dados e backup para iniciar a atualização automática." }); return; }
         const interval = ACTIVITY_SYNC_INTERVAL;
-        const due = [...new Set(context.groups)].filter(id => {
+        const due = [...new Set(refreshActivities ? context.groups : [])].filter(id => {
           if (context.blockedGroups?.includes(id)) return true;
           const stamp = Math.max(Date.parse(context.updatedAt[id] ?? "") || 0, Date.parse(completed[id] ?? "") || 0);
           return enteringFollowup || !stamp || now() - stamp >= interval;

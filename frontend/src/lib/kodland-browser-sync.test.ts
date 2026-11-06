@@ -154,3 +154,18 @@ it("preserva saldo de aulas no cache e aceita um zero confirmado na leitura de p
  expect(state.disk!.collections.kodland_students[0]).toMatchObject({lesson_credits_remaining:0,lesson_credits_updated_at:"new"});
  expect(state.disk!.collections.kodland_students[0]).not.toHaveProperty("local_note");
 });
+
+it("atualiza saldos em IDs locais legados sem inserir aluno duplicado", async () => {
+ await kodlandApi.sync("teacher","fixture","essential",{storage:"browser"});
+ const student=state.disk!.collections.kodland_students[0];
+ student.id="legacy-local";
+ const externalId=student.external_id;
+ state.disk!.collections.kodland_students.push({...student,id:"second-enrolment",external_class_id:"other"});
+ vi.stubGlobal("fetch",vi.fn(async()=>{const payload=base();Object.assign(payload.students[0],{external_id:externalId,lesson_credits_remaining:17,lesson_credits_updated_at:"new"});return Response.json(payload);}));
+ await kodlandApi.sync("teacher","fixture","profiles",{storage:"browser"});
+ expect(state.disk!.collections.kodland_students).toMatchObject([
+  {id:"legacy-local",lesson_credits_remaining:17},
+  {id:"second-enrolment",external_class_id:"other",lesson_credits_remaining:17},
+ ]);
+ expect(state.disk!.collections.kodland_students).toHaveLength(2);
+});

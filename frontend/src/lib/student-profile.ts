@@ -50,3 +50,22 @@ export function studentLessonCreditsPatch(incoming: unknown, previous: unknown =
   if (typeof source.lesson_credits_remaining !== "number" || !Number.isFinite(source.lesson_credits_remaining)) return {};
   return { lesson_credits_remaining: source.lesson_credits_remaining, ...(typeof source.lesson_credits_updated_at === "string" ? { lesson_credits_updated_at: source.lesson_credits_updated_at } : {}) };
 }
+
+/** A global wallet belongs to the provider student, not to a local document or class. */
+export function studentProfileUpdates(previous: Array<Record<string, unknown> & { id: string }>, incoming: readonly Record<string, unknown>[]): Array<Record<string, unknown> & { id: string }> {
+  const byExternalId = new Map(incoming.filter(item => stringValue(item.external_id)).map(item => [stringValue(item.external_id), item]));
+  const byId = new Map(incoming.map(item => [stringValue(item.id), item]));
+  return previous.flatMap(saved => {
+    const direct = byId.get(stringValue(saved.id));
+    const compatible = !stringValue(saved.external_id) || !stringValue(direct?.external_id) || stringValue(saved.external_id) === stringValue(direct?.external_id);
+    const profile = byExternalId.get(stringValue(saved.external_id)) ?? (compatible ? direct : undefined);
+    if (!profile) return [];
+    return [{ ...saved,
+      name: stringValue(profile.name) || saved.name,
+      phone: stringValue(profile.phone) || saved.phone,
+      status: stringValue(profile.status) || saved.status,
+      progress_summary: stringValue(profile.progress_summary) || saved.progress_summary,
+      ...studentLessonCreditsPatch(profile, saved),
+    }];
+  });
+}

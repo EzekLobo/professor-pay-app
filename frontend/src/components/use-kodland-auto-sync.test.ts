@@ -83,7 +83,7 @@ describe("single Kodland scheduler integration", () => {
   it("recognizes canonical Turmas as the followup area", async () => {
     useKodlandAutoSync("account", false);
     await vi.advanceTimersByTimeAsync(30_000);
-    expect(state.tick).toHaveBeenCalledWith({ active: true, online: true, following: true });
+    expect(state.tick).toHaveBeenCalledWith({ active: true, online: true, following: false, refreshActivities: false });
   });
   it("uses the dated call scope under automatic priority instead of the empty classroom mode", async () => {
     useKodlandAutoSync("account", false);
@@ -109,16 +109,16 @@ describe("single Kodland scheduler integration", () => {
     expect(state.saveTask).toHaveBeenLastCalledWith("recordings:key", expect.objectContaining({ complete: true }));
   });
 
-  it("refreshes the Resumo immediately and again after one minute while visible", async () => {
+  it("refreshes the Resumo on entry without timed page polling", async () => {
     useKodlandAutoSync("account", false, "/dashboard");
     await vi.advanceTimersByTimeAsync(0);
     expect(state.sync).toHaveBeenCalledWith("test", "test", "schedule", expect.objectContaining({ automatic: true, refreshSchedule: true }));
     expect(state.sync).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(60000);
-    expect(state.sync).toHaveBeenCalledTimes(2);
+    expect(state.sync).toHaveBeenCalledTimes(1);
     Object.assign(document, { visibilityState: "hidden" });
     await vi.advanceTimersByTimeAsync(60000);
-    expect(state.sync).toHaveBeenCalledTimes(2);
+    expect(state.sync).toHaveBeenCalledTimes(1);
   });
 
   it("refreshes activities and presence on entry without waiting for the occurrence deadline", async () => {
@@ -145,16 +145,16 @@ describe("single Kodland scheduler integration", () => {
     expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "attendance" }));
   });
 
-  it("retries a failed page refresh and refreshes immediately when returning to the tab", async () => {
+  it("retries a failed page refresh only on a new entry or resume request", async () => {
     state.sync.mockRejectedValueOnce(new Error("temporarily offline"));
     useKodlandAutoSync("account", false, "/dashboard");
     await vi.advanceTimersByTimeAsync(0);
     expect(state.status).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "error" }));
     await vi.advanceTimersByTimeAsync(30000);
-    expect(state.sync).toHaveBeenCalledTimes(2);
+    expect(state.sync).toHaveBeenCalledTimes(1);
     window.dispatchEvent(new Event("focus"));
     await vi.advanceTimersByTimeAsync(0);
-    expect(state.sync).toHaveBeenCalledTimes(3);
+    expect(state.sync).toHaveBeenCalledTimes(2);
   });
 
   it("loads profiles and lesson balances when entering the student roster", async () => {
@@ -164,6 +164,6 @@ describe("single Kodland scheduler integration", () => {
     expect(state.sync.mock.calls.map(call => call[2])).toEqual(["classroom", "profiles", "corrections"]);
     expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "activities" }));
     await vi.advanceTimersByTimeAsync(60000);
-    expect(state.sync.mock.calls.filter(call => call[2] === "profiles")).toHaveLength(2);
+    expect(state.sync.mock.calls.filter(call => call[2] === "profiles")).toHaveLength(1);
   });
 });

@@ -76,8 +76,7 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
     window.addEventListener("online", sync);
     window.addEventListener("focus", resume);
     document.addEventListener("visibilitychange", resume);
-    const timer = window.setInterval(resume, 60000);
-    return () => { active = false; unsubscribe?.(); window.clearInterval(timer); window.removeEventListener("online", sync); window.removeEventListener("focus", resume); document.removeEventListener("visibilitychange", resume); };
+    return () => { active = false; unsubscribe?.(); window.removeEventListener("online", sync); window.removeEventListener("focus", resume); document.removeEventListener("visibilitychange", resume); };
   }, [store, reload]);
 
   const activeLists = lists.filter((list) => !list.archived_at);

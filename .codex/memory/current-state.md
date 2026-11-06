@@ -1,5 +1,12 @@
 # Estado atual
 
+## Erro 503 ao consultar créditos — 06/11/2026
+
+- Referência 08bbd44f-ef86-4888-8525-833e7f556f80 localizada nos logs Vercel: autenticações Firebase/Kodland e turmas passaram; falha kodland_unavailable na etapa students, após 1393 ms.
+- Bug confirmado: saldo consultava /api/v2/balance/ (404). Bundle oficial wallet-lG0PJq85.js usa cliente cB/Hw com VITE_BACKOFFICE_API, configurado como /api/v1/. Sem autenticação, v1 retorna 401 e v2 404. Rota agora usa v1 apenas para balance; testes exigem URL completa e simulam 404 na v2.
+- CLI Vercel autenticada como ezeklobo; escopo ezeklobos-projects; projeto prj_qrYTeemGtqii6IizmTmVr5ufOXww. Logs via `vercel.cmd --scope ezeklobos-projects logs --project nexusclass --environment production --since 30m --query <referencia> --json`; não iniciar novo login quando whoami funcionar. MCP teve 403 no escopo; CLI permite leitura.
+- Validação de saldo real após publicação permanece dependente de consulta autenticada. Não confundir testes de rota ou demo com confirmação do saldo da conta.
+
 ## Contatos no modal e simplificação do filtro — 06/11/2026
 
 - Filtro de atividades mantém Completo/Pendências; preferências e favoritos legados students migram para Completo. A aba Alunos permanece, com perfil acessível pelo nome.

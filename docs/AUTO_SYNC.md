@@ -8,7 +8,7 @@ Entradas na aba Alunos consultam atividades/ranking por turma; entradas em Prese
 
 As regras abaixo continuam aplicáveis ao acompanhamento de ocorrências em segundo plano. Para as áreas visíveis, prevalecem as consultas de entrada/ação e a aplicação imediata das respostas descritas acima.
 
-Todos os modos de atividades executam `profiles` na entrada para carregar créditos `DEFAULT_LESSON`, e `classroom` para atualizar metadados de próxima aula. Saldos são aplicados pelo identificador Kodland em cada matrícula existente, preservando ID local e turma. Os modos Completo/Pendências exibem créditos junto ao aluno; Alunos mantém a coluna de saldo. Falha HTTP é exibida na tela, em vez de encerrar perfis como atualizados sem saldo. Carteira ausente ou não reconhecida continua desconhecida; nunca vira zero.
+Todos os modos de atividades executam `profiles` na entrada para carregar créditos `DEFAULT_LESSON`, e `classroom` para atualizar metadados de próxima aula. Saldos são aplicados pelo identificador Kodland em cada matrícula existente, preservando ID local e turma. Os modos Completo/Pendências exibem créditos junto ao aluno, e o nome abre o modal de perfil e contatos. A carteira usa GET /api/v1/balance/ (a v2 não oferece esse endpoint). Falha HTTP é exibida na tela, em vez de encerrar perfis como atualizados sem saldo. Carteira ausente ou não reconhecida continua desconhecida; nunca vira zero.
 
 | Informação | Gatilho e encerramento |
 |---|---|

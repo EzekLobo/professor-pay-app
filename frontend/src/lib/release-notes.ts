@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110606, date: "2026-11-06", title: "Correção na consulta de créditos",
+    description: "A consulta de créditos usa o endereço correto da carteira da Kodland, corrigindo uma falha que interrompia a atualização dos perfis. Saldos anteriores continuam preservados quando há erro.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
     version: 2026110605, date: "2026-11-06", title: "Contatos no perfil do aluno",
     description: "Clique no nome do aluno para cadastrar seu WhatsApp e escolher entre aluno e responsável ao preparar uma mensagem. O filtro mantém apenas Completo e Correções pendentes; as informações do aluno ficam no modal.",
     href: "/classes", action: "Abrir turmas",

@@ -14,7 +14,9 @@ function provider(balance: unknown, fail = false) {
     if (url.includes("get_teachers_groups")) return Response.json({ results: [{ id: "g", title: "Roblox", course: { id: "1192" } }], next: null });
     if (url.includes("get_students_main_data")) return Response.json([{ main_info: { student_id: "s", full_name: "Ana Silva", status: "active" }, progress_info: [] }]);
     if (url.includes("get_general_info_for_student_backoffice_page")) return Response.json({ full_name: "Ana Silva" });
-    if (url.includes("balance/")) return fail ? Response.json({}, { status: 403 }) : Response.json(balance);
+    // Match production: the wallet is a v1 endpoint, while v2 returns 404.
+    if (url.includes("/api/v2/balance/")) return Response.json({}, { status: 404 });
+    if (url.includes("/api/v1/balance/")) return fail ? Response.json({}, { status: 403 }) : Response.json(balance);
     throw new Error(`Unexpected endpoint: ${url}`);
   });
   vi.stubGlobal("fetch", fetch);
@@ -27,7 +29,8 @@ it.each([0, 12, -2])("returns the official default wallet balance %s in the stud
   const response = await POST(request());
   expect(response.status).toBe(200);
   expect((await response.json()).students).toMatchObject([{ external_id: "s", lesson_credits_remaining: balance, lesson_credits_updated_at: expect.any(String) }]);
-  expect(fetch.mock.calls.some(([url]) => String(url).includes("balance/?id=s&lesson_type=DEFAULT_LESSON"))).toBe(true);
+  expect(fetch.mock.calls.some(([url]) => String(url) === "https://backoffice.kodland.org/api/v1/balance/?id=s&lesson_type=DEFAULT_LESSON")).toBe(true);
+  expect(fetch.mock.calls.some(([url]) => String(url).includes("/api/v2/balance/"))).toBe(false);
 });
 
 it("reports a wallet request failure instead of claiming that profiles were updated", async () => {

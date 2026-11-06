@@ -513,10 +513,11 @@ async function kodlandLogin(username: string, password: string) {
   return payload.access_token;
 }
 
-async function get(path: string, token: string) {
+async function get(path: string, token: string, version: "v1" | "v2" = "v2") {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const response = await fetchKodland(`${api}${path}`, {
+      const base = version === "v1" ? "https://backoffice.kodland.org/api/v1/" : api;
+      const response = await fetchKodland(`${base}${path}`, {
         headers: { authorization: `Bearer ${token}` },
         cache: "no-store",
       });
@@ -825,7 +826,8 @@ async function studentsWithProfiles(
           token,
         );
         // A failed balance request must surface for retry, not report a successful profile refresh.
-        const balance = await get(`balance/?id=${encodeURIComponent(student.external_id)}&lesson_type=DEFAULT_LESSON`, token);
+        // The official wallet client uses Backoffice v1; v2 has no balance route (404).
+        const balance = await get(`balance/?id=${encodeURIComponent(student.external_id)}&lesson_type=DEFAULT_LESSON`, token, "v1");
         const credits = parseStudentLessonCredits(balance);
         profileData = { student: parseStudentContact(profile), ...(credits !== null ? { credits, creditsAt: new Date().toISOString() } : {}) };
         cache.set(student.external_id, profileData);

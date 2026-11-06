@@ -1,5 +1,10 @@
 # Estado atual
 
+## Atalho de mensagem na presença — 06/11/2026
+
+- AttendanceClassGrid recebe contactButton e exibe WhatsApp ao lado de cada nome, como em atividades. Usa o identificador externo do aluno, inclusive quando o perfil ainda não foi carregado. Reaproveita compositor com destinatário aluno/responsável; botão acessível de 44px e nome truncado dentro da coluna fixa.
+- E2E unified-classes verifica atalho visível, limites da coluna, tamanho e abertura do compositor em 320/390/1440. Novidade 2026110607.
+
 ## Erro 503 ao consultar créditos — 06/11/2026
 
 - Referência 08bbd44f-ef86-4888-8525-833e7f556f80 localizada nos logs Vercel: autenticações Firebase/Kodland e turmas passaram; falha kodland_unavailable na etapa students, após 1393 ms.

@@ -430,12 +430,14 @@ function AttendanceClassGrid({
   groups,
   classOpen,
   onWhatsApp,
+  contactButton,
 }: {
   histories: AttendanceStudentHistory[];
   lessons: KodlandLesson[];
   groups: KodlandGroup[];
   classOpen: boolean;
   onWhatsApp: (draft: WhatsAppDraft) => void;
+  contactButton: (classKey: string, studentKey: string, name: string) => ReactNode;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
   const attendanceSamples = new Map<string, KodlandAttendance>();
@@ -549,7 +551,7 @@ function AttendanceClassGrid({
         const recordsByColumn = new Map(history.records.map((item) => [attendanceColumnKey(item, lessons), item]));
         return <div className="attendance-grid-row" style={gridStyle} role="row" key={history.id}>
           <div className="attendance-student-summary" role="rowheader">
-            <div className="attendance-student-copy"><h4>{history.name}</h4></div>
+            <div className="attendance-name-contact"><div className="attendance-student-copy"><h4 title={history.name}>{history.name}</h4></div>{contactButton(`kodland:${history.records[0]?.external_class_id ?? ""}`, history.student?.external_id ?? history.records[0]?.external_student_id ?? history.id, history.name)}</div>
           </div>
           {columns.map((column) => {
             const item = recordsByColumn.get(column.key);
@@ -1177,7 +1179,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
             }}
           >
             <summary className="correction-class-heading"><div><h3>{className}</h3><span>{histories.length} aluno{histories.length === 1 ? "" : "s"}</span></div><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></summary>
-            <div className="correction-class-body attendance-class-body"><AttendanceClassGrid histories={histories} lessons={lessons} groups={groups} classOpen={openAttendanceClasses.has(className)} onWhatsApp={setWhatsAppDraft} /></div>
+            <div className="correction-class-body attendance-class-body"><AttendanceClassGrid histories={histories} lessons={lessons} groups={groups} classOpen={openAttendanceClasses.has(className)} onWhatsApp={setWhatsAppDraft} contactButton={contactButton} /></div>
           </details>)}
         </div>}
         </> : <>

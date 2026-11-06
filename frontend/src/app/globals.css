@@ -3458,6 +3458,8 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .activity-student-heading h4 { min-width: 0; overflow-wrap: anywhere; }
 .activity-whatsapp-button { display: inline-grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border: 0; border-radius: 8px; background: none; color: #43dba0; cursor: pointer; }
 .activity-whatsapp-button:hover { background: rgb(67 219 160 / 10%); }
+.attendance-name-contact { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; }
+.attendance-name-contact .attendance-student-copy { flex: 1; }
 .attendance-whatsapp-form a[aria-disabled="true"] { opacity: .45; cursor: default; }
 @media (max-width: 720px) { .notifications-dropdown { position: fixed; right: 12px; top: 76px; } }
 

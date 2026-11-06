@@ -824,7 +824,8 @@ async function studentsWithProfiles(
           `students/${student.external_id}/get_general_info_for_student_backoffice_page/`,
           token,
         );
-        const balance = await getOptional(`balance/?id=${encodeURIComponent(student.external_id)}&lesson_type=DEFAULT_LESSON`, token);
+        // A failed balance request must surface for retry, not report a successful profile refresh.
+        const balance = await get(`balance/?id=${encodeURIComponent(student.external_id)}&lesson_type=DEFAULT_LESSON`, token);
         const credits = parseStudentLessonCredits(balance);
         profileData = { student: parseStudentContact(profile), ...(credits !== null ? { credits, creditsAt: new Date().toISOString() } : {}) };
         cache.set(student.external_id, profileData);

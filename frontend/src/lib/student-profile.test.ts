@@ -24,6 +24,11 @@ describe("student lesson credits", () => {
   it("does not infer lesson credits from money, absent data or invalid values", () => {
     for (const payload of [null, {}, [], [{ lesson_type: "MONEY", balance: 50 }], [{ lesson_type: "DEFAULT_LESSON", balance: "" }], [{ lesson_type: "DEFAULT_LESSON", balance: false }], [{ lesson_type: "DEFAULT_LESSON", balance: Infinity }]]) expect(parseStudentLessonCredits(payload)).toBeNull();
   });
+  it("accepts a single default wallet and paginated wallet lists without reading money", () => {
+    const wallet = { lesson_type: "DEFAULT_LESSON", balance: "12" };
+    for (const payload of [wallet, { results: [wallet] }, { items: [wallet] }, { data: [{ lesson_type: "MONEY", balance: 100 }, wallet] }]) expect(parseStudentLessonCredits(payload)).toBe(12);
+    expect(parseStudentLessonCredits({ balance: 100 })).toBeNull();
+  });
   it("keeps prior credits when sync omits them and accepts a newly confirmed zero", () => {
     const previous = { lesson_credits_remaining: 5, lesson_credits_updated_at: "old" };
     expect(studentLessonCreditsPatch({}, previous)).toEqual(previous);

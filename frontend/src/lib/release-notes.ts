@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110603, date: "2026-11-06", title: "Créditos e aulas concluídas",
+    description: "O modo Alunos carrega os saldos de aulas automaticamente. O percentual resolve a próxima aula pelo catálogo e conta somente as aulas anteriores ou confirmadas como concluídas; ausência de dados deixa de aparecer como zero.",
+    href: "/classes", action: "Ver alunos",
+  },
+  {
     version: 2026110602, date: "2026-11-06", title: "Atualização ao abrir as páginas",
     description: "Tarefas, atividades dos alunos, presença e grade do Resumo consultam os dados ao abrir e voltam a conferir a cada minuto enquanto a página está visível. As respostas atualizam a tela automaticamente.",
     href: "/classes", action: "Abrir turmas",

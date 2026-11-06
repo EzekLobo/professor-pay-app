@@ -156,4 +156,14 @@ describe("single Kodland scheduler integration", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(state.sync).toHaveBeenCalledTimes(3);
   });
+
+  it("loads profiles and lesson balances when entering the student roster", async () => {
+    useKodlandAutoSync("account", false);
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "students" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync.mock.calls.map(call => call[2])).toEqual(["classroom", "profiles", "corrections"]);
+    expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "activities" }));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(state.sync.mock.calls.filter(call => call[2] === "profiles")).toHaveLength(2);
+  });
 });

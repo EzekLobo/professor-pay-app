@@ -8,6 +8,8 @@ Entradas na aba Alunos consultam atividades/ranking por turma; entradas em Prese
 
 As regras abaixo continuam aplicáveis ao acompanhamento de ocorrências em segundo plano. Para as áreas visíveis, prevalecem as consultas de entrada e a conferência por minuto descritas acima.
 
+No modo Alunos, cada ciclo também executa `profiles` para carregar os créditos `DEFAULT_LESSON`. As áreas de atividades/Alunos atualizam antes os metadados de próxima aula (`classroom`), permitindo resolver seu ID no catálogo e calcular as aulas concluídas. Falha HTTP na consulta de saldo é reportada para repetição, em vez de encerrar perfis como atualizados sem saldo. Uma carteira ausente ou não reconhecida continua desconhecida; nunca é convertida para zero.
+
 | Informação | Gatilho e encerramento |
 |---|---|
 | Cadastro de turmas/alunos | Não é reimportado automaticamente. A sincronização manual continua disponível. |

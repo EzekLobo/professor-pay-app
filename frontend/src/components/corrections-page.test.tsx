@@ -132,11 +132,11 @@ describe("compactActivitiesModel", () => {
     expect(compactActivitiesModel({ groups: [group()], students: [], reviews: [], lessons: [], manualActivities: [], manualClasses: [], manualStudents: [] })[0].completionPercent).toBeNull();
   });
 
-  it("calcula o percentual pela aula atual do curso, não pela flag de aula concluída", () => {
+  it("não conta a próxima aula como concluída ao calcular o percentual", () => {
     const currentGroup = group({ next_lesson_number: 12 });
     const lessons = Array.from({ length: 40 }, (_, index) => lesson({ id: `lesson-${index + 1}`, course_index: index + 1, lesson_number: index + 1, lesson_passed: false }));
     const model = compactActivitiesModel({ groups: [currentGroup], students: [student()], reviews: [], lessons, manualActivities: [], manualClasses: [], manualStudents: [] });
-    expect(model[0]).toMatchObject({ currentLessonNumber: 12, totalLessons: 40, completionPercent: 30 });
+    expect(model[0]).toMatchObject({ completedLessons: 11, currentLessonNumber: 11, totalLessons: 40, completionPercent: 28 });
   });
   it("modo completo mantém todos os estados manuais e pendências só aceita entregas sem correção", () => {
     const activities = [manualActivity(), manualActivity({ id: "done", title: "Feita", status: "corrected" }), manualActivity({ id: "assigned", title: "A fazer", status: "assigned", submission_text: "" })];

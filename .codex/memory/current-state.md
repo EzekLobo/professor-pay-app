@@ -1,5 +1,11 @@
 # Estado atual
 
+## Correção de créditos e percentual zerado — 06/11/2026
+
+- `course-progress.ts` resolve próxima aula por ID do catálogo, código local/schedule ou índice global; conta aulas anteriores e conclusões explícitas, sem contar a próxima aula como concluída. Ausência de posição/conclusões permanece desconhecida, distinguindo início confirmado em 0%. Tooltip informa concluídas/total.
+- Evento de página distingue modo `students`: scheduler consulta `classroom` e `profiles` antes de atividades para atualizar os metadados e saldos automaticamente. Leitor de saldo aceita lista, paginação e registro tipado DEFAULT_LESSON; falha HTTP de balance deixa de ser descartada silenciosamente. Persistência existente mantém zero/negativos e último saldo conhecido.
+- Confirmado: 613 testes web, tipos/lint/build e 3 E2E do modo Alunos em 320/390/1440. Testes reproduzem próxima aula sem número (ID/data), saldo paginado/zero/negativo, erro HTTP e consulta profiles na entrada. Conta real ainda pendente de acesso ao navegador; verificar publicação após o push.
+
 ## Ordem cronológica das atividades — 05/11/2026
 
 - Grade abre no fim à direita, com aulas antigas à esquerda. Módulos mais antigos são inseridos à esquerda com rolagem, toque ou teclado; após inserção, preserva posição visual. Teste de desktop/celular cobre ordenação e posição.

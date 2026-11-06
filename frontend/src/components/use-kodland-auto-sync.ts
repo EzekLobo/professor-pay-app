@@ -31,14 +31,14 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     let currentPathname = pathname;
     let agendaEntryPending = previousPathname === "/dashboard";
     let readyAt = Date.now();
-    let page: "agenda" | "activities" | "attendance" | null = pathname === "/dashboard" ? "agenda" : null;
+    let page: "agenda" | "activities" | "attendance" | "students" | null = pathname === "/dashboard" ? "agenda" : null;
     let pageRevision = 1;
     let refreshedRevision = 0;
     let pageUpdatedAt = 0;
     let pageRetryAt = 0;
     const recordingAttemptsThisVisit = new Set<string>();
     const unsubscribe = subscribeStudentNotifications(change => { if (change === "source" && !automaticRunning) { cache = null; disabledUntil = 0; } });
-    const synchronize = async (credentials: { username: string; password: string }, mode: "schedule" | "classroom" | "corrections", groupId?: string, scope?: "attendance" | "activities") => {
+    const synchronize = async (credentials: { username: string; password: string }, mode: "schedule" | "classroom" | "corrections" | "profiles", groupId?: string, scope?: "attendance" | "activities") => {
       if (!owner()) return;
       automaticRunning = true;
       try {
@@ -160,11 +160,16 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
           setStatus({ phase: "syncing", message: requestedPage === "agenda" ? "Atualizando a grade do Resumo…" : requestedPage === "attendance" ? "Atualizando presença…" : "Atualizando tarefas e ranking…" });
           if (requestedPage === "agenda") await synchronize(credentials, "schedule");
           else {
+            // Refresh the group next-lesson metadata without reimporting the timetable.
+            if (requestedPage !== "attendance") await synchronize(credentials, "classroom");
+            if (!owner() || pageRevision !== revision) return;
+            if (requestedPage === "students") await synchronize(credentials, "profiles");
+            if (!owner() || pageRevision !== revision) return;
             const groups = await kodlandApi.groups();
             for (const group of groups.items.filter(item => !item.archived)) {
               if (!owner() || pageRevision !== revision) return;
               if (!kodlandAutoSyncAvailable(uid)) throw new KodlandAutoSyncBusyError("A atualização aguarda a sincronização em andamento.");
-              await synchronize(credentials, "corrections", group.external_id, requestedPage);
+              await synchronize(credentials, "corrections", group.external_id, requestedPage === "students" ? "activities" : requestedPage);
             }
           }
           if (!owner()) return;
@@ -193,7 +198,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     };
     const pageChanged = (event: Event) => {
       const next = (event as CustomEvent<string>).detail;
-      if (next !== "activities" && next !== "attendance") return;
+      if (next !== "activities" && next !== "attendance" && next !== "students") return;
       page = next; pageRevision++; pageRetryAt = 0; cache = null;
       void tick();
     };

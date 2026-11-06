@@ -32,8 +32,9 @@ const firstValue = (sources: Record<string, unknown>[], keys: string[]) => {
 
 /** Balance endpoint returns lesson-type rows; money and other wallet types are unrelated. */
 export function parseStudentLessonCredits(payload: unknown): number | null {
-  if (!Array.isArray(payload)) return null;
-  const wallet = payload.find(value => objectValue(value).lesson_type === "DEFAULT_LESSON");
+  const root = objectValue(payload);
+  const rows = Array.isArray(payload) ? payload : [root.results, root.items, root.data].find(Array.isArray) ?? (root.lesson_type ? [root] : []);
+  const wallet = rows.find(value => objectValue(value).lesson_type === "DEFAULT_LESSON");
   const balance = objectValue(wallet).balance;
   if (typeof balance === "number") return Number.isFinite(balance) ? balance : null;
   if (typeof balance !== "string" || !/^-?\d+(?:\.\d+)?$/.test(balance.trim())) return null;

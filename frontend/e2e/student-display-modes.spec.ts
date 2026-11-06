@@ -1,15 +1,16 @@
 import { expect, test } from "@playwright/test";
 for (const width of [320, 390, 1440]) {
-  test(`três modos de alunos e filtros favoritos (${width}px)`, async ({ page }) => {
+  test(`atividades e modal de alunos e filtros favoritos (${width}px)`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
+    await page.addInitScript(() => { if (!localStorage.getItem("nexusclass.corrections.view.demo")) localStorage.setItem("nexusclass.corrections.view.demo", JSON.stringify({ viewMode: "activities", activitiesView: "compact", studentDisplayMode: "students" })); });
     await page.goto("/demo#classes");
     await expect(page.getByRole("tab", { name: "Alunos", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Abrir filtros", exact: true }).click();
     const filters = page.getByRole("region", { name: "Filtros do acompanhamento" });
     await expect(filters.getByRole("button", { name: "Completo", exact: true })).toHaveAttribute("aria-pressed", "true");
-    await filters.getByRole("button", { name: "Favoritar Alunos", exact: true }).click();
-    await expect(filters.locator(".favorite-filter-choice").first()).toHaveText("Alunos");
-    await filters.getByRole("button", { name: "Alunos", exact: true }).click();
+    await filters.getByRole("button", { name: "Favoritar Correções pendentes", exact: true }).click();
+    await expect(filters.locator(".favorite-filter-choice").first()).toHaveText("Correções pendentes");
+    await expect(filters.getByRole("button", { name: "Alunos", exact: true })).toHaveCount(0);
     await page.keyboard.press("Escape");
     const firstClass = page.locator(".compact-activities-class").first();
     await firstClass.getByRole("button", { name: /Ações da turma/ }).click();
@@ -26,9 +27,8 @@ for (const width of [320, 390, 1440]) {
     await page.keyboard.press("Escape");
     await expect(classActions).toBeHidden();
     await firstClass.locator("summary").click();
-    await expect(firstClass.getByRole("table")).toBeVisible();
-    await expect(firstClass.getByRole("columnheader", { name: "Saldo de aulas" })).toBeVisible();
-    await expect(firstClass.locator(".is-full-name").first()).toBeVisible();
+    await expect(firstClass.getByRole("grid")).toBeVisible();
+    await expect(firstClass.locator(".compact-student-name").first()).toBeVisible();
     const secondClass = page.locator(".compact-activities-class").nth(1);
     await secondClass.locator("summary").click();
     await expect(secondClass).toHaveAttribute("open", "");
@@ -39,8 +39,27 @@ for (const width of [320, 390, 1440]) {
     await page.screenshot({ path: `test-results/student-roster-${width}.png`, fullPage: true });
     await expect(page.getByRole("button", { name: /campos vazios/ })).toHaveCount(0);
     await expect(firstClass.locator(".class-completion-badge")).toBeVisible();
-    await firstClass.locator(".is-full-name").first().click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await firstClass.locator(".compact-student-name").first().click();
+    const profile = page.getByRole("dialog");
+    await expect(profile).toBeVisible();
+    await profile.getByRole("textbox", { name: "WhatsApp do aluno", exact: true }).fill("123");
+    await expect(profile.getByRole("button", { name: "Salvar número do aluno", exact: true })).toBeDisabled();
+    await profile.getByRole("textbox", { name: "WhatsApp do aluno", exact: true }).fill("11987654321");
+    await profile.getByRole("button", { name: "Salvar número do aluno", exact: true }).click();
+    await expect(profile.getByRole("status")).toHaveText("Número do aluno salvo.");
+    await profile.getByLabel("Enviar mensagem para").selectOption("student");
+    await expect(profile.getByRole("link", { name: "Abrir WhatsApp" })).toHaveAttribute("href", /wa.me\/5511987654321/);
+    await page.screenshot({ path: `test-results/student-contact-${width}.png`, fullPage: true });
+    await profile.getByLabel("Enviar mensagem para").selectOption("guardian");
+    await expect(profile.getByRole("textbox", { name: "WhatsApp do responsável / contato cadastrado", exact: true })).not.toHaveValue("11987654321");
+    await page.keyboard.press("Escape");
+    await firstClass.locator(".compact-student-name").first().click();
+    await expect(page.getByRole("dialog").getByRole("textbox", { name: "WhatsApp do aluno", exact: true })).toHaveValue("11987654321");
+    await page.keyboard.press("Escape");
+    await firstClass.getByRole("button", { name: /Mensagem para/ }).first().click();
+    const composer = page.getByRole("dialog", { name: "Mensagem pelo WhatsApp" });
+    await composer.getByLabel("Enviar mensagem para").selectOption("student");
+    await expect(composer.getByRole("link", { name: "Enviar no WhatsApp" })).toHaveAttribute("href", /wa.me\/5511987654321/);
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Abrir filtros", exact: true }).click();
     await filters.getByRole("button", { name: "Correções pendentes", exact: true }).click();
@@ -58,6 +77,11 @@ for (const width of [320, 390, 1440]) {
     await page.screenshot({ path: `test-results/student-modes-${width}.png`, fullPage: true });
     await page.reload();
     await page.getByRole("button", { name: "Abrir filtros", exact: true }).click();
-    await expect(filters.locator(".favorite-filter-choice").first()).toHaveText("Alunos");
+    await expect(filters.locator(".favorite-filter-choice").first()).toHaveText("Correções pendentes");
+    await page.keyboard.press("Escape");
+    const reloadedClass = page.locator(".compact-activities-class").first();
+    await reloadedClass.locator("summary").click();
+    await reloadedClass.locator(".compact-student-name").first().click();
+    await expect(page.getByRole("dialog").getByRole("textbox", { name: "WhatsApp do aluno", exact: true })).toHaveValue("11987654321");
   });
 }

@@ -68,13 +68,13 @@ describe("organização da grade por módulos", () => {
 });
 
 describe("compactActivitiesModel", () => {
-  it.each(["complete", "pending", "students"] as const)("mostra o saldo de créditos no modo %s", displayMode => {
+  it.each(["complete", "pending"] as const)("mostra o saldo de créditos no modo %s", displayMode => {
     const model=compactActivitiesModel({groups:[group()],students:[student({lesson_credits_remaining:12})],reviews:[review()],lessons:[lesson()],manualActivities:[],manualClasses:[],manualStudents:[]});
     const markup=renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode={displayMode} onCorrectManual={()=>undefined} />);
     expect(markup).toContain("12 aulas");
-    if(displayMode!=="students") expect(markup).toContain("student-lesson-credits");
+    expect(markup).toContain("student-lesson-credits");
   });
-  for (const mode of ["complete", "pending", "students"] as const) {
+  for (const mode of ["complete", "pending"] as const) {
     it(`busca no modo ${mode} restringe alunos e células sem preservar linhas não correspondentes`, () => {
       const input = { groups: [group()], lessons: [lesson()], reviews: [review({ student_name: "Ana Maria" }), review({ id: "other-review", external_student_id: "other", student_name: "Bia Silva", task_id: "other-task", task_title: "Robô" })],
         students: [student({ name: "Ana Maria" }), student({ id: "other", external_id: "other", name: "Bia Silva", email: "bia@example.test" })], manualActivities: [], manualClasses: [], manualStudents: [],
@@ -102,9 +102,9 @@ describe("compactActivitiesModel", () => {
     expect(result.every(item => item.columns.length === 1 && Object.keys(item.rows[0].cells).length === 1)).toBe(true);
   });
 
-  it("modo Alunos mantém nome completo e distingue saldo zero de saldo desconhecido", () => {
+  it("perfil acessível pelo nome distingue saldo zero de saldo desconhecido", () => {
     const model = compactActivitiesModel({ groups: [group()], lessons: [], reviews: [], manualActivities: [], manualClasses: [], manualStudents: [], students: [student({ name: "Ana Maria de Souza", lesson_credits_remaining: 0 }), student({ id: "other", external_id: "other", name: "Bia Silva" })] });
-    const markup = renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode="students" onCorrectManual={() => undefined} />);
+    const markup = renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode="complete" onCorrectManual={() => undefined} />);
     expect(markup).toContain("Ana Maria de Souza");
     expect(markup).toContain("0 aulas");
     expect(markup).toContain("Não informado");

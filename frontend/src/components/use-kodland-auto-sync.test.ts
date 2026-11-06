@@ -157,9 +157,9 @@ describe("single Kodland scheduler integration", () => {
     expect(state.sync).toHaveBeenCalledTimes(2);
   });
 
-  it("loads profiles and lesson balances when entering the student roster", async () => {
+  it("loads profiles and lesson balances when entering the activities page", async () => {
     useKodlandAutoSync("account", false);
-    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "students" }));
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
     await vi.advanceTimersByTimeAsync(0);
     expect(state.sync.mock.calls.map(call => call[2])).toEqual(["classroom", "profiles", "corrections"]);
     expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "activities" }));

@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110605, date: "2026-11-06", title: "Contatos no perfil do aluno",
+    description: "Clique no nome do aluno para cadastrar seu WhatsApp e escolher entre aluno e responsável ao preparar uma mensagem. O filtro mantém apenas Completo e Correções pendentes; as informações do aluno ficam no modal.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
     version: 2026110604, date: "2026-11-06", title: "Créditos na grade e atualização por resposta",
     description: "Os créditos aparecem junto ao aluno nos modos Completo e Correções pendentes. Cadastros antigos recebem o saldo pelo identificador Kodland. A grade atualiza ao receber cada resposta, sem recarga periódica por intervalo.",
     href: "/classes", action: "Abrir turmas",

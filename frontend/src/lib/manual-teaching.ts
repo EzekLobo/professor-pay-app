@@ -6,6 +6,7 @@ export type ManualStudent = {
   /** @deprecated Legacy records may contain this field; new records omit it. */
   email?: string;
   phone: string;
+  student_phone?: string;
   /** @deprecated Legacy notification snapshots may contain these fields. */
   guardian_name?: string;
   guardian_phone?: string;
@@ -84,6 +85,7 @@ export type ManualStudentInput = {
   /** @deprecated Accepted for old imports but never persisted. */
   email?: string;
   phone?: string;
+  student_phone?: string;
   /** @deprecated Accepted for old imports but never persisted. */
   guardian_name?: string;
   guardian_phone?: string;

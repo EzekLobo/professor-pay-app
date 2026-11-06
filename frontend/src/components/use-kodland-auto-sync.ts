@@ -31,7 +31,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     let currentPathname = pathname;
     let agendaEntryPending = previousPathname === "/dashboard";
     let readyAt = Date.now();
-    let page: "agenda" | "activities" | "attendance" | "students" | null = pathname === "/dashboard" ? "agenda" : null;
+    let page: "agenda" | "activities" | "attendance" | null = pathname === "/dashboard" ? "agenda" : null;
     let pageRevision = 1;
     let refreshedRevision = 0;
     let pageCompletionPending = false;
@@ -170,7 +170,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
             for (const group of groups.items.filter(item => !item.archived)) {
               if (!owner() || pageRevision !== revision) return;
               if (!kodlandAutoSyncAvailable(uid)) throw new KodlandAutoSyncBusyError("A atualização aguarda a sincronização em andamento.");
-              await synchronize(credentials, "corrections", group.external_id, requestedPage === "students" ? "activities" : requestedPage);
+              await synchronize(credentials, "corrections", group.external_id, requestedPage);
             }
           }
           if (!owner()) return;
@@ -202,7 +202,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     };
     const pageChanged = (event: Event) => {
       const next = (event as CustomEvent<string>).detail;
-      if (next !== "activities" && next !== "attendance" && next !== "students") return;
+      if (next !== "activities" && next !== "attendance") return;
       page = next; pageRevision++; cache = null;
       void tick(true);
     };

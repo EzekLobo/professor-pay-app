@@ -3,6 +3,11 @@ import { parseStudentContact, parseStudentLessonCredits, studentLessonCreditsPat
 import { normalizeStudentName, sanitizeKodlandStudentRecord } from "./student-privacy";
 
 describe("student profile contact parser", () => {
+  it("preserves the separately registered student phone during profile sync", () => {
+    const saved = { id: "local", external_id: "provider", name: "Ana", phone: "111", student_phone: "11987654321" };
+    const [updated] = studentProfileUpdates([saved], [{ id: "provider", external_id: "provider", phone: "222" }]);
+    expect(sanitizeKodlandStudentRecord(updated)).toMatchObject({ phone: "222", student_phone: "11987654321" });
+  });
   it("keeps only a normalized student name and phone", () => {
     expect(parseStudentContact({ main_info: { full_name: "  Ana Maria de Souza  ", phone: "111", email: "aluno@example.test", parent: { name: "Responsável", phone: "222" } } })).toEqual({ name: "Ana Souza", phone: "111" });
   });

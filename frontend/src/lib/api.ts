@@ -282,6 +282,7 @@ export type KodlandStudent = {
   /** @deprecated Legacy snapshots may contain this field; new records omit it. */
   email?: string;
   phone: string;
+  student_phone?: string;
   status: string;
   progress_summary: string;
   /** @deprecated Legacy snapshots may contain this field; new records omit it. */
@@ -2094,6 +2095,7 @@ export const manualTeachingApi = {
       id,
       name: payload.name.trim(),
       phone: payload.phone?.trim() ?? "",
+      student_phone: payload.student_phone?.trim() ?? String(previous.data()?.student_phone ?? ""),
       active: payload.active ?? true,
       created_at: String(previous.data()?.created_at ?? now()),
       updated_at: now(),
@@ -2741,7 +2743,7 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
         const previous = map.get(item.id);
         const value = { ...previous, ...item };
         if (name === "kodland_students") {
-          Object.assign(value, studentLessonCreditsPatch(item, previous ?? {}));
+          Object.assign(value, studentLessonCreditsPatch(item, previous ?? {}), { student_phone: String(previous?.student_phone ?? "") });
           map.set(item.id, sanitizeKodlandStudentRecord(value));
         } else {
           map.set(item.id, value);
@@ -3472,10 +3474,11 @@ export const kodlandApi = {
       created_at: previousCollections.get("kodland_groups")?.get(item.external_id)?.created_at ?? createdAt,
     }));
     students.forEach((item) => {
-      const previous = oldStudentsById.get(item.id);
+      const previous = oldStudentsById.get(item.id) ?? oldStudents.find(saved => saved.external_id === item.external_id);
       enqueue("kodland_students", item.id, sanitizeKodlandStudentRecord({
         ...item,
         ...studentLessonCreditsPatch(item, previous),
+        student_phone: String(previous?.student_phone ?? ""),
         hidden: Boolean(previous?.hidden ?? false),
         created_at: String(previous?.created_at ?? createdAt),
       }));
@@ -3772,6 +3775,7 @@ export const kodlandApi = {
         KodlandStudent,
         | "name"
         | "phone"
+        | "student_phone"
       >
     >,
   ) => {

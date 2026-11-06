@@ -1,5 +1,12 @@
 # Estado atual
 
+## Contatos no modal e simplificação do filtro — 06/11/2026
+
+- Filtro de atividades mantém Completo/Pendências; preferências e favoritos legados students migram para Completo. A aba Alunos permanece, com perfil acessível pelo nome.
+- `student-contact-fields.tsx` adiciona student_phone separado do phone já cadastrado, salva em Kodland/manual e permite escolher o destinatário do WhatsApp. Demonstração usa armazenamento próprio. Sanitização permite somente o campo adicional; sincronização preserva o número manual. Compositor de atividades também oferece destinatário.
+- Confirmado: 619 testes, tipos/lint/build e E2E de filtros/modal em 320/390/1440, com cadastro, destinatários e reabertura. Novidade 2026110605. Produção/demo verifica interface; gravação em conta real depende de sessão autenticada.
+
+
 ## Créditos em todos os modos e grade por resposta — 06/11/2026
 
 - Créditos visíveis junto ao aluno em Completo/Pendências; perfis/saldos consultados na entrada de todas as áreas de atividades. `studentProfileUpdates` vincula por external_id e atualiza cada matrícula existente, preservando IDs locais, turma, preferências e criação; não ignora cadastros legados nem duplica alunos no cache.

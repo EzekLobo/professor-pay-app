@@ -64,4 +64,5 @@ it("rejeita resposta inválida de turmas em vez de retornar lista vazia", async 
 it.each([["TASK_NOT_SUBMITTED", "missing"], ["TASK_SUBMITTED", "submitted"], ["TASK_SUBMITTED_LATE", "submitted"], ["TASK_CHECKED", "corrected"], ["TASK_NOT_GRADED", "not_graded"]])("conserva o estado Kodland %s como %s", async (taskStatus, expected) => {
  mockProvider({ taskStatus }); const response = await POST(request({ followup_scope: "activities" }));
  expect(response.status).toBe(200); const data = await response.json(); expect(data.task_progress[0].state).toBe(expected);
+ expect(data.task_progress[0].task_url).toBe("https://learn.kodland.org/pt/task/t/check/s");
 });

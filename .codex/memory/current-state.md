@@ -1,5 +1,10 @@
 # Estado atual
 
+## Navegação pelos cartões de atividades — 06/11/2026
+
+- Cartões de progresso agora são links acessíveis em todos os estados, abrindo tarefa/aluno em nova aba. `kodland-task-link.ts` compartilha correctionUrlFor entre rota e cliente. Sync salva task_url (HTTP/S validado); registros legados usam IDs imediatamente, sem exigir reimportação.
+- Atividades manuais corrigidas/não entregues também abrem o detalhe existente. Demo usa onTask para preview local, sem acessar plataforma externa com IDs fictícios. Novidade2026110610. Confirmado: 629 testes, tipos/lint/build e 3 E2E de clique em 320/390/1440. Conferir publicação e E2E na demo publicada.
+
 ## Fluidez da rolagem de atividades — 06/11/2026
 
 - Somente Completo omite código da aula dentro dos cartões: fica no cabeçalho agrupado. Ícone de casa permanece junto ao título. Pendências mantém código em cada cartão; lista/demais modos não alterados.

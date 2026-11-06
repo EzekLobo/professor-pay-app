@@ -74,6 +74,12 @@ for (const width of [320, 390, 1440]) {
     const progressClass = page.locator(".compact-activities-class").filter({ has: page.locator(".compact-activity-progress") }).first();
     if (!(await progressClass.getAttribute("open"))) await progressClass.locator("summary").click();
     await expect(progressClass.locator(".compact-activity-progress").first()).toBeVisible();
+    // In a narrow viewport the fixed student column covers the left of the card.
+    const activityCard = progressClass.locator(".compact-activity-progress").first();
+    const activityBounds = await activityCard.boundingBox();
+    await activityCard.click({ position: { x: activityBounds!.width - 6, y: activityBounds!.height / 2 } });
+    await expect(page.getByRole("dialog", { name: /^Atividade:/ })).toBeVisible();
+    await page.keyboard.press("Escape");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: `test-results/student-modes-${width}.png`, fullPage: true });
     await page.reload();

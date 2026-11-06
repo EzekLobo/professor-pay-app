@@ -30,6 +30,7 @@ import type { ManualAdapters } from "@/lib/manual-adapters";
 import { HeaderDropdown } from "@/components/header-dropdown";
 import { kodlandCourseProgress } from "@/lib/course-progress";
 import { attachActivityWheelScroll } from "@/lib/activity-wheel-scroll";
+import { correctionUrlFor } from "@/lib/kodland-task-link";
 
 const absoluteUrl = (value: string) => value.startsWith("/") ? `https://bo.kodland.org${value}` : value;
 const lessonForReview = (review: KodlandReview, lessons: KodlandLesson[]) => lessons.find((lesson) => {
@@ -364,6 +365,7 @@ export interface CorrectionsDemoAdapter {
   onSync: () => void | Promise<void>;
   onCorrect: (review: KodlandReview) => void;
   onMaterial?: (lesson: KodlandLesson) => void;
+  onTask?: (task: KodlandTaskProgress) => void;
   manualActivities?: ManualActivity[];
   manualClasses?: ManualClass[];
   manualStudents?: ManualStudent[];
@@ -594,6 +596,16 @@ function AttendanceClassGrid({
 
 /** Compact, class-scoped activity matrix. It is intentionally independent of
  * the view switch so the list mode can continue to render unchanged. */
+function ProgressActivity({ progress, name, column, children, demo }: { progress: KodlandTaskProgress; name: string; column: CompactActivityColumn; children: ReactNode; demo?: CorrectionsDemoAdapter }) {
+  const state = activityProgressLabel(progress.state);
+  const label = `${name}: abrir ${column.taskLabel} de ${column.lessonLabel}, ${state}`;
+  const title = `${column.taskLabel}${column.kind === "homework" ? " · Atividade de casa" : ""} · ${state} · Abrir atividade`;
+  const className = `compact-activity-action compact-activity-progress compact-activity-${progress.state}`;
+  const content = <>{children}<span className="compact-activity-status-icon" aria-hidden="true">{progress.state === "corrected" ? "✓" : progress.state === "submitted" ? "◷" : progress.state === "missing" ? "!" : progress.state === "not_graded" ? "—" : "?"}</span></>;
+  return demo ? <button type="button" className={className} aria-label={label} title={title} onClick={() => demo.onTask?.(progress)}>{content}</button>
+    : <a className={className} aria-label={label} title={title} href={correctionUrlFor({ link: progress.task_url ?? "", taskId: progress.task_id, studentId: progress.external_student_id, groupId: progress.external_class_id })} target="_blank" rel="noreferrer">{content}</a>;
+}
+
 export function CompactActivitiesGrid({
   model,
   demo,
@@ -725,7 +737,7 @@ export function CompactActivitiesGrid({
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}${kindLabel}`;
                 const actionContent = <>{isPending && <span className="compact-activity-lesson" title={column.lessonLabel}>{column.lessonLabel}{column.kind === "homework" && <House size={12} aria-label="Atividade de casa" />}</span>}<span className="compact-activity-task" title={column.taskLabel}>{!isPending && column.kind === "homework" && <House size={12} aria-label="Atividade de casa" />}{column.taskLabel}</span></>;
                 return <div className={`compact-activity-cell${columnIndex === 0 || columns[columnIndex - 1].lessonLabel !== column.lessonLabel ? " compact-lesson-start" : ""}`} role="gridcell" key={column.key}>
-                  {cell.source === "progress" ? <div className={`compact-activity-action compact-activity-progress compact-activity-${cell.progress.state}`} role="img" aria-label={`${row.name}: ${column.taskLabel}${kindLabel}, ${activityProgressLabel(cell.progress.state)}`} title={`${column.taskLabel}${kindLabel} · ${activityProgressLabel(cell.progress.state)}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.progress.state === "corrected" ? "✓" : cell.progress.state === "submitted" ? "◷" : cell.progress.state === "missing" ? "!" : cell.progress.state === "not_graded" ? "—" : "?"}</span></div> : cell.source === "manual" && !pendingManualActivities([cell.activity]).length ? <div className={`compact-activity-action compact-activity-manual compact-activity-${cell.activity.status === "corrected" ? "delivered" : "missing"}`} role="img" aria-label={`${row.name}: ${column.taskLabel}${kindLabel}, ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`} title={`${column.taskLabel}${kindLabel} · ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.activity.status === "corrected" ? "✓" : "!"}</span></div> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
+                  {cell.source === "progress" ? <ProgressActivity progress={cell.progress} name={row.name} column={column} demo={demo}>{actionContent}</ProgressActivity> : cell.source === "manual" && !pendingManualActivities([cell.activity]).length ? <button type="button" className={`compact-activity-action compact-activity-manual compact-activity-${cell.activity.status === "corrected" ? "delivered" : "missing"}`} onClick={() => onCorrectManual(cell.activity)} aria-label={`${row.name}: abrir ${column.taskLabel}${kindLabel}, ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`} title={`${column.taskLabel}${kindLabel} · ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.activity.status === "corrected" ? "✓" : "!"}</span></button> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
                     : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>{actionContent}</button>
                       : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} target="_blank" rel="noreferrer">{actionContent}</a>}
                 </div>;

@@ -78,6 +78,17 @@ describe("organização da grade por módulos", () => {
 });
 
 describe("compactActivitiesModel", () => {
+  it.each(["corrected", "missing", "not_graded", "submitted"] as const)("opens the exact student task for a %s progress card, including legacy records", state => {
+    const progress = { id: "p", external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: "task/id", task_title: "Projeto", state };
+    const input = { groups: [group()], students: [student()], lessons: [lesson()], reviews: [], manualActivities: [], manualClasses: [], manualStudents: [], complete: true };
+    const legacy = compactActivitiesModel({ ...input, taskProgress: [progress] });
+    expect(renderToStaticMarkup(<CompactActivitiesGrid model={legacy} onCorrectManual={() => undefined} />)).toContain('href="https://learn.kodland.org/pt/task/task%2Fid/check/external-student-1"');
+    const direct = compactActivitiesModel({ ...input, taskProgress: [{ ...progress, task_url: "https://learn.kodland.org/en/task/42/check/99" }] });
+    const markup = renderToStaticMarkup(<CompactActivitiesGrid model={direct} onCorrectManual={() => undefined} />);
+    expect(markup).toContain('href="https://learn.kodland.org/en/task/42/check/99"');
+    expect(markup).toContain('target="_blank"');
+    expect(markup).toContain("abrir Projeto");
+  });
   it("shows the lesson code only in the complete header and keeps it on pending cards", () => {
     const model = compactActivitiesModel({ groups: [group()], students: [student()], reviews: [review()], lessons: [lesson()], manualActivities: [], manualClasses: [], manualStudents: [] });
     const complete = renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode="complete" onCorrectManual={() => undefined} />);

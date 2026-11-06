@@ -3817,7 +3817,7 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .class-completion-badge { color: #a7e5cc; border-color: rgb(80 200 150 / 30%); background: rgb(80 200 150 / 8%); }
 .complete-activities-note { margin: 0; padding: 8px 12px; color: var(--muted); font-size: .7rem; }
 .compact-activities-grid-header .compact-activity-column-heading { padding: 5px; min-height: 28px; color: var(--muted); font-size: .67rem; }
-.compact-activity-progress { cursor: default; height: 72px; min-height: 72px; max-height: 72px; }
+.compact-activity-progress { cursor: pointer; height: 72px; min-height: 72px; max-height: 72px; }
 .compact-activity-state { font-size: .6rem; font-weight: 750; }
 .compact-activity-delivered { border-color: rgb(80 200 150 / 60%); background: rgb(20 110 80 / 30%); }
 .compact-activity-missing { border-color: rgb(245 130 130 / 60%); background: rgb(130 45 45 / 25%); }

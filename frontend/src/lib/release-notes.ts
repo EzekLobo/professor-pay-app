@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110610, date: "2026-11-06", title: "Abrir atividades pela grade",
+    description: "Clique em uma atividade da grade para abrir a tarefa do aluno na Kodland em outra aba, inclusive corrigidas e não entregues. Atividades próprias abrem o detalhe dentro do NexusClass.",
+    href: "/classes", action: "Abrir atividades",
+  },
+  {
     version: 2026110609, date: "2026-11-06", title: "Rolagem contínua das atividades",
     description: "A roda do mouse move a grade com suavização contínua e módulos anteriores carregam antes da borda. Gestos do touchpad e redução de movimento são respeitados. No filtro Completo, o código da aula fica apenas no cabeçalho da coluna; Correções pendentes mantém o código em cada atividade.",
     href: "/classes", action: "Abrir turmas",

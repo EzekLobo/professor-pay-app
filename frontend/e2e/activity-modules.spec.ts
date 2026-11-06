@@ -18,5 +18,14 @@ for (const width of [320, 1440]) test(`módulos começam pela aula recente e per
   if (width === 320) await expect.poll(() => grid.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
   const headers = await grid.locator(".compact-lesson-group").allTextContents();
   expect(headers.findIndex(text => text.includes("M1L"))).toBeLessThan(headers.findIndex(text => text.includes("M2L")));
+  if (width === 320) {
+    const movement = await grid.evaluate(el => {
+      el.scrollTo({ left: 100, behavior: "instant" });
+      const before = el.scrollLeft;
+      el.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+      return el.scrollLeft - before;
+    });
+    expect(movement).toBeGreaterThanOrEqual(119);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

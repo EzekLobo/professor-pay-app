@@ -5,9 +5,13 @@ export function parseStudentContact(payload: unknown) {
   const main = objectValue(detail.main_info ?? detail.mainInfo);
   const student = objectValue(main.student ?? detail.student);
   const sources = [student, main, detail];
+  const parentSources = [objectValue(main.parent), objectValue(detail.parent)];
   return {
     name: normalizeStudentName(firstValue(sources, ["full_name", "fullName", "name"])),
-    phone: firstValue(sources, ["phone", "phone_number", "mobile"]),
+    // Official student-detail exposes parent_phone; student_phone is a separate contact.
+    phone: firstValue([main, detail], ["parent_phone", "guardian_phone"])
+      || firstValue(parentSources, ["phone", "phone_number", "mobile"])
+      || firstValue(sources, ["phone", "phone_number", "mobile"]),
   };
 }
 

@@ -2808,6 +2808,7 @@ summary:focus-visible {
 .attendance-filters { margin-top: 14px; }
 .attendance-class-body { display: grid; min-width: 0; gap: 0; padding: 0; }
 .attendance-grid-scroll { min-width: 0; overflow-x: auto; scroll-behavior: smooth; scrollbar-color: #37628f #0a182c; scrollbar-width: thin; }
+.compact-activities-grid-scroll { scroll-behavior: auto; }
 .attendance-grid-scroll:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .attendance-grid-header, .attendance-grid-row { display: grid; grid-template-columns: 180px repeat(var(--attendance-columns), 98px); width: max-content; min-width: 100%; column-gap: 6px; padding-right: 10px; background: rgba(10, 24, 44, .42); }
 .attendance-grid-header { position: sticky; top: 0; z-index: 4; min-height: 44px; border-bottom: 1px solid rgba(65, 91, 128, .72); background: #0d1d34; }
@@ -3821,6 +3822,7 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .compact-activity-delivered { border-color: rgb(80 200 150 / 60%); background: rgb(20 110 80 / 30%); }
 .compact-activity-missing { border-color: rgb(245 130 130 / 60%); background: rgb(130 45 45 / 25%); }
 .compact-activity-unknown { border-color: rgb(125 150 185 / 55%); background: rgb(65 91 128 / 15%); }
+.compact-activity-not_graded { border-color: rgb(125 150 185 / 55%); background: rgb(65 91 128 / 15%); }
 .compact-activities-class .compact-pending-row > .attendance-student-summary { flex: 0 0 200px; width: 200px; }
 .class-students-view { width: 100%; }
 .class-students-header, .class-students-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 140px; gap: 12px; align-items: center; padding: 8px 12px; border-bottom: 1px solid rgb(65 91 128 / 48%); }

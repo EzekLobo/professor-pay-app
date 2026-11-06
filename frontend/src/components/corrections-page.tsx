@@ -66,6 +66,7 @@ export type CompactActivityColumn = {
   sortKey: string;
   moduleLabel?: string;
   kind?: "homework" | "classroom" | "unknown";
+  taskOrder?: number;
 };
 export type CompactActivityRow = {
   key: string;
@@ -90,7 +91,12 @@ export type CompactActivityClass = {
   rows: CompactActivityRow[];
 };
 export type CompactActivitiesModel = CompactActivityClass[];
-type WhatsAppDraft = { studentName: string; phone: string; message: string; guardian?: boolean; studentPhone?: string; guardianPhone?: string; activityTarget?: ActivityTarget };
+type WhatsAppDraft = { studentName: string; phone: string; message: string; guardian?: boolean; studentPhone?: string; guardianPhone?: string; phoneEdited?: boolean; activityTarget?: ActivityTarget };
+export function refreshWhatsAppDraftContact(draft: WhatsAppDraft, student: Pick<KodlandStudent, "phone" | "student_phone">): WhatsAppDraft {
+  const guardianPhone = student.phone || draft.guardianPhone || "";
+  const studentPhone = student.student_phone || draft.studentPhone || "";
+  return { ...draft, guardianPhone, studentPhone, phone: draft.phoneEdited ? draft.phone : draft.guardian === false ? studentPhone : guardianPhone };
+}
 const lessonLabel = (review: KodlandReview, lessons: KodlandLesson[]) =>
   `${compactKodlandLessonLabel(review, lessons)}: ${review.lesson_title || "Sem título"}`;
 const groupBy = <T,>(items: T[], keyFor: (item: T) => string) =>
@@ -133,6 +139,7 @@ function activityProgressLabel(state: KodlandTaskProgress["state"]) {
   if (state === "submitted") return "Feita, aguardando correção";
   if (state === "corrected") return "Corrigida";
   if (state === "delivered") return "Entregue; situação da correção não informada";
+  if (state === "not_graded") return "Atividade sem avaliação";
   return "Situação não informada pela Kodland";
 }
 const taskIdInUrl = (url?: string) => String(url ?? "").match(/\/task\/([^/?#]+)(?:[/?#]|$)/)?.[1] ?? "";
@@ -142,7 +149,11 @@ function lessonTaskKind(lesson: KodlandLesson | undefined, taskId: string): Comp
   const classroom = lesson.classroom_tasks?.some(task => taskIdInUrl(task.url) === taskId) ?? false;
   return homework === classroom ? "unknown" : homework ? "homework" : "classroom";
 }
-/** Most recent numbered modules and lessons first; unknown modules remain accessible last. */
+function lessonTaskOrder(lesson: KodlandLesson | undefined, taskId: string, fallback = 0): number | undefined {
+  const index = lesson?.classroom_tasks?.findIndex(task => taskIdInUrl(task.url) === taskId) ?? -1;
+  return index >= 0 ? index + 1 : fallback > 0 ? fallback : undefined;
+}
+/** Newest modules first; lessons and tasks follow their order within each module. */
 export function activityModules(columns: readonly CompactActivityColumn[]): CompactActivityColumn[][] {
   const groups = new Map<string, CompactActivityColumn[]>();
   for (const column of columns) {
@@ -151,7 +162,11 @@ export function activityModules(columns: readonly CompactActivityColumn[]): Comp
   }
   return [...groups.entries()].sort(([a], [b]) => (Number(b.slice(1)) || 0) - (Number(a.slice(1)) || 0)).map(([, items]) => [...items].sort((a, b) => {
     const lesson = (value: string) => Number(value.match(/L(\d+)/i)?.[1] ?? 0);
-    return lesson(a.lessonLabel) - lesson(b.lessonLabel) || a.sortKey.localeCompare(b.sortKey, "pt-BR");
+    return lesson(a.lessonLabel) - lesson(b.lessonLabel)
+      || a.lessonLabel.localeCompare(b.lessonLabel, "pt-BR", { numeric: true })
+      || Number(a.kind === "homework") - Number(b.kind === "homework")
+      || (a.taskOrder ?? Number.MAX_SAFE_INTEGER) - (b.taskOrder ?? Number.MAX_SAFE_INTEGER)
+      || a.sortKey.localeCompare(b.sortKey, "pt-BR", { numeric: true });
   }));
 }
 
@@ -240,6 +255,7 @@ export function compactActivitiesModel({
           moduleLabel: lessonLabel.match(/^M\d+/)?.[0],
           taskLabel: `${review.task_number ? `${review.task_number}. ` : ""}${review.task_title || "Atividade"}`,
           kind: lessonTaskKind(matchedLesson, review.task_id),
+          taskOrder: lessonTaskOrder(matchedLesson, review.task_id, review.task_number),
           sortKey: `${String(review.lesson_number).padStart(5, "0")}:${String(review.task_number).padStart(5, "0")}:${review.lesson_title}:${review.task_title}`,
         });
       }
@@ -257,7 +273,7 @@ export function compactActivitiesModel({
       const key = existing?.key || `kodland:${catalog?.source_lesson_id || catalog?.id || progress.lesson_id}:${progress.task_id}`;
       const parts = attendanceLessonParts({ external_class_id: externalClassId, lesson_id: catalog?.id || progress.lesson_id, lesson_title: catalog?.title || "Aula" } as KodlandAttendance, [...lessons]);
       const label = parts.module ? `${parts.module}${parts.lesson}` : catalog?.title || "Aula";
-      if (!draft.columns.has(key)) draft.columns.set(key, { key, lessonLabel: label, moduleLabel: parts.module || undefined, taskLabel: progress.task_title, kind: lessonTaskKind(catalog, progress.task_id), sortKey: `${String(catalog?.course_index || catalog?.lesson_number || 0).padStart(5, "0")}:00000:${progress.task_title}` });
+      if (!draft.columns.has(key)) draft.columns.set(key, { key, lessonLabel: label, moduleLabel: parts.module || undefined, taskLabel: progress.task_title, kind: lessonTaskKind(catalog, progress.task_id), taskOrder: lessonTaskOrder(catalog, progress.task_id), sortKey: `${String(catalog?.course_index || catalog?.lesson_number || 0).padStart(5, "0")}:00000:${progress.task_title}` });
       row.cells[key] ??= { source: "progress", progress };
     }
   }
@@ -609,7 +625,7 @@ export function CompactActivitiesGrid({
       event.preventDefault();
       const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       const scale = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? grid.clientWidth : 1;
-      grid.scrollLeft += delta * scale;
+      grid.scrollTo({ left: grid.scrollLeft + delta * scale, behavior: "instant" });
     };
     root.addEventListener("wheel", onWheel, { passive: false });
     return () => root.removeEventListener("wheel", onWheel);
@@ -714,7 +730,7 @@ export function CompactActivitiesGrid({
                 const label = `${row.name}: corrigir ${column.taskLabel} de ${column.lessonLabel}${kindLabel}`;
                 const actionContent = <><span className="compact-activity-lesson" title={column.lessonLabel}>{column.lessonLabel}{column.kind === "homework" && <House size={12} aria-label="Atividade de casa" />}</span><span className="compact-activity-task" title={column.taskLabel}>{column.taskLabel}</span></>;
                 return <div className={`compact-activity-cell${columnIndex === 0 || columns[columnIndex - 1].lessonLabel !== column.lessonLabel ? " compact-lesson-start" : ""}`} role="gridcell" key={column.key}>
-                  {cell.source === "progress" ? <div className={`compact-activity-action compact-activity-progress compact-activity-${cell.progress.state}`} role="img" aria-label={`${row.name}: ${column.taskLabel}${kindLabel}, ${activityProgressLabel(cell.progress.state)}`} title={`${column.taskLabel}${kindLabel} · ${activityProgressLabel(cell.progress.state)}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.progress.state === "corrected" ? "✓" : cell.progress.state === "submitted" ? "◷" : cell.progress.state === "missing" ? "!" : "?"}</span></div> : cell.source === "manual" && !pendingManualActivities([cell.activity]).length ? <div className={`compact-activity-action compact-activity-manual compact-activity-${cell.activity.status === "corrected" ? "delivered" : "missing"}`} role="img" aria-label={`${row.name}: ${column.taskLabel}${kindLabel}, ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`} title={`${column.taskLabel}${kindLabel} · ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.activity.status === "corrected" ? "✓" : "!"}</span></div> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
+                  {cell.source === "progress" ? <div className={`compact-activity-action compact-activity-progress compact-activity-${cell.progress.state}`} role="img" aria-label={`${row.name}: ${column.taskLabel}${kindLabel}, ${activityProgressLabel(cell.progress.state)}`} title={`${column.taskLabel}${kindLabel} · ${activityProgressLabel(cell.progress.state)}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.progress.state === "corrected" ? "✓" : cell.progress.state === "submitted" ? "◷" : cell.progress.state === "missing" ? "!" : cell.progress.state === "not_graded" ? "—" : "?"}</span></div> : cell.source === "manual" && !pendingManualActivities([cell.activity]).length ? <div className={`compact-activity-action compact-activity-manual compact-activity-${cell.activity.status === "corrected" ? "delivered" : "missing"}`} role="img" aria-label={`${row.name}: ${column.taskLabel}${kindLabel}, ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`} title={`${column.taskLabel}${kindLabel} · ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.activity.status === "corrected" ? "✓" : "!"}</span></div> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
                     : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>{actionContent}</button>
                       : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} target="_blank" rel="noreferrer">{actionContent}</a>}
                 </div>;
@@ -823,7 +839,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const pendingOnly = studentDisplayMode === "pending";
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
   const [openAttendanceClasses, setOpenAttendanceClasses] = useState<Set<string>>(() => new Set());
-  const [whatsAppDraft, setWhatsAppDraft] = useState<WhatsAppDraft | null>(null);
+  const [storedWhatsAppDraft, setWhatsAppDraft] = useState<WhatsAppDraft | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(!demo);
@@ -960,7 +976,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     setError("");
     setNotice("");
     try {
-      if (viewMode === "activities") await kodlandApi.sync(credentials.username.trim(), credentials.password, "profiles");
+      await kodlandApi.sync(credentials.username.trim(), credentials.password, "profiles");
       const result = await kodlandApi.sync(
         credentials.username.trim(),
         credentials.password,
@@ -1057,6 +1073,17 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   }, [attendance, attendanceFilter, attendanceStudents, query]);
   const attendanceByClass = useMemo(() => groupBy(attendanceHistories, (history) => history.records[0]?.external_class_name || "Turma não informada"), [attendanceHistories]);
 
+  const whatsAppDraft = (() => {
+    const current = storedWhatsAppDraft;
+    const target = current?.activityTarget;
+    if (!current || !target) return current;
+    const student = target.source === "manual"
+      ? manualStudents.find(item => item.id === target.student_id)
+      : attendanceStudents.find(item => item.external_class_id === target.class_id && (item.external_id === target.student_id || item.id === target.student_id));
+    if (!student) return current;
+    return refreshWhatsAppDraftContact(current, student);
+  })();
+
   function contactButton(classKey: string, studentKey: string, name: string) {
     const student = classKey.startsWith("manual:")
       ? manualStudents.find((item) => item.id === studentKey)
@@ -1076,8 +1103,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       <Modal open={Boolean(whatsAppDraft)} title="Mensagem pelo WhatsApp" onClose={() => setWhatsAppDraft(null)} className="attendance-whatsapp-modal">
         {whatsAppDraft && <div className="form management-form attendance-whatsapp-form">
           <p className="muted">Revise a mensagem para {whatsAppDraft.studentName} antes de enviar.</p>
-          <label className="field">Enviar mensagem para<select className="input" value={whatsAppDraft.guardian === false ? "student" : "guardian"} onChange={event => setWhatsAppDraft(current => current ? { ...current, guardian: event.target.value === "guardian", phone: (event.target.value === "guardian" ? current.guardianPhone : current.studentPhone) ?? "" } : current)}><option value="guardian">Responsável / contato cadastrado</option><option value="student">Aluno</option></select></label>
-          <label className="field">{whatsAppDraft.guardian ? "WhatsApp do responsável" : "Número do WhatsApp"}<Input type="tel" inputMode="tel" autoComplete="off" placeholder="DDD e número" value={whatsAppDraft.phone} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, phone: event.target.value } : current)} /></label>
+          <label className="field">Enviar mensagem para<select className="input" value={whatsAppDraft.guardian === false ? "student" : "guardian"} onChange={event => setWhatsAppDraft(current => current ? { ...current, phoneEdited: false, guardian: event.target.value === "guardian", phone: (event.target.value === "guardian" ? whatsAppDraft.guardianPhone : whatsAppDraft.studentPhone) ?? "" } : current)}><option value="guardian">Responsável / contato cadastrado</option><option value="student">Aluno</option></select></label>
+          <label className="field">{whatsAppDraft.guardian ? "WhatsApp do responsável" : "Número do WhatsApp"}<Input type="tel" inputMode="tel" autoComplete="off" placeholder="DDD e número" value={whatsAppDraft.phone} onChange={(event) => setWhatsAppDraft((current) => current ? { ...current, phone: event.target.value, phoneEdited: true } : current)} /></label>
           {!whatsAppDraft.phone.trim() && <p className="muted">{whatsAppDraft.guardian ? "Telefone do responsável não cadastrado. Informe o número para enviar." : "Informe o número para enviar."}</p>}
           {whatsAppDraft.activityTarget && notifications && <ActivityMissingList key={`${whatsAppDraft.activityTarget.source}:${whatsAppDraft.activityTarget.class_id}:${whatsAppDraft.activityTarget.student_id}`} target={whatsAppDraft.activityTarget} loadSource={notifications.activitySource} onInsert={(block, previous) => setWhatsAppDraft(current => current ? { ...current, message: previous && current.message.includes(previous) ? current.message.replace(previous, block) : `${current.message.trimEnd()}\n\n${block}` } : current)} />}
           <label className="field">Mensagem

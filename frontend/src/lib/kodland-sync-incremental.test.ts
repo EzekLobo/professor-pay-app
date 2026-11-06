@@ -118,12 +118,12 @@ it("retorno explícito ao Firebase compara a base remota, sem confundir cache at
 it("preserva créditos e telefone do aluno na sincronização essencial e de perfis", async () => {
  await kodlandApi.sync("teacher","not-real","essential");
  const key="users/incremental/kodland_students/s";
- Object.assign(mocks.db.get(key)!,{student_phone:"11987654321",lesson_credits_remaining:7,lesson_credits_updated_at:"old",local_note:"Anotação"});
+ Object.assign(mocks.db.get(key)!,{phone:"5511999991234",student_phone:"11987654321",lesson_credits_remaining:7,lesson_credits_updated_at:"old",local_note:"Anotação"});
  await kodlandApi.sync("teacher","not-real","essential");
- expect(mocks.db.get(key)).toMatchObject({student_phone:"11987654321",lesson_credits_remaining:7,lesson_credits_updated_at:"old"});
+ expect(mocks.db.get(key)).toMatchObject({phone:"5511999991234",student_phone:"11987654321",lesson_credits_remaining:7,lesson_credits_updated_at:"old"});
  expect(mocks.db.get(key)).not.toHaveProperty("local_note");
  vi.stubGlobal("fetch",vi.fn(async()=>{const data=snapshot();Object.assign(data.students[0],{lesson_credits_remaining:0,lesson_credits_updated_at:"new"});return Response.json(data);}));
  await kodlandApi.sync("teacher","not-real","profiles");
- expect(mocks.db.get(key)).toMatchObject({student_phone:"11987654321",lesson_credits_remaining:0,lesson_credits_updated_at:"new",name:"Ana"});
+ expect(mocks.db.get(key)).toMatchObject({phone:"5511999991234",student_phone:"11987654321",lesson_credits_remaining:0,lesson_credits_updated_at:"new",name:"Ana"});
  expect(mocks.db.get(key)).not.toHaveProperty("local_note");
 });

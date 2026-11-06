@@ -1,5 +1,17 @@
 # Estado atual
 
+## TASK_NOT_GRADED distinguido de informação ausente — 06/11/2026
+
+- O código conhecido TASK_NOT_GRADED era intencionalmente tratado como unknown por falta de evidência de entrega. Agora persiste como not_graded, com tradução “Atividade sem avaliação”, símbolo neutro e validação no cache/Firebase. Continua sem inferir entrega, correção ou falta; notificações conservam obrigação desconhecida, sem cobrança por esse estado.
+- Fonte semântica: HAR documentado em docs/kodland-endpoints.md, rótulo oficial Not graded assignment. Códigos novos/desconhecidos continuam unknown até comprovação. Registros antigos unknown precisam de nova sincronização de progresso, pois o código de origem não estava persistido.
+
+## Contato responsável, ordem de tarefas e rolagem — 06/11/2026
+
+- Perfil oficial (`student-detail-DEOzZA1u.js`) usa parent_phone para responsável e student_phone separado. Parser mapeia parent_phone (inclusive main_info) e parent.phone para o campo persistido phone; não confunde o telefone do aluno. Sync essencial não apaga contato anterior quando a fonte o omite. Entrada em Presença consulta profiles antes das faltas, sem polling. Modal já aberto recebe o contato atualizado quando a resposta chega, preservando edições manuais.
+- CompactActivityColumn.taskOrder vem da posição em classroom_tasks (ou task_number de reviews). Módulos recentes primeiro, aulas crescentes, tarefas em ordem de catálogo e homework por último em cada aula. Progresso deixa de ordenar tarefas alfabeticamente.
+- Grade de atividades usa scroll-behavior:auto e scrollTo instant nos eventos de roda, evitando reiniciar animação smooth a cada evento. Preservação de posição ao carregar módulos anteriores mantida. Testes cobrem ordem, pai/aluno, persistência de contato e deslocamento imediato da roda.
+- Confirmado: 624 testes web, tipos/lint/build e 9 E2E de grade/contatos/presença; teste de roda verifica deslocamento imediato. Conferir publicação do commit. Validação do telefone real continua dependendo da sessão autenticada.
+
 ## Atalho de mensagem na presença — 06/11/2026
 
 - AttendanceClassGrid recebe contactButton e exibe WhatsApp ao lado de cada nome, como em atividades. Usa o identificador externo do aluno, inclusive quando o perfil ainda não foi carregado. Reaproveita compositor com destinatário aluno/responsável; botão acessível de 44px e nome truncado dentro da coluna fixa.

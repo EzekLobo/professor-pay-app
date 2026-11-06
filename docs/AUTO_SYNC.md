@@ -2,13 +2,15 @@
 
 ## Regras ativas
 
+No progresso de atividades, `TASK_NOT_GRADED` é preservado como `not_graded` e exibido como **Atividade sem avaliação**, separado de informação ausente. Esse estado não comprova entrega, correção nem pendência. Logs de sincronização contam `ungradedTaskCount` e `unknownTaskCount` sem registrar dados dos alunos. Códigos desconhecidos continuam sem classificação até identificação da fonte; registros antigos precisam de nova consulta de progresso para recuperar o estado correto.
+
 A rotina autenticada é `use-kodland-auto-sync.ts`, com decisões em `kodland-auto-sync.ts` e `kodland-sync-policy.ts`. Funciona com a aplicação aberta, aba visível, conexão ativa e integração Kodland habilitada. As páginas consultam ao entrar, retomar o foco/conexão ou acionar a atualização. Não há polling de página por minuto nem consulta periódica de atividades a cada seis horas. Cada resposta persistida recarrega a grade imediatamente; leituras concorrentes são serializadas e respostas antigas não substituem uma leitura mais recente. A sincronização manual tem prioridade; solicitações bloqueadas por ela retomam após o evento de conclusão. Falhas preservam os dados e aguardam nova solicitação. O heartbeat de 30 segundos fica restrito às tarefas temporais de ocorrências/chamadas descritas abaixo.
 
 Entradas na aba Alunos consultam atividades/ranking por turma; entradas em Presença consultam presença por turma, sem aguardar uma hora após a aula nem depender do marcador da ocorrência. Entradas no Resumo usam o modo `schedule` para atualizar a grade completa. O Meu quadro relê tarefas/listas ao abrir e recuperar conexão/foco, preservando a fila local offline e sem intervalo de recarga.
 
 As regras abaixo continuam aplicáveis ao acompanhamento de ocorrências em segundo plano. Para as áreas visíveis, prevalecem as consultas de entrada/ação e a aplicação imediata das respostas descritas acima.
 
-Todos os modos de atividades executam `profiles` na entrada para carregar créditos `DEFAULT_LESSON`, e `classroom` para atualizar metadados de próxima aula. Saldos são aplicados pelo identificador Kodland em cada matrícula existente, preservando ID local e turma. Os modos Completo/Pendências exibem créditos junto ao aluno, e o nome abre o modal de perfil e contatos. A carteira usa GET /api/v1/balance/ (a v2 não oferece esse endpoint). Falha HTTP é exibida na tela, em vez de encerrar perfis como atualizados sem saldo. Carteira ausente ou não reconhecida continua desconhecida; nunca vira zero.
+Atividades e Presença executam `profiles` na entrada para carregar o contato `parent_phone` do responsável e créditos `DEFAULT_LESSON`; atividades consultam também `classroom` para atualizar metadados de próxima aula. Saldos são aplicados pelo identificador Kodland em cada matrícula existente, preservando ID local e turma. Os modos Completo/Pendências exibem créditos junto ao aluno, e o nome abre o modal de perfil e contatos. A carteira usa GET /api/v1/balance/ (a v2 não oferece esse endpoint). Falha HTTP é exibida na tela, em vez de encerrar perfis como atualizados sem saldo. Carteira ausente ou não reconhecida continua desconhecida; nunca vira zero.
 
 | Informação | Gatilho e encerramento |
 |---|---|

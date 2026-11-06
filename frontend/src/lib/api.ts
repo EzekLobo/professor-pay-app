@@ -2743,7 +2743,7 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
         const previous = map.get(item.id);
         const value = { ...previous, ...item };
         if (name === "kodland_students") {
-          Object.assign(value, studentLessonCreditsPatch(item, previous ?? {}), { student_phone: String(previous?.student_phone ?? "") });
+          Object.assign(value, studentLessonCreditsPatch(item, previous ?? {}), { phone: String(item.phone || previous?.phone || ""), student_phone: String(previous?.student_phone ?? "") });
           map.set(item.id, sanitizeKodlandStudentRecord(value));
         } else {
           map.set(item.id, value);
@@ -3478,6 +3478,7 @@ export const kodlandApi = {
       enqueue("kodland_students", item.id, sanitizeKodlandStudentRecord({
         ...item,
         ...studentLessonCreditsPatch(item, previous),
+        phone: String(item.phone || previous?.phone || ""),
         student_phone: String(previous?.student_phone ?? ""),
         hidden: Boolean(previous?.hidden ?? false),
         created_at: String(previous?.created_at ?? createdAt),

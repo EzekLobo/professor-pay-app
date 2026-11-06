@@ -803,7 +803,7 @@ function studentsFromPayload(payload: unknown, group: Group): Student[] {
         id: `kodland-student-${externalId}`,
         external_id: externalId,
         name,
-        phone: text(info.phone ?? info.phone_number ?? info.mobile),
+        phone: parseStudentContact(info).phone,
         status: text(info.status),
         progress_summary: max ? `${current}/${max}` : "",
         external_class_id: group.external_id,
@@ -2197,6 +2197,8 @@ export async function POST(request: NextRequest) {
         },
       ), (result) => ({
         reviewCount: result.reduce((total, item) => total + item.reviews.length, 0),
+        ungradedTaskCount: result.reduce((total, item) => total + item.taskProgress.filter(task => task.state === "not_graded").length, 0),
+        unknownTaskCount: result.reduce((total, item) => total + item.taskProgress.filter(task => task.state === "unknown").length, 0),
         attendanceCount: result.reduce((total, item) => total + item.attendance.length, 0),
         lessonCount: result.reduce((total, item) => total + item.lessons.length, 0),
       }));

@@ -75,7 +75,7 @@ export function normalizeNotificationSource(snapshot: NotificationSourceSnapshot
     const kind = classroom === homework ? "unknown" : homework ? "homework" : "classroom";
     if (kind === "unknown") warnings.add("Algumas atividades Kodland ainda não têm classificação Aula/Casa confirmada pelos materiais e ficam fora das cobranças. A regra Nenhuma entregue aguarda classificação completa da aula.");
     if (kind === "homework" && settings.homework_days_after_lesson === null) warnings.add("Atividades Kodland de casa não têm prazo importado: configure dias após a aula para habilitar cobranças.");
-    obligations.push({ id: progress.id, source: "kodland", class_id: group.external_id, student_id: student.external_id, occurrence_id: catalog?.source_lesson_id || catalog?.id || progress.lesson_id, title: progress.task_title, kind, due_at: null, state: progress.state === "submitted" || progress.state === "corrected" ? "delivered" : progress.state, required: true, exempt: false, external_task_id: progress.task_id });
+    obligations.push({ id: progress.id, source: "kodland", class_id: group.external_id, student_id: student.external_id, occurrence_id: catalog?.source_lesson_id || catalog?.id || progress.lesson_id, title: progress.task_title, kind, due_at: null, state: progress.state === "submitted" || progress.state === "corrected" ? "delivered" : progress.state === "not_graded" ? "unknown" : progress.state, required: true, exempt: false, external_task_id: progress.task_id });
   }
   for (const catalog of snapshot.lessons) {
     const group = snapshot.groups.find(item => item.external_id === catalog.external_class_id && !item.archived);

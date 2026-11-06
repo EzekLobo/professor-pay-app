@@ -141,7 +141,7 @@ describe("single Kodland scheduler integration", () => {
     expect(state.sync).toHaveBeenCalledTimes(1);
     finish();
     await vi.advanceTimersByTimeAsync(0);
-    expect(state.sync).toHaveBeenCalledTimes(2);
+    expect(state.sync.mock.calls.map(call => call[2])).toEqual(["classroom", "profiles", "corrections"]);
     expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "attendance" }));
   });
 
@@ -163,6 +163,14 @@ describe("single Kodland scheduler integration", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(state.sync.mock.calls.map(call => call[2])).toEqual(["classroom", "profiles", "corrections"]);
     expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "activities" }));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(state.sync.mock.calls.filter(call => call[2] === "profiles")).toHaveLength(1);
+  });
+  it("loads responsible contacts before attendance, without periodic refresh", async () => {
+    useKodlandAutoSync("account", false);
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "attendance" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync.mock.calls.map(call => call[2])).toEqual(["profiles", "corrections"]);
     await vi.advanceTimersByTimeAsync(60000);
     expect(state.sync.mock.calls.filter(call => call[2] === "profiles")).toHaveLength(1);
   });

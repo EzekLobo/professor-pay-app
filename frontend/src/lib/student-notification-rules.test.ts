@@ -83,7 +83,8 @@ describe("regras de acompanhamento", () => {
     expect(kodlandDeliveryState("TASK_NOT_SUBMITTED")).toBe("missing");
     for (const status of ["TASK_SUBMITTED", "TASK_SUBMITTED_LATE"]) expect(kodlandDeliveryState(status)).toBe("submitted");
     expect(kodlandDeliveryState("TASK_CHECKED")).toBe("corrected");
-    for (const status of ["TASK_NOT_GRADED", "new_status", null]) expect(kodlandDeliveryState(status)).toBe("unknown");
+    expect(kodlandDeliveryState("TASK_NOT_GRADED")).toBe("not_graded");
+    for (const status of ["new_status", null]) expect(kodlandDeliveryState(status)).toBe("unknown");
   });
 });
 

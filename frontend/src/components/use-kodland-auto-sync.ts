@@ -164,7 +164,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
             // Refresh the group next-lesson metadata without reimporting the timetable.
             if (requestedPage !== "attendance") await synchronize(credentials, "classroom");
             if (!owner() || pageRevision !== revision) return;
-            if (requestedPage !== "attendance") await synchronize(credentials, "profiles");
+            await synchronize(credentials, "profiles");
             if (!owner() || pageRevision !== revision) return;
             const groups = await kodlandApi.groups();
             for (const group of groups.items.filter(item => !item.archived)) {

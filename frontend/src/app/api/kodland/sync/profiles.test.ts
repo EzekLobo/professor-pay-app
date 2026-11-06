@@ -13,7 +13,7 @@ function provider(balance: unknown, fail = false) {
     if (url.includes("/login")) return Response.json({ access_token: `header.${Buffer.from(JSON.stringify({ user_id: 22 })).toString("base64url")}.signature` });
     if (url.includes("get_teachers_groups")) return Response.json({ results: [{ id: "g", title: "Roblox", course: { id: "1192" } }], next: null });
     if (url.includes("get_students_main_data")) return Response.json([{ main_info: { student_id: "s", full_name: "Ana Silva", status: "active" }, progress_info: [] }]);
-    if (url.includes("get_general_info_for_student_backoffice_page")) return Response.json({ full_name: "Ana Silva" });
+    if (url.includes("get_general_info_for_student_backoffice_page")) return Response.json({ student_first_name: "Ana", student_last_name: "Silva", parent_phone: "5511999991234", student_phone: "5511988884321" });
     // Match production: the wallet is a v1 endpoint, while v2 returns 404.
     if (url.includes("/api/v2/balance/")) return Response.json({}, { status: 404 });
     if (url.includes("/api/v1/balance/")) return fail ? Response.json({}, { status: 403 }) : Response.json(balance);
@@ -28,7 +28,7 @@ it.each([0, 12, -2])("returns the official default wallet balance %s in the stud
   const fetch = provider({ results: [{ lesson_type: "DEFAULT_LESSON", balance: String(balance) }] });
   const response = await POST(request());
   expect(response.status).toBe(200);
-  expect((await response.json()).students).toMatchObject([{ external_id: "s", lesson_credits_remaining: balance, lesson_credits_updated_at: expect.any(String) }]);
+  expect((await response.json()).students).toMatchObject([{ external_id: "s", phone: "5511999991234", lesson_credits_remaining: balance, lesson_credits_updated_at: expect.any(String) }]);
   expect(fetch.mock.calls.some(([url]) => String(url) === "https://backoffice.kodland.org/api/v1/balance/?id=s&lesson_type=DEFAULT_LESSON")).toBe(true);
   expect(fetch.mock.calls.some(([url]) => String(url).includes("/api/v2/balance/"))).toBe(false);
 });

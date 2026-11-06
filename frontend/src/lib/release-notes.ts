@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110608, date: "2026-11-06", title: "Contatos e atividades em ordem",
+    description: "O telefone do responsável é atualizado também em Presença. As atividades seguem a ordem da aula, com casa por último e rolagem sem atraso de animação. Atividades que a Kodland identifica como sem avaliação têm estado próprio, em vez de aparecer como informação desconhecida.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
     version: 2026110607, date: "2026-11-06", title: "Mensagem ao lado do nome na presença",
     description: "A grade de presença volta a mostrar o ícone de WhatsApp ao lado do nome do aluno, com escolha entre aluno e responsável antes de enviar.",
     href: "/classes?tab=attendance", action: "Abrir presença",

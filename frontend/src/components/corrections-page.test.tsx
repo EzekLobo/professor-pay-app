@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { KodlandGroup, KodlandLesson, KodlandReview, KodlandStudent } from "@/lib/api";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
-import { compactActivitiesModel, filterCompactActivitiesModel, CompactActivitiesGrid, activityModules } from "./corrections-page";
+import { compactActivitiesModel, filterCompactActivitiesModel, CompactActivitiesGrid, activityModules, refreshWhatsAppDraftContact } from "./corrections-page";
 
 const timestamp = "2026-10-21T12:00:00.000Z";
 
@@ -46,17 +46,27 @@ const manualActivity = (overrides: Partial<ManualActivity> = {}): ManualActivity
 });
 
 describe("organização da grade por módulos", () => {
+  it("uses catalog order within each lesson and places homework last", () => {
+    const catalog = lesson({ classroom_tasks: [{ title: "Z: primeira", url: "https://learn.kodland.org/pt/task/first/" }, { title: "A: segunda", url: "https://learn.kodland.org/pt/task/second/" }], homework_url: "https://learn.kodland.org/pt/task/home/" });
+    const model = compactActivitiesModel({ groups: [group()], students: [student()], lessons: [catalog], reviews: [], manualActivities: [], manualClasses: [], manualStudents: [], complete: true,
+      taskProgress: [
+        { id: "h", external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: "home", task_title: "Casa", state: "missing" },
+        { id: "s", external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: "second", task_title: "A: segunda", state: "corrected" },
+        { id: "f", external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: "first", task_title: "Z: primeira", state: "missing" },
+      ] });
+    expect(activityModules(model[0].columns)[0].map(column => column.taskLabel)).toEqual(["Z: primeira", "A: segunda", "Casa"]);
+  });
   it("ordena os módulos e aulas mais recentes primeiro e mantém módulos desconhecidos", () => {
     const column = (lessonLabel: string, moduleLabel?: string) => ({ key: lessonLabel, lessonLabel, moduleLabel, taskLabel: lessonLabel, sortKey: lessonLabel });
     const groups = activityModules([column("M1L1", "M1"), column("M10L1", "M10"), column("M2L1", "M2"), column("M2L3", "M2"), column("Aula sem módulo")]);
     expect(groups.map(items => items.map(item => item.lessonLabel))).toEqual([["M10L1"], ["M2L1", "M2L3"], ["M1L1"], ["Aula sem módulo"]]);
   });
   it("mostra os estados conhecidos sem interpretar códigos desconhecidos", () => {
-    const states = ["missing", "submitted", "corrected", "unknown"] as const;
+    const states = ["missing", "submitted", "corrected", "not_graded", "unknown"] as const;
     const model = compactActivitiesModel({ groups: [group()], students: [student()], lessons: [lesson()], reviews: [], manualActivities: [], manualClasses: [], manualStudents: [], complete: true,
       taskProgress: states.map((state, index) => ({ id: `p${index}`, external_class_id: "kodland-1", external_student_id: "external-student-1", lesson_id: "lesson-1", task_id: `t${index}`, task_title: `Atividade ${index}`, state })) });
     const markup = renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode="complete" onCorrectManual={() => undefined} />);
-    expect(markup).toContain("Sem fazer"); expect(markup).toContain("Feita, aguardando correção"); expect(markup).toContain("Corrigida"); expect(markup).toContain("Situação não informada pela Kodland");
+    expect(markup).toContain("Sem fazer"); expect(markup).toContain("Feita, aguardando correção"); expect(markup).toContain("Corrigida"); expect(markup).toContain("Atividade sem avaliação"); expect(markup).toContain("compact-activity-not_graded"); expect(markup).toContain("Situação não informada pela Kodland");
     expect(markup).not.toContain("compact-activity-state");
   });
   it("identifica tarefa de casa apenas com vínculo confirmado", () => {
@@ -68,6 +78,14 @@ describe("organização da grade por módulos", () => {
 });
 
 describe("compactActivitiesModel", () => {
+  it("refreshes the open message with the responsible contact without overwriting typed numbers", () => {
+    const draft = { studentName: "Ana", phone: "", guardian: true, message: "Olá" };
+    const contact = { phone: "5511999991234", student_phone: "5511988884321" };
+    expect(refreshWhatsAppDraftContact(draft, contact).phone).toBe(contact.phone);
+    expect(refreshWhatsAppDraftContact({ ...draft, guardian: false }, contact).phone).toBe(contact.student_phone);
+    expect(refreshWhatsAppDraftContact({ ...draft, phone: "5511977770000", phoneEdited: true }, contact).phone).toBe("5511977770000");
+    expect(refreshWhatsAppDraftContact({ ...draft, phoneEdited: true }, contact).phone).toBe("");
+  });
   it.each(["complete", "pending"] as const)("mostra o saldo de créditos no modo %s", displayMode => {
     const model=compactActivitiesModel({groups:[group()],students:[student({lesson_credits_remaining:12})],reviews:[review()],lessons:[lesson()],manualActivities:[],manualClasses:[],manualStudents:[]});
     const markup=renderToStaticMarkup(<CompactActivitiesGrid model={model} displayMode={displayMode} onCorrectManual={()=>undefined} />);

@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110803, date: "2026-11-08", title: "Boas-vindas pelo WhatsApp",
+    description: "O atalho de contato abre a conversa do responsável com uma mensagem de boas-vindas, sem baixar arquivos. Personalize os textos de falta, atividades pendentes e boas-vindas juntos em Configurações → Mensagens.",
+    href: "/settings?section=message", action: "Configurar mensagens",
+  },
+  {
     version: 2026110802, date: "2026-11-08", title: "Atividades sem bloqueio de carregamento",
     description: "A lista continua disponível durante atualizações em segundo plano. Consultas sem resposta encerram a espera e oferecem uma nova tentativa, preservando os dados da última leitura concluída.",
     href: "/classes", action: "Abrir atividades",

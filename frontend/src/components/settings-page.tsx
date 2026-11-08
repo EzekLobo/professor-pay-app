@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { MessageSettings } from "./message-settings";
 import { NotificationSettingsPanel } from "./student-notifications";
 import { DataContent } from "@/components/data-page";
 import { AccountUsernameSettings } from "@/components/account-username-settings";
@@ -11,7 +12,7 @@ import { Button, Input } from "@/components/ui";
 import { AtSign, Bell, CalendarClock, Clock3, DatabaseBackup, MessageCircle, Plus, Plug, ShieldCheck } from "lucide-react";
 import { manualAdapter as productionAdapter } from "@/lib/manual-adapters-runtime";
 import type { ManualAdapters } from "@/lib/manual-adapters";
-import { DEFAULT_ABSENCE_MESSAGE, type ManualAvailability, type ManualOccurrence, type TutorPreferences } from "@/lib/manual-operations";
+import { type ManualAvailability, type ManualOccurrence, type TutorPreferences } from "@/lib/manual-operations";
 import type { ManualClass } from "@/lib/manual-teaching";
 
 const weekdays = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
@@ -34,7 +35,7 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
   const sections = settingsSections.filter((section) => accountAccess || section.id !== "account");
   const [section, setSection] = useState<SettingsSection>(initialSection ?? (accountAccess ? "account" : "defaults"));
   useEffect(() => {
-    const syncHash = () => { if (window.location.hash === "#data") setSection("data"); else if (window.location.hash === "#notifications" || new URLSearchParams(window.location.search).get("section") === "notifications") setSection("notifications"); };
+    const syncHash = () => { if (window.location.hash === "#data") setSection("data"); else if (window.location.hash === "#notifications" || new URLSearchParams(window.location.search).get("section") === "notifications") setSection("notifications"); else if (window.location.hash === "#message" || new URLSearchParams(window.location.search).get("section") === "message") setSection("message"); };
     const openNotifications = () => setSection("notifications");
     window.addEventListener("nexusclass:open-notification-settings", openNotifications);
     const timer = window.setTimeout(syncHash, 0);
@@ -78,14 +79,13 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!preferences || busy || section === "account" || section === "availability" || (section === "data" || section === "notifications")) return;
+    if (!preferences || busy || section === "message" || section === "account" || section === "availability" || (section === "data" || section === "notifications")) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const rate = Math.round(Number(defaultRate.replace(",", ".")) * 100);
       if (section === "defaults" && (!Number.isInteger(rate) || rate <= 0)) throw new Error("Informe uma tarifa padrão válida.");
       const changes = section === "defaults"
         ? { default_duration_minutes: preferences.default_duration_minutes, default_payment_day: preferences.default_payment_day }
-        : section === "message" ? { absence_message_template: preferences.absence_message_template }
         : { kodland_enabled: preferences.kodland_enabled };
       const saved = await adapter.preferences.save({ ...changes, onboarding_completed: true });
       if (section === "defaults") await adapter.settings.setDefaultRate(rate);
@@ -135,7 +135,8 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     {accountAccess && <div id="settings-panel-account" role="tabpanel" aria-labelledby="settings-tab-account" hidden={section !== "account"} tabIndex={0}><AccountUsernameSettings /></div>}
     <div id="settings-panel-notifications" role="tabpanel" aria-labelledby="settings-tab-notifications" hidden={section !== "notifications"} tabIndex={0}>{section === "notifications" && <NotificationSettingsPanel />}</div>
-    <form id="tutor-settings-form" className="settings-form" onSubmit={save} hidden={section === "account" || section === "availability" || (section === "data" || section === "notifications")}>
+    <div id="settings-panel-message" role="tabpanel" aria-labelledby="settings-tab-message" hidden={section !== "message"} tabIndex={0}><MessageSettings absence={preferences.absence_message_template} onAbsenceChange={value => setPreferences({ ...preferences, absence_message_template: value })} saveAbsence={async () => { await adapter.preferences.save({ absence_message_template: preferences.absence_message_template }); }} /></div>
+    <form id="tutor-settings-form" className="settings-form" onSubmit={save} hidden={section === "message" || section === "account" || section === "availability" || (section === "data" || section === "notifications")}>
       <div id="settings-panel-defaults" role="tabpanel" aria-labelledby="settings-tab-defaults" hidden={section !== "defaults"} tabIndex={0}><fieldset className="settings-fieldset" disabled={section !== "defaults" || busy}>
       <section className="panel settings-section settings-defaults">
         <div className="settings-section-heading"><span className="settings-section-icon"><Clock3 size={19} aria-hidden="true" /></span><div><h3>Padrões das aulas</h3><p>Valores preenchidos automaticamente em novos cadastros.</p></div></div>
@@ -146,24 +147,13 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
         </div>
       </section>
       </fieldset></div>
-      <div id="settings-panel-message" role="tabpanel" aria-labelledby="settings-tab-message" hidden={section !== "message"} tabIndex={0}><fieldset className="settings-fieldset" disabled={section !== "message" || busy}>
-      <section className="panel settings-section settings-message">
-        <div className="settings-section-heading"><span className="settings-section-icon"><MessageCircle size={19} aria-hidden="true" /></span><div><h3>Mensagem de ausência</h3><p>Texto editável apresentado antes do envio pelo WhatsApp.</p></div></div>
-        <label className="settings-message-field"><span className="sr-only">Modelo da mensagem de ausência</span><textarea className="input" rows={7} value={preferences.absence_message_template} onChange={(event) => setPreferences({ ...preferences, absence_message_template: event.target.value })} /></label>
-        <div className="settings-message-footer">
-          <div className="settings-message-help"><span>Variáveis disponíveis</span><code>{'{primeiro_nome}'}</code><code>{'{codigo_aula}'}</code><code>{'{data}'}</code><code>{'{link_gravacao}'}</code><small>Use <code>{'{gravacao}'}</code> para ocultar o bloco quando não houver link.</small></div>
-          <Button type="button" className="button-ghost settings-restore-button" onClick={() => setPreferences({ ...preferences, absence_message_template: DEFAULT_ABSENCE_MESSAGE })}>Restaurar padrão</Button>
-        </div>
-        <button type="button" className="button button-ghost" onClick={() => setSection("notifications")}>Configurar mensagem de atividades</button>
-      </section>
-      </fieldset></div>
       <div id="settings-panel-integration" role="tabpanel" aria-labelledby="settings-tab-integration" hidden={section !== "integration"} tabIndex={0}><fieldset className="settings-fieldset" disabled={section !== "integration" || busy}>
       <section className="panel settings-section settings-integration">
         <div className="settings-section-heading"><span className="settings-section-icon"><Plug size={19} aria-hidden="true" /></span><div><h3>Integrações</h3><p>Recursos externos permanecem ocultos enquanto estiverem desativados.</p></div></div>
         <label className="settings-toggle"><span><strong>Kodland</strong><small>Importar turmas, cronograma e atividades.</small></span><input type="checkbox" checked={preferences.kodland_enabled} onChange={(event) => setPreferences({ ...preferences, kodland_enabled: event.target.checked })} /><i aria-hidden="true" /></label>
       </section>
       </fieldset></div>
-      <div className="settings-save-bar"><span>{section === "defaults" ? "Aplicado aos próximos cadastros." : section === "message" ? "Usada nas mensagens de ausência." : "Defina quais integrações deseja usar."}</span><Button type="submit" disabled={busy}>{busy ? "Salvando…" : "Salvar"}</Button></div>
+      <div className="settings-save-bar"><span>{section === "defaults" ? "Aplicado aos próximos cadastros." : "Defina quais integrações deseja usar."}</span><Button type="submit" disabled={busy}>{busy ? "Salvando…" : "Salvar"}</Button></div>
     </form>
     <section id="settings-panel-availability" role="tabpanel" aria-labelledby="settings-tab-availability" hidden={section !== "availability"} tabIndex={0} className="panel settings-section settings-availability"><div className="settings-section-heading"><span className="settings-section-icon"><CalendarClock size={19} aria-hidden="true" /></span><div><h3>Disponibilidade semanal</h3><p>Cadastre os horários disponíveis. As alterações são salvas automaticamente.</p></div></div>
       {availability.filter((item) => item.active).length === 0 && <p className="muted settings-empty">Nenhum horário cadastrado.</p>}

@@ -7,7 +7,6 @@ import { observeOperation, reportOperation } from "@/lib/operation-log-client";
 import { classifyOperationError } from "@/lib/operation-log";
 import { HeaderDropdown } from "./header-dropdown";
 import { ActivityMissingList } from "./activity-missing-list";
-import { ActivityMessageEditor } from "./activity-message-editor";
 import { useKodlandAutoSync } from "./use-kodland-auto-sync";
 import type { AutoSyncStatus } from "@/lib/kodland-auto-sync";
 import { useSearchParams } from "next/navigation";
@@ -127,7 +126,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
     read: item => store.markRead(item.id, item.notification.revision),
     confirm: async item => { await observeOperation("notifications_contact", () => store.confirmContact(item.id, item.notification.revision)); await refresh(); },
     contact: async (item, phone) => {
-      if (!phone.trim() || phone.replace(/\D/g, "").length < 10) throw new Error("Informe um telefone válido do aluno.");
+      if (!phone.trim() || phone.replace(/\D/g, "").length < 10) throw new Error("Informe um telefone válido do responsável.");
       if (demo) {
         if (!onDemoChange) throw new Error("Demonstração indisponível.");
         onDemoChange(current => item.source === "manual" ? { ...current, manualStudents: current.manualStudents.map(student => student.id === item.student_id ? { ...student, phone } : student) } : { ...current, students: current.students.map(student => student.external_id === item.student_id && student.external_class_id === item.class_id ? { ...student, phone } : student) });
@@ -207,8 +206,7 @@ export function NotificationSettingsPanel() {
     {draft.classroom_rule === "more_than" && <label className="field">Limite de atividades (N)<Input type="number" min="0" max="1000" value={draft.classroom_threshold} onChange={event => change({ classroom_threshold: Number(event.target.value) })} /><small>Mais de 2 significa 3 ou mais pendentes.</small></label>}
     <label><input type="checkbox" checked={draft.homework_enabled} onChange={event => change({ homework_enabled: event.target.checked })} /> Alertar deveres de casa vencidos</label>
     <div className="notification-form-grid"><label className="field">Tolerância em minutos<Input type="number" min="0" max="43200" value={draft.tolerance_minutes} onChange={event => change({ tolerance_minutes: Number(event.target.value) })} /></label><label className="field">Casa sem prazo: dias após a aula<Input type="number" min="0" max="365" placeholder="Não cobrar sem prazo" value={draft.homework_days_after_lesson ?? ""} onChange={event => change({ homework_days_after_lesson: event.target.value === "" ? null : Number(event.target.value) })} /><small>Prazo às 23:59 no fuso escolhido. Vazio desativa cobrança sem prazo explícito.</small></label><label className="field">Acompanhar aulas a partir de<Input type="date" required value={draft.start_date} onChange={event => change({ start_date: event.target.value })} /></label><label className="field">Fuso horário<Input required value={draft.time_zone} onChange={event => change({ time_zone: event.target.value })} /></label></div>
-    <ActivityMessageEditor value={draft.activity_message_template} onChange={value => change({ activity_message_template: value })} disabled={busy} />
-    <small>Para faltas, use o modelo em Configurações → Mensagens. Salvar as notificações também salva este modelo de atividades.</small>
+    <small>Edite os textos de falta, atividades pendentes e boas-vindas em Configurações → Mensagens.</small>
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}{preview !== null && <p role="status">Prévia: {preview} alerta(s) pelas regras selecionadas.</p>}
     <div className="form-actions"><Button type="button" className="button-ghost" onClick={() => void run(false)}>Ver prévia</Button><Button type="submit">{busy ? "Salvando…" : "Salvar notificações"}</Button></div>
   </fieldset></form></section>;
@@ -241,8 +239,8 @@ function NotificationResolutionCard({ item }: { item: NotificationCase }) {
   const run = async (action: () => Promise<void>) => { setBusy(true); setError(""); try { await action(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível salvar."); } finally { setBusy(false); } };
   return <section className="panel notification-resolution" aria-label="Resolver notificação"><small>{labels[notification.category]} · {notification.lesson_date.split("-").reverse().join("/")}</small><h3>{notification.student_name} · {notification.class_name}</h3><strong>{notification.lesson_label}</strong><p>{notification.reason}</p>{!item.active && <p role="status">Esta condição não está mais nas pendências atuais. Consulte os dados antes de entrar em contato.</p>}
     {notification.activities.length > 0 && <ul>{notification.activities.map(activity => <li key={activity.id}>{activity.title}{activity.due_at ? ` · Prazo: ${new Date(activity.due_at).toLocaleString("pt-BR")}` : ""}</li>)}</ul>}
-    <p>Telefone do aluno: {notification.guardian_phone || "Não cadastrado"}</p><Button type="button" className="button-ghost" onClick={() => setEditingContact(!editingContact)}>Cadastrar ou editar telefone</Button>
-    {editingContact && <form onSubmit={event => { event.preventDefault(); void run(async () => { await state.contact(notification, phone); setEditingContact(false); }); }}><fieldset disabled={busy} className="settings-fieldset notification-fields"><label className="field">Telefone do aluno<Input type="tel" value={phone} required onChange={event => setPhone(event.target.value)} /></label><Button type="submit">Salvar telefone</Button></fieldset></form>}
+    <p>Telefone do responsável: {notification.guardian_phone || "Não cadastrado"}</p><Button type="button" className="button-ghost" onClick={() => setEditingContact(!editingContact)}>Cadastrar ou editar telefone</Button>
+    {editingContact && <form onSubmit={event => { event.preventDefault(); void run(async () => { await state.contact(notification, phone); setEditingContact(false); }); }}><fieldset disabled={busy} className="settings-fieldset notification-fields"><label className="field">Telefone do responsável<Input type="tel" value={phone} required onChange={event => setPhone(event.target.value)} /></label><Button type="submit">Salvar telefone</Button></fieldset></form>}
     {notification.category !== "absence" && <ActivityMissingList target={{ source: notification.source, class_id: notification.class_id, student_id: notification.student_id }} loadSource={state.activitySource} onInsert={(block, previous) => setMessage(current => previous && current.includes(previous) ? current.replace(previous, block) : `${current.trimEnd()}\n\n${block}`)} />}
     <label className="field">Mensagem para o responsável<textarea aria-label="Mensagem para o responsável" className="input" rows={6} value={message} onChange={event => setMessage(event.target.value)} /></label>
     <div className="form-actions">{notification.guardian_phone && message.trim() && <a className="button button-primary" href={whatsappUrl(notification.guardian_phone, message)} target="_blank" rel="noreferrer" onClick={() => setOpened(true)}>Abrir WhatsApp</a>}<Button type="button" className="button-ghost" disabled={busy || !item.active || !needsNotificationContact(item)} onClick={() => void run(() => state.confirm(item))}>Confirmar contato realizado</Button></div>

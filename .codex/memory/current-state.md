@@ -1,3 +1,10 @@
+## Boas-vindas no WhatsApp e mensagens reunidas — 08/11/2026
+
+- Removidos SaveStudentContact/student-contact-card e exportação vCard. WelcomeContact usa somente phone do responsável, nunca student_phone: abre wa.me com boas-vindas; contato ausente abre modal para informar o número antes do chat. Nenhum envio, salvamento no WhatsApp ou inclusão em grupo é automático.
+- Configurações → Mensagens reúne ausência, atividades pendentes e boas-vindas no MessageSettings. Ausência mantém tutorPreferences; atividades/boas-vindas ficam no notification_settings existente. welcome_message_template opcional recebe padrão ao validar registros legados; variáveis {responsavel}, {aluno}, {turma}, limite5000. Rascunhos preservados ao trocar de seção; valida antes de salvar e não anuncia sucesso parcial.
+- ActivityMessageEditor reutilizado com label/padrão/variáveis configuráveis. Notificações mantém somente regras; rótulos de telefone no caso referem-se ao responsável. Link /settings?section=message abre seção correta. Novidade2026110803.
+- Verificado:646 testes web, lint/tipos/build e13 E2E320/390/1440: persistência dos3modelos, destino WhatsApp/mensagem, nenhum download, telefone ausente/inválido, perfis, regras e casos. Conferir publicação após push; teste de chat intercepta wa.me, sem enviar mensagem real.
+
 ## Carregamento infinito de atividades — 08/11/2026
 
 - Removido bloqueio da grade por autoSync.phase global: contatos/agenda não podem ocultar atividades/presença. Leituras de eventos source usam refreshingData e aviso discreto de última consulta, mantendo grade montada; loading fica restrito à leitura inicial/explícita.

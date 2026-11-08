@@ -5,7 +5,7 @@ import { kodlandApi, manualTeachingApi, type KodlandStudent } from "@/lib/api";
 import type { ManualStudent } from "@/lib/manual-teaching";
 import { notifyStudentNotificationsChanged } from "@/lib/student-notification-store";
 import { whatsappUrl } from "@/lib/whatsapp";
-import { SaveStudentContact } from "./save-student-contact";
+import { WelcomeContact } from "./welcome-contact";
 import { Button, Input } from "./ui";
 
 export function StudentContactFields({ student, demo = false, onSaved }: { student: KodlandStudent | ManualStudent; demo?: boolean; onSaved: (phone: string) => void }) {
@@ -43,7 +43,7 @@ export function StudentContactFields({ student, demo = false, onSaved }: { stude
     {notice && <p role="status">{notice}</p>}{error && <p role="alert">{error}</p>}
     <label className="field">Enviar mensagem para<select className="input" value={recipient} onChange={event => setRecipient(event.target.value)}><option value="guardian">Responsável / contato cadastrado</option><option value="student">Aluno</option></select></label>
     {!valid(target) && <p className="muted">{recipient === "student" ? "Salve um número válido do aluno para enviar." : "Contato do responsável não cadastrado."}</p>}
-    <SaveStudentContact name={recipient === "guardian" ? `${student.name} (responsável)` : student.name} phone={target || ""} />
+    <WelcomeContact name={student.name} phone={student.phone || ""} className={"external_class_name" in student ? student.external_class_name : ""} />
     <a className="button button-primary" aria-disabled={!valid(target)} href={valid(target) ? whatsappUrl(target, `Olá! Gostaria de conversar sobre as aulas de ${student.name}.`) : undefined} target="_blank" rel="noreferrer" onClick={event => { if (!valid(target)) event.preventDefault(); }}>Abrir WhatsApp</a>
   </div>;
 }

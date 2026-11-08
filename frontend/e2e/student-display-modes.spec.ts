@@ -51,11 +51,6 @@ for (const width of [320, 390, 1440]) {
     await profile.getByLabel("Enviar mensagem para").selectOption("student");
     await expect(profile.getByRole("link", { name: "Abrir WhatsApp" })).toHaveAttribute("href", /wa.me\/5511987654321/);
     await page.screenshot({ path: `test-results/student-contact-${width}.png`, fullPage: true });
-    const contact = profile.getByRole("link", { name: /^Salvar contato de/ });
-    await expect(contact).toHaveAttribute("href", /data:text\/vcard/);
-    const download = page.waitForEvent("download");
-    await contact.click();
-    expect((await download).suggestedFilename()).toMatch(/\.vcf$/);
     await profile.getByLabel("Enviar mensagem para").selectOption("guardian");
     await expect(profile.getByRole("textbox", { name: "WhatsApp do responsável / contato cadastrado", exact: true })).not.toHaveValue("11987654321");
     await page.keyboard.press("Escape");

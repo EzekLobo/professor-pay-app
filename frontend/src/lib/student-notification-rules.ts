@@ -1,3 +1,4 @@
+import { DEFAULT_WELCOME_MESSAGE, validateWelcomeMessage } from "./welcome-message";
 import { renderAbsenceMessage } from "./manual-operations";
 
 export type NotificationCategory = "absence" | "classroom" | "homework";
@@ -14,10 +15,11 @@ export type NotificationSettings = {
   start_date: string;
   time_zone: string;
   activity_message_template: string;
+  welcome_message_template?: string;
 };
 export const DEFAULT_ACTIVITY_MESSAGE = "Olá, {responsavel}! Gostaria de conversar sobre {aluno}, da turma {turma}. Há atividades não entregues da aula {aula} ({data}): {atividades}. Como podemos ajudar?";
 export function defaultNotificationSettings(today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())): NotificationSettings {
-  return { id: "default", enabled: false, attendance_enabled: true, classroom_rule: "none_submitted", classroom_threshold: 2, homework_enabled: true, tolerance_minutes: 0, homework_days_after_lesson: null, start_date: today, time_zone: "America/Sao_Paulo", activity_message_template: DEFAULT_ACTIVITY_MESSAGE };
+  return { id: "default", enabled: false, attendance_enabled: true, classroom_rule: "none_submitted", classroom_threshold: 2, homework_enabled: true, tolerance_minutes: 0, homework_days_after_lesson: null, start_date: today, time_zone: "America/Sao_Paulo", activity_message_template: DEFAULT_ACTIVITY_MESSAGE, welcome_message_template: DEFAULT_WELCOME_MESSAGE };
 }
 export function validateActivityMessageTemplate(template: string) {
   const supported = new Set(["responsavel", "aluno", "turma", "aula", "data", "atividades", "prazo"]);
@@ -34,8 +36,10 @@ export function validateNotificationSettings(input: unknown): NotificationSettin
     || (value.homework_days_after_lesson !== null && (!Number.isInteger(value.homework_days_after_lesson) || value.homework_days_after_lesson < 0 || value.homework_days_after_lesson > 365))
     || typeof value.start_date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.start_date) || new Date(`${value.start_date}T12:00:00Z`).toISOString().slice(0, 10) !== value.start_date
     || typeof value.activity_message_template !== "string" || !value.activity_message_template.trim() || value.activity_message_template.length > 5000) throw new Error("Confira as regras, a data inicial e o modelo de mensagem.");
+  const welcome = value.welcome_message_template ?? DEFAULT_WELCOME_MESSAGE;
+  validateWelcomeMessage(welcome);
   try { new Intl.DateTimeFormat("pt-BR", { timeZone: value.time_zone }).format(); } catch { throw new Error("Fuso horário inválido."); }
-  return { id: "default", enabled: value.enabled, attendance_enabled: value.attendance_enabled, classroom_rule: value.classroom_rule, classroom_threshold: value.classroom_threshold, homework_enabled: value.homework_enabled, tolerance_minutes: value.tolerance_minutes, homework_days_after_lesson: value.homework_days_after_lesson, start_date: value.start_date, time_zone: value.time_zone, activity_message_template: value.activity_message_template.trim() };
+  return { id: "default", enabled: value.enabled, attendance_enabled: value.attendance_enabled, classroom_rule: value.classroom_rule, classroom_threshold: value.classroom_threshold, homework_enabled: value.homework_enabled, tolerance_minutes: value.tolerance_minutes, homework_days_after_lesson: value.homework_days_after_lesson, start_date: value.start_date, time_zone: value.time_zone, activity_message_template: value.activity_message_template.trim(), welcome_message_template: welcome.trim() };
 }
 export type NotificationLesson = {
   source: "manual" | "kodland";

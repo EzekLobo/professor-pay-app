@@ -32,8 +32,8 @@ for (const width of [1440, 390, 320]) {
     await rate.fill("inválido");
     await menu.getByRole("tab", { name: "Mensagens", exact: true }).click();
     await message.fill("Mensagem personalizada {primeiro_nome}");
-    await page.getByRole("button", { name: "Salvar", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("Configurações salvas.");
+    await page.getByRole("button", { name: "Salvar mensagens", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("Mensagens salvas.");
     await menu.getByRole("tab", { name: "Disponibilidade", exact: true }).click();
     await expect(page.getByRole("button", { name: "Salvar", exact: true })).not.toBeVisible();
     await expect(panel).toHaveAccessibleName("Disponibilidade");

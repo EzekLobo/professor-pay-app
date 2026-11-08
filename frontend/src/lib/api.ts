@@ -379,6 +379,7 @@ type KodlandSyncOptions = {
   onProgress?: (message: string, reference?: string) => void;
   refreshSchedule?: boolean;
   correctionGroupIds?: string[];
+  profileStudentIds?: string[];
   followupScope?: "activities" | "attendance";
   automatic?: boolean;
   storage?: "browser" | "firebase";
@@ -2861,7 +2862,7 @@ async function syncKodlandBrowser(username: string, password: string, mode: Kodl
   if (mode === "corrections" && options.followupScope === "activities" && (options.correctionGroupIds ?? []).some(id => !previous?.attendanceCompletedAt?.[id])) options = { ...options, followupScope: undefined };
   options.onProgress?.("Consultando a Kodland…", syncId);
   const pending = (previous?.collections.kodland_extra_lessons ?? []).filter(item => !item.completed && !["DONE", "ACCOUNTED"].includes(String(item.manual_status))).map(item => String(item.external_student_id));
-  const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope, pending_extra_student_ids: pending }, () => user.getIdToken(), syncId);
+  const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, profile_student_ids: options.profileStudentIds, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope, pending_extra_student_ids: pending }, () => user.getIdToken(), syncId);
   assert();
   options.onProgress?.("Salvando atualização…", syncId);
   await persistKodlandBrowserSnapshot(user.uid, snapshot, mode, options);
@@ -3257,7 +3258,7 @@ export const kodlandApi = {
     assertOwner();
     options.assertActive?.();
     progress("Consultando a Kodland…");
-    const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, pending_extra_student_ids: pendingExtraStudentIds, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope }, () => firebaseUser.getIdToken(), syncId);
+    const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, profile_student_ids: options.profileStudentIds, pending_extra_student_ids: pendingExtraStudentIds, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope }, () => firebaseUser.getIdToken(), syncId);
     options.assertActive?.();
     if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) {
       throw new ApiError(401, "A conta conectada mudou. Inicie a sincronização novamente.");

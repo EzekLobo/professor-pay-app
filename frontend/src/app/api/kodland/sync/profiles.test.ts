@@ -22,7 +22,7 @@ function provider(balance: unknown, fail = false) {
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }
-const request = () => new NextRequest("https://example.test/api/kodland/sync", { method: "POST", headers: { authorization: "Bearer fixture", "content-type": "application/json" }, body: JSON.stringify({ username: "fixture", password: "fixture", mode: "profiles" }) });
+const request = (ids?: string[]) => new NextRequest("https://example.test/api/kodland/sync", { method: "POST", headers: { authorization: "Bearer fixture", "content-type": "application/json" }, body: JSON.stringify({ username: "fixture", password: "fixture", mode: "profiles", profile_student_ids: ids }) });
 
 it.each([0, 12, -2])("returns the official default wallet balance %s in the student record", async balance => {
   const fetch = provider({ results: [{ lesson_type: "DEFAULT_LESSON", balance: String(balance) }] });
@@ -38,4 +38,16 @@ it("reports a wallet request failure instead of claiming that profiles were upda
   const response = await POST(request());
   expect(response.status).toBeGreaterThanOrEqual(400);
   expect(await response.json()).not.toHaveProperty("students");
+});
+
+it("limits contact and wallet calls to selected student IDs", async () => {
+  const fetch = provider({ balance: 2 });
+  const response = await POST(request(["another-student"]));
+  expect(response.status).toBe(200);
+  expect((await response.json()).students).toEqual([]);
+  expect(fetch.mock.calls.some(([url]) => /balance|general_info_for_student/.test(String(url)))).toBe(false);
+});
+it("rejects an invalid profile selection", async () => {
+  provider({ balance: 2 });
+  expect((await POST(request(["../invalid"])) ).status).toBe(400);
 });

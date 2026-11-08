@@ -1,4 +1,5 @@
 "use client";
+import { SaveStudentContact } from "./save-student-contact";
 import { StudentContactFields } from "./student-contact-fields";
 import { FavoriteFilterOptions } from "./favorite-filter-options";
 import { ActivityMissingList } from "./activity-missing-list";
@@ -689,7 +690,7 @@ export function CompactActivitiesGrid({
   const pointsFor = (row: CompactActivityRow) => row.points ?? (row.student ? kodlandStudentPoints(row.student.progress_summary) : null);
   const creditFor = (student?: KodlandStudent) => student && typeof student.lesson_credits_remaining === "number" ? `${new Intl.NumberFormat("pt-BR").format(student.lesson_credits_remaining)} aulas` : "Não informado";
   const openStudent = (row: CompactActivityRow) => { const student = row.student ?? row.manualStudent; setSelected(student ? { ...student, student_phone: contactOverrides[student.id] ?? student.student_phone } : null); };
-  const studentSummary = (row: CompactActivityRow, classKey: string) => <div className="activity-student-heading"><div className="compact-student-profile"><button type="button" className="compact-student-name" onClick={() => openStudent(row)} disabled={!row.student && !row.manualStudent} aria-label={`Informações de ${row.name}`} title={row.name}>{row.rank ? `${row.rank}º · ` : ""}{row.name.trim().split(/\s+/).filter((_, index, parts) => index === 0 || index === parts.length - 1).join(" ")}</button>{pointsFor(row) !== null && <small>{new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts</small>}{row.student && <small className="student-lesson-credits" aria-label={`Créditos de ${row.name}: ${creditFor(row.student)}`} title="Saldo global de aulas na Kodland">Créditos: {creditFor(row.student)}</small>}</div>{contactButton?.(classKey, row.key, row.name)}</div>;
+  const studentSummary = (row: CompactActivityRow, classKey: string) => <div className="activity-student-heading"><div className="compact-student-profile"><button type="button" className="compact-student-name" onClick={() => openStudent(row)} disabled={!row.student && !row.manualStudent} aria-label={`Informações de ${row.name}`} title={row.name}>{row.rank ? `${row.rank}º · ` : ""}{row.name.trim().split(/\s+/).filter((_, index, parts) => index === 0 || index === parts.length - 1).join(" ")}</button>{pointsFor(row) !== null && <small>{new Intl.NumberFormat("pt-BR").format(pointsFor(row)!)} pts</small>}{row.student && <small className="student-lesson-credits" aria-label={`Créditos de ${row.name}: ${creditFor(row.student)}`} title="Saldo global de aulas na Kodland">Créditos: {creditFor(row.student)}</small>}</div><SaveStudentContact name={row.name} phone={row.student?.student_phone || row.manualStudent?.student_phone || row.student?.phone || row.manualStudent?.phone || ""} onMissing={() => openStudent(row)} />{contactButton?.(classKey, row.key, row.name)}</div>;
   return <><Modal open={Boolean(selected)} title={selected?.name ?? "Aluno"} onClose={() => setSelected(null)}>{selected && <div className="student-profile"><dl>{[["Status", "status" in selected ? selected.status : selected.active ? "Ativo" : "Inativo"], ["Pontuação", "progress_summary" in selected ? `${kodlandStudentPoints(selected.progress_summary)} pts` : "Não informado"], ["Saldo de aulas", "progress_summary" in selected ? creditFor(selected) : "Não informado"], ["Progresso", "progress_summary" in selected ? selected.progress_summary : ""]].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><StudentContactFields key={selected.id} student={selected} demo={Boolean(demo)} onSaved={phone => { setContactOverrides(current => ({ ...current, [selected.id]: phone })); setSelected(current => current ? { ...current, student_phone: phone } : current); }} /></div>}</Modal><div ref={activitiesRoot} className="correction-class-list compact-activities-list" aria-label="Alunos e atividades por turma">
     {model.filter(item => !hidden.includes(item.key)).map((original) => {
       const classModel = { ...original, name: names[original.key] || original.name };
@@ -919,7 +920,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       const enabled = (await demo.manualAdapter?.preferences.get())?.kodland_enabled === true;
       setKodlandEnabled(enabled); setHasKodlandGroups(enabled && (demo.groups?.length ?? 0) > 0); return;
     }
-    if (!background) setLoading(true);
+    void background; setLoading(true);
     setError("");
     try {
       const localOnly = Boolean((await kodlandApi.browserState())?.active);
@@ -1198,7 +1199,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
         {viewMode === "attendance" ? <>
         <ManualAttendanceGrid adapter={demo?.manualAdapter} />
-        {loading ? <p className="muted">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro.</p> : <div className="correction-class-list attendance-list">
+        {loading || (!demo && notifications?.autoSync.phase === "syncing") ? <p className="muted" role="status">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro.</p> : <div className="correction-class-list attendance-list">
           {attendanceByClass.map(([className, histories]) => <details
             className="correction-class-group attendance-class-group"
             key={className}
@@ -1218,7 +1219,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
         </div>}
         </> : <>
         {classesContent && <div className="classes-integrated-actions" data-tour="classes-management">{classesContent}</div>}
-        {loading ? <p className="muted">Carregando correções…</p> : (activitiesView === "compact" ? compactActivities.length === 0 : visibleReviews.length + visibleOwn.length === 0) ? <p className="muted correction-empty-state">Nenhum aluno ou atividade para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
+        {loading || (!demo && notifications?.autoSync.phase === "syncing") ? <p className="muted" role="status">Carregando correções…</p> : (activitiesView === "compact" ? compactActivities.length === 0 : visibleReviews.length + visibleOwn.length === 0) ? <p className="muted correction-empty-state">Nenhum aluno ou atividade para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
           contactButton={contactButton}
           pendingOnly={pendingOnly}

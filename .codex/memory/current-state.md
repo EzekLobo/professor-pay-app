@@ -1,3 +1,11 @@
+## Perfis necessários e pagamentos na entrada — 08/11/2026
+
+- `auto-sync-profiles.ts` seleciona alunos ativos incompletos/saldo antigo, deduplica IDs e consulta lotes de20. Orçamento por UID em localStorage:6h após tentativa,30min após falha; créditos24h. `profile_student_ids` limita detalhes/carteira no modo profiles; merge preserva outros alunos e contatos locais. Falha de perfil não impede consultar tarefas/presença.
+- Atalho ContactRound na linha compacta e perfil exporta vCard; número ausente abre cadastro existente. Campos de contato recebem atualizações sem sobrescrever edição em andamento. Dados de tentativas não armazenam telefone.
+- Resumo/Pagamentos chamam `syncPaymentsOnEntry(refreshOnEntry:true)` antes de exibir financeiro: até2 competências abertas recentes, janela compartilhada60s e backoff/lease existentes. Received preservado; demo não resolve Firebase. Leituras iniciais aguardam sync e releem quando atualizado; coalescência de eventos evita consultas concorrentes na página financeira. Conta remonta conteúdo por UID.
+- Grade/atividades/presença mostram carregamento durante consulta automática; falhas conservam dados e indicação honesta. Preferências financeiras têm prazo8s. Novidade2026110801.
+- Verificado:644 testes web, lint/tipos/build;11 E2E locais (carregamento financeiro, download vCard, perfis320/390/1440 e carrossel/grade). Primeiro lote E2E pegou Fast Refresh e teste antigo activity-whatsapp que exige seletor removido na unificação; repetição estável dos fluxos atuais passou. Publicação e dados reais dependem de validação após push.
+
 # Estado atual
 
 ## Catálogo completo e criação de tarefa por caixa — 06/11/2026

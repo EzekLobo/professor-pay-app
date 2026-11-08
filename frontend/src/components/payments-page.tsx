@@ -87,7 +87,6 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
   const notificationState = useStudentNotifications();
   const automaticEntryStarted = useRef(false);
   const detailPaymentDate = useRef<string | null>(null);
-  const mounted = useRef(false);
   const [automaticStatus, setAutomaticStatus] = useState("");
   const [confirmReverse, setConfirmReverse] = useState<boolean | null>(null);
   const [items, setItems] = useState<DashboardPayment[]>([]),
@@ -134,22 +133,44 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       : carouselMotion === "previous"
         ? [-2, -1, 0, 1]
         : [-1, 0, 1];
+  const reading = useRef(false);
+  const reloadRequested = useRef(false);
+  const entryTimeZone = notificationState?.settings?.time_zone ?? "America/Sao_Paulo";
   const load = useCallback(async (keepContent = false) => {
     void keepContent;
+    if (reading.current) { reloadRequested.current = true; return; }
+    reading.current = true;
     setLoading(true);
+    setError("");
     try {
-      const loadedItems = (await paymentActions.list()).items;
-      const nextFocus =
-        loadedItems.find(
-          (item) => item.payment_date > new Date().toISOString().slice(0, 10),
-        ) ?? loadedItems.at(-1) ?? null;
-      setItems(loadedItems);
-      setStatusPayment(current => current ? loadedItems.find(item => item.payment_date === current.payment_date) ?? null : null);
-      setFocusedPaymentDate((current) =>
-        current && loadedItems.some((item) => item.payment_date === current)
-          ? current
-          : nextFocus?.payment_date ?? null,
-      );
+      do {
+        reloadRequested.current = false;
+        let loadedItems = (await paymentActions.list()).items;
+        if (!adapter && !automaticEntryStarted.current) {
+          automaticEntryStarted.current = true;
+          try {
+            const result = await syncPaymentsOnEntry(loadedItems, { timeZone: entryTimeZone, refreshOnEntry: true });
+            setAutomaticStatus(result.status === "auth_required" || result.status === "credentials_required"
+              ? "Reconecte a Kodland em Dados e backup para atualizar os pagamentos."
+              : result.status === "pending" ? "Não foi possível atualizar os pagamentos. Exibindo a última consulta salva." : "");
+            if (result.updated) {
+              reloadRequested.current = false; // This read includes the sync events already received.
+              loadedItems = (await paymentActions.list()).items;
+            }
+          } catch { setAutomaticStatus("Não foi possível atualizar os pagamentos. Exibindo a última consulta salva."); }
+        }
+        const nextFocus =
+          loadedItems.find(
+            (item) => item.payment_date > new Date().toISOString().slice(0, 10),
+          ) ?? loadedItems.at(-1) ?? null;
+        setItems(loadedItems);
+        setStatusPayment(current => current ? loadedItems.find(item => item.payment_date === current.payment_date) ?? null : null);
+        setFocusedPaymentDate((current) =>
+          current && loadedItems.some((item) => item.payment_date === current)
+            ? current
+            : nextFocus?.payment_date ?? null,
+        );
+      } while (reloadRequested.current);
     } catch (e) {
       setError(
         e instanceof Error
@@ -157,14 +178,14 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
           : "Não foi possível carregar pagamentos.",
       );
     } finally {
+      reading.current = false;
       setLoading(false);
     }
-  }, [paymentActions]);
+  }, [paymentActions, adapter, entryTimeZone]);
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { detailPaymentDate.current = detail?.payment_date ?? null; }, [detail]);
   useEffect(() => {
     if (adapter) return; // A demo adapter must never resolve Firebase or Kodland services.
@@ -179,16 +200,6 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       }).catch(() => { /* Keep the open statement while a refresh is unavailable. */ });
     });
   }, [adapter, load, paymentActions]);
-  useEffect(() => {
-    if (adapter || loading || !notificationState?.settings || automaticEntryStarted.current) return;
-    automaticEntryStarted.current = true;
-    void syncPaymentsOnEntry(items, { timeZone: notificationState.settings.time_zone }).then(result => {
-      if (!mounted.current) return;
-      setAutomaticStatus(result.status === "auth_required" ? "Reconecte a Kodland em Dados e backup para atualizar os pagamentos."
-        : result.status === "credentials_required" ? "Salve o acesso à Kodland em Dados e backup para atualizar os pagamentos automaticamente."
-          : result.status === "pending" ? "A atualização dos pagamentos ficou pendente. Os dados salvos foram preservados." : "");
-    }).catch(() => { if (mounted.current) setAutomaticStatus("Não foi possível atualizar os pagamentos agora. Os dados salvos foram preservados."); });
-  }, [adapter, items, loading, notificationState?.settings]);
   async function open(date: string) {
     try {
       setDetail(await paymentActions.get(date));
@@ -351,6 +362,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       setBusy(false);
     }
   }
+  if (loading) return <section className="panel" role="status" aria-busy="true"><h1>Pagamentos</h1><p className="muted">Atualizando pagamentos…</p></section>;
   return (
     <div className="management-grid page-fill-grid">
       <ConfirmDialog open={confirmReverse !== null} title={confirmReverse ? "Estornar confirmação" : "Confirmar recebimento"} confirmLabel={confirmReverse ? "Estornar confirmação" : "Confirmar recebimento"} danger={confirmReverse === true} onClose={() => setConfirmReverse(null)} onConfirm={() => change(confirmReverse === true)}><p>{confirmReverse ? "O pagamento voltará a ficar em aberto." : `Confirmar ${formatMoney(detail?.total_cents ?? 0)} como recebido?`}</p></ConfirmDialog>
@@ -583,7 +595,7 @@ export default function PaymentsPage() {
     <AuthGuard>
       {(user) => (
         <Shell user={user}>
-          <PaymentsContent />
+          <PaymentsContent key={user.id} />
         </Shell>
       )}
     </AuthGuard>

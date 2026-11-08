@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110801, date: "2026-11-08", title: "Contatos e atualização ao abrir",
+    description: "Perfis incompletos são consultados automaticamente com controle de tentativas. Salve contatos pelo ícone junto ao aluno. Resumo e Pagamentos aguardam a consulta financeira ao abrir, com proteção contra repetição entre telas.",
+    href: "/classes", action: "Abrir alunos",
+  },
+  {
     version: 2026110611, date: "2026-11-06", title: "Cursos completos e tarefas por caixa",
     description: "O menu Aulas agora se chama Cursos. O catálogo consulta todos os cursos liberados na Kodland, incluindo variantes de Roblox sem turma ativa, e mantém seus materiais separados. No Meu quadro, use o + de cada caixa para criar a tarefa diretamente nela.",
     href: "/lessons", action: "Abrir cursos",

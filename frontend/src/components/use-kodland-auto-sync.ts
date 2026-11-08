@@ -1,4 +1,5 @@
 "use client";
+import { refreshIncompleteProfiles } from "@/lib/auto-sync-profiles";
 import { subscribeTutorPreferencesChanged } from "@/lib/tutor-preference-events";
 import { setAutomaticPayrollEnabled } from "@/lib/auto-sync-payroll";
 import { automaticTasks, attendanceConfirmed, type AutomaticTaskState } from "@/lib/kodland-sync-policy";
@@ -38,11 +39,11 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     let pageFailed = false;
     const recordingAttemptsThisVisit = new Set<string>();
     const unsubscribe = subscribeStudentNotifications(change => { if (change === "source" && !automaticRunning) { cache = null; disabledUntil = 0; } });
-    const synchronize = async (credentials: { username: string; password: string }, mode: "schedule" | "classroom" | "corrections" | "profiles", groupId?: string, scope?: "attendance" | "activities") => {
+    const synchronize = async (credentials: { username: string; password: string }, mode: "schedule" | "classroom" | "corrections" | "profiles", groupId?: string, scope?: "attendance" | "activities", profileStudentIds?: string[]) => {
       if (!owner()) return;
       automaticRunning = true;
       try {
-        return await watchKodlandSync((report, assertActive) => kodlandApi.sync(credentials.username, credentials.password, mode, { automatic: true, correctionGroupIds: groupId ? [groupId] : undefined, refreshSchedule: mode === "schedule", followupScope: scope, onProgress: report, assertActive: () => { assertActive(); if (!owner()) throw new KodlandAutoSyncBusyError("A integração Kodland foi desligada."); } }), message => { if (owner()) setStatus({ phase: "syncing", message }); });
+        return await watchKodlandSync((report, assertActive) => kodlandApi.sync(credentials.username, credentials.password, mode, { automatic: true, profileStudentIds, correctionGroupIds: groupId ? [groupId] : undefined, refreshSchedule: mode === "schedule", followupScope: scope, onProgress: report, assertActive: () => { assertActive(); if (!owner()) throw new KodlandAutoSyncBusyError("A integração Kodland foi desligada."); } }), message => { if (owner()) setStatus({ phase: "syncing", message }); });
       } finally { automaticRunning = false; }
     };
     const scoped = async (credentials: { username: string; password: string }, input: Parameters<typeof kodlandApi.syncScope>[2]) => {
@@ -151,20 +152,30 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
         if (disposed) return;
         if (refreshPage && page && refreshedRevision !== revision) {
           if (!owner() || !kodlandAutoSyncAvailable(uid)) return;
+          setStatus({ phase: "syncing", message: "Consultando atualizações da página…" });
           const preferences = await tutorPreferencesApi.get();
-          if (!owner() || !preferences.kodland_enabled) return;
+          if (!owner()) return;
+          if (!preferences.kodland_enabled) { refreshedRevision = revision; setStatus({ phase: "disabled" }); return; }
           const credentials = await restoreKodlandCredentials();
           if (!owner()) return;
           if (!credentials) { refreshedRevision = revision; setStatus({ phase: "credentials", message: "Salve o acesso à Kodland em Configurações > Dados e backup para atualizar esta página." }); return; }
           const requestedPage = page;
           pageFailed = false;
           setStatus({ phase: "syncing", message: requestedPage === "agenda" ? "Atualizando a grade do Resumo…" : requestedPage === "attendance" ? "Atualizando presença…" : "Atualizando tarefas e ranking…" });
-          if (requestedPage === "agenda") await synchronize(credentials, "schedule");
+          let profileError: unknown;
+          const repairProfiles = async () => {
+            try {
+              const students = await kodlandApi.students();
+              if (!owner()) return;
+              await refreshIncompleteProfiles(uid, students.items, ids => synchronize(credentials, "profiles", undefined, undefined, ids), owner);
+            } catch (error) { profileError = error; }
+          };
+          if (requestedPage === "agenda") { await synchronize(credentials, "schedule"); if (owner()) await repairProfiles(); }
           else {
             // Refresh the group next-lesson metadata without reimporting the timetable.
             if (requestedPage !== "attendance") await synchronize(credentials, "classroom");
             if (!owner() || pageRevision !== revision) return;
-            await synchronize(credentials, "profiles");
+            await repairProfiles();
             if (!owner() || pageRevision !== revision) return;
             const groups = await kodlandApi.groups();
             for (const group of groups.items.filter(item => !item.archived)) {
@@ -176,6 +187,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
           if (!owner()) return;
           refreshedRevision = revision;
           cache = null;
+          if (profileError) throw new Error("A página foi atualizada, mas alguns contatos ou saldos de aulas continuam pendentes.");
           setStatus({ phase: "ready", updatedAt: new Date().toISOString() });
           return;
         }

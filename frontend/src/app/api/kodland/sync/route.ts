@@ -1958,6 +1958,7 @@ export async function POST(request: NextRequest) {
       }>;
       pending_extra_student_ids?: string[];
       correction_group_ids?: string[];
+      profile_student_ids?: string[];
       refresh_schedule?: boolean;
       followup_scope?: "activities" | "attendance";
     };
@@ -2240,6 +2241,7 @@ export async function POST(request: NextRequest) {
         attendance_group_ids: body.followup_scope === "activities" ? [] : correctionGroups.map((group) => group.external_id),
       });
     }
+    if (mode === "profiles" && body.profile_student_ids !== undefined && (!Array.isArray(body.profile_student_ids) || body.profile_student_ids.length > 100 || body.profile_student_ids.some(id => typeof id !== "string" || !/^[\w-]+$/.test(id)))) return syncResponse(syncId, { code: "invalid_request" }, 400);
     const profileCache = new Map<
       string,
       { student?: ReturnType<typeof parseStudentContact>; credits?: number; creditsAt?: string }
@@ -2260,7 +2262,7 @@ export async function POST(request: NextRequest) {
         );
         const basicStudents = studentsFromPayload(payload, group);
         const students = mode === "profiles"
-          ? await studentsWithProfiles(basicStudents, token, profileCache)
+          ? await studentsWithProfiles(body.profile_student_ids ? basicStudents.filter(student => body.profile_student_ids!.includes(student.external_id)) : basicStudents, token, profileCache)
           : basicStudents;
         return {
           group,

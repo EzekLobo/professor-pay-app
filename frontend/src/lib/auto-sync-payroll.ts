@@ -1,8 +1,9 @@
-﻿import { kodlandPayrollApi, tutorPreferencesApi, type DashboardPayment } from "./api";
+import { kodlandPayrollApi, tutorPreferencesApi, type DashboardPayment } from "./api";
 import { restoreKodlandCredentials, type KodlandCredentials } from "./browser-credentials";
+import { readKodlandLocal } from "./kodland-sync-client";
 import { getFirebaseAuth } from "./firebase";
 import { getSyncCoordinator, type SyncCoordinator, type SyncExecutionContext } from "./sync-coordinator";
-import { payrollDecision, syncTimeZone } from "./sync-policy";
+import { calendarDay, payrollDecision, syncTimeZone, type SyncHistory } from "./sync-policy";
 
 type PaymentCandidate = Pick<DashboardPayment, "payment_date" | "status">;
 export type PayrollEntryResult = { status: "idle" | "disabled" | "credentials_required" | "auth_required" | "updated" | "pending"; updated: number; failed: number };
@@ -29,6 +30,25 @@ export function eligiblePayrollPayments(payments: PaymentCandidate[], now: numbe
   return [...byPeriod.values()];
 }
 
+/** Entry refreshes share the account lease and a short freshness window between pages. */
+export function payrollEntryDue(now: number, history: SyncHistory): boolean {
+  return !(history.next_due_at && history.next_due_at > now) && (history.last_success_at == null || now - history.last_success_at >= 60000);
+}
+export function entryPayrollPayments(payments: PaymentCandidate[], now: number, timeZone: string): PaymentCandidate[] {
+  const today = calendarDay(now, timeZone);
+  const month = today.slice(0, 7);
+  const source = payments.length ? payments : [{ payment_date: `${month}-15`, status: "EXPECTED" }];
+  const byPeriod = new Map<string, PaymentCandidate>();
+  for (const item of [...source].sort((a, b) => b.payment_date.localeCompare(a.payment_date))) {
+    if (item.status === "RECEIVED" || !/^\d{4}-\d{2}-\d{2}$/.test(item.payment_date) || Number.isNaN(Date.parse(item.payment_date))) continue;
+    const period = payrollPeriodKey(item.payment_date);
+    if (period > month || byPeriod.has(period)) continue;
+    byPeriod.set(period, item);
+    if (byPeriod.size === 2) break;
+  }
+  return [...byPeriod.values()];
+}
+
 /** One entry action; daily success is authoritative in the coordinator's durable store. */
 export class PayrollEntrySync {
   private authBlocked = false;
@@ -36,12 +56,12 @@ export class PayrollEntrySync {
   constructor(private readonly adapter: PayrollEntryAdapter) {}
   resetAuthentication(): void { this.authBlocked = false; }
   setIntegrationEnabled(enabled: boolean): void { this.integrationEnabled = enabled; }
-  async run(payments: PaymentCandidate[], options: { enabled: boolean; timeZone: string }): Promise<PayrollEntryResult> {
+  async run(payments: PaymentCandidate[], options: { enabled: boolean; timeZone: string; refreshOnEntry?: boolean }): Promise<PayrollEntryResult> {
     const result: PayrollEntryResult = { status: "idle", updated: 0, failed: 0 };
     if (!options.enabled || !this.integrationEnabled) return { ...result, status: "disabled" };
     if (this.authBlocked) return { ...result, status: "auth_required" };
     const now = this.adapter.now ?? Date.now, timeZone = syncTimeZone(options.timeZone);
-    const candidates = eligiblePayrollPayments(payments, now(), timeZone);
+    const candidates = options.refreshOnEntry ? entryPayrollPayments(payments, now(), timeZone) : eligiblePayrollPayments(payments, now(), timeZone);
     if (!candidates.length) return result;
     const credentials = await this.adapter.credentials();
     if (!this.integrationEnabled) return { ...result, status: "disabled" };
@@ -52,7 +72,7 @@ export class PayrollEntrySync {
       try {
         const outcome = await this.adapter.coordinator.enqueue({
           key: `payroll:${period}`, scope: "payroll", resourceId: period,
-          isDue: (state, at) => this.integrationEnabled && payrollDecision(payment.payment_date, at, state, timeZone).due,
+          isDue: (state, at) => this.integrationEnabled && (options.refreshOnEntry ? payrollEntryDue(at, state) : payrollDecision(payment.payment_date, at, state, timeZone).due),
           run: async context => {
             context.assertCurrent();
             if (!this.integrationEnabled) throw new PayrollDisabledError();
@@ -64,6 +84,7 @@ export class PayrollEntrySync {
         });
         if (!this.integrationEnabled) return { ...result, status: "disabled" };
         if (outcome.status !== "skipped") result.updated++;
+        else if (outcome.reason === "unavailable") result.failed++;
       } catch (error) {
         if (error instanceof PayrollDisabledError || !this.integrationEnabled) return { ...result, status: "disabled" };
         result.failed++;
@@ -71,7 +92,7 @@ export class PayrollEntrySync {
         if (status === 401 || status === 403) { this.authBlocked = true; return { ...result, status: "auth_required" }; }
       }
     }
-    result.status = result.updated ? "updated" : result.failed ? "pending" : "idle";
+    result.status = result.failed ? "pending" : result.updated ? "updated" : "idle";
     return result;
   }
 }
@@ -86,13 +107,13 @@ export function setAutomaticPayrollEnabled(uid: string, enabled: boolean): void 
   integrationOverrides.set(uid, enabled); runners.get(uid)?.setIntegrationEnabled(enabled);
 }
 /** The page supplies the timezone already loaded by its notification provider. */
-export async function syncPaymentsOnEntry(payments: PaymentCandidate[], options: { timeZone: string; demo?: boolean }): Promise<PayrollEntryResult> {
+export async function syncPaymentsOnEntry(payments: PaymentCandidate[], options: { timeZone: string; demo?: boolean; refreshOnEntry?: boolean }): Promise<PayrollEntryResult> {
   const idle: PayrollEntryResult = { status: "idle", updated: 0, failed: 0 };
-  if (options.demo || !eligiblePayrollPayments(payments, Date.now(), syncTimeZone(options.timeZone)).length) return idle;
+  if (options.demo || !(options.refreshOnEntry ? entryPayrollPayments(payments, Date.now(), syncTimeZone(options.timeZone)) : eligiblePayrollPayments(payments, Date.now(), syncTimeZone(options.timeZone))).length) return idle;
   const uid = getFirebaseAuth().currentUser?.uid;
   if (!uid) return idle;
   const revision = preferencesRevisions.get(uid) ?? 0;
-  const preferences = await tutorPreferencesApi.get();
+  const preferences = await readKodlandLocal(() => tutorPreferencesApi.get(), crypto.randomUUID(), "Preferências da integração", 8000);
   if (getFirebaseAuth().currentUser?.uid !== uid) return idle;
   const enabled = revision === (preferencesRevisions.get(uid) ?? 0) ? preferences.kodland_enabled : integrationOverrides.get(uid) ?? preferences.kodland_enabled;
   runners.get(uid)?.setIntegrationEnabled(enabled);
@@ -107,6 +128,6 @@ export async function syncPaymentsOnEntry(payments: PaymentCandidate[], options:
     runners.set(uid, runner);
   }
   runner.setIntegrationEnabled(enabled);
-  return runner.run(payments, { enabled: true, timeZone: options.timeZone });
+  return runner.run(payments, { enabled: true, timeZone: options.timeZone, refreshOnEntry: options.refreshOnEntry });
 }
 export function resetAutomaticPayrollAuthentication(uid: string): void { runners.get(uid)?.resetAuthentication(); }

@@ -138,9 +138,25 @@ it("rejects a stale payroll preference read but allows a later authoritative rea
   vi.mocked(restoreKodlandCredentials).mockResolvedValue({ username: "fixture", password: "fixture" });
   vi.mocked(kodlandPayrollApi.syncForPaymentDate).mockResolvedValue({} as never);
   const pending = syncPaymentsOnEntry([candidate()], { timeZone: options.timeZone });
+  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
   setAutomaticPayrollEnabled(uid, false); release({ kodland_enabled: true });
   expect((await pending).status).toBe("disabled"); expect(kodlandPayrollApi.syncForPaymentDate).not.toHaveBeenCalled();
   vi.mocked(tutorPreferencesApi.get).mockResolvedValue({ kodland_enabled: true } as never);
   expect((await syncPaymentsOnEntry([candidate()], { timeZone: options.timeZone })).status).toBe("updated");
   expect(kodlandPayrollApi.syncForPaymentDate).toHaveBeenCalledOnce();
+});
+
+it("refreshes on entry outside the payment window, deduplicating across page runners", async () => {
+  const test = setup(date("2026-11-03"));
+  const entry = { ...options, refreshOnEntry: true };
+  expect((await test.runner().run([candidate()], entry)).updated).toBe(1);
+  expect((await test.runner().run([candidate()], entry)).updated).toBe(0);
+  test.move(test.now() + 61000);
+  expect((await test.runner().run([candidate()], entry)).updated).toBe(1);
+  expect(test.sync).toHaveBeenCalledTimes(2);
+});
+it("never refreshes received snapshots on page entry", async () => {
+  const test = setup(date("2026-11-03"));
+  await test.runner().run([{ ...candidate(), status: "RECEIVED" }], { ...options, refreshOnEntry: true });
+  expect(test.sync).not.toHaveBeenCalled();
 });

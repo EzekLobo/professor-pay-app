@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
   cleanups: [] as Array<() => void>,
   status: vi.fn(), tick: vi.fn(async () => undefined),
   watch: vi.fn(),
-  preferences: vi.fn(), browserState: vi.fn(), groups: vi.fn(), saveTask: vi.fn(), syncScope: vi.fn(), sync: vi.fn(), payroll: vi.fn(),
+  students: vi.fn(), preferences: vi.fn(), browserState: vi.fn(), groups: vi.fn(), saveTask: vi.fn(), syncScope: vi.fn(), sync: vi.fn(), payroll: vi.fn(),
 }));
 vi.mock("react", () => ({
   useState: () => [{ phase: "idle" }, state.status],
@@ -25,7 +25,7 @@ vi.mock("@/lib/api", () => ({
     groups: state.groups,
     lessons: async () => ({ items: [{ id: "lesson", external_class_id: "group", source_lesson_id: "source", lesson_date: "2026-11-04", start_time: "18:00", end_time: "19:00" }] }),
     extraLessons: async () => ({ items: [] }),
-    students: async () => ({ items: [] }), followupState: async () => ({ updatedAt: {}, blockedGroups: [] }),
+    students: state.students, followupState: async () => ({ updatedAt: {}, blockedGroups: [] }),
     automaticState: async () => ({}), scheduleLastUpdatedAt: async () => "2026-11-04T10:00:00Z",
     saveAutomaticTask: state.saveTask, syncScope: state.syncScope, sync: state.sync,
   },
@@ -47,6 +47,7 @@ beforeEach(() => {
   vi.stubGlobal("window", browser);
   const document = new EventTarget(); Object.assign(document, { visibilityState: "visible" }); vi.stubGlobal("document", document);
   vi.stubGlobal("navigator", { onLine: true });
+  state.students.mockResolvedValue({ items: [] });
   state.preferences.mockResolvedValue({ kodland_enabled: true }); state.browserState.mockResolvedValue({ active: true });
   state.groups.mockResolvedValue({ items: [{ external_id: "group", archived: false }] });
   state.saveTask.mockResolvedValue(undefined); state.syncScope.mockResolvedValue({ complete: true, call_url: "https://learn.kodland.org/pt/class-room?sessionId=session" });
@@ -141,7 +142,7 @@ describe("single Kodland scheduler integration", () => {
     expect(state.sync).toHaveBeenCalledTimes(1);
     finish();
     await vi.advanceTimersByTimeAsync(0);
-    expect(state.sync.mock.calls.map(call => call[2])).toEqual(["classroom", "profiles", "corrections"]);
+    expect(state.sync.mock.calls.map(call => call[2])).toEqual(["classroom", "corrections"]);
     expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "attendance" }));
   });
 
@@ -158,6 +159,7 @@ describe("single Kodland scheduler integration", () => {
   });
 
   it("loads profiles and lesson balances when entering the activities page", async () => {
+    state.students.mockResolvedValue({ items: [{ external_id: "student", status: "active", name: "Aluno", phone: "" }] });
     useKodlandAutoSync("account", false);
     window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
     await vi.advanceTimersByTimeAsync(0);
@@ -167,6 +169,7 @@ describe("single Kodland scheduler integration", () => {
     expect(state.sync.mock.calls.filter(call => call[2] === "profiles")).toHaveLength(1);
   });
   it("loads responsible contacts before attendance, without periodic refresh", async () => {
+    state.students.mockResolvedValue({ items: [{ external_id: "student", status: "active", name: "Aluno", phone: "" }] });
     useKodlandAutoSync("account", false);
     window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "attendance" }));
     await vi.advanceTimersByTimeAsync(0);

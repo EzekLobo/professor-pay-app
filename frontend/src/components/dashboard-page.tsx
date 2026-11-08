@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ScheduleEntryAction } from "@/components/schedule-entry-action";
 import { Info, RefreshCw } from "lucide-react";
-import { type MouseEvent, useCallback, useEffect, useState } from "react";
+import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { DashboardContent } from "@/components/dashboard-content";
 import {
@@ -12,6 +12,8 @@ import {
 } from "@/components/lesson-material-modal";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
+import { syncPaymentsOnEntry } from "@/lib/auto-sync-payroll";
+import { useStudentNotifications } from "@/components/student-notifications";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
 import {
   ApiError,
@@ -899,13 +901,35 @@ function DashboardPageContent({ uid }: { uid: string }) {
     const timeout = window.setTimeout(() => setRefreshNotice(""), 6000);
     return () => window.clearTimeout(timeout);
   }, [refreshNotice]);
+  const financialEntry = useRef<Promise<boolean> | null>(null);
+  const financialReady = useRef(false);
+  const [financialNotice, setFinancialNotice] = useState("");
+  const notifications = useStudentNotifications();
+  const readFinancial = useCallback(async (local: boolean) => {
+    const read = () => readKodlandLocal(() => dashboardApi.get({ useLocalKodland: local }), crypto.randomUUID(), "Resumo financeiro", 8000);
+    const awaitingEntry = !financialReady.current;
+    const initial = await read();
+    if (!financialEntry.current) financialEntry.current = (async () => {
+      try {
+        const result = await syncPaymentsOnEntry(initial.payments, { timeZone: DEFAULT_SYNC_TIME_ZONE, refreshOnEntry: true });
+        if (["pending", "auth_required", "credentials_required"].includes(result.status)) setFinancialNotice("Pagamentos: não foi possível atualizar a Kodland. Exibindo a última consulta salva.");
+        return result.updated > 0;
+      } catch { setFinancialNotice("Pagamentos: não foi possível atualizar a Kodland. Exibindo a última consulta salva."); }
+      return false;
+    })();
+    const changed = await financialEntry.current;
+    const result = changed && awaitingEntry ? await read() : initial;
+    financialReady.current = true;
+    return result;
+  }, []);
   const loadLocalFinance = useCallback(async () => {
     setFinancialFailed(false);
+    setDashboard(null);
     try {
-      const financial = await readKodlandLocal(() => dashboardApi.get({ useLocalKodland: true }), crypto.randomUUID(), "Resumo financeiro", 8000);
+      const financial = await readFinancial(true);
       setDashboard(financial);
     } catch { setFinancialFailed(true); }
-  }, []);
+  }, [readFinancial]);
   const load = useCallback(async (keepContent = false) => {
     setFailed(false);
     if (!keepContent) setDashboard(null);
@@ -936,7 +960,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
         ownStudents,
         ownActivities,
       ] = await Promise.all([
-        dashboardApi.get(),
+        readFinancial(false),
         preferences.kodland_enabled ? kodlandApi.groups() : empty,
         preferences.kodland_enabled ? kodlandApi.students() : empty,
         preferences.kodland_enabled ? kodlandApi.reviews() : empty,
@@ -966,7 +990,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
       setFailed(true);
       return false;
     }
-  }, [uid, loadLocalFinance]);
+  }, [uid, loadLocalFinance, readFinancial]);
   useEffect(() => {
     let active = true;
     const unsubscribe = subscribeSyncDataChanged(uid, event => {
@@ -976,7 +1000,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
       if (domains.has("agenda") || domains.has("recordings") || domains.has("call_link")) updates.push(Promise.all([kodlandApi.lessons(), kodlandApi.extraLessons(), kodlandApi.scheduleLastUpdatedAt()]).then(([nextLessons, nextExtras, updatedAt]) => { if (active) { setLessons(nextLessons.items); setExtraLessons(nextExtras.items); setScheduleLastUpdatedAt(updatedAt); } }));
       if (domains.has("ranking")) updates.push(kodlandApi.students().then(result => { if (active) setStudents(result.items); }));
       if (domains.has("activities")) updates.push(kodlandApi.reviews().then(result => { if (active) setReviews(result.items); }));
-      if (domains.has("payments")) updates.push(dashboardApi.get({ useLocalKodland: localOnly }).then(result => { if (active) setDashboard(result); }));
+      if (domains.has("payments") && financialReady.current) updates.push(dashboardApi.get({ useLocalKodland: localOnly }).then(result => { if (active) setDashboard(result); }));
       void Promise.all(updates).catch(() => { if (active) setRefreshNotice("Os dados foram atualizados. Não foi possível recarregar esta área; tente atualizar a página."); });
     });
     return () => { active = false; unsubscribe(); };
@@ -996,7 +1020,10 @@ function DashboardPageContent({ uid }: { uid: string }) {
     const updated = async (event: Event) => {
       const { mode, scope } = (event as CustomEvent<{ mode: string; scope?: string }>).detail;
       try {
-        if (mode === "classroom") {
+        if (mode === "profiles") {
+          const result = await kodlandApi.students();
+          if (alive) setStudents(result.items);
+        } else if (mode === "classroom") {
           const result = await kodlandApi.groups();
           if (alive) setGroups(result.items);
         } else if (mode === "schedule" || mode === "essential") {
@@ -1069,8 +1096,9 @@ function DashboardPageContent({ uid }: { uid: string }) {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+  const scheduleNotice = refreshNotice || (notifications?.autoSync.phase === "error" ? (notifications.autoSync.message ?? "Não foi possível atualizar a grade.") : "");
   if (failed) return <DashboardContent state="error" onRetry={load} />;
-  if (localOnly) return <><KodlandSummary groups={groups} students={students} reviews={reviews} lessons={lessons} extraLessons={extraLessons} availability={availability} onRefresh={() => void refreshSchedule()} refreshing={refreshingSchedule} refreshNotice={refreshNotice} scheduleLastUpdatedAt={scheduleLastUpdatedAt} onUpdateExtraStatus={updateExtraStatus} onMaterialsLoaded={updated => setLessons(items => items.map(item => item.id === updated.id ? updated : item))} customHolidays={[]} manualClasses={[]} manualStudents={[]} manualPendingCount={0} />{dashboard ? <DashboardContent state="ready" dashboard={dashboard} onRefresh={loadLocalFinance} /> : financialFailed ? <section className="panel" role="alert"><h2>Competências mensais</h2><p>Não foi possível carregar os dados financeiros.</p><button className="button button-ghost" type="button" onClick={() => void loadLocalFinance()}>Tentar novamente</button></section> : <DashboardContent state="loading" />}</>;
+  if (localOnly) return <><KodlandSummary groups={groups} students={students} reviews={reviews} lessons={lessons} extraLessons={extraLessons} availability={availability} onRefresh={() => void refreshSchedule()} refreshing={refreshingSchedule || notifications?.autoSync.phase === "syncing"} refreshNotice={scheduleNotice} scheduleLastUpdatedAt={scheduleLastUpdatedAt} onUpdateExtraStatus={updateExtraStatus} onMaterialsLoaded={updated => setLessons(items => items.map(item => item.id === updated.id ? updated : item))} customHolidays={[]} manualClasses={[]} manualStudents={[]} manualPendingCount={0} />{financialNotice && <p className="muted" role="status">{financialNotice}</p>}{dashboard ? <DashboardContent state="ready" dashboard={dashboard} onRefresh={loadLocalFinance} /> : financialFailed ? <section className="panel" role="alert"><h2>Competências mensais</h2><p>Não foi possível carregar os dados financeiros.</p><button className="button button-ghost" type="button" onClick={() => void loadLocalFinance()}>Tentar novamente</button></section> : <DashboardContent state="loading" />}</>;
   if (!dashboard) return <DashboardContent state="loading" />;
   return (
     <>
@@ -1082,8 +1110,8 @@ function DashboardPageContent({ uid }: { uid: string }) {
         extraLessons={extraLessons}
         availability={availability}
         onRefresh={() => void refreshSchedule()}
-        refreshing={refreshingSchedule}
-        refreshNotice={refreshNotice}
+        refreshing={refreshingSchedule || notifications?.autoSync.phase === "syncing"}
+        refreshNotice={scheduleNotice}
         scheduleLastUpdatedAt={scheduleLastUpdatedAt}
         onUpdateExtraStatus={updateExtraStatus}
         onMaterialsLoaded={(updated) => {
@@ -1096,6 +1124,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
         externalSyncEnabled={kodlandEnabled}
         timeZone={timeZone}
       />
+      {financialNotice && <p className="muted" role="status">{financialNotice}</p>}
       <DashboardContent
         state="ready"
         dashboard={dashboard}
@@ -1110,7 +1139,7 @@ export default function DashboardPage() {
     <AuthGuard>
       {(user) => (
         <Shell user={user}>
-          <DashboardPageContent uid={user.id} />
+          <DashboardPageContent key={user.id} uid={user.id} />
         </Shell>
       )}
     </AuthGuard>

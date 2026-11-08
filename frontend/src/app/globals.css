@@ -3881,3 +3881,7 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 
 .weekly-schedule[aria-busy="true"] .week-grid { display: none; }
 .schedule-refresh-state { min-height: 160px; display: grid; place-items: center; color: var(--muted); }
+
+.student-contact-shortcut { display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 8px; color: var(--primary); background: none; cursor: pointer; text-decoration: none; }
+.student-contact-shortcut:hover { background: rgb(105 215 255 / 10%); }
+.student-contact-shortcut:disabled { opacity: .45; cursor: default; }

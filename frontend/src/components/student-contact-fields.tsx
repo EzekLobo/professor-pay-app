@@ -5,12 +5,19 @@ import { kodlandApi, manualTeachingApi, type KodlandStudent } from "@/lib/api";
 import type { ManualStudent } from "@/lib/manual-teaching";
 import { notifyStudentNotificationsChanged } from "@/lib/student-notification-store";
 import { whatsappUrl } from "@/lib/whatsapp";
+import { SaveStudentContact } from "./save-student-contact";
 import { Button, Input } from "./ui";
 
 export function StudentContactFields({ student, demo = false, onSaved }: { student: KodlandStudent | ManualStudent; demo?: boolean; onSaved: (phone: string) => void }) {
   const demoKey = `nexusclass.demo.student-phone.${student.id}`;
   const [phone, setPhone] = useState(() => { try { return demo ? localStorage.getItem(demoKey) ?? student.student_phone ?? "" : student.student_phone ?? ""; } catch { return student.student_phone ?? ""; } });
   const [savedPhone, setSavedPhone] = useState(phone);
+  const [profilePhone, setProfilePhone] = useState(student.student_phone ?? "");
+  if (!demo && profilePhone !== (student.student_phone ?? "")) {
+    const value = student.student_phone ?? "";
+    setProfilePhone(value);
+    if (phone === savedPhone) { setPhone(value); setSavedPhone(value); }
+  }
   const [recipient, setRecipient] = useState("guardian");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
@@ -36,6 +43,7 @@ export function StudentContactFields({ student, demo = false, onSaved }: { stude
     {notice && <p role="status">{notice}</p>}{error && <p role="alert">{error}</p>}
     <label className="field">Enviar mensagem para<select className="input" value={recipient} onChange={event => setRecipient(event.target.value)}><option value="guardian">Responsável / contato cadastrado</option><option value="student">Aluno</option></select></label>
     {!valid(target) && <p className="muted">{recipient === "student" ? "Salve um número válido do aluno para enviar." : "Contato do responsável não cadastrado."}</p>}
+    <SaveStudentContact name={recipient === "guardian" ? `${student.name} (responsável)` : student.name} phone={target || ""} />
     <a className="button button-primary" aria-disabled={!valid(target)} href={valid(target) ? whatsappUrl(target, `Olá! Gostaria de conversar sobre as aulas de ${student.name}.`) : undefined} target="_blank" rel="noreferrer" onClick={event => { if (!valid(target)) event.preventDefault(); }}>Abrir WhatsApp</a>
   </div>;
 }

@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110802, date: "2026-11-08", title: "Atividades sem bloqueio de carregamento",
+    description: "A lista continua disponível durante atualizações em segundo plano. Consultas sem resposta encerram a espera e oferecem uma nova tentativa, preservando os dados da última leitura concluída.",
+    href: "/classes", action: "Abrir atividades",
+  },
+  {
     version: 2026110801, date: "2026-11-08", title: "Contatos e atualização ao abrir",
     description: "Perfis incompletos são consultados automaticamente com controle de tentativas. Salve contatos pelo ícone junto ao aluno. Resumo e Pagamentos aguardam a consulta financeira ao abrir, com proteção contra repetição entre telas.",
     href: "/classes", action: "Abrir alunos",

@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
   preferenceChanged: null as ((change: TutorPreferencesChange) => void) | null,
   cleanups: [] as Array<() => void>,
   status: vi.fn(), tick: vi.fn(async () => undefined),
-  watch: vi.fn(),
+  watch: vi.fn(), read: vi.fn(),
   students: vi.fn(), preferences: vi.fn(), browserState: vi.fn(), groups: vi.fn(), saveTask: vi.fn(), syncScope: vi.fn(), sync: vi.fn(), payroll: vi.fn(),
 }));
 vi.mock("react", () => ({
@@ -35,13 +35,14 @@ vi.mock("@/lib/auto-sync-payroll", () => ({ setAutomaticPayrollEnabled: state.pa
 vi.mock("@/lib/browser-credentials", () => ({ restoreKodlandCredentials: async () => ({ username: "test", password: "test" }) }));
 vi.mock("@/lib/student-notification-store", () => ({ subscribeStudentNotifications: () => () => undefined }));
 vi.mock("@/lib/operation-log-client", () => ({ reportOperation: vi.fn() }));
-vi.mock("@/lib/kodland-sync-client", () => ({ readKodlandLocal: (read: () => Promise<unknown>) => read(), watchKodlandSync: state.watch }));
+vi.mock("@/lib/kodland-sync-client", () => ({ readKodlandLocal: state.read, watchKodlandSync: state.watch }));
 vi.mock("@/lib/kodland-auto-sync", () => ({ createKodlandAutoSync: (deps: AutoSyncDependencies) => { state.deps = deps; return { tick: state.tick }; } }));
 
 import { useKodlandAutoSync } from "./use-kodland-auto-sync";
 
 beforeEach(() => {
   vi.clearAllMocks(); vi.useFakeTimers();
+  state.read.mockImplementation((read: () => Promise<unknown>) => read());
   const browser = new EventTarget();
   Object.assign(browser, { setTimeout, clearTimeout, setInterval, clearInterval, location: { pathname: "/classes" } });
   vi.stubGlobal("window", browser);
@@ -177,4 +178,21 @@ describe("single Kodland scheduler integration", () => {
     await vi.advanceTimersByTimeAsync(60000);
     expect(state.sync.mock.calls.filter(call => call[2] === "profiles")).toHaveLength(1);
   });
+});
+
+it("ends page loading when the preference read never responds and recovers on focus", async () => {
+  const client = await vi.importActual<typeof import("@/lib/kodland-sync-client")>("@/lib/kodland-sync-client");
+  state.read.mockImplementation(client.readKodlandLocal);
+  state.preferences.mockReturnValueOnce(new Promise(() => undefined));
+  useKodlandAutoSync("account", false);
+  window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
+  await vi.advanceTimersByTimeAsync(15001);
+  expect(state.status).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "error" }));
+  expect(state.sync).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(30000);
+  expect(state.sync).not.toHaveBeenCalled();
+  window.dispatchEvent(new Event("focus"));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.status).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "ready" }));
+  expect(state.sync).toHaveBeenCalled();
 });

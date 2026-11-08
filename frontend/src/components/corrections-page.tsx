@@ -1,4 +1,5 @@
 "use client";
+import { readKodlandLocal, watchKodlandSync } from "@/lib/kodland-sync-client";
 import { SaveStudentContact } from "./save-student-contact";
 import { StudentContactFields } from "./student-contact-fields";
 import { FavoriteFilterOptions } from "./favorite-filter-options";
@@ -15,14 +16,13 @@ import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
 import { Button, Input, StatusBadge } from "@/components/ui";
 import { Modal } from "@/components/modal";
-import { ApiError, kodlandApi, manualCoursesApi, manualOperationsApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
+import { kodlandApi, manualCoursesApi, manualOperationsApi, manualPedagogyApi, manualTeachingApi, tutorPreferencesApi, type KodlandAttendance, type KodlandGroup, type KodlandLesson, type KodlandReview, type KodlandStudent } from "@/lib/api";
 import { attendanceDateFromSchedule, attendanceLessonParts, lessonForAttendance } from "@/lib/attendance-schedule";
 import type { KodlandTaskProgress } from "@/lib/kodland-task-progress";
 import type { ManualOccurrence } from "@/lib/manual-operations";
 import type { ManualActivity } from "@/lib/manual-pedagogy";
 import type { ManualClass, ManualStudent } from "@/lib/manual-teaching";
 import { pendingManualActivities } from "@/lib/manual-pedagogy";
-import { KodlandSyncPersistenceError, KodlandSyncResponseError } from "@/lib/kodland-sync-response";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
 import { activeStudentsRankedByPoints, kodlandStudentPoints, isActiveKodlandStudent } from "@/lib/student-ranking";
 import { whatsappUrl } from "@/lib/whatsapp";
@@ -851,6 +851,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(!demo);
+  const [refreshingData, setRefreshingData] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [storedManualActivities, setManualActivities] = useState<ManualActivity[]>([]);
   const [manualCourseNames, setManualCourseNames] = useState<Record<string, string>>({});
@@ -920,19 +921,21 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       const enabled = (await demo.manualAdapter?.preferences.get())?.kodland_enabled === true;
       setKodlandEnabled(enabled); setHasKodlandGroups(enabled && (demo.groups?.length ?? 0) > 0); return;
     }
-    void background; setLoading(true);
+    if (background) setRefreshingData(true); else setLoading(true);
     setError("");
     try {
-      const localOnly = Boolean((await kodlandApi.browserState())?.active);
-      const preferences = localOnly ? { kodland_enabled: true } : await tutorPreferencesApi.get();
+      const localOnly = Boolean((await readKodlandLocal(() => kodlandApi.browserState(), crypto.randomUUID(), "Armazenamento das atividades", 8000))?.active);
+      if (generation !== loadGeneration.current) return;
+      const preferences = localOnly ? { kodland_enabled: true } : await readKodlandLocal(() => tutorPreferencesApi.get(), crypto.randomUUID(), "Preferências das atividades", 8000);
+      if (generation !== loadGeneration.current) return;
       setKodlandEnabled(preferences.kodland_enabled);
       const empty = Promise.resolve({ items: [] });
-      const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents, progressResult, ownOccurrences, ownCourses] = await Promise.all([
+      const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents, progressResult, ownOccurrences, ownCourses] = await readKodlandLocal(() => Promise.all([
         preferences.kodland_enabled ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled ? kodlandApi.attendance() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty,
         localOnly ? Promise.resolve(null) : manualPedagogyApi.activities(), localOnly ? Promise.resolve(null) : manualTeachingApi.classes(), localOnly ? Promise.resolve(null) : manualTeachingApi.students(),
         preferences.kodland_enabled ? kodlandApi.taskProgress() : empty, localOnly ? Promise.resolve(null) : manualOperationsApi.occurrences(),
         localOnly ? Promise.resolve(null) : manualCoursesApi.list(),
-      ]);
+      ]), crypto.randomUUID(), "Atividades e presença", 15000);
       if (generation !== loadGeneration.current) return;
       setTaskProgress(progressResult.items);
       if (ownOccurrences) setManualOccurrences(ownOccurrences);
@@ -949,7 +952,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     } catch (reason) {
       if (generation === loadGeneration.current) setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");
     } finally {
-      if (generation === loadGeneration.current) setLoading(false);
+      if (generation === loadGeneration.current) { setLoading(false); setRefreshingData(false); }
     }
   }, [demo]);
 
@@ -975,28 +978,28 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       }
       return;
     }
-    const credentials = await restoreKodlandCredentials();
-    if (!credentials) {
-      setError("Salve as credenciais em Configurações > Dados e backup antes de atualizar.");
-      return;
-    }
     setSyncing(true);
     setError("");
     setNotice("");
     try {
-      await kodlandApi.sync(credentials.username.trim(), credentials.password, "profiles");
-      const result = await kodlandApi.sync(
-        credentials.username.trim(),
-        credentials.password,
-        "corrections",
-      );
+      const credentials = await readKodlandLocal(restoreKodlandCredentials, crypto.randomUUID(), "Acesso à Kodland", 15000);
+      if (!credentials) {
+        setError("Salve as credenciais em Configurações > Dados e backup antes de atualizar.");
+        return;
+      }
+      const result = await watchKodlandSync(async (report, assertActive) => {
+        const options = { onProgress: report, assertActive };
+        await kodlandApi.sync(credentials.username.trim(), credentials.password, "profiles", options);
+        assertActive();
+        return kodlandApi.sync(credentials.username.trim(), credentials.password, "corrections", options);
+      }, () => undefined);
       await load();
       setNotice(
         `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
       );
     } catch (reason) {
       setError(
-        reason instanceof ApiError || reason instanceof KodlandSyncResponseError || reason instanceof KodlandSyncPersistenceError
+        reason instanceof Error
           ? reason.message
           : "Não foi possível atualizar as correções.",
       );
@@ -1152,8 +1155,9 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
           <h1>{classesContent ? "Turmas" : "Acompanhamento"}</h1>
         </div>
       </section>
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && <div className="activity-load-error" role="alert"><p className="form-error">{error}</p><Button type="button" onClick={() => void load()}>Tentar novamente</Button></div>}
       {!demo && notifications?.autoSync.phase === "error" && <p className="form-error" role="status">{notifications.autoSync.message}</p>}
+      {(refreshingData || syncing || (!demo && notifications?.autoSync.phase === "syncing")) && !loading && <p className="muted" role="status">Atualizando atividades e presença em segundo plano… A lista mostra a última consulta concluída.</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
       <div className="corrections-topbar">
         <nav className="corrections-page-tabs" data-tour={classesContent ? "classes-tabs" : undefined} role="tablist" aria-label={classesContent ? "Áreas de turmas" : "Páginas do acompanhamento"}>
@@ -1199,7 +1203,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
         {viewMode === "attendance" ? <>
         <ManualAttendanceGrid adapter={demo?.manualAdapter} />
-        {loading || (!demo && notifications?.autoSync.phase === "syncing") ? <p className="muted" role="status">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro.</p> : <div className="correction-class-list attendance-list">
+        {loading ? <p className="muted" role="status">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro.</p> : <div className="correction-class-list attendance-list">
           {attendanceByClass.map(([className, histories]) => <details
             className="correction-class-group attendance-class-group"
             key={className}
@@ -1219,7 +1223,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
         </div>}
         </> : <>
         {classesContent && <div className="classes-integrated-actions" data-tour="classes-management">{classesContent}</div>}
-        {loading || (!demo && notifications?.autoSync.phase === "syncing") ? <p className="muted" role="status">Carregando correções…</p> : (activitiesView === "compact" ? compactActivities.length === 0 : visibleReviews.length + visibleOwn.length === 0) ? <p className="muted correction-empty-state">Nenhum aluno ou atividade para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
+        {loading ? <p className="muted" role="status">Carregando correções…</p> : (activitiesView === "compact" ? compactActivities.length === 0 : visibleReviews.length + visibleOwn.length === 0) ? <p className="muted correction-empty-state">Nenhum aluno ou atividade para os filtros atuais.</p> : activitiesView === "compact" ? <CompactActivitiesGrid
           model={compactActivities}
           contactButton={contactButton}
           pendingOnly={pendingOnly}

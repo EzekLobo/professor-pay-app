@@ -1,3 +1,10 @@
+## Carregamento infinito de atividades — 08/11/2026
+
+- Removido bloqueio da grade por autoSync.phase global: contatos/agenda não podem ocultar atividades/presença. Leituras de eventos source usam refreshingData e aviso discreto de última consulta, mantendo grade montada; loading fica restrito à leitura inicial/explícita.
+- CorrectionsContent limita browserState/preferências a8s e snapshot paralelo a15s. Erros encerram loading e oferecem Tentar novamente. Resultados tardios não aplicam setters fora do await; gerações descartam leituras substituídas.
+- Preflight do scheduler (preferências, credenciais, alunos e turmas) limitado a15s. Atualização manual usa watchKodlandSync/assertActive, sem liberar trava de uma gravação ainda pendente ou anunciar sucesso após timeout. Novidade2026110802.
+- Regressões: preferência que nunca responde termina em erro e recupera no foco; navegador testa timeout inicial, lista disponível durante atualização pendente e recuperação, mais perfis320/390/1440. Verificado:645 testes web,6 E2E locais, lint/tipos/build. Fixture de timeout roda serial no projeto diagnostic-ui, após as demais páginas. Conferir publicação após push; dados reais requerem sessão autenticada.
+
 ## Perfis necessários e pagamentos na entrada — 08/11/2026
 
 - `auto-sync-profiles.ts` seleciona alunos ativos incompletos/saldo antigo, deduplica IDs e consulta lotes de20. Orçamento por UID em localStorage:6h após tentativa,30min após falha; créditos24h. `profile_student_ids` limita detalhes/carteira no modo profiles; merge preserva outros alunos e contatos locais. Falha de perfil não impede consultar tarefas/presença.

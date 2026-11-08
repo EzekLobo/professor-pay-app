@@ -153,10 +153,10 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
         if (refreshPage && page && refreshedRevision !== revision) {
           if (!owner() || !kodlandAutoSyncAvailable(uid)) return;
           setStatus({ phase: "syncing", message: "Consultando atualizações da página…" });
-          const preferences = await tutorPreferencesApi.get();
+          const preferences = await readKodlandLocal(() => tutorPreferencesApi.get(), crypto.randomUUID(), "Preferências da página", 15000);
           if (!owner()) return;
           if (!preferences.kodland_enabled) { refreshedRevision = revision; setStatus({ phase: "disabled" }); return; }
-          const credentials = await restoreKodlandCredentials();
+          const credentials = await readKodlandLocal(restoreKodlandCredentials, crypto.randomUUID(), "Acesso à Kodland", 15000);
           if (!owner()) return;
           if (!credentials) { refreshedRevision = revision; setStatus({ phase: "credentials", message: "Salve o acesso à Kodland em Configurações > Dados e backup para atualizar esta página." }); return; }
           const requestedPage = page;
@@ -165,7 +165,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
           let profileError: unknown;
           const repairProfiles = async () => {
             try {
-              const students = await kodlandApi.students();
+              const students = await readKodlandLocal(() => kodlandApi.students(), crypto.randomUUID(), "Perfis dos alunos", 15000);
               if (!owner()) return;
               await refreshIncompleteProfiles(uid, students.items, ids => synchronize(credentials, "profiles", undefined, undefined, ids), owner);
             } catch (error) { profileError = error; }
@@ -177,7 +177,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
             if (!owner() || pageRevision !== revision) return;
             await repairProfiles();
             if (!owner() || pageRevision !== revision) return;
-            const groups = await kodlandApi.groups();
+            const groups = await readKodlandLocal(() => kodlandApi.groups(), crypto.randomUUID(), "Turmas da página", 15000);
             for (const group of groups.items.filter(item => !item.archived)) {
               if (!owner() || pageRevision !== revision) return;
               if (!kodlandAutoSyncAvailable(uid)) throw new KodlandAutoSyncBusyError("A atualização aguarda a sincronização em andamento.");

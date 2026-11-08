@@ -1,10 +1,13 @@
+import { syncedCollectionsChanged } from "./synced-collections";
+import { AccountReadCache } from "./account-read-cache";
+import { activityRowInScope, markRefreshed, refreshStamp, type ActivityWindow } from "./automatic-refresh-cache";
 import { nextMonthPayroll, type NextMonthPayroll } from "./next-month-payroll";
 import { studentLessonCreditsPatch, studentProfileUpdates } from "@/lib/student-profile";
 import { sanitizeKodlandStudentRecord, sanitizeManualStudentRecord } from "@/lib/student-privacy";
-import { publishTutorPreferencesChanged } from "./tutor-preference-events";
+import { publishTutorPreferencesChanged, subscribeTutorPreferencesChanged } from "./tutor-preference-events";
 import { occurrenceTimes } from "./sync-policy";
 import { getSyncCoordinator, type SyncExecutionContext } from "./sync-coordinator";
-import { publishSyncDataChanged, type SyncDataDomain } from "./sync-events";
+import { publishSyncDataChanged, subscribeSyncDataChanged, kodlandSyncDomains, type SyncDataDomain } from "./sync-events";
 import { scopedOccurrenceKey, scopedOccurrence, validClassroomUrl, type KodlandScopedRequest, type KodlandScopedPayload, type KodlandScopedResult } from "./kodland-scoped-sync";
 import { latestKodlandLessons } from "./kodland-sync-policy";
 import { kodlandStoragePolicy } from "./kodland-storage-policy";
@@ -382,6 +385,7 @@ type KodlandSyncOptions = {
   refreshSchedule?: boolean;
   correctionGroupIds?: string[];
   profileStudentIds?: string[];
+  activityWindows?: Record<string, ActivityWindow>;
   followupScope?: "activities" | "attendance";
   automatic?: boolean;
   storage?: "browser" | "firebase";
@@ -448,6 +452,7 @@ type KodlandSnapshot = {
   extra_lessons: Omit<KodlandExtraLesson, "created_at">[];
   availability: Omit<KodlandAvailability, "created_at">[];
   review_group_ids?: string[];
+  review_lesson_ids?: Record<string, string[]>;
   attendance_group_ids?: string[];
   extra_lessons_synced?: boolean;
   extra_lessons_complete?: boolean;
@@ -1784,9 +1789,16 @@ async function runManualKodlandSync<T>(uid: string, resourceId: string, work: (c
   return result.value;
 }
 
+const payrollReadCache = new AccountReadCache();
+const payrollReadSubscriptions = new Map<string, () => void>();
+function watchPayrollReads(uid: string) {
+  for (const [other, unsubscribe] of payrollReadSubscriptions) if (other !== uid) { unsubscribe(); payrollReadSubscriptions.delete(other); payrollReadCache.invalidate(other); }
+  if (!payrollReadSubscriptions.has(uid)) payrollReadSubscriptions.set(uid, subscribeSyncDataChanged(uid, event => { if (event.scope === "payroll" || event.domains.includes("payments") && event.scope === "manual") payrollReadCache.invalidate(uid); }));
+}
+const payrollData = (item: Record<string, unknown>) => Object.fromEntries(Object.entries(item).filter(([key]) => !["synced_at", "created_at", "updated_at"].includes(key)));
 export const kodlandPayrollApi = {
   /** One authorized competence, shared by page-entry refresh and the D-5..D window. */
-  syncForPaymentDate: async (username: string, password: string, paymentDate: string, context?: SyncExecutionContext): Promise<PayrollState> => {
+  syncForPaymentDate: async (username: string, password: string, paymentDate: string, context?: SyncExecutionContext): Promise<{ changed: boolean; period_id: string }> => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) throw new ApiError(400, "Data de pagamento inválida.");
     const owner = authUser(), uid = owner.uid;
     const assertOwner = () => { context?.assertCurrent(); if (getFirebaseAuth().currentUser?.uid !== uid || (context && context.uid !== uid)) throw new ApiError(401, "A conta conectada mudou durante a atualização."); };
@@ -1801,20 +1813,28 @@ export const kodlandPayrollApi = {
     const previous = (await getDoc(connectionRef)).data(); assertOwner();
     if (previous?.teacher_id && previous.teacher_id !== teacher) throw new ApiError(409, "A folha pertence a outro professor.");
     await context?.assertLease(); assertOwner();
-    await runTransaction(getFirebaseDb(), async transaction => {
-      const [index, connection] = await Promise.all([transaction.get(indexRef), transaction.get(connectionRef)]); assertOwner();
+    const changed = await runTransaction(getFirebaseDb(), async transaction => {
+      const documentId = `${teacher}-${period.id}`, periodRef = doc(ref("kodland_payroll_periods", uid), documentId);
+      const [index, connection, saved] = await Promise.all([transaction.get(indexRef), transaction.get(connectionRef), transaction.get(periodRef)]); assertOwner();
       if (connection.data()?.teacher_id && connection.data()?.teacher_id !== teacher) throw new ApiError(409, "A folha pertence a outro professor.");
-      const documentId = `${teacher}-${period.id}`, ids = Array.isArray(index.data()?.period_ids) ? index.data()!.period_ids as string[] : [];
+      const ids = Array.isArray(index.data()?.period_ids) ? index.data()!.period_ids as string[] : [];
       if (index.data()?.teacher_id && index.data()?.teacher_id !== teacher) throw new ApiError(409, "O índice da folha pertence a outro professor.");
-      transaction.set(doc(ref("kodland_payroll_periods", uid), documentId), firestorePayload({ ...period, external_id: period.id, id: documentId, created_at: now() }));
-      transaction.set(indexRef, { teacher_id: teacher, period_ids: [...new Set([...ids, documentId])], created_at: now() });
+      const payload = firestorePayload({ ...period, external_id: period.id, id: documentId, created_at: saved.data()?.created_at ?? now() });
+      const dataChanged = !saved.exists() || kodlandDocumentChanged(payrollData(saved.data() ?? {}), payrollData(payload));
+      if (dataChanged) transaction.set(periodRef, payload);
+      if (!ids.includes(documentId)) transaction.set(indexRef, { teacher_id: teacher, period_ids: [...ids, documentId], created_at: index.data()?.created_at ?? now() });
       transaction.set(connectionRef, { teacher_id: teacher, mode: "official", last_sync: now(), created_at: String(previous?.created_at ?? now()) });
+      return dataChanged || !ids.includes(documentId) || connection.data()?.mode !== "official";
     });
     assertOwner();
-    if (!context) publishSyncDataChanged({ uid, scope: "payroll", domains: ["payments"], resourceId: periodStart, revision: now(), completedAt: Date.now() });
-    return kodlandPayrollApi.get();
+    if (changed) payrollReadCache.invalidate(uid);
+    if (!context && changed) publishSyncDataChanged({ uid, scope: "payroll", domains: ["payments"], resourceId: periodStart, revision: now(), completedAt: Date.now() });
+    return { changed, period_id: period.id };
   },
-  get: async (): Promise<PayrollState> => {
+  get: async (force = false): Promise<PayrollState> => {
+    const uid = authUser().uid; watchPayrollReads(uid);
+    if (force) payrollReadCache.invalidate(uid);
+    return payrollReadCache.read(uid, 5 * 60000, async () => {
     const [periods, syncs, connection] = await Promise.all([
       rows("kodland_payroll_periods"), rows("kodland_payroll_sync"), getDoc(doc(ref("kodland_payroll_settings"), "connection")),
     ]);
@@ -1826,6 +1846,7 @@ export const kodlandPayrollApi = {
       mode: "official", teacher_id: teacherId,
       last_sync: String(config?.last_sync ?? ""),
     };
+    }, () => getFirebaseAuth().currentUser?.uid === uid);
   },
   sync: async (username: string, password: string, onProgress?: (message: string) => void, execution?: SyncExecutionContext): Promise<PayrollState> => {
     const owner = authUser();
@@ -1880,7 +1901,7 @@ export const kodlandPayrollApi = {
     await batch.commit();
     assertOwner();
     publishFinancialChange(ownerId, "payroll");
-    return kodlandPayrollApi.get();
+    return kodlandPayrollApi.get(true);
   },
 };
 
@@ -2379,10 +2400,20 @@ export const manualCoursesApi = {
   },
 };
 
+const preferenceReadCache = new AccountReadCache();
+const preferenceReadSubscriptions = new Map<string, () => void>();
+function watchPreferenceReads(uid: string) {
+  for (const [other, unsubscribe] of preferenceReadSubscriptions) if (other !== uid) { unsubscribe(); preferenceReadSubscriptions.delete(other); preferenceReadCache.invalidate(other); }
+  if (!preferenceReadSubscriptions.has(uid)) preferenceReadSubscriptions.set(uid, subscribeTutorPreferencesChanged(uid, () => preferenceReadCache.invalidate(uid)));
+}
 export const tutorPreferencesApi = {
-  get: async (): Promise<TutorPreferences> => {
-    const reference = doc(ref("teaching_settings"), "preferences");
+  get: async (force = false): Promise<TutorPreferences> => {
+    const uid = authUser().uid; watchPreferenceReads(uid);
+    if (force) preferenceReadCache.invalidate(uid);
+    return preferenceReadCache.read(uid, 5 * 60000, async () => {
+    const reference = doc(ref("teaching_settings", uid), "preferences");
     const snapshot = await getDoc(reference);
+    assertDataOwner(uid);
     const defaults = defaultTutorPreferences(now());
     if (!snapshot.exists()) {
       const hasLegacyKodlandData = (await rows("kodland_groups")).length > 0;
@@ -2402,10 +2433,11 @@ export const tutorPreferencesApi = {
       absence_message_template: String(value.absence_message_template || defaults.absence_message_template),
       onboarding_completed: value.onboarding_completed === true,
     };
+    }, () => getFirebaseAuth().currentUser?.uid === uid);
   },
   save: async (input: Partial<Omit<TutorPreferences, "id" | "created_at" | "updated_at">>): Promise<TutorPreferences> => {
     const operationUid = authUser().uid;
-    const current = await forAccount(operationUid, () => tutorPreferencesApi.get());
+    const current = await forAccount(operationUid, () => tutorPreferencesApi.get(true));
     const next: TutorPreferences = {
       ...current,
       ...input,
@@ -2725,8 +2757,10 @@ export const paymentsApi = {
     publishFinancialChange(ownerId, paymentDate);
   },
 };
-function announceKodlandBrowser(uid: string, mode: string, scope?: string) {
-  notifyStudentNotificationsChanged();
+function announceKodlandBrowser(uid: string, mode: string, scope?: string, emit = true, extra: SyncDataDomain[] = []) {
+  const domains = [...new Set([...kodlandSyncDomains(mode, scope, mode !== "corrections"), ...extra])];
+  notifyStudentNotificationsChanged("source", domains);
+  if (emit) publishSyncDataChanged({ uid, scope: mode === "corrections" ? "activities" : "manual", domains, resourceId: mode, revision: now(), completedAt: Date.now() });
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("nexusclass:kodland-synced", { detail: { mode, scope } }));
     try { window.localStorage.setItem(`nexusclass:kodland-change:${uid}`, crypto.randomUUID()); } catch {}
@@ -2736,8 +2770,11 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
   const owner = () => getFirebaseAuth().currentUser?.uid === uid;
   const assert = () => { options.assertActive?.(); if (!owner()) throw new ApiError(401, "A conta conectada mudou."); };
   const stamp = now();
+  let changed = false;
   await updateKodlandBrowser(uid, state => {
     assert();
+    const before = structuredClone(state.collections);
+    const coveredBefore = JSON.stringify([Object.keys(state.groupCompletedAt).sort(), Object.keys(state.attendanceCompletedAt ?? {}).sort(), state.active]);
     const collection = (name: string) => state.collections[name] ?? [];
     const merge = (name: string, incoming: BrowserRow[]) => {
       const map = new Map(collection(name).map(item => [
@@ -2756,9 +2793,11 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
       });
       state.collections[name] = [...map.values()];
     };
-    const replaceGroups = (name: string, incoming: BrowserRow[], groups: string[]) => {
+    const replaceGroups = (name: string, incoming: BrowserRow[], groups: string[], windows?: Record<string, string[]>) => {
       const selected = new Set(groups);
-      state.collections[name] = [...collection(name).filter(item => !selected.has(String(item.external_class_id))), ...incoming];
+      const old = new Map(collection(name).map(item => [item.id, item]));
+      const updated = incoming.map(item => old.get(item.id)?.created_at && item.created_at ? { ...item, created_at: old.get(item.id)!.created_at } : item);
+      state.collections[name] = [...collection(name).filter(item => !activityRowInScope(item, selected, windows)), ...updated];
     };
     if (mode === "essential" || mode === "schedule") {
       const oldGroups = new Map(collection("kodland_groups").map(item => [String(item.external_id), item]));
@@ -2777,10 +2816,12 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
       });
     }
     if (mode === "corrections") {
+      const roster = new Map(snapshot.groups.map(item => [item.external_id, item]));
+      state.collections.kodland_groups = collection("kodland_groups").map(item => roster.has(String(item.external_id)) ? { ...item, archived: roster.get(String(item.external_id))!.archived } : item);
       if (options.followupScope !== "attendance") {
         const ids = snapshot.review_group_ids ?? [];
-        replaceGroups("kodland_reviews", snapshot.reviews.map(item => ({ ...item, created_at: stamp })), ids);
-        if (snapshot.task_progress) replaceGroups("kodland_task_progress", snapshot.task_progress.map(validateKodlandTaskProgress), ids);
+        replaceGroups("kodland_reviews", snapshot.reviews.map(item => ({ ...item, created_at: stamp })), ids, snapshot.review_lesson_ids);
+        if (snapshot.task_progress) replaceGroups("kodland_task_progress", snapshot.task_progress.map(validateKodlandTaskProgress), ids, snapshot.review_lesson_ids);
         ids.forEach(id => { state.groupCompletedAt[id] = stamp; });
       }
       if (options.followupScope !== "activities") {
@@ -2798,7 +2839,9 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
       return { ...mergeSyncedKodlandLesson(item, oldLessons.get(id) as Partial<KodlandLesson> | undefined, stamp), id } as BrowserRow;
     }));
     state.active = true; state.updatedAt = stamp;
+    changed = syncedCollectionsChanged(before, state.collections) || coveredBefore !== JSON.stringify([Object.keys(state.groupCompletedAt).sort(), Object.keys(state.attendanceCompletedAt ?? {}).sort(), state.active]);
   }, owner);
+  return changed;
 }
 
 const studentPrivacyCleanup = new Set<string>();
@@ -2866,10 +2909,10 @@ async function syncKodlandBrowser(username: string, password: string, mode: Kodl
   if (mode === "corrections" && options.followupScope === "activities" && (options.correctionGroupIds ?? []).some(id => !previous?.attendanceCompletedAt?.[id])) options = { ...options, followupScope: undefined };
   options.onProgress?.("Consultando a Kodland…", syncId);
   const pending = (previous?.collections.kodland_extra_lessons ?? []).filter(item => !item.completed && !["DONE", "ACCOUNTED"].includes(String(item.manual_status))).map(item => String(item.external_student_id));
-  const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, profile_student_ids: options.profileStudentIds, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope, pending_extra_student_ids: pending }, () => user.getIdToken(), syncId);
+  const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, activity_windows: options.activityWindows, profile_student_ids: options.profileStudentIds, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope, pending_extra_student_ids: pending }, () => user.getIdToken(), syncId);
   assert();
   options.onProgress?.("Salvando atualização…", syncId);
-  await persistKodlandBrowserSnapshot(user.uid, snapshot, mode, options);
+  const changed = await persistKodlandBrowserSnapshot(user.uid, snapshot, mode, options);
   if (mode === "corrections" && options.followupScope !== "attendance" && !options.automatic) {
     const state = await readKodlandBrowser(user.uid); assert();
     const groups = new Set(snapshot.review_group_ids ?? []);
@@ -2880,7 +2923,10 @@ async function syncKodlandBrowser(username: string, password: string, mode: Kodl
     }
   }
   assert();
-  announceKodlandBrowser(user.uid, mode, options.followupScope);
+  if (mode === "corrections" && options.followupScope !== "attendance") for (const id of snapshot.review_group_ids ?? []) if (!options.activityWindows?.[id]) markRefreshed(user.uid, `activity-history:${id}`);
+  const rosterChanged = mode === "corrections" && snapshot.groups.some(item => (previous?.collections.kodland_groups ?? []).some(old => old.external_id === item.external_id && Boolean(old.archived) !== item.archived));
+  if (changed) announceKodlandBrowser(user.uid, mode, options.followupScope, true, rosterChanged ? ["agenda"] : []);
+  else if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("nexusclass:kodland-synced", { detail: { mode, scope: options.followupScope } }));
   return { storage: "browser", group_count: snapshot.groups.length, student_count: snapshot.students.length, lesson_count: snapshot.lessons.length, extra_lesson_count: snapshot.extra_lessons.length, review_count: snapshot.reviews.length, attendance_count: snapshot.attendance?.length ?? 0, progress_count: snapshot.task_progress?.length ?? 0, group_ids: snapshot.groups.filter(item => !item.archived).map(item => item.external_id) };
 }
 
@@ -2928,7 +2974,7 @@ export const kodlandApi = {
         state.collections.kodland_extra_lessons = extras;
       }, () => getFirebaseAuth().currentUser?.uid === uid);
       result.updated = inserted;
-      announceKodlandBrowser(uid, input.scope);
+      announceKodlandBrowser(uid, input.scope, undefined, false);
       publishSyncDataChanged({ uid, scope: input.scope, domains: ["agenda", "payments"], resourceId: "week", revision: createdAt, completedAt: Date.now() });
       return { ...result, domains: ["agenda", "payments"] };
     }
@@ -2945,7 +2991,7 @@ export const kodlandApi = {
           Object.assign(current, { call_url: result.call_url, call_occurrence_key: scopedOccurrenceKey(item, input.time_zone), call_checked_at: createdAt, call_expires_at: new Date(occurrenceTimes(scopedOccurrence(item), input.time_zone)!.end).toISOString() });
         }, () => { assertOwner(); return true; });
         result.updated = 1;
-        announceKodlandBrowser(uid, "classroom");
+        announceKodlandBrowser(uid, "classroom", undefined, false);
         publishSyncDataChanged({ uid, scope: "call_link", domains: ["call_link", "agenda"], resourceId: item.id, revision: createdAt, completedAt: Date.now() });
       }
       return { ...result, domains: ["call_link", "agenda"] };
@@ -2985,8 +3031,7 @@ export const kodlandApi = {
         }
         state.collections[collectionName] = rows;
       }, () => getFirebaseAuth().currentUser?.uid === uid);
-      if (input.scope === "attendance") notifyStudentNotificationsChanged();
-      announceKodlandBrowser(uid, input.scope);
+      announceKodlandBrowser(uid, input.scope, undefined, false);
       publishSyncDataChanged({ uid, scope: input.scope, domains, resourceId: item.id, revision: createdAt, completedAt: Date.now() });
       return { ...result, domains };
     }
@@ -2999,19 +3044,23 @@ export const kodlandApi = {
       assertOwner();
       const knownStudents = new Map(students.map(item => [String(item.id), item]));
       const incomingReviews = new Set<string>(), incomingProgress = new Set<string>();
+      const reviewById = new Map(previousReviews.map(item => [String(item.id), item]));
+      const progressById = new Map(previousProgress.map(item => [String(item.id), item]));
       for (const item of input.scope === "activities" ? payload.reviews : []) {
         if (!item.id || item.id.includes("/") || !groups.has(item.external_class_id)) throw new ApiError(502, "Atividade fora do escopo solicitado.");
-        incomingReviews.add(item.id); writes.push(batch => batch.set(reference("kodland_reviews", item.id), firestorePayload({ ...item, created_at: createdAt })));
+        incomingReviews.add(item.id);
+        const payload = firestorePayload({ ...item, created_at: reviewById.get(item.id)?.created_at ?? createdAt });
+        if (kodlandDocumentChanged(reviewById.get(item.id), payload)) writes.push(batch => batch.set(reference("kodland_reviews", item.id), payload));
       }
       for (const item of input.scope === "activities" ? payload.task_progress.map(validateKodlandTaskProgress) : []) {
         if (!groups.has(item.external_class_id)) throw new ApiError(502, "Progresso fora do escopo solicitado.");
-        incomingProgress.add(item.id); writes.push(batch => batch.set(reference("kodland_task_progress", item.id), item));
+        incomingProgress.add(item.id); if (kodlandDocumentChanged(progressById.get(item.id), item)) writes.push(batch => batch.set(reference("kodland_task_progress", item.id), item));
       }
       for (const item of previousReviews) if (groups.has(String(item.external_class_id)) && !incomingReviews.has(String(item.id))) writes.push(batch => batch.delete(reference("kodland_reviews", String(item.id))));
       for (const item of previousProgress) if (groups.has(String(item.external_class_id)) && !incomingProgress.has(String(item.id))) writes.push(batch => batch.delete(reference("kodland_task_progress", String(item.id))));
       for (const item of payload.ranking) {
         const previous = knownStudents.get(item.id);
-        if (previous && groups.has(item.external_class_id) && previous.external_class_id === item.external_class_id && /^\d+(?:[.,]\d+)?\/\d+(?:[.,]\d+)?$/.test(item.progress_summary)) writes.push(batch => batch.update(reference("kodland_students", item.id), { progress_summary: item.progress_summary }));
+        if (previous && previous.progress_summary !== item.progress_summary && groups.has(item.external_class_id) && previous.external_class_id === item.external_class_id && /^\d+(?:[.,]\d+)?\/\d+(?:[.,]\d+)?$/.test(item.progress_summary)) writes.push(batch => batch.update(reference("kodland_students", item.id), { progress_summary: item.progress_summary }));
       }
       domains.push(...(input.scope === "activities" ? ["activities", "ranking"] as const : ["ranking"] as const));
     } else if (input.scope === "extras_discovery") {
@@ -3071,7 +3120,7 @@ export const kodlandApi = {
     if (writes.length) { await beforePersist(); await commitWrites(writes, beforePersist); result.updated += writes.length; }
     assertOwner();
     if (!context) {
-      if (domains.includes("activities") || domains.includes("attendance")) notifyStudentNotificationsChanged();
+      if (domains.includes("activities") || domains.includes("attendance")) notifyStudentNotificationsChanged("source", domains);
       publishSyncDataChanged({ uid, scope: input.scope, domains, resourceId: input.occurrence?.id ?? input.group_ids?.join(",") ?? "week", revision: createdAt, completedAt: Date.now() });
     }
     return { ...result, domains };
@@ -3262,7 +3311,7 @@ export const kodlandApi = {
     assertOwner();
     options.assertActive?.();
     progress("Consultando a Kodland…");
-    const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, profile_student_ids: options.profileStudentIds, pending_extra_student_ids: pendingExtraStudentIds, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope }, () => firebaseUser.getIdToken(), syncId);
+    const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, activity_windows: options.activityWindows, profile_student_ids: options.profileStudentIds, pending_extra_student_ids: pendingExtraStudentIds, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope }, () => firebaseUser.getIdToken(), syncId);
     options.assertActive?.();
     if (getFirebaseAuth().currentUser?.uid !== firebaseUserId) {
       throw new ApiError(401, "A conta conectada mudou. Inicie a sincronização novamente.");
@@ -3280,6 +3329,8 @@ export const kodlandApi = {
       mode,
       started_at: createdAt,
     });
+    let sourceChanged = true;
+    let rosterChanged = false;
     const finish = async <T,>(result: T) => {
       options.assertActive?.();
       progress("Confirmando conclusão no Firebase…");
@@ -3302,10 +3353,19 @@ export const kodlandApi = {
         await setDoc(doc(syncCollection("sync_status"), "corrections"), { status: "complete", sync_id: syncId, group_status: Object.fromEntries(ids.map(id => [id, "complete"])), ...(options.followupScope === "attendance" ? {} : { group_completed_at: Object.fromEntries(ids.map(id => [id, completedAt])) }) }, { merge: true });
       }
       if ((await readKodlandBrowser(firebaseUserId))?.active) await persistKodlandBrowserSnapshot(firebaseUserId, snapshot, mode, options);
-      notifyStudentNotificationsChanged();
-      publishSyncDataChanged({ uid: firebaseUserId, scope: mode === "corrections" ? "activities" : "extras_discovery", domains: mode === "corrections" ? ["activities", "ranking", "attendance", "agenda"] : ["agenda", "payments"], resourceId: mode, revision: completedAt, completedAt: Date.now() });
-      if (typeof window !== "undefined") {
-        try { window.localStorage.setItem(`nexusclass:kodland-change:${firebaseUserId}`, syncId); } catch { /* Storage can be disabled; in-tab scheduling still works. */ }
+      if (mode === "corrections" && options.followupScope !== "attendance") for (const id of snapshot.review_group_ids ?? []) if (!options.activityWindows?.[id]) markRefreshed(firebaseUserId, `activity-history:${id}`);
+      const changedDomains = kodlandSyncDomains(mode, options.followupScope, options.refreshSchedule !== false);
+      if (rosterChanged && !changedDomains.includes("agenda")) changedDomains.push("agenda");
+      if (sourceChanged) {
+        notifyStudentNotificationsChanged("source", changedDomains);
+        publishSyncDataChanged({ uid: firebaseUserId, scope: mode === "corrections" ? "activities" : "extras_discovery", domains: changedDomains, resourceId: mode, revision: completedAt, completedAt: Date.now() });
+        if (typeof window !== "undefined") {
+          try { window.localStorage.setItem(`nexusclass:kodland-change:${firebaseUserId}`, syncId); } catch { /* Storage can be disabled; in-tab scheduling still works. */ }
+        }
+      }
+      if (mode === "corrections") for (const id of followupGroups) {
+        if (options.followupScope !== "attendance") markRefreshed(firebaseUserId, `coverage:activities:${id}`);
+        if (options.followupScope !== "activities") markRefreshed(firebaseUserId, `coverage:attendance:${id}`);
       }
       if (typeof window !== "undefined" && (mode === "essential" || mode === "schedule" || (options.automatic ?? options.refreshSchedule === false))) window.dispatchEvent(new CustomEvent("nexusclass:kodland-synced", { detail: { mode, scope: options.followupScope } }));
       return result;
@@ -3319,6 +3379,7 @@ export const kodlandApi = {
         const previous = previousGroups.find(item => String(item.external_id) === group.external_id);
         return previous && Boolean(previous.archived) !== group.archived ? [(batch: FirebaseWriteBatch) => batch.update(doc(syncCollection("kodland_groups"), String(previous.id)), { archived: group.archived })] : [];
       });
+      rosterChanged = groupUpdates.length > 0;
       const previousReviews = options.followupScope === "attendance" ? [] : await readFollowup("kodland_reviews");
       const previousAttendance = options.followupScope === "activities" ? [] : await readFollowup("kodland_attendance");
       const previousLessons = options.refreshSchedule === false ? [] : await readLocal("kodland_lessons");
@@ -3345,7 +3406,7 @@ export const kodlandApi = {
       const deletes: Array<(batch: FirebaseWriteBatch) => void> = previousReviews
         .filter(
           (item) =>
-            reviewedGroupIds.has(String(item.external_class_id)) &&
+            activityRowInScope(item, reviewedGroupIds, snapshot.review_lesson_ids) &&
             !incoming.has(String(item.id)),
         )
         .map((item) => (batch) =>
@@ -3378,7 +3439,7 @@ export const kodlandApi = {
       const rankingWrites: Array<(batch: FirebaseWriteBatch) => void> = [];
       if (snapshot.ranking?.length) {
         const known = new Map((await rows("kodland_students")).map(item => [String(item.id), item]));
-        for (const item of snapshot.ranking) if (known.get(item.id)?.external_class_id === item.external_class_id && /^\d+(?:[.,]\d+)?\/\d+(?:[.,]\d+)?$/.test(item.progress_summary)) rankingWrites.push(batch => batch.update(doc(syncCollection("kodland_students"), item.id), { progress_summary: item.progress_summary }));
+        for (const item of snapshot.ranking) if (known.get(item.id)?.external_class_id === item.external_class_id && known.get(item.id)?.progress_summary !== item.progress_summary && /^\d+(?:[.,]\d+)?\/\d+(?:[.,]\d+)?$/.test(item.progress_summary)) rankingWrites.push(batch => batch.update(doc(syncCollection("kodland_students"), item.id), { progress_summary: item.progress_summary }));
       }
       const progressWrites: Array<(batch: FirebaseWriteBatch) => void> = [];
       if (snapshot.task_progress && options.followupScope !== "attendance") {
@@ -3387,12 +3448,12 @@ export const kodlandApi = {
         const ids = new Set(progress.map(item => item.id));
         const previousById = new Map(existingProgress.map(item => [String(item.id), item]));
         progress.forEach(item => { if (changed(previousById.get(item.id), item)) progressWrites.push(batch => batch.set(doc(syncCollection("kodland_task_progress"), item.id), item)); });
-        existingProgress.filter(item => reviewedGroupIds.has(String(item.external_class_id)) && !ids.has(String(item.id))).forEach(item => progressWrites.push(batch => batch.delete(doc(syncCollection("kodland_task_progress"), String(item.id)))));
+        existingProgress.filter(item => activityRowInScope(item, reviewedGroupIds, snapshot.review_lesson_ids) && !ids.has(String(item.id))).forEach(item => progressWrites.push(batch => batch.delete(doc(syncCollection("kodland_task_progress"), String(item.id)))));
       }
       persistencePhase = "gravação";
       options.assertActive?.();
       progress("Salvando presença e atividades no Firebase…");
-      await commitWrites([
+      const changedWrites = [
         ...groupUpdates,
         ...upserts,
         ...deletes,
@@ -3402,7 +3463,9 @@ export const kodlandApi = {
         ...staleLessonDeletes,
         ...progressWrites,
         ...rankingWrites,
-      ], beforePersist, writeProgress);
+      ];
+      sourceChanged = changedWrites.length > 0 || followupGroups.some(id => options.followupScope !== "attendance" && !refreshStamp(firebaseUserId, `coverage:activities:${id}`) || options.followupScope !== "activities" && !refreshStamp(firebaseUserId, `coverage:attendance:${id}`));
+      await commitWrites(changedWrites, beforePersist, writeProgress);
       return finish({ group_count: 0, student_count: 0, review_count: reviews.length, progress_count: snapshot.task_progress?.length ?? 0, attendance_count: attendance.length, lesson_count: lessons.length, extra_lesson_count: 0 });
     }
     if (mode === "classroom") {

@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110806, date: "2026-11-08", title: "Atualizações mais leves",
+    description: "As telas reaproveitam o cache e recebem atualizações por assunto. Atividades recentes e pendências são consultadas sem reimportar todo o histórico a cada visita. A previsão do próximo mês fica apenas em Pagamentos.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
     version: 2026110805, date: "2026-11-08", title: "Saldo previsto para o próximo mês",
     description: "Resumo e Pagamentos mostram a previsão da folha Kodland para o próximo mês, somando valores contabilizados e aulas previstas. A consulta automática inclui o mês atual, mesmo sem uma competência local cadastrada.",
     href: "/payments", action: "Ver pagamentos",

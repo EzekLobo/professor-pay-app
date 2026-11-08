@@ -151,7 +151,7 @@ it("refreshes on entry outside the payment window, deduplicating across page run
   const entry = { ...options, refreshOnEntry: true };
   expect((await test.runner().run([candidate()], entry)).updated).toBe(2);
   expect((await test.runner().run([candidate()], entry)).updated).toBe(0);
-  test.move(test.now() + 61000);
+  test.move(test.now() + 301000);
   expect((await test.runner().run([candidate()], entry)).updated).toBe(2);
   expect(test.sync).toHaveBeenCalledTimes(4);
 });
@@ -171,4 +171,14 @@ it("queries December's forecast using January's payout date without exceeding tw
   const test = setup(date("2026-12-31"));
   await test.runner().run([], { ...options, refreshOnEntry: true });
   expect(test.sync.mock.calls.map(args => (args as unknown as [string])[0])).toEqual(["2027-01-15", "2026-12-15"]);
+});
+
+it("does not publish payment changes or reload history when an official period is unchanged", async () => {
+  const test = setup(date("2026-11-03"));
+  test.sync.mockResolvedValue({ changed: false } as never);
+  expect((await test.runner().run([candidate()], { ...options, refreshOnEntry: true })).updated).toBe(0);
+  expect(test.events).toEqual([]);
+  test.move(test.now() + 61000);
+  await test.runner().run([candidate()], { ...options, refreshOnEntry: true });
+  expect(test.sync).toHaveBeenCalledTimes(2);
 });

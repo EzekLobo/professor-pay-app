@@ -1,4 +1,6 @@
 "use client";
+import { reuseSyncedRows } from "@/lib/reuse-synced-rows";
+import type { SyncDataDomain } from "@/lib/sync-events";
 import { readKodlandLocal, watchKodlandSync } from "@/lib/kodland-sync-client";
 import { WelcomeContact } from "./welcome-contact";
 import { StudentContactFields } from "./student-contact-fields";
@@ -912,6 +914,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  const snapshotReady = useRef(Boolean(demo));
   const loadGeneration = useRef(0);
   const load = useCallback(async (background = false) => {
     const generation = ++loadGeneration.current;
@@ -948,7 +951,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       if (ownClasses) setManualClasses(ownClasses);
       if (ownCourses) setManualCourseNames(Object.fromEntries(ownCourses.map(course => [course.id, course.name])));
       if (ownStudents) setManualStudents(ownStudents);
-      setStudents(studentResult.items);
+      setStudents(current => reuseSyncedRows(current, studentResult.items));
+      snapshotReady.current = true;
     } catch (reason) {
       if (generation === loadGeneration.current) setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");
     } finally {
@@ -1018,14 +1022,46 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     let active = true;
     let reading = false;
     let pending = false;
-    const refresh = async () => {
-      if (reading) { pending = true; return; }
+    let pendingDomains: Set<SyncDataDomain> | null = new Set();
+    const partial = async (domains: Set<SyncDataDomain>) => {
+      if (!snapshotReady.current) { await load(true); return; }
+      const activities = domains.has("activities"), attendanceChanged = domains.has("attendance"), ranking = domains.has("ranking");
+      const agenda = domains.has("agenda") || domains.has("recordings") || domains.has("call_link");
+      if (!activities && !attendanceChanged && !ranking && !agenda) return;
+      const generation = ++loadGeneration.current;
+      setRefreshingData(true);
+      try {
+        const [reviews, progress, attendance, students, groups, lessons] = await readKodlandLocal(() => Promise.all([
+          activities ? kodlandApi.reviews() : null, activities ? kodlandApi.taskProgress() : null,
+          attendanceChanged ? kodlandApi.attendance() : null, ranking ? kodlandApi.students() : null,
+          agenda ? kodlandApi.groups() : null, agenda ? kodlandApi.lessons() : null,
+        ]), crypto.randomUUID(), "Atualizações do acompanhamento", 15000);
+        if (!active || generation !== loadGeneration.current) return;
+        if (reviews) setReviews(current => reuseSyncedRows(current, reviews.items));
+        if (progress) setTaskProgress(current => reuseSyncedRows(current, progress.items));
+        if (attendance) setAttendance(current => reuseSyncedRows(current, attendance.items));
+        if (students) setStudents(current => reuseSyncedRows(current, students.items));
+        if (groups) { setGroups(current => reuseSyncedRows(current, groups.items)); setHasKodlandGroups(groups.items.length > 0); }
+        if (lessons) setLessons(current => reuseSyncedRows(current, lessons.items));
+        setError("");
+      } catch (reason) { if (active && generation === loadGeneration.current) setError(reason instanceof Error ? reason.message : "Não foi possível atualizar esta área."); }
+      finally { if (active && generation === loadGeneration.current) setRefreshingData(false); }
+    };
+    const refresh = async (domains?: SyncDataDomain[]) => {
+      pending = true;
+      if (!domains) pendingDomains = null;
+      else if (pendingDomains) domains.forEach(domain => pendingDomains!.add(domain));
+      if (reading) return;
       reading = true;
       try {
-        do { pending = false; await load(true); } while (active && pending);
+        do {
+          const domains = pendingDomains;
+          pending = false; pendingDomains = new Set();
+          if (domains) await partial(domains); else await load(true);
+        } while (active && pending);
       } finally { reading = false; }
     };
-    const unsubscribe = subscribeStudentNotifications(change => { if (active && change === "source") void refresh(); });
+    const unsubscribe = subscribeStudentNotifications((change, domains) => { if (active && change === "source") void refresh(domains); });
     return () => { active = false; unsubscribe(); };
   }, [demo, load, viewMode]);
 

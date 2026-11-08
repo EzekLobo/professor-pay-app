@@ -1,3 +1,11 @@
+## Cache e atualização seletiva — 08/11/2026
+
+- Retirado o bloco de previsão de Competências mensais; previsão continua em Pagamentos. Novidade2026110806.
+- automatic-refresh-cache controla sucesso por UID/domínio/turma: agenda/turmas24h, entrada presença6h, atividades5min. Jobs pós-aula ignoram cooldown de entrada. Atividades consultam últimas4 aulas realizadas + pendentes + aulas desconhecidas; primeira consulta/manual ou auditoria24h percorre histórico. API recebe activity_windows e devolve review_lesson_ids autoritativos, preservando aulas não consultadas. Não existe delta global comprovado da Kodland.
+- Persistência scoped compara conteúdo antes de gravar; pagamento igual não regrava competência nem relê todo histórico. Controle de sincronização ainda é persistido. Entrada financeira compartilhada5min. Payroll/preferências têm cache5min por conta; IndexedDB cache30s deduplica leituras, clona só coleção solicitada e invalida em gravações/entre abas. Guardas evitam reaproveitar resposta após troca de conta.
+- Eventos carregam domínios; contatos/financeiro não recarregam atividades. Dashboard remove listener legado duplicado; notificações preservam configuração/histórico em mudanças da Kodland e invalidam corretamente ações locais/preferências. Linhas iguais preservam identidade. Sem migração nem exclusão de dados remotos.
+- Verificação:667 testes unitários, lint/tipos,6 E2E diagnósticos,7 E2E cache/notificações e3 de alunos passaram. Build e7 E2E de carrossel/grade também passaram; publicação deve ser confirmada após push. Valores financeiros reais continuam exigindo sessão Kodland autenticada.
+
 ## Previsão oficial para próximo pagamento — 08/11/2026
 
 - auto-sync-payroll.entryPayrollPayments inclui competência do mês atual (pagamento no mês seguinte), mesmo sem cronograma/competência local. Mantém até2 períodos, janela60s/backoff/lease e proteção RECEIVED. Virada dezembro→janeiro coberta.

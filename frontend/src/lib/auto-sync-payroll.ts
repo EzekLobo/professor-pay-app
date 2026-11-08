@@ -33,7 +33,7 @@ export function eligiblePayrollPayments(payments: PaymentCandidate[], now: numbe
 
 /** Entry refreshes share the account lease and a short freshness window between pages. */
 export function payrollEntryDue(now: number, history: SyncHistory): boolean {
-  return !(history.next_due_at && history.next_due_at > now) && (history.last_success_at == null || now - history.last_success_at >= 60000);
+  return !(history.next_due_at && history.next_due_at > now) && (history.last_success_at == null || now - history.last_success_at >= 5 * 60000);
 }
 export function entryPayrollPayments(payments: PaymentCandidate[], now: number, timeZone: string): PaymentCandidate[] {
   const today = calendarDay(now, timeZone);
@@ -80,14 +80,15 @@ export class PayrollEntrySync {
           run: async context => {
             context.assertCurrent();
             if (!this.integrationEnabled) throw new PayrollDisabledError();
-            await this.adapter.sync(payment.payment_date, credentials, context);
+            const response = await this.adapter.sync(payment.payment_date, credentials, context);
+            const changed = !(response && typeof response === "object" && "changed" in response && response.changed === false);
             context.assertCurrent();
             // Not permanently complete: another successful check becomes eligible tomorrow.
-            return { value: period, completed: false, domains: ["payments"] };
+            return { value: { period, changed }, completed: false, domains: changed ? ["payments"] : [] };
           },
         });
         if (!this.integrationEnabled) return { ...result, status: "disabled" };
-        if (outcome.status !== "skipped") result.updated++;
+        if (outcome.status !== "skipped") { if (outcome.value.changed) result.updated++; }
         else if (outcome.reason === "unavailable") result.failed++;
       } catch (error) {
         if (error instanceof PayrollDisabledError || !this.integrationEnabled) return { ...result, status: "disabled" };

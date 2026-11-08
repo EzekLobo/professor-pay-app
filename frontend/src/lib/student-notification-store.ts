@@ -1,3 +1,4 @@
+import type { SyncDataDomain } from "./sync-events";
 import { readKodlandBrowser, updateKodlandBrowser } from "./kodland-browser-cache";
 import { readKodlandLocal } from "./kodland-sync-client";
 import { collection, doc, getDoc, getDocs, runTransaction, setDoc } from "firebase/firestore";
@@ -47,10 +48,13 @@ export function reconcileNotificationCases(previous: NotificationCase[], items: 
   })];
 }
 const EVENT = "nexusclass:notifications-changed";
-export function notifyStudentNotificationsChanged(change: "source" | "history" = "source") { if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new CustomEvent(EVENT, { detail: change })); }
-export function subscribeStudentNotifications(listener: (change: "source" | "history") => void) {
+export function notifyStudentNotificationsChanged(change: "source" | "history" = "source", domains?: SyncDataDomain[]) { if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new CustomEvent(EVENT, { detail: domains ? { change, domains } : change })); }
+export function subscribeStudentNotifications(listener: (change: "source" | "history", domains?: SyncDataDomain[]) => void) {
   if (typeof window === "undefined") return () => undefined;
-  const handle = (event: Event) => listener((event as CustomEvent).detail === "history" ? "history" : "source");
+  const handle = (event: Event) => {
+    const detail = (event as CustomEvent).detail;
+    listener(detail === "history" || detail?.change === "history" ? "history" : "source", Array.isArray(detail?.domains) ? detail.domains : undefined);
+  };
   window.addEventListener(EVENT, handle);
   return () => window.removeEventListener(EVENT, handle);
 }
@@ -124,7 +128,7 @@ export function createDemoStudentNotificationStore(storageKey = "nexusclass.demo
     const value = JSON.parse(raw);
     return { settings: validateNotificationSettings(value.settings), cases: (value.cases as unknown[]).map(validateNotificationCase) };
   };
-  const write = (state: ReturnType<typeof read>) => { window.localStorage.setItem(storageKey, JSON.stringify(state)); notifyStudentNotificationsChanged(); };
+  const write = (state: ReturnType<typeof read>) => { window.localStorage.setItem(storageKey, JSON.stringify(state)); notifyStudentNotificationsChanged("history"); };
   const action = async (id: string, revision: string, confirm: boolean) => {
     const state = read(); const item = state.cases.find(candidate => candidate.id === id);
     if (!item || item.notification.revision !== revision) throw new Error("A pendência mudou. Atualize a central.");

@@ -1,4 +1,6 @@
 "use client";
+import { activityWindow, markRefreshed, refreshDue, type ActivityWindow } from "@/lib/automatic-refresh-cache";
+import { calendarDay } from "@/lib/sync-policy";
 import { refreshIncompleteProfiles } from "@/lib/auto-sync-profiles";
 import { subscribeTutorPreferencesChanged } from "@/lib/tutor-preference-events";
 import { setAutomaticPayrollEnabled } from "@/lib/auto-sync-payroll";
@@ -39,11 +41,23 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     let pageFailed = false;
     const recordingAttemptsThisVisit = new Set<string>();
     const unsubscribe = subscribeStudentNotifications(change => { if (change === "source" && !automaticRunning) { cache = null; disabledUntil = 0; } });
-    const synchronize = async (credentials: { username: string; password: string }, mode: "schedule" | "classroom" | "corrections" | "profiles", groupId?: string, scope?: "attendance" | "activities", profileStudentIds?: string[]) => {
+    const synchronize = async (credentials: { username: string; password: string }, mode: "schedule" | "classroom" | "corrections" | "profiles", groupId?: string, scope?: "attendance" | "activities", profileStudentIds?: string[], force = false) => {
       if (!owner()) return;
+      const key = `page:${mode}:${groupId ?? "all"}:${scope ?? "both"}`;
+      const ttl = mode === "schedule" || mode === "classroom" ? 24 * 3600000 : scope === "attendance" ? 6 * 3600000 : 5 * 60000;
+      if (!force && mode !== "profiles" && !refreshDue(uid, key, ttl)) return;
       automaticRunning = true;
       try {
-        return await watchKodlandSync((report, assertActive) => kodlandApi.sync(credentials.username, credentials.password, mode, { automatic: true, profileStudentIds, correctionGroupIds: groupId ? [groupId] : undefined, refreshSchedule: mode === "schedule", followupScope: scope, onProgress: report, assertActive: () => { assertActive(); if (!owner()) throw new KodlandAutoSyncBusyError("A integração Kodland foi desligada."); } }), message => { if (owner()) setStatus({ phase: "syncing", message }); });
+        let activityWindows: Record<string, ActivityWindow> | undefined;
+        if (mode === "corrections" && scope === "activities" && groupId && !refreshDue(uid, `activity-history:${groupId}`, 24 * 3600000)) {
+          const [progress, lessons] = await readKodlandLocal(() => Promise.all([kodlandApi.taskProgress(), kodlandApi.lessons()]), crypto.randomUUID(), "Cache das atividades");
+          if (!owner()) return;
+          const window = activityWindow(groupId, lessons.items, progress.items, calendarDay(Date.now()));
+          if (window) activityWindows = { [groupId]: window };
+        }
+        const result = await watchKodlandSync((report, assertActive) => kodlandApi.sync(credentials.username, credentials.password, mode, { automatic: true, activityWindows, profileStudentIds, correctionGroupIds: groupId ? [groupId] : undefined, refreshSchedule: mode === "schedule", followupScope: scope, onProgress: report, assertActive: () => { assertActive(); if (!owner()) throw new KodlandAutoSyncBusyError("A integração Kodland foi desligada."); } }), message => { if (owner()) setStatus({ phase: "syncing", message }); });
+        if (owner() && mode !== "profiles") markRefreshed(uid, key);
+        return result;
       } finally { automaticRunning = false; }
     };
     const scoped = async (credentials: { username: string; password: string }, input: Parameters<typeof kodlandApi.syncScope>[2]) => {
@@ -71,7 +85,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
       },
       credentials: restoreKodlandCredentials,
       sync: async (groupId, credentials) => {
-        await synchronize(credentials, "corrections", groupId, "activities");
+        await synchronize(credentials, "corrections", groupId, "activities", undefined, true);
         if (cache && owner()) { cache.updatedAt[groupId] = new Date().toISOString(); cache.blockedGroups = cache.blockedGroups.filter(id => id !== groupId); }
       },
       runTask: async (task, credentials) => {
@@ -116,7 +130,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
               if (row.manual_status !== "DONE" && row.manual_status !== "ACCOUNTED") { row.completed = result.final_completed!; if (result.final_completed) row.manual_status = "DONE"; }
             }
           } else {
-            await synchronize(credentials, "corrections", task.groupId, "attendance");
+            await synchronize(credentials, "corrections", task.groupId, "attendance", undefined, true);
           }
         } catch (reason) {
           if (reason instanceof KodlandAutoSyncBusyError && owner()) {

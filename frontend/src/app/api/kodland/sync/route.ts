@@ -1,3 +1,4 @@
+import type { ActivityWindow } from "@/lib/automatic-refresh-cache";
 import { callFromNearest, classroomUrl, extraReportOutcome, scopedOccurrence, scopedOccurrenceKey, type KodlandScopedRequest, type KodlandScopedPayload, type KodlandScopedOccurrence } from "@/lib/kodland-scoped-sync";
 import { calendarDay, occurrenceTimes, weekBounds } from "@/lib/sync-policy";
 import { NextRequest } from "next/server";
@@ -1353,10 +1354,18 @@ async function reviewsForGroup(
   group: Group,
   token: string,
   taskProgress: KodlandTaskProgress[],
+  window?: ActivityWindow,
+  checked?: string[],
 ): Promise<Review[]> {
     const timeline = await completeGroupTimeline(`student_groups/${group.external_id}/lessons/`, token);
     if (timeline === null) throw new SyncFailure("kodland_unavailable", 502);
-    const lessons = timeline.filter((value) => record(value).lesson_passed === true);
+    const known = new Set(window?.known ?? []), refresh = new Set(window?.refresh ?? []);
+    const lessons = timeline.filter((value) => {
+      const lesson = record(value), id = text(lesson.lesson_id ?? lesson.id);
+      return lesson.lesson_passed === true && (!window || !known.has(id) || refresh.has(id));
+    });
+    const passedIds = new Set(timeline.filter(value => record(value).lesson_passed === true).map(value => { const lesson = record(value); return text(lesson.lesson_id ?? lesson.id); }));
+    checked?.push(...new Set([...lessons.map(value => { const lesson = record(value); return text(lesson.lesson_id ?? lesson.id); }), ...(window?.known ?? []).filter(id => !passedIds.has(id))]));
     const results = await mapWithConcurrency(
       lessons,
       KODLAND_CONCURRENCY,
@@ -1959,6 +1968,7 @@ export async function POST(request: NextRequest) {
       pending_extra_student_ids?: string[];
       correction_group_ids?: string[];
       profile_student_ids?: string[];
+      activity_windows?: Record<string, ActivityWindow>;
       refresh_schedule?: boolean;
       followup_scope?: "activities" | "attendance";
     };
@@ -2195,6 +2205,7 @@ export async function POST(request: NextRequest) {
     }
     if (mode === "classroom") return syncResponse(syncId, { ...emptyCollections(), groups });
     if (mode === "corrections") {
+      if (body.activity_windows !== undefined && (!body.activity_windows || typeof body.activity_windows !== "object" || Array.isArray(body.activity_windows) || Object.keys(body.activity_windows).length > 100 || Object.entries(body.activity_windows).some(([id, item]) => !/^[\w-]+$/.test(id) || !item || ![item.known, item.refresh].every(values => Array.isArray(values) && values.length <= 5000 && values.every(value => typeof value === "string" && /^[\w-]+$/.test(value)))))) return syncResponse(syncId, { code: "invalid_request" }, 400);
       const requestedGroupIds = new Set(
         Array.isArray(body.correction_group_ids)
           ? body.correction_group_ids
@@ -2210,13 +2221,14 @@ export async function POST(request: NextRequest) {
         1,
         async (group) => {
           const taskProgress: KodlandTaskProgress[] = [];
+          const checked: string[] = [];
           const [reviews, attendance, lessons, ranking] = await Promise.all([
-            body.followup_scope === "attendance" ? Promise.resolve([]) : reviewsForGroup(group, token, taskProgress),
+            body.followup_scope === "attendance" ? Promise.resolve([]) : reviewsForGroup(group, token, taskProgress, body.activity_windows?.[group.external_id], checked),
             body.followup_scope === "activities" ? Promise.resolve([]) : attendanceForGroup(group, token),
             body.refresh_schedule === false ? Promise.resolve([]) : lessonsForGroup(group, token, courseLessonCache),
             body.followup_scope === "attendance" ? Promise.resolve([]) : get(`student_groups/${group.external_id}/get_students_main_data/`, token).then(payload => rankingPatches(payload, group)).catch(() => []),
           ]);
-          return { reviews, taskProgress, ranking, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
+          return { groupId: group.external_id, checked, reviews, taskProgress, ranking, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
         },
       ), (result) => ({
         reviewCount: result.reduce((total, item) => total + item.reviews.length, 0),
@@ -2237,6 +2249,7 @@ export async function POST(request: NextRequest) {
         ranking: snapshots.flatMap(item => item.ranking),
         attendance: attendanceItems,
         lessons,
+        ...(body.activity_windows ? { review_lesson_ids: Object.fromEntries(snapshots.filter(item => body.activity_windows?.[item.groupId]).map(item => [item.groupId, item.checked])) } : {}),
         review_group_ids: body.followup_scope === "attendance" ? [] : correctionGroups.map((group) => group.external_id),
         attendance_group_ids: body.followup_scope === "activities" ? [] : correctionGroups.map((group) => group.external_id),
       });

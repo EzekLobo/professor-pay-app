@@ -12,6 +12,7 @@ import {
 } from "@/components/lesson-material-modal";
 import { Modal } from "@/components/modal";
 import { Shell } from "@/components/shell";
+import { reuseSyncedRows } from "@/lib/reuse-synced-rows";
 import { syncPaymentsOnEntry } from "@/lib/auto-sync-payroll";
 import { useStudentNotifications } from "@/components/student-notifications";
 import { restoreKodlandCredentials } from "@/lib/browser-credentials";
@@ -997,9 +998,12 @@ function DashboardPageContent({ uid }: { uid: string }) {
       const domains = new Set(event.domains);
       // These APIs read saved application data, never the external platform.
       const updates: Promise<void>[] = [];
-      if (domains.has("agenda") || domains.has("recordings") || domains.has("call_link")) updates.push(Promise.all([kodlandApi.lessons(), kodlandApi.extraLessons(), kodlandApi.scheduleLastUpdatedAt()]).then(([nextLessons, nextExtras, updatedAt]) => { if (active) { setLessons(nextLessons.items); setExtraLessons(nextExtras.items); setScheduleLastUpdatedAt(updatedAt); } }));
-      if (domains.has("ranking")) updates.push(kodlandApi.students().then(result => { if (active) setStudents(result.items); }));
-      if (domains.has("activities")) updates.push(kodlandApi.reviews().then(result => { if (active) setReviews(result.items); }));
+      if (domains.has("agenda") || domains.has("recordings") || domains.has("call_link")) {
+        const roster = ["essential", "schedule", "classroom", "corrections"].includes(event.resourceId);
+        updates.push(Promise.all([kodlandApi.lessons(), kodlandApi.extraLessons(), kodlandApi.scheduleLastUpdatedAt(), roster ? kodlandApi.groups() : null, ["essential", "schedule"].includes(event.resourceId) ? kodlandApi.availability() : null]).then(([nextLessons, nextExtras, updatedAt, groups, availability]) => { if (active) { setLessons(current => reuseSyncedRows(current, nextLessons.items)); setExtraLessons(current => reuseSyncedRows(current, nextExtras.items)); setScheduleLastUpdatedAt(updatedAt); if (groups) setGroups(current => reuseSyncedRows(current, groups.items)); if (availability) setAvailability(current => reuseSyncedRows(current, availability.items)); } }));
+      }
+      if (domains.has("ranking")) updates.push(kodlandApi.students().then(result => { if (active) setStudents(current => reuseSyncedRows(current, result.items)); }));
+      if (domains.has("activities")) updates.push(kodlandApi.reviews().then(result => { if (active) setReviews(current => reuseSyncedRows(current, result.items)); }));
       if (domains.has("payments") && financialReady.current) updates.push(dashboardApi.get({ useLocalKodland: localOnly }).then(result => { if (active) setDashboard(result); }));
       void Promise.all(updates).catch(() => { if (active) setRefreshNotice("Os dados foram atualizados. Não foi possível recarregar esta área; tente atualizar a página."); });
     });
@@ -1015,30 +1019,6 @@ function DashboardPageContent({ uid }: { uid: string }) {
     window.addEventListener("nexusclass:manual-teaching-changed", reload);
     return () => window.removeEventListener("nexusclass:manual-teaching-changed", reload);
   }, [load]);
-  useEffect(() => {
-    let alive = true;
-    const updated = async (event: Event) => {
-      const { mode, scope } = (event as CustomEvent<{ mode: string; scope?: string }>).detail;
-      try {
-        if (mode === "profiles") {
-          const result = await kodlandApi.students();
-          if (alive) setStudents(result.items);
-        } else if (mode === "classroom") {
-          const result = await kodlandApi.groups();
-          if (alive) setGroups(result.items);
-        } else if (mode === "schedule" || mode === "essential") {
-          const [groups, lessons, extras, availability, stamp] = await Promise.all([kodlandApi.groups(), kodlandApi.lessons(), kodlandApi.extraLessons(), kodlandApi.availability(), kodlandApi.scheduleLastUpdatedAt()]);
-          if (alive) { setGroups(groups.items); setLessons(lessons.items); setExtraLessons(extras.items); setAvailability(availability.items); setScheduleLastUpdatedAt(stamp); if (localOnly) void loadLocalFinance(); }
-        } else if (mode === "corrections" && scope !== "attendance") {
-          const result = await kodlandApi.reviews();
-          if (alive) setReviews(result.items);
-        }
-      } catch { /* Preserve the currently displayed data; manual reload remains available. */ }
-    };
-    const listener = (event: Event) => { void updated(event); };
-    window.addEventListener("nexusclass:kodland-synced", listener);
-    return () => { alive = false; window.removeEventListener("nexusclass:kodland-synced", listener); };
-  }, [localOnly, loadLocalFinance]);
   const refreshSchedule = useCallback(async () => {
     if (refreshingSchedule) return;
     const credentials = await restoreKodlandCredentials();

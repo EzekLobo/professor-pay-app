@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { POST } from "./route";
 const token = `header.${Buffer.from(JSON.stringify({ user_id: 22 })).toString("base64url")}.signature`;
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
-function mockProvider({ attendanceFails = false, invalidGroups = false, taskStatus = "TASK_NOT_SUBMITTED" } = {}) {
+function mockProvider({ attendanceFails = false, invalidGroups = false, taskStatus = "TASK_NOT_SUBMITTED", timeline = [{ lesson_id: "l", lesson_passed: true }] } = {}) {
   vi.stubEnv("NEXT_PUBLIC_FIREBASE_API_KEY", "test");
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   const calls: string[] = [];
@@ -12,7 +12,7 @@ function mockProvider({ attendanceFails = false, invalidGroups = false, taskStat
     if (url.includes("identitytoolkit")) return Response.json({ users: [{ localId: "teacher" }] });
     if (url.includes("/login")) return Response.json({ access_token: token });
     if (url.includes("get_teachers_groups")) return Response.json(invalidGroups ? { error: "unavailable" } : { results: [{ id: "g", title: "Python", course: { id: "course" }, archived: false }], next: null });
-    if (url.includes("/lessons/")) return Response.json(url.includes("page=2") ? [] : [{ lesson_id: "l", lesson_passed: true }]);
+    if (url.includes("/lessons/")) return Response.json(url.includes("page=2") ? [] : timeline);
     if (url.includes("get_group_progress")) return Response.json({ lesson_tasks: [{ id: "t", title: "Projeto" }], students_progress: [{ student_id: "s", student_name: "Ana", tasks_data: [{ task_id: "t", task_status_key: taskStatus }] }] });
     if (url.includes("attendance") || url.includes("get_students_main_data")) return attendanceFails ? Response.json({}, { status: 404 }) : Response.json([{ student_id: "s", student_name: "Ana", lesson_id: "l", lesson_date: "2026-10-31", status: "ABSENT" }]);
     throw new Error(`Unexpected endpoint: ${url}`);
@@ -65,4 +65,22 @@ it.each([["TASK_NOT_SUBMITTED", "missing"], ["TASK_SUBMITTED", "submitted"], ["T
  mockProvider({ taskStatus }); const response = await POST(request({ followup_scope: "activities" }));
  expect(response.status).toBe(200); const data = await response.json(); expect(data.task_progress[0].state).toBe(expected);
  expect(data.task_progress[0].task_url).toBe("https://learn.kodland.org/pt/task/t/check/s");
+});
+
+it("only fetches recent/new lesson progress and reports removed lessons for safe pruning", async () => {
+ const calls = mockProvider({ timeline: [{lesson_id:"old",lesson_passed:true},{lesson_id:"recent",lesson_passed:true},{lesson_id:"new",lesson_passed:true},{lesson_id:"removed",lesson_passed:false}] });
+ const response=await POST(request({followup_scope:"activities",activity_windows:{g:{known:["old","recent","removed"],refresh:["recent"]}}}));
+ expect(response.status).toBe(200); const payload=await response.json();
+ expect(calls.filter(url=>url.includes("get_group_progress"))).toHaveLength(2);
+ expect(calls.some(url=>url.includes("/lesson/old/"))).toBe(false);
+ expect(payload.review_lesson_ids.g.sort()).toEqual(["new","recent","removed"]);
+ expect(payload.task_progress.map((item:{lesson_id:string})=>item.lesson_id).sort()).toEqual(["new","recent"]);
+});
+it("keeps known history untouched when there is no requested/new lesson",async()=>{
+ const calls=mockProvider();const response=await POST(request({followup_scope:"activities",activity_windows:{g:{known:["l"],refresh:[]}}}));
+ expect(response.status).toBe(200);expect((await response.json()).review_lesson_ids).toEqual({g:[]});
+ expect(calls.some(url=>url.includes("get_group_progress"))).toBe(false);
+});
+it("rejects invalid activity cache selectors",async()=>{
+ mockProvider();expect((await POST(request({activity_windows:{g:{known:["../other"],refresh:[]}}}))).status).toBe(400);
 });

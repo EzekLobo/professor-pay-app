@@ -116,7 +116,7 @@ function loadManualNotificationSource(uid: string, force: boolean) {
   }
   return current.promise;
 }
-export function clearStudentNotificationSourceCache() { cache.clear(); manualCache.clear(); }
+export function clearStudentNotificationSourceCache(manual = true) { cache.clear(); if (manual) manualCache.clear(); }
 /** Shared source cache: callers must supply the authenticated UID; a failed refresh never becomes an empty successful snapshot. */
 export async function loadStudentNotificationSource(uid: string, settings: NotificationSettings, force = false): Promise<NotificationSource> {
   const owner = () => { if (getFirebaseAuth().currentUser?.uid !== uid) throw new Error("Sua conta foi alterada. Entre novamente."); };

@@ -23,11 +23,11 @@ export default function Fixture() {
 `);
 });
 test.afterAll(async () => { if (created) await rm(fixture, { recursive: true, force: true }); });
-for (const width of [320, 1440]) test(`saldo oficial aparece no resumo e pagamentos sem duplicar valores (${width}px)`, async ({ page }) => {
+for (const width of [320, 1440]) test(`saldo oficial fica em pagamentos sem repetir em competências mensais (${width}px)`, async ({ page }) => {
  await page.setViewportSize({width,height:900});
  await page.goto("/qa-next-month-payroll");
  const cards = page.getByRole("article",{name:"Saldo previsto para o próximo mês",exact:true});
- await expect(cards).toHaveCount(2);
+ await expect(cards).toHaveCount(1);
  for (const card of await cards.all()) { await expect(card).toContainText("dezembro de 2026"); await expect(card).toContainText("75,00"); }
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.getByRole("button",{name:"Simular folha indisponível"}).click();

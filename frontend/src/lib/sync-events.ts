@@ -46,3 +46,19 @@ export function subscribeSyncDataChanged(uid: string, listener: (event: SyncData
   window.addEventListener("storage", storage);
   return () => { window.removeEventListener(EVENT, callback); window.removeEventListener("storage", storage); };
 }
+
+/** Scope labels are shared by data invalidation, not by notification history/preferences. */
+export function kodlandSyncDomains(mode: string, scope?: string, schedule = true): SyncDataDomain[] {
+  if (mode === "activities") return ["activities", "ranking"];
+  if (mode === "ranking") return ["ranking"];
+  if (mode === "attendance") return ["attendance"];
+  if (mode === "recordings") return ["recordings", "agenda"];
+  if (mode === "call_link") return ["call_link", "agenda"];
+  if (mode === "extras_discovery" || mode === "extra_final_check") return ["agenda", "payments"];
+  if (mode === "materials") return ["agenda", "activities"];
+  if (mode === "profiles") return ["ranking"];
+  if (mode === "classroom") return ["agenda"];
+  if (mode === "corrections") return [...(scope !== "attendance" ? ["activities", "ranking"] as const : []), ...(scope !== "activities" ? ["attendance"] as const : []), ...(schedule ? ["agenda"] as const : [])];
+  if (mode === "schedule") return ["agenda", "payments", "ranking"];
+  return ["agenda", "activities", "attendance", "ranking", "payments"];
+}

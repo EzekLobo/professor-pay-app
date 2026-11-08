@@ -1,3 +1,4 @@
+import { AccountReadCache } from "./account-read-cache";
 import type { NotificationCase, NotificationSettings } from "./student-notification-rules";
 /** Kodland snapshots and a notification shadow cache. Never stores credentials or tokens. */
 export type BrowserRow = { id: string } & Record<string, unknown>;
@@ -9,6 +10,16 @@ export type KodlandBrowserState = {
   notificationCache?: { settings?: NotificationSettings; settingsAt?: number; cases: NotificationCase[]; remoteCasesAt?: number };
   automatic: Record<string, { attempts: number; at: string; complete: boolean }>;
 };
+const readMemo = new AccountReadCache();
+let cacheWindow: Window | undefined;
+function watchReadCache() {
+  if (typeof window === "undefined" || cacheWindow === window) return;
+  cacheWindow = window;
+  window.addEventListener("storage", event => {
+    const prefix = "nexusclass:kodland-change:";
+    if (event.key?.startsWith(prefix)) readMemo.invalidate(event.key.slice(prefix.length));
+  }, { capture: true });
+}
 const database = "nexusclass-kodland-v1";
 const store = "accounts";
 const empty = (): KodlandBrowserState => ({ version: 1, active: false, updatedAt: "", coreAt: "", collections: {}, groupCompletedAt: {}, automatic: {} });
@@ -29,6 +40,7 @@ async function open(): Promise<IDBDatabase> {
 /** One read/write transaction per account: no await between get and put. Resolve only after durable commit. */
 export async function updateKodlandBrowser(uid: string, mutate: (state: KodlandBrowserState) => void, owner: () => boolean): Promise<KodlandBrowserState> {
   if (!uid || !owner()) throw new Error("A conta conectada mudou. Atualize a página.");
+  readMemo.invalidate(uid);
   const db = await open();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(store, "readwrite");
@@ -45,11 +57,11 @@ export async function updateKodlandBrowser(uid: string, mutate: (state: KodlandB
         transaction.objectStore(store).put(value, uid);
       } catch (error) { reason = error; transaction.abort(); }
     };
-    transaction.oncomplete = () => { clearTimeout(timer); db.close(); if (owner()) resolve(value); else reject(new Error("A conta conectada mudou. Atualize a página.")); };
-    transaction.onabort = transaction.onerror = () => { clearTimeout(timer); db.close(); reject(reason ?? failure()); };
+    transaction.oncomplete = () => { clearTimeout(timer); db.close(); readMemo.invalidate(uid); if (owner()) resolve(value); else reject(new Error("A conta conectada mudou. Atualize a página.")); };
+    transaction.onabort = transaction.onerror = () => { clearTimeout(timer); db.close(); readMemo.invalidate(uid); reject(reason ?? failure()); };
   });
 }
-export async function readKodlandBrowser(uid: string): Promise<KodlandBrowserState | null> {
+async function readKodlandBrowserUncached(uid: string): Promise<KodlandBrowserState | null> {
   if (typeof indexedDB === "undefined" || !uid) return null;
   try {
     const db = await open();
@@ -62,11 +74,20 @@ export async function readKodlandBrowser(uid: string): Promise<KodlandBrowserSta
     });
   } catch { return null; } // Optional cache must not block normal Firebase use when browser storage is disabled.
 }
+async function cachedBrowserState(uid: string): Promise<KodlandBrowserState | null> {
+  if (!uid || typeof indexedDB === "undefined") return null;
+  watchReadCache();
+  return readMemo.read(uid, 30000, () => readKodlandBrowserUncached(uid), () => true);
+}
+export async function readKodlandBrowser(uid: string): Promise<KodlandBrowserState | null> {
+  const value = await cachedBrowserState(uid);
+  return value ? structuredClone(value) : null;
+}
 export function browserCollection(name: string) {
   return ["kodland_groups", "kodland_students", "kodland_reviews", "kodland_attendance", "kodland_lessons", "kodland_task_progress", "kodland_extra_lessons", "kodland_availability"].includes(name);
 }
 export async function readKodlandBrowserRows(uid: string, name: string): Promise<BrowserRow[] | null> {
   if (!browserCollection(name)) return null;
-  const state = await readKodlandBrowser(uid);
-  return state?.active ? state.collections[name] ?? [] : null;
+  const state = await cachedBrowserState(uid);
+  return state?.active ? structuredClone(state.collections[name] ?? []) : null;
 }

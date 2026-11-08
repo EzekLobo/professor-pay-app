@@ -1,3 +1,4 @@
+import { resetAutomaticRefreshCache, markRefreshed } from "@/lib/automatic-refresh-cache";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KodlandLesson } from "@/lib/kodland-lessons";
 import type { KodlandScopedOccurrence } from "@/lib/kodland-scoped-sync";
@@ -9,7 +10,7 @@ const state = vi.hoisted(() => ({
   preferenceChanged: null as ((change: TutorPreferencesChange) => void) | null,
   cleanups: [] as Array<() => void>,
   status: vi.fn(), tick: vi.fn(async () => undefined),
-  watch: vi.fn(), read: vi.fn(),
+  watch: vi.fn(), read: vi.fn(), progress: vi.fn(),
   students: vi.fn(), preferences: vi.fn(), browserState: vi.fn(), groups: vi.fn(), saveTask: vi.fn(), syncScope: vi.fn(), sync: vi.fn(), payroll: vi.fn(),
 }));
 vi.mock("react", () => ({
@@ -25,6 +26,7 @@ vi.mock("@/lib/api", () => ({
     groups: state.groups,
     lessons: async () => ({ items: [{ id: "lesson", external_class_id: "group", source_lesson_id: "source", lesson_date: "2026-11-04", start_time: "18:00", end_time: "19:00" }] }),
     extraLessons: async () => ({ items: [] }),
+    taskProgress: state.progress,
     students: state.students, followupState: async () => ({ updatedAt: {}, blockedGroups: [] }),
     automaticState: async () => ({}), scheduleLastUpdatedAt: async () => "2026-11-04T10:00:00Z",
     saveAutomaticTask: state.saveTask, syncScope: state.syncScope, sync: state.sync,
@@ -41,7 +43,8 @@ vi.mock("@/lib/kodland-auto-sync", () => ({ createKodlandAutoSync: (deps: AutoSy
 import { useKodlandAutoSync } from "./use-kodland-auto-sync";
 
 beforeEach(() => {
-  vi.clearAllMocks(); vi.useFakeTimers();
+  vi.clearAllMocks(); vi.useFakeTimers(); resetAutomaticRefreshCache();
+  state.progress.mockResolvedValue({ items: [] });
   state.read.mockImplementation((read: () => Promise<unknown>) => read());
   const browser = new EventTarget();
   Object.assign(browser, { setTimeout, clearTimeout, setInterval, clearInterval, location: { pathname: "/classes" } });
@@ -195,4 +198,21 @@ it("ends page loading when the preference read never responds and recovers on fo
   await vi.advanceTimersByTimeAsync(0);
   expect(state.status).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "ready" }));
   expect(state.sync).toHaveBeenCalled();
+});
+
+it("uses warm page caches across focus without replaying schedule or activity history", async () => {
+  useKodlandAutoSync("account", false);
+  window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.sync).toHaveBeenCalledTimes(2);
+  window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(0);
+  expect(state.sync).toHaveBeenCalledTimes(2);
+});
+it("requests only recent/uncorrected activities after the initial history snapshot", async () => {
+  markRefreshed("account", "activity-history:group");
+  state.progress.mockResolvedValue({ items: [{ external_class_id: "group", lesson_id: "source", state: "corrected" }] });
+  useKodlandAutoSync("account", false);
+  window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ activityWindows: { group: { known: ["source"], refresh: ["source"] } } }));
 });

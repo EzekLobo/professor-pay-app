@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { readKodlandLocal } from "@/lib/kodland-sync-client";
+import { subscribeTutorPreferencesChanged } from "@/lib/tutor-preference-events";
 import { useReleaseNotes } from "./release-notes";
 import { observeOperation, reportOperation } from "@/lib/operation-log-client";
 import { classifyOperationError } from "@/lib/operation-log";
@@ -63,7 +64,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
     refreshing.current = true;
     const run = ++generation.current;
     const startedAt = new Date().toISOString();
-    setLoading(true);
+    if (!cached.current) setLoading(true);
     try {
       const previous = cached.current;
       const remote = force || !previous || Date.now() - previous.at >= 6 * 3600000;
@@ -104,15 +105,26 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
     const reload = () => { if (document.visibilityState !== "hidden" && navigator.onLine) void refresh(); };
     const timer = window.setTimeout(reload, 0);
     const interval = window.setInterval(reload, 60000);
-    const unsubscribe = subscribeStudentNotifications(change => { if (change === "source") clearStudentNotificationSourceCache(); cached.current = null; reload(); });
-    const storageChanged = (event: StorageEvent) => {
-      if (event.key === `nexusclass:kodland-change:${uid}`) { clearStudentNotificationSourceCache(); cached.current = null; }
+    const unsubscribe = subscribeStudentNotifications((change, domains) => {
+      if (change === "source") clearStudentNotificationSourceCache(!domains);
+      else cached.current = null;
       reload();
+    });
+    const unsubscribePreferences = subscribeTutorPreferencesChanged(uid, () => { clearStudentNotificationSourceCache(); cached.current = null; reload(); });
+    const storageChanged = (event: StorageEvent) => {
+      if (event.key === `nexusclass:kodland-change:${uid}`) { clearStudentNotificationSourceCache(false); reload(); }
+      else if (event.key === "nexusclass:sync-data-event") {
+        try {
+          const update = JSON.parse(event.newValue ?? "null")?.event;
+          if (update?.uid === uid && Array.isArray(update.domains) && update.domains.some((domain: string) => ["activities", "attendance", "ranking", "agenda"].includes(domain))) { clearStudentNotificationSourceCache(false); reload(); }
+        } catch { /* Ignore unrelated/invalid cross-tab messages. */ }
+      }
+      else if (demo && event.key?.startsWith("nexusclass.demo.")) { clearStudentNotificationSourceCache(); cached.current = null; reload(); }
     };
     window.addEventListener("focus", reload); window.addEventListener("online", reload); window.addEventListener("storage", storageChanged); document.addEventListener("visibilitychange", reload);
     const runGeneration = generation;
-    return () => { runGeneration.current++; clearTimeout(timer); clearInterval(interval); unsubscribe(); window.removeEventListener("focus", reload); window.removeEventListener("online", reload); window.removeEventListener("storage", storageChanged); document.removeEventListener("visibilitychange", reload); };
-  }, [refresh, uid]);
+    return () => { runGeneration.current++; clearTimeout(timer); clearInterval(interval); unsubscribe(); unsubscribePreferences(); window.removeEventListener("focus", reload); window.removeEventListener("online", reload); window.removeEventListener("storage", storageChanged); document.removeEventListener("visibilitychange", reload); };
+  }, [refresh, uid, demo]);
   const value: NotificationContext = {
     settings, cases, warnings, error, loading, updated, demo, absenceTemplate, autoSync,
     refresh: (force) => refresh(force),

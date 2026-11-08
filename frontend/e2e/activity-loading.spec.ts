@@ -11,14 +11,14 @@ import { useState } from "react";
 import { CorrectionsContent } from "@/components/corrections-page";
 import { kodlandApi } from "@/lib/api";
 import { notifyStudentNotificationsChanged } from "@/lib/student-notification-store";
-let blocked = false;
+let blocked = false; let reviewReads = 0, studentReads = 0;
 const empty = async () => ({ items: [] });
 kodlandApi.browserState = async () => ({ active: true }) as never;
-kodlandApi.reviews = async () => { if (blocked) await new Promise(() => undefined); return { items: [] }; };
-kodlandApi.groups = empty; kodlandApi.students = empty; kodlandApi.lessons = empty; kodlandApi.attendance = empty; kodlandApi.taskProgress = empty;
+kodlandApi.reviews = async () => { document.documentElement.dataset.reviewReads = String(++reviewReads); if (blocked) await new Promise(() => undefined); return { items: [] }; };
+kodlandApi.groups = empty; kodlandApi.students = async () => { document.documentElement.dataset.studentReads = String(++studentReads); return { items: [] }; }; kodlandApi.lessons = empty; kodlandApi.attendance = empty; kodlandApi.taskProgress = empty;
 export default function Fixture() {
  const [open, setOpen] = useState(false);
- return <main><button onClick={() => { blocked = false; setOpen(true); }}>Abrir atividades</button><button onClick={() => { blocked = true; setOpen(true); notifyStudentNotificationsChanged(); }}>Simular consulta sem resposta</button><button onClick={() => { blocked = false; }}>Restabelecer serviço</button>{open && <CorrectionsContent preferenceKey="loading-fixture" />}</main>;
+ return <main><button onClick={() => { blocked = false; setOpen(true); }}>Abrir atividades</button><button onClick={() => { blocked = true; setOpen(true); notifyStudentNotificationsChanged(); }}>Simular consulta sem resposta</button><button onClick={() => { blocked = false; }}>Restabelecer serviço</button><button onClick={() => notifyStudentNotificationsChanged("source", ["ranking"])}>Atualizar apenas contatos</button><button onClick={() => notifyStudentNotificationsChanged("source", ["payments"])}>Atualizar apenas financeiro</button>{open && <CorrectionsContent preferenceKey="loading-fixture" />}</main>;
 }
 `);
 });
@@ -54,4 +54,15 @@ test("carregamento inicial sem resposta termina com erro recuperável", async ({
   await page.getByRole("button", { name: "Tentar novamente", exact: true }).click();
   await expect(page.getByText("Nenhum aluno ou atividade para os filtros atuais.", { exact: true })).toBeVisible();
   await expect(page.locator(".activity-load-error")).toHaveCount(0);
+});
+
+test("atualização de contatos não consulta histórico, presença ou finanças", async ({page})=>{
+ await page.goto("/qa-activity-loading"); await page.getByRole("button",{name:"Abrir atividades",exact:true}).click();
+ await expect(page.getByText("Nenhum aluno ou atividade para os filtros atuais.",{exact:true})).toBeVisible();
+ const before=await page.evaluate(()=>({reviews:Number(document.documentElement.dataset.reviewReads),students:Number(document.documentElement.dataset.studentReads)}));
+ await page.getByRole("button",{name:"Atualizar apenas contatos",exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>Number(document.documentElement.dataset.studentReads))).toBe(before.students+1);
+ expect(await page.evaluate(()=>Number(document.documentElement.dataset.reviewReads))).toBe(before.reviews);
+ await page.getByRole("button",{name:"Atualizar apenas financeiro",exact:true}).click();
+ expect(await page.evaluate(()=>Number(document.documentElement.dataset.reviewReads))).toBe(before.reviews);
 });

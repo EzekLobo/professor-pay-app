@@ -1,3 +1,8 @@
+## Revisão das boas-vindas em modal — 08/11/2026
+
+- WelcomeContact agora sempre abre modal, inclusive com telefone conhecido. Ao abrir, preenche número do responsável e mensagem do modelo atual; ambos editáveis. Somente Abrir conversa no WhatsApp usa o rascunho revisado. Mensagem vazia/telefone inválido não gera link; Cancelar/Escape não abrem chat. Reabrir reinicia rascunho sem alterar modelo salvo.
+- Novidade2026110804 e ajuda de mensagens atualizada. Verificado:646 testes web, lint/tipos/build e6 E2E320/390/1440, cobrindo revisão antes do popup, edição efetiva no link, telefone preenchido/ausente, mensagem vazia e cancelamento. Conferir publicação após push.
+
 ## Boas-vindas no WhatsApp e mensagens reunidas — 08/11/2026
 
 - Removidos SaveStudentContact/student-contact-card e exportação vCard. WelcomeContact usa somente phone do responsável, nunca student_phone: abre wa.me com boas-vindas; contato ausente abre modal para informar o número antes do chat. Nenhum envio, salvamento no WhatsApp ou inclusão em grupo é automático.

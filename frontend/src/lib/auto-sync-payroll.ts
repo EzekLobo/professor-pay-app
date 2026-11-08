@@ -1,6 +1,7 @@
 import { kodlandPayrollApi, tutorPreferencesApi, type DashboardPayment } from "./api";
 import { restoreKodlandCredentials, type KodlandCredentials } from "./browser-credentials";
 import { readKodlandLocal } from "./kodland-sync-client";
+import { nextMonthPaymentDate } from "./teaching-finance";
 import { getFirebaseAuth } from "./firebase";
 import { getSyncCoordinator, type SyncCoordinator, type SyncExecutionContext } from "./sync-coordinator";
 import { calendarDay, payrollDecision, syncTimeZone, type SyncHistory } from "./sync-policy";
@@ -37,7 +38,10 @@ export function payrollEntryDue(now: number, history: SyncHistory): boolean {
 export function entryPayrollPayments(payments: PaymentCandidate[], now: number, timeZone: string): PaymentCandidate[] {
   const today = calendarDay(now, timeZone);
   const month = today.slice(0, 7);
-  const source = payments.length ? payments : [{ payment_date: `${month}-15`, status: "EXPECTED" }];
+  const source = payments.length ? [...payments] : [{ payment_date: `${month}-15`, status: "EXPECTED" }];
+  // The current teaching month is paid next month, even without a local schedule.
+  const nextPayment = nextMonthPaymentDate(today);
+  if (!source.some(item => item.payment_date.slice(0, 7) === nextPayment.slice(0, 7))) source.push({ payment_date: nextPayment, status: "EXPECTED" });
   const byPeriod = new Map<string, PaymentCandidate>();
   for (const item of [...source].sort((a, b) => b.payment_date.localeCompare(a.payment_date))) {
     if (item.status === "RECEIVED" || !/^\d{4}-\d{2}-\d{2}$/.test(item.payment_date) || Number.isNaN(Date.parse(item.payment_date))) continue;

@@ -95,7 +95,7 @@ export default function DemoPage() {
   }, [mutate]);
   const getDashboard = useCallback(() => demoDashboard(snapshotRef.current!, holidaysRef.current), []);
   const paymentAdapter = useMemo<PaymentsAdapter>(() => ({
-    list: async () => ({ items: getDashboard().payments }),
+    list: async () => { const dashboard = getDashboard(); return { items: dashboard.payments, next_month_forecast: dashboard.next_month_forecast }; },
     get: async (date) => { const payment = getDashboard().payments.find((item) => item.payment_date === date); if (!payment) throw new Error("Competência fictícia não encontrada."); return { ...payment, received_at: payment.status === "RECEIVED" ? new Date().toISOString() : null, confirmation_note: null }; },
     updateLessonFinancialStatus: async (date, id, _source, status) => {
       if (getDashboard().payments.find((payment) => payment.payment_date === date)?.status === "RECEIVED") throw new Error("Competências recebidas não podem ter aulas alteradas.");

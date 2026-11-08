@@ -3885,3 +3885,8 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 .student-contact-shortcut { display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 8px; color: var(--primary); background: none; cursor: pointer; text-decoration: none; }
 .student-contact-shortcut:hover { background: rgb(105 215 255 / 10%); }
 .student-contact-shortcut:disabled { opacity: .45; cursor: default; }
+
+.payment-metrics-with-forecast { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.next-month-payroll-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0 14px; }
+.next-month-payroll-summary small { flex-basis: 100%; color: var(--muted); }
+@media (max-width: 700px) { .payment-metrics-with-forecast { grid-template-columns: 1fr; } }

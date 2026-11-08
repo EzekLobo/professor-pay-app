@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110805, date: "2026-11-08", title: "Saldo previsto para o próximo mês",
+    description: "Resumo e Pagamentos mostram a previsão da folha Kodland para o próximo mês, somando valores contabilizados e aulas previstas. A consulta automática inclui o mês atual, mesmo sem uma competência local cadastrada.",
+    href: "/payments", action: "Ver pagamentos",
+  },
+  {
     version: 2026110804, date: "2026-11-08", title: "Revisar boas-vindas antes de enviar",
     description: "O atalho de boas-vindas abre um modal para revisar o número e editar a mensagem antes de seguir para o WhatsApp. O modelo salvo nas configurações é preservado.",
     href: "/classes", action: "Abrir alunos",

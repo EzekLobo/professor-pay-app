@@ -1,3 +1,10 @@
+## Previsão oficial para próximo pagamento — 08/11/2026
+
+- auto-sync-payroll.entryPayrollPayments inclui competência do mês atual (pagamento no mês seguinte), mesmo sem cronograma/competência local. Mantém até2 períodos, janela60s/backoff/lease e proteção RECEIVED. Virada dezembro→janeiro coberta.
+- next-month-payroll.ts extrai somente folha completa BRL do mês de trabalho atual: earned_cents + projected_cents, sem somar bônus/correções novamente ou duplicar revisões. Folha ausente/inválida retorna null; zero confirmado permanece0. Não altera saldos comparison/official nem comprovantes recebidos.
+- calculateDashboard expõe next_month_forecast; paymentsApi.list reaproveita a mesma leitura. NextMonthPayrollCard mostra valor em Pagamentos e resumo compacto em Competências mensais, respeitando ocultação financeira. Também funciona com folha oficial sem aulas locais; indisponível mostra Ainda não informado. Demo não fabrica previsão oficial. Novidade2026110805.
+- Verificado:652 testes web, lint/tipos/build e9 E2E (origem oficial, soma75, modo comparação sem aulas, ausência/remoção de folha, mobile, carrossel). Confirmar publicação após push; valor real Kodland requer sessão autenticada.
+
 ## Revisão das boas-vindas em modal — 08/11/2026
 
 - WelcomeContact agora sempre abre modal, inclusive com telefone conhecido. Ao abrir, preenche número do responsável e mensagem do modelo atual; ambos editáveis. Somente Abrir conversa no WhatsApp usa o rascunho revisado. Mensagem vazia/telefone inválido não gera link; Cancelar/Escape não abrem chat. Reabrir reinicia rascunho sem alterar modelo salvo.

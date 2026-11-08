@@ -1,4 +1,4 @@
-﻿import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("./api", () => ({ kodlandPayrollApi: { syncForPaymentDate: vi.fn() }, tutorPreferencesApi: { get: vi.fn() } }));
 vi.mock("./browser-credentials", () => ({ restoreKodlandCredentials: vi.fn() }));
 vi.mock("./firebase", () => ({ getFirebaseAuth: vi.fn(), getFirebaseDb: vi.fn() }));
@@ -149,14 +149,26 @@ it("rejects a stale payroll preference read but allows a later authoritative rea
 it("refreshes on entry outside the payment window, deduplicating across page runners", async () => {
   const test = setup(date("2026-11-03"));
   const entry = { ...options, refreshOnEntry: true };
-  expect((await test.runner().run([candidate()], entry)).updated).toBe(1);
+  expect((await test.runner().run([candidate()], entry)).updated).toBe(2);
   expect((await test.runner().run([candidate()], entry)).updated).toBe(0);
   test.move(test.now() + 61000);
-  expect((await test.runner().run([candidate()], entry)).updated).toBe(1);
-  expect(test.sync).toHaveBeenCalledTimes(2);
+  expect((await test.runner().run([candidate()], entry)).updated).toBe(2);
+  expect(test.sync).toHaveBeenCalledTimes(4);
 });
 it("never refreshes received snapshots on page entry", async () => {
   const test = setup(date("2026-11-03"));
-  await test.runner().run([{ ...candidate(), status: "RECEIVED" }], { ...options, refreshOnEntry: true });
+  await test.runner().run([{ ...candidate("2026-12-15"), status: "RECEIVED" }], { ...options, refreshOnEntry: true });
   expect(test.sync).not.toHaveBeenCalled();
+});
+
+it("fetches the current month forecast even when only the previous payout is saved", async () => {
+  const test = setup(date("2026-11-03"));
+  await test.runner().run([candidate("2026-11-15", "RECEIVED")], { ...options, refreshOnEntry: true });
+  expect(test.sync).toHaveBeenCalledTimes(1);
+  expect(test.sync).toHaveBeenCalledWith("2026-12-15", expect.anything(), expect.anything());
+});
+it("queries December's forecast using January's payout date without exceeding two periods", async () => {
+  const test = setup(date("2026-12-31"));
+  await test.runner().run([], { ...options, refreshOnEntry: true });
+  expect(test.sync.mock.calls.map(args => (args as unknown as [string])[0])).toEqual(["2027-01-15", "2026-12-15"]);
 });

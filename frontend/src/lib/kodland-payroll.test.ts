@@ -94,3 +94,13 @@ describe("official payroll", () => {
     expect(dashboard.payments.find(p => p.payment_date === "2026-11-15")).toMatchObject({ total_cents: 12345, status: "RECEIVED", payroll: [{ received_locked: true, applied: false }] });
   });
 });
+
+it("exposes next month's official forecast without changing comparison balances", () => {
+  const comparison = calculate("comparison");
+  const official = calculate("official");
+  expect(comparison.next_month_forecast).toMatchObject({ payment_date: "2026-11-15", total_cents: 7500, earned_cents: 4500, projected_cents: 3000 });
+  expect(official.next_month_forecast).toMatchObject({ ...comparison.next_month_forecast, synced_at: expect.any(String) });
+  const withoutLocal = calculateDashboard([], [], [], [], [], "2026-10-25", [], [], [], [], [], [], { periods: [sheet()], teacher_id: "22", mode: "comparison", last_sync: "" });
+  expect(withoutLocal.payments).toEqual([]);
+  expect(withoutLocal.next_month_forecast?.total_cents).toBe(7500);
+});

@@ -8,6 +8,7 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from "react";
+import { NextMonthPayrollCard } from "./next-month-payroll";
 import { Modal } from "./modal";
 import { StatusBadge } from "./ui";
 import { lessonsApi, paymentsApi } from "@/lib/api";
@@ -131,7 +132,7 @@ export function DashboardContent(props: DashboardContentProps) {
       </section>
     );
   const { dashboard, onRefresh, actions } = props;
-  if (dashboard.total_lessons === 0)
+  if (dashboard.total_lessons === 0 && !dashboard.next_month_forecast)
     return (
       <section className="dashboard-state">
         <p className="eyebrow">PAINEL PRONTO</p>
@@ -252,6 +253,7 @@ export function DashboardContent(props: DashboardContentProps) {
             {paymentsVisible ? <EyeIcon /> : <EyeOffIcon />}
           </button>
         </div>
+        {paymentsVisible && <NextMonthPayrollCard forecast={dashboard.next_month_forecast} compact />}
         {paymentsVisible ? (
           <DashboardPaymentCarousel
             payments={dashboardPayments}

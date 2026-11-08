@@ -1,3 +1,4 @@
+import { nextMonthPayroll, type NextMonthPayroll } from "./next-month-payroll";
 import { studentLessonCreditsPatch, studentProfileUpdates } from "@/lib/student-profile";
 import { sanitizeKodlandStudentRecord, sanitizeManualStudentRecord } from "@/lib/student-privacy";
 import { publishTutorPreferencesChanged } from "./tutor-preference-events";
@@ -127,6 +128,7 @@ export type DashboardProgress = {
   percent: number;
 };
 export type DashboardResponse = {
+  next_month_forecast?: NextMonthPayroll;
   today: string;
   earned_cents: number;
   received_cents: number;
@@ -1315,6 +1317,7 @@ export const calculateDashboard = (
   const activeClasses = classRows.filter((item) => item.active !== false);
   return {
     today,
+    next_month_forecast: nextMonthPayroll(payrolls, today),
     earned_cents: completed.reduce((sum, item) => sum + item.value_cents, 0),
     received_cents: received,
     normal_lessons: completed.filter((item) => item.type === "NORMAL").length,
@@ -1782,7 +1785,7 @@ async function runManualKodlandSync<T>(uid: string, resourceId: string, work: (c
 }
 
 export const kodlandPayrollApi = {
-  /** Only one authorized competence, used by the daily D-5..D automatic window. */
+  /** One authorized competence, shared by page-entry refresh and the D-5..D window. */
   syncForPaymentDate: async (username: string, password: string, paymentDate: string, context?: SyncExecutionContext): Promise<PayrollState> => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) throw new ApiError(400, "Data de pagamento inválida.");
     const owner = authUser(), uid = owner.uid;
@@ -2626,8 +2629,9 @@ const paymentDetail = async (date: string): Promise<PaymentDetail> => {
 };
 export const paymentsApi = {
   list: async () => {
-    const items = (await dashboardApi.get()).payments;
-    return { items, total: items.length };
+    const dashboard = await dashboardApi.get();
+    const items = dashboard.payments;
+    return { items, total: items.length, next_month_forecast: dashboard.next_month_forecast };
   },
   get: paymentDetail,
   confirm: async (date: string, note = "") => {

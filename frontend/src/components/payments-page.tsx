@@ -7,6 +7,8 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from "react";
+import { NextMonthPayrollCard } from "./next-month-payroll";
+import type { NextMonthPayroll } from "@/lib/next-month-payroll";
 import { AuthGuard } from "@/components/auth-guard";
 import { PaymentHistoryChart } from "@/components/payment-history-chart";
 import { PaymentStatement } from "@/components/dashboard-content";
@@ -74,7 +76,7 @@ function PaymentStatus({
   );
 }
 export type PaymentsAdapter = {
-  list: () => Promise<{ items: DashboardPayment[] }>;
+  list: () => Promise<{ items: DashboardPayment[]; next_month_forecast?: NextMonthPayroll }>;
   get: (date: string) => Promise<PaymentDetail>;
   updateLessonFinancialStatus: (date: string, id: string, source: string | undefined, status: "" | "BILLABLE" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED") => Promise<unknown>;
   setStatus: (date: string, status: "RECEIVED" | "OVERDUE") => Promise<unknown>;
@@ -85,6 +87,7 @@ export type PaymentsAdapter = {
 export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {}) {
   const paymentActions = adapter ?? paymentsApi;
   const notificationState = useStudentNotifications();
+  const [forecast, setForecast] = useState<NextMonthPayroll>();
   const automaticEntryStarted = useRef(false);
   const detailPaymentDate = useRef<string | null>(null);
   const [automaticStatus, setAutomaticStatus] = useState("");
@@ -145,7 +148,8 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
     try {
       do {
         reloadRequested.current = false;
-        let loadedItems = (await paymentActions.list()).items;
+        let loaded = await paymentActions.list();
+        let loadedItems = loaded.items;
         if (!adapter && !automaticEntryStarted.current) {
           automaticEntryStarted.current = true;
           try {
@@ -155,7 +159,8 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
               : result.status === "pending" ? "Não foi possível atualizar os pagamentos. Exibindo a última consulta salva." : "");
             if (result.updated) {
               reloadRequested.current = false; // This read includes the sync events already received.
-              loadedItems = (await paymentActions.list()).items;
+              loaded = await paymentActions.list();
+              loadedItems = loaded.items;
             }
           } catch { setAutomaticStatus("Não foi possível atualizar os pagamentos. Exibindo a última consulta salva."); }
         }
@@ -164,6 +169,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
             (item) => item.payment_date > new Date().toISOString().slice(0, 10),
           ) ?? loadedItems.at(-1) ?? null;
         setItems(loadedItems);
+        setForecast(loaded.next_month_forecast);
         setStatusPayment(current => current ? loadedItems.find(item => item.payment_date === current.payment_date) ?? null : null);
         setFocusedPaymentDate((current) =>
           current && loadedItems.some((item) => item.payment_date === current)
@@ -377,7 +383,8 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       {automaticStatus && <p className="muted" role="status">{automaticStatus}</p>}
       {error && <p className="form-error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
-      <section className="metric-grid payment-metric-grid" data-tour="payments-summary">
+      <section className="metric-grid payment-metric-grid payment-metrics-with-forecast" data-tour="payments-summary">
+        <NextMonthPayrollCard forecast={forecast} />
         <article className="metric-card">
           <span>Estimativa a receber</span>
           <strong>{formatMoney(estimatedCents)}</strong>

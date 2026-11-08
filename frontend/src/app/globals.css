@@ -3878,3 +3878,6 @@ button.payment-history-column:hover { background: rgb(106 207 255 / 6%); }
 
 .compact-activity-submitted { border-color: rgb(255 190 62 / 70%); background: rgb(194 118 12 / 35%); }
 .compact-activity-corrected { border-color: rgb(80 200 150 / 60%); background: rgb(20 110 80 / 30%); }
+
+.weekly-schedule[aria-busy="true"] .week-grid { display: none; }
+.schedule-refresh-state { min-height: 160px; display: grid; place-items: center; color: var(--muted); }

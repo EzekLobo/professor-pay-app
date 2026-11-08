@@ -135,7 +135,8 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
         ? [-2, -1, 0, 1]
         : [-1, 0, 1];
   const load = useCallback(async (keepContent = false) => {
-    if (!keepContent) setLoading(true);
+    void keepContent;
+    setLoading(true);
     try {
       const loadedItems = (await paymentActions.list()).items;
       const nextFocus =

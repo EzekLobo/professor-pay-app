@@ -62,6 +62,9 @@
 - `course-progress.ts` resolve próxima aula por ID do catálogo, código local/schedule ou índice global; conta aulas anteriores e conclusões explícitas, sem contar a próxima aula como concluída. Ausência de posição/conclusões permanece desconhecida, distinguindo início confirmado em 0%. Tooltip informa concluídas/total.
 - Evento de página distingue modo `students`: scheduler consulta `classroom` e `profiles` antes de atividades para atualizar os metadados e saldos automaticamente. Leitor de saldo aceita lista, paginação e registro tipado DEFAULT_LESSON; falha HTTP de balance deixa de ser descartada silenciosamente. Persistência existente mantém zero/negativos e último saldo conhecido.
 - Confirmado: 613 testes web, tipos/lint/build e 3 E2E do modo Alunos em 320/390/1440. Testes reproduzem próxima aula sem número (ID/data), saldo paginado/zero/negativo, erro HTTP e consulta profiles na entrada. Conta real ainda pendente de acesso ao navegador; verificar publicação após o push.
+## Carregamento visual — 08/11/2026
+
+- Grade oculta dados durante atualização manual e mostra status de carregamento; pagamentos mostra carregamento também em releituras após eventos. Typecheck e build passaram. Preenchimento automático de perfis, vCard e política financeira por entrada ainda pendentes.
 
 ## Ordem cronológica das atividades — 05/11/2026
 

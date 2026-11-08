@@ -335,7 +335,7 @@ export function WeekSchedule({
     });
   });
   return (
-    <section className="panel weekly-schedule page-fill-panel" data-tour="dashboard-schedule">
+    <section className="panel weekly-schedule page-fill-panel" data-tour="dashboard-schedule" aria-busy={refreshing}>
       <div className="section-heading week-section-heading">
         <div className="week-heading-copy">
           <h2>Grade de horários</h2>
@@ -396,6 +396,7 @@ export function WeekSchedule({
         <span className="week-legend-holiday">Feriado</span>
       </div>
       </Modal>
+      {refreshing && <p role="status" className="schedule-refresh-state">Atualizando grade de horários…</p>}
       <div
         className="week-grid"
         data-tour="dashboard-lesson-details"

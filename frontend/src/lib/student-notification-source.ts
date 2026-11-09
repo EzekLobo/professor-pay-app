@@ -1,3 +1,4 @@
+import { kodlandReadPreference } from "./kodland-read-preference";
 import { readKodlandLocal } from "./kodland-sync-client";
 import { kodlandNotificationCalendar } from "./kodland-notification-calendar";
 import { readKodlandBrowser } from "./kodland-browser-cache";
@@ -108,10 +109,13 @@ const manualCache = new Map<string, { expires: number; promise: Promise<ManualNo
 function loadManualNotificationSource(uid: string, force: boolean) {
   let current = manualCache.get(uid);
   if (force || !current || current.expires <= Date.now()) {
-    const promise = readKodlandLocal(async () => {
+    const promise: Promise<ManualNotificationSnapshot | null> = readKodlandLocal(async () => {
       const [manualClasses, manualStudents, manualOccurrences, manualAttendance, manualActivities] = await Promise.all([manualTeachingApi.classes(), manualTeachingApi.students(), manualOperationsApi.occurrences(), manualOperationsApi.attendance(), manualPedagogyApi.activities()]);
       return { manualClasses, manualStudents, manualOccurrences, manualAttendance, manualActivities };
-    }, crypto.randomUUID(), "Dados próprios para notificações", 3000).catch(() => null);
+    }, crypto.randomUUID(), "Dados próprios para notificações", 3000).catch(() => {
+      if (manualCache.get(uid)?.promise === promise) manualCache.delete(uid);
+      return null;
+    });
     current = { expires: Date.now() + 6 * 3600000, promise }; manualCache.set(uid, current);
   }
   return current.promise;
@@ -123,23 +127,25 @@ export async function loadStudentNotificationSource(uid: string, settings: Notif
   owner();
   const local = await readKodlandBrowser(uid); owner();
   if (local?.active) {
+    const preferences = await kodlandReadPreference(() => tutorPreferencesApi.get(), true); owner();
+    const enabled = preferences.kodland_enabled;
     const manual = await loadManualNotificationSource(uid, force); owner();
     const attendance = Object.keys(local.attendanceCompletedAt ?? {});
     const activities = Object.keys(local.groupCompletedAt);
     const snapshot: NotificationSourceSnapshot = {
       manualClasses: manual?.manualClasses ?? [], manualStudents: manual?.manualStudents ?? [], manualOccurrences: manual?.manualOccurrences ?? [], manualAttendance: manual?.manualAttendance ?? [], manualActivities: manual?.manualActivities ?? [],
-      groups: (local.collections.kodland_groups ?? []) as unknown as KodlandGroup[], students: (local.collections.kodland_students ?? []) as unknown as KodlandStudent[], lessons: (local.collections.kodland_lessons ?? []) as unknown as KodlandLesson[],
-      attendance: (local.collections.kodland_attendance ?? []).filter(item => attendance.includes(String(item.external_class_id))) as unknown as KodlandAttendance[],
-      taskProgress: (local.collections.kodland_task_progress ?? []).filter(item => activities.includes(String(item.external_class_id))) as unknown as KodlandTaskProgress[],
+      groups: (enabled ? local.collections.kodland_groups ?? [] : []) as unknown as KodlandGroup[], students: (enabled ? local.collections.kodland_students ?? [] : []) as unknown as KodlandStudent[], lessons: (enabled ? local.collections.kodland_lessons ?? [] : []) as unknown as KodlandLesson[],
+      attendance: (enabled ? local.collections.kodland_attendance ?? [] : []).filter(item => attendance.includes(String(item.external_class_id))) as unknown as KodlandAttendance[],
+      taskProgress: (enabled ? local.collections.kodland_task_progress ?? [] : []).filter(item => activities.includes(String(item.external_class_id))) as unknown as KodlandTaskProgress[],
     };
-    const archived = snapshot.groups.filter(group => group.archived).map(group => group.external_id);
+    const archived = ((local.collections.kodland_groups ?? []) as unknown as KodlandGroup[]).filter(group => !enabled || group.archived).map(group => group.external_id);
     return { ...normalizeNotificationSource(snapshot, settings), loaded_at: local.updatedAt, coverage: { manual: Boolean(manual), attendance: [...attendance, ...archived], activities: [...activities, ...archived] } };
   }
   let current = cache.get(uid);
   if (force || !current || current.expires <= Date.now()) {
     const promise = (async (): Promise<NotificationSourceSnapshot> => {
       const browserOnly = Boolean((await readKodlandBrowser(uid))?.active);
-      const preferences = browserOnly ? { kodland_enabled: true } : await tutorPreferencesApi.get();
+      const preferences = await kodlandReadPreference(() => tutorPreferencesApi.get(), browserOnly);
       const before = preferences.kodland_enabled ? await kodlandApi.notificationSyncStatus() : null;
       const partial = before && "group_status" in before && before.group_status && Object.keys(before.group_status).length > 0 && (before.main_status === "complete" || before.mode === "corrections");
       if (before && before.status !== "complete" && !partial) throw new Error("A sincronização Kodland está incompleta. Os alertas anteriores serão preservados; conclua uma sincronização para atualizar.");

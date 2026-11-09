@@ -1,4 +1,5 @@
 "use client";
+import { kodlandReadPreference } from "@/lib/kodland-read-preference";
 
 import Link from "next/link";
 import { ScheduleEntryAction } from "@/components/schedule-entry-action";
@@ -938,8 +939,10 @@ function DashboardPageContent({ uid }: { uid: string }) {
       const browser = await kodlandApi.browserState();
       setLocalOnly(Boolean(browser?.active));
       if (browser?.active) {
-        const [groups, students, lessons, reviews, extras, availability] = await Promise.all([kodlandApi.groups(), kodlandApi.students(), kodlandApi.lessons(), kodlandApi.reviews(), kodlandApi.extraLessons(), kodlandApi.availability()]);
-        setKodlandEnabled(true); setGroups(groups.items); setStudents(students.items); setLessons(lessons.items); setReviews(reviews.items); setExtraLessons(extras.items); setAvailability(availability.items); setScheduleLastUpdatedAt(browser.coreAt);
+        const preferences = await kodlandReadPreference(() => tutorPreferencesApi.get(), true);
+        const empty = Promise.resolve({ items: [] });
+        const [groups, students, lessons, reviews, extras, availability] = await Promise.all([preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.extraLessons() : empty, preferences.kodland_enabled ? kodlandApi.availability() : empty]);
+        setKodlandEnabled(preferences.kodland_enabled); setGroups(groups.items); setStudents(students.items); setLessons(lessons.items); setReviews(reviews.items); setExtraLessons(extras.items); setAvailability(availability.items); setScheduleLastUpdatedAt(browser.coreAt);
         void loadLocalFinance();
         return true;
       }

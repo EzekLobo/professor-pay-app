@@ -1,4 +1,5 @@
 "use client";
+import { kodlandReadPreference } from "@/lib/kodland-read-preference";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readWithDeadline } from "@/lib/read-deadline";
@@ -68,7 +69,7 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
     try {
       const result = await readWithDeadline(async () => {
         const localOnly = !demoData && Boolean((await kodlandApi.browserState())?.active);
-        const preferences = localOnly ? { kodland_enabled: true } : await preferencesApi.get();
+        const preferences = await kodlandReadPreference(() => preferencesApi.get(), localOnly);
         if (demoData || !preferences.kodland_enabled) return { enabled: preferences.kodland_enabled, groups: preferences.kodland_enabled ? demoData?.groups ?? [] : [], lessons: preferences.kodland_enabled ? demoData?.lessons ?? [] : [], courses: await coursesApi.list(), catalog: null };
         const [groups, lessons, courses, catalog] = await Promise.all([kodlandApi.groups(), kodlandApi.lessons(), localOnly ? Promise.resolve(null) : coursesApi.list(), kodlandCourseCatalogApi.get()]);
         return { enabled: true, groups: groups.items.filter(group => !group.archived), lessons: lessons.items, courses, catalog };

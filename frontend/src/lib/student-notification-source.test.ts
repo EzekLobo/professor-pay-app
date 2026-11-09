@@ -1,7 +1,9 @@
-import { kodlandApi } from "./api";
+import { defaultTutorPreferences } from "./manual-operations";
+import { kodlandApi, manualTeachingApi, tutorPreferencesApi } from "./api";
 import { missingActivityList } from "./activity-missing-list";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const mock = vi.hoisted(() => ({ uid: "a", status: { status: "complete", sync_id: "1" }, failProgress: false }));
+const mock = vi.hoisted(() => ({ uid: "a", status: { status: "complete", sync_id: "1" }, failProgress: false, browser: null as Record<string, unknown> | null }));
+vi.mock("./kodland-browser-cache", () => ({ readKodlandBrowser: async () => mock.browser }));
 vi.mock("./firebase", () => ({ getFirebaseAuth: () => ({ currentUser: { uid: mock.uid } }) }));
 vi.mock("./api", () => ({
   manualTeachingApi: { classes: async () => [], students: async () => [] },
@@ -20,7 +22,7 @@ const snapshot = (): NotificationSourceSnapshot => ({
   manualActivities: [{ id: "t", occurrence_id: "l", class_id: "c", student_id: "s", title: "Exercício", status: "assigned", submission_text: "", submission_url: "", kind: "classroom" } as NotificationSourceSnapshot["manualActivities"][number]],
   groups: [], students: [], lessons: [], attendance: [],
 });
-beforeEach(() => { mock.uid = "a"; mock.status = { status: "complete", sync_id: "1" }; mock.failProgress = false; clearStudentNotificationSourceCache(); });
+beforeEach(() => { mock.uid = "a"; mock.status = { status: "complete", sync_id: "1" }; mock.failProgress = false; mock.browser = null; clearStudentNotificationSourceCache(); });
 describe("fontes de alertas", () => {
   it("liga tarefa atribuída, presença e responsável da turma correta", () => {
     const source = normalizeNotificationSource(snapshot(), settings);
@@ -86,4 +88,25 @@ it("falha de uma turma no Firebase não bloqueia as demais nem autoriza apagar s
  vi.spyOn(kodlandApi,"groups").mockResolvedValue({items:[{external_id:"ready",archived:false},{external_id:"blocked",archived:false}] as NotificationSourceSnapshot["groups"]});
  const source=await loadStudentNotificationSource("a",settings,true);
  expect(source.coverage).toEqual({manual:true,attendance:["ready"],activities:["ready"]});
+});
+
+it("retries manual alert data after a transient failure instead of caching failure for six hours", async () => {
+ mock.browser = { active: true, collections: {}, groupCompletedAt: {}, updatedAt: "2026-11-09" };
+ const reads=vi.spyOn(manualTeachingApi,"classes").mockRejectedValueOnce(new Error("offline")).mockResolvedValue([]);
+ const failed=await loadStudentNotificationSource("a",settings); expect(failed.coverage?.manual).toBe(false);
+ const recovered=await loadStudentNotificationSource("a",settings); expect(recovered.coverage?.manual).toBe(true);
+ expect(reads).toHaveBeenCalledTimes(2);
+});
+
+it("an explicitly disabled integration does not generate Kodland alerts from a local snapshot",async()=>{
+ mock.browser={active:true,updatedAt:"2026-11-09",groupCompletedAt:{g:"complete"},attendanceCompletedAt:{g:"complete"},collections:{
+  kodland_groups:[{external_id:"g",title:"Python",archived:false}],kodland_students:[{external_id:"s",external_class_id:"g",name:"Ana",status:"active"}],
+  kodland_lessons:[{id:"lesson",source_lesson_id:"l",external_class_id:"g",lesson_date:"2026-10-26",start_time:"18:00",end_time:"19:00",title:"M1L1"}],
+  kodland_attendance:[{id:"attendance",external_class_id:"g",external_student_id:"s",lesson_id:"l",lesson_date:"2026-10-26",status:"ABSENT"}],
+ }};
+ expect((await loadStudentNotificationSource("a",settings)).lessons).toHaveLength(1);
+ vi.spyOn(tutorPreferencesApi,"get").mockResolvedValue({...defaultTutorPreferences("2026-11-09"),kodland_enabled:false});
+ const disabled=await loadStudentNotificationSource("a",settings);
+ expect(disabled.lessons).toEqual([]);expect(disabled.obligations).toEqual([]);
+ expect(disabled.coverage?.attendance).toContain("g");expect(disabled.coverage?.activities).toContain("g");
 });

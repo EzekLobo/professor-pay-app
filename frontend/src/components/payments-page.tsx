@@ -7,6 +7,7 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from "react";
+import { StatementRequests } from "@/lib/statement-requests";
 import { readWithDeadline } from "@/lib/read-deadline";
 import { NextMonthPayrollCard } from "./next-month-payroll";
 import type { NextMonthPayroll } from "@/lib/next-month-payroll";
@@ -140,8 +141,8 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
   const reading = useRef(false);
   const loadGeneration = useRef(0);
   const hasLoaded = useRef(false);
-  const detailRequest = useRef(0);
-  useEffect(() => () => { loadGeneration.current++; detailRequest.current++; }, []);
+  const detailRequests = useRef(new StatementRequests());
+  useEffect(() => () => { loadGeneration.current++; detailRequests.current.close(); }, []);
   const reloadRequested = useRef(false);
   const entryTimeZone = notificationState?.settings?.time_zone ?? "America/Sao_Paulo";
   const load = useCallback(async (keepContent = false) => {
@@ -209,22 +210,36 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       if (!event.domains.includes("payments")) return;
       void load(true);
       const date = detailPaymentDate.current;
-      const request = ++detailRequest.current;
-      if (date) void readWithDeadline(() => paymentActions.get(date), "Extrato").then(value => {
-        if (request === detailRequest.current && getFirebaseAuth().currentUser?.uid === uid && detailPaymentDate.current === date) setDetail(value);
+      const request = detailRequests.current.refresh(date);
+      if (date && request !== null) void readWithDeadline(() => paymentActions.get(date), "Extrato").then(value => {
+        if (detailRequests.current.current(request) && getFirebaseAuth().currentUser?.uid === uid && detailPaymentDate.current === date) setDetail(value);
       }).catch(() => { /* Keep the open statement while a refresh is unavailable. */ });
     });
   }, [adapter, load, paymentActions]);
   async function open(date: string) {
-    const request = ++detailRequest.current;
+    const request = detailRequests.current.open(date);
     try {
       const result = await readWithDeadline(() => paymentActions.get(date), "Extrato");
-      if (request === detailRequest.current) setDetail(result);
+      if (detailRequests.current.finishOpen(request)) setDetail(result);
     } catch (e) {
-      if (request !== detailRequest.current) return;
+      if (!detailRequests.current.failOpen(request)) return;
       setError(
         e instanceof Error ? e.message : "Não foi possível abrir o pagamento.",
       );
+    }
+  }
+  async function refreshDetail(date: string) {
+    const request = detailRequests.current.refresh(date);
+    if (request === null) return;
+    try {
+      const value = await readWithDeadline(() => paymentActions.get(date), "Extrato");
+      if (detailRequests.current.current(request)) setDetail(value);
+    } catch {
+      // Persistence already succeeded; a failed follow-up must not invite duplicate writes.
+      if (detailRequests.current.current(request)) {
+        detailRequests.current.close(); detailPaymentDate.current = null; setDetail(null);
+        setError("Alteração salva. Não foi possível atualizar o extrato agora. Tente consultar novamente.");
+      }
     }
   }
   function moveCarousel(step: -1 | 1) {
@@ -304,9 +319,9 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       );
       await load();
       try {
-        setDetail(await paymentActions.get(detail.payment_date));
+        await refreshDetail(detail.payment_date);
       } catch {
-        setDetail(null);
+        // Keep the last confirmed statement when a follow-up read is unavailable.
       }
     } catch (reason) {
       setError(
@@ -325,7 +340,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
     try {
       await (adapter ?? lessonsApi).createExtra(payload);
       await load();
-      setDetail(await paymentActions.get(detail.payment_date));
+      await refreshDetail(detail.payment_date);
       setNotice("Aula extra adicionada ao extrato.");
     } catch (reason) {
       setError(
@@ -345,7 +360,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       if (reverse) await paymentActions.reverse(detail.payment_date);
       else await paymentActions.confirm(detail.payment_date);
       await load();
-      setDetail(await paymentActions.get(detail.payment_date));
+      await refreshDetail(detail.payment_date);
       setNotice(reverse ? "Confirmação estornada." : "Pagamento confirmado.");
     } catch (e) {
       setError(
@@ -366,7 +381,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       await paymentActions.setStatus(statusPayment.payment_date, status);
       await load();
       if (detail?.payment_date === statusPayment.payment_date) {
-        setDetail(await paymentActions.get(statusPayment.payment_date));
+        await refreshDetail(statusPayment.payment_date);
       }
       setNotice(status === "RECEIVED" ? "Pagamento marcado como pago." : "Pagamento marcado como em atraso.");
       setStatusPayment(null);
@@ -547,7 +562,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
         open={Boolean(detail)}
         className="payment-statement-modal"
         title={detail ? `Extrato · ${detail.period}` : "Extrato"}
-        onClose={() => { detailRequest.current++; setDetail(null); }}
+        onClose={() => { detailRequests.current.close(); detailPaymentDate.current = null; setDetail(null); }}
         help={{
           id: adapter ? "demo-payment-statement" : "payment-statement",
           version: 2,

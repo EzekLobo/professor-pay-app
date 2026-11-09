@@ -1,3 +1,11 @@
+## Revisão de lógica — 09/11/2026
+
+- Relatório de5 falhas confirmadas em docs/plans/logic-audit-2026-11-09.md. Novidade2026110902. Não altera cálculos financeiros nem estados de créditos.
+- Fonte de notificações remove cache manual que falhou, permite retry e assina também cobertura na reconciliação: recuperação com lista vazia resolve casos antigos somente com cobertura válida. Provider drena fila após troca de fonte, descarta reconciliação antiga antes de preencher cache e não agenda após desmontagem.
+- StatementRequests controla intenção de abertura/fechamento/seleção: atualização automática não invalida abertura pendente; respostas de mutações não reabrem extrato fechado. Abrir outra competência e falhar restaura intenção da anterior. Falha de releitura após gravação não rejeita a ação concluída: fecha somente o extrato obsoleto atual e permite nova consulta sem sugerir repetição da gravação.
+- kodlandReadPreference usado em Turmas/Atividades/Cursos/Resumo/fontes de alertas: preferência explícita false vence cache ativo; serviço indisponível por3s pode usar cache próprio;401/403/unauthenticated/permission-denied não permitem fallback. AccountReadOwnerError padroniza troca de conta com code unauthenticated.
+- Verificação:687 testes unitários, lint/tipos/build e29 E2E (12 diagnósticos e17 regressões) passaram, incluindo3 larguras de notificações. Conferir publicação após push. Conta real Kodland não autenticada nesta sessão.
+
 ## Alvo: otimização profissional dos fluxos — 09/11/2026
 
 - Auditoria e9 melhorias em docs/plans/application-optimization-2026-11-09.md. Catálogo Kodland usa metadado persistido por conta24h, singleflight e atualização manual forçada; falha não troca cache por vazio. Novidade2026110901.
@@ -6,7 +14,7 @@
 - AccountReadCache compartilha consultas lentas mesmo após TTL nominal; validade começa após resolução e leitura pendente expira20s com retry. Guardas de conta/invalidação preservadas. Notificações filtram domínios irrelevantes, coalescem pendências sem falso evento history, preservam force e revisão de metadados alterados em voo.
 - dashboardApi reaproveita classes/ocorrências/tarifas já carregadas, lê cursos uma vez e reúne ocorrências alteradas em lotes, preservando planManualOccurrences e confirmações.
 - payment-history-chart memoiza agregação por pagamentos/ano; formatadores Intl reutilizados. groupsForTeacher interrompe página repetida e limita100 páginas, falhando em vez de publicar histórico parcial. Testes de interface atualizados para a tela unificada Alunos e disponibilidade sob demanda.
-- Validação:674 testes unitários, lint/tipos/build,10 E2E de diagnóstico e cenários de cursos/configurações/notificações/cache/gráficos/navegação passaram. Toque nativo390px teve falha intermitente em execução agregada e passou nos7 cenários isolados; manter monitoramento. Push bloqueado: GitHub recusou GH_TOKEN e gh auth status confirmou token inválido; sem credential helper alternativo nem identidade/secreto configurado no runtime. Revalidar conexão GitHub do ambiente antes de enviar e conferir Vercel. Nenhuma porcentagem de ganho real é estimada sem tráfego autenticado.
+- Validação:674 testes unitários, lint/tipos/build,10 E2E de diagnóstico e cenários de cursos/configurações/notificações/cache/gráficos/navegação passaram. Toque nativo390px teve falha intermitente em execução agregada e passou nos7 cenários isolados; manter monitoramento. Commit8b9e92c enviado para master após reconexão; publicação2026110901 conferida na demo390/1440. Push usa git -c credential.helper='!gh auth git-credential' push origin HEAD:master. Nenhuma porcentagem de ganho real é estimada sem tráfego autenticado.
 
 ## Cache e atualização seletiva — 08/11/2026
 

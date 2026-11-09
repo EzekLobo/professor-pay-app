@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110902, date: "2026-11-09", title: "Correções de consistência",
+    description: "Notificações recuperam consultas com falha e atualizações pendentes. Desativar a Kodland prevalece sobre o cache. Extratos respeitam a última seleção e diferenciam uma alteração salva de uma falha ao consultar novamente.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
     version: 2026110901, date: "2026-11-09", title: "Navegação e carregamento mais eficientes",
     description: "Cursos reaproveitam o catálogo diário, Disponibilidade carrega somente ao abrir e Pagamentos mantém a tela durante atualizações. Consultas sem resposta oferecem nova tentativa, e notificações evitam releituras sem relação com os alunos.",
     href: "/settings", action: "Abrir configurações",

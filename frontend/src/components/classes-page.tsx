@@ -1,4 +1,5 @@
 "use client";
+import { kodlandReadPreference } from "@/lib/kodland-read-preference";
 import { readWithDeadline } from "@/lib/read-deadline";
 import { CorrectionsContent } from "./corrections-page";
 
@@ -221,7 +222,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
         const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
         const preferencesApi = demo?.manualAdapter?.preferences ?? tutorPreferencesApi;
         const localOnly = !demo && Boolean((await kodlandApi.browserState())?.active);
-        const preferences = localOnly ? { kodland_enabled: true } : await preferencesApi.get();
+        const preferences = await kodlandReadPreference(() => preferencesApi.get(), localOnly);
         if (!preferences.kodland_enabled) return { enabled: false, groups: [], students: [], settings: null };
         const [groups, students, settings] = await Promise.all([
           demo ? Promise.resolve(demo.groups) : kodlandApi.groups().then(value => value.items),

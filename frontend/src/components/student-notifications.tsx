@@ -57,6 +57,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
   const cached = useRef<{ at: number; settings: NotificationSettings; history: NotificationCase[]; signature: string } | null>(null);
   const metadataRevision = useRef(0);
   const refreshing = useRef(false);
+  const mounted = useRef(false);
   const refreshPending = useRef(false);
   const pendingForce = useRef(false);
   const refreshLatest = useRef<(force?: boolean) => Promise<void>>(async () => undefined);
@@ -80,10 +81,11 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
       if (run !== generation.current) return;
       if (prefs || demo) setAbsenceTemplate(prefs?.absence_message_template || DEFAULT_ABSENCE_MESSAGE);
       const data = value.enabled ? await source(value, force) : null;
-      if (run !== generation.current) return;
+      if (run !== generation.current || revision !== metadataRevision.current) return;
       const items = data ? evaluateStudentNotifications(data.lessons, data.obligations, value, new Date()) : [];
-      const itemSignature = JSON.stringify(items);
+      const itemSignature = JSON.stringify({ items, coverage: data?.coverage ?? null });
       const rows = remote || previous?.signature !== itemSignature ? await store.reconcile(items, startedAt, data?.coverage) : history;
+      if (run !== generation.current) return;
       cached.current = revision === metadataRevision.current ? { at: remote ? Date.now() : previous.at, settings: value, history: rows, signature: itemSignature } : null;
       if (run !== generation.current) return;
       setCases(rows); setWarnings(data?.warnings ?? []); setUpdated(data?.loaded_at ?? ""); setError("");
@@ -99,17 +101,17 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
     } }
     finally {
       refreshing.current = false;
-      if (run === generation.current) {
-        setLoading(false);
-        if (refreshPending.current) {
-          refreshPending.current = false; const forceNext = pendingForce.current; pendingForce.current = false;
-          pendingTimer.current = setTimeout(() => void refreshLatest.current(forceNext), 0);
-        }
+      if (run === generation.current) setLoading(false);
+      // A replaced source queues a fresh read while the old one is still finishing.
+      if (mounted.current && refreshPending.current) {
+        refreshPending.current = false; const forceNext = pendingForce.current; pendingForce.current = false;
+        pendingTimer.current = setTimeout(() => void refreshLatest.current(forceNext), 0);
       }
     }
   }, [demo, snapshot, store, source]);
   useEffect(() => { refreshLatest.current = refresh; }, [refresh]);
   useEffect(() => {
+    mounted.current = true;
     metadataRevision.current++; cached.current = null;
     const reload = () => { if (document.visibilityState !== "hidden" && navigator.onLine) void refresh(); };
     const timer = window.setTimeout(reload, 0);
@@ -133,7 +135,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
     };
     window.addEventListener("focus", reload); window.addEventListener("online", reload); window.addEventListener("storage", storageChanged); document.addEventListener("visibilitychange", reload);
     const runGeneration = generation;
-    return () => { runGeneration.current++; clearTimeout(pendingTimer.current); refreshPending.current = false; pendingForce.current = false; clearTimeout(timer); clearInterval(interval); unsubscribe(); unsubscribePreferences(); window.removeEventListener("focus", reload); window.removeEventListener("online", reload); window.removeEventListener("storage", storageChanged); document.removeEventListener("visibilitychange", reload); };
+    return () => { mounted.current = false; runGeneration.current++; clearTimeout(pendingTimer.current); refreshPending.current = false; pendingForce.current = false; clearTimeout(timer); clearInterval(interval); unsubscribe(); unsubscribePreferences(); window.removeEventListener("focus", reload); window.removeEventListener("online", reload); window.removeEventListener("storage", storageChanged); document.removeEventListener("visibilitychange", reload); };
   }, [refresh, uid, demo]);
   const value: NotificationContext = {
     settings, cases, warnings, error, loading, updated, demo, absenceTemplate, autoSync,

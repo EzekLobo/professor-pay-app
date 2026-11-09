@@ -1,4 +1,5 @@
 "use client";
+import { kodlandReadPreference } from "@/lib/kodland-read-preference";
 import { reuseSyncedRows } from "@/lib/reuse-synced-rows";
 import type { SyncDataDomain } from "@/lib/sync-events";
 import { readKodlandLocal, watchKodlandSync } from "@/lib/kodland-sync-client";
@@ -929,7 +930,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     try {
       const localOnly = Boolean((await readKodlandLocal(() => kodlandApi.browserState(), crypto.randomUUID(), "Armazenamento das atividades", 8000))?.active);
       if (generation !== loadGeneration.current) return;
-      const preferences = localOnly ? { kodland_enabled: true } : await readKodlandLocal(() => tutorPreferencesApi.get(), crypto.randomUUID(), "Preferências das atividades", 8000);
+      const preferences = await kodlandReadPreference(() => tutorPreferencesApi.get(), localOnly);
       if (generation !== loadGeneration.current) return;
       setKodlandEnabled(preferences.kodland_enabled);
       const empty = Promise.resolve({ items: [] });

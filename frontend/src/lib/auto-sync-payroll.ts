@@ -60,7 +60,7 @@ export class PayrollEntrySync {
   constructor(private readonly adapter: PayrollEntryAdapter) {}
   resetAuthentication(): void { this.authBlocked = false; }
   setIntegrationEnabled(enabled: boolean): void { this.integrationEnabled = enabled; }
-  async run(payments: PaymentCandidate[], options: { enabled: boolean; timeZone: string; refreshOnEntry?: boolean }): Promise<PayrollEntryResult> {
+  async run(payments: PaymentCandidate[], options: { enabled: boolean; timeZone: string; refreshOnEntry?: boolean; force?: boolean }): Promise<PayrollEntryResult> {
     const result: PayrollEntryResult = { status: "idle", updated: 0, failed: 0 };
     if (!options.enabled || !this.integrationEnabled) return { ...result, status: "disabled" };
     if (this.authBlocked) return { ...result, status: "auth_required" };
@@ -76,7 +76,7 @@ export class PayrollEntrySync {
       try {
         const outcome = await this.adapter.coordinator.enqueue({
           key: `payroll:${period}`, scope: "payroll", resourceId: period,
-          isDue: (state, at) => this.integrationEnabled && (options.refreshOnEntry ? payrollEntryDue(at, state) : payrollDecision(payment.payment_date, at, state, timeZone).due),
+          isDue: (state, at) => this.integrationEnabled && (options.force || (options.refreshOnEntry ? payrollEntryDue(at, state) : payrollDecision(payment.payment_date, at, state, timeZone).due)),
           run: async context => {
             context.assertCurrent();
             if (!this.integrationEnabled) throw new PayrollDisabledError();
@@ -112,7 +112,7 @@ export function setAutomaticPayrollEnabled(uid: string, enabled: boolean): void 
   integrationOverrides.set(uid, enabled); runners.get(uid)?.setIntegrationEnabled(enabled);
 }
 /** The page supplies the timezone already loaded by its notification provider. */
-export async function syncPaymentsOnEntry(payments: PaymentCandidate[], options: { timeZone: string; demo?: boolean; refreshOnEntry?: boolean }): Promise<PayrollEntryResult> {
+export async function syncPaymentsOnEntry(payments: PaymentCandidate[], options: { timeZone: string; demo?: boolean; refreshOnEntry?: boolean; force?: boolean }): Promise<PayrollEntryResult> {
   const idle: PayrollEntryResult = { status: "idle", updated: 0, failed: 0 };
   if (options.demo || !(options.refreshOnEntry ? entryPayrollPayments(payments, Date.now(), syncTimeZone(options.timeZone)) : eligiblePayrollPayments(payments, Date.now(), syncTimeZone(options.timeZone))).length) return idle;
   const uid = getFirebaseAuth().currentUser?.uid;
@@ -133,6 +133,6 @@ export async function syncPaymentsOnEntry(payments: PaymentCandidate[], options:
     runners.set(uid, runner);
   }
   runner.setIntegrationEnabled(enabled);
-  return runner.run(payments, { enabled: true, timeZone: options.timeZone, refreshOnEntry: options.refreshOnEntry });
+  return runner.run(payments, { enabled: true, timeZone: options.timeZone, refreshOnEntry: options.refreshOnEntry, force: options.force });
 }
 export function resetAutomaticPayrollAuthentication(uid: string): void { runners.get(uid)?.resetAuthentication(); }

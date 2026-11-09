@@ -9,6 +9,7 @@ import {
   type WheelEvent,
 } from "react";
 import { Modal } from "./modal";
+import { RefreshCw } from "lucide-react";
 import { StatusBadge } from "./ui";
 import { lessonsApi, paymentsApi } from "@/lib/api";
 import type {
@@ -79,6 +80,9 @@ export type DashboardContentProps =
       dashboard: DashboardResponse;
       onRefresh?: () => Promise<void> | void;
       storageKey?: string;
+      onRefreshFinance?: () => void;
+      financeRefreshing?: boolean;
+      financeUpdatedAt?: string | null;
       actions?: {
         updateLesson: (paymentDate: string, lesson: DashboardLesson, status: "" | "BILLABLE" | "SUBSTITUTION" | "HOLIDAY" | "CANCELED") => Promise<void>;
         createExtra: (payload: ExtraLessonPayload) => Promise<void>;
@@ -231,7 +235,9 @@ export function DashboardContent(props: DashboardContentProps) {
         <div className="section-heading">
           <div>
             <h2>Competências mensais</h2>
+            <small className="muted">{props.financeUpdatedAt ? `Última atualização: ${new Date(props.financeUpdatedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : "Última atualização indisponível"}</small>
           </div>
+          {props.onRefreshFinance && <button className="button-ghost sync-icon-button" type="button" aria-label="Atualizar resumo financeiro" title="Atualizar resumo financeiro" disabled={props.financeRefreshing} onClick={props.onRefreshFinance}><RefreshCw size={18} aria-hidden="true" className={props.financeRefreshing ? "sync-icon-spinning" : undefined} /></button>}
           <button
             className="payment-visibility-toggle"
             data-tour="dashboard-payment-visibility"

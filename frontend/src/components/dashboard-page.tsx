@@ -22,6 +22,7 @@ import {
   dashboardApi,
   holidaysApi,
   kodlandApi,
+  kodlandPayrollApi,
   manualTeachingApi,
   manualPedagogyApi,
   tutorPreferencesApi,
@@ -906,6 +907,8 @@ function DashboardPageContent({ uid }: { uid: string }) {
   const financialEntry = useRef<Promise<boolean> | null>(null);
   const financialReady = useRef(false);
   const [financialNotice, setFinancialNotice] = useState("");
+  const [financeRefreshing, setFinanceRefreshing] = useState(false);
+  const [financeUpdatedAt, setFinanceUpdatedAt] = useState<string | null>(null);
   const notifications = useStudentNotifications();
   const readFinancial = useCallback(async (local: boolean) => {
     const read = () => readKodlandLocal(() => dashboardApi.get({ useLocalKodland: local }), crypto.randomUUID(), "Resumo financeiro", 8000);
@@ -922,8 +925,20 @@ function DashboardPageContent({ uid }: { uid: string }) {
     const changed = await financialEntry.current;
     const result = changed && awaitingEntry ? await read() : initial;
     financialReady.current = true;
+    if (!local) { const payroll = await kodlandPayrollApi.get().catch(() => null); if (payroll?.last_sync) setFinanceUpdatedAt(payroll.last_sync); }
     return result;
   }, []);
+  const refreshFinance = useCallback(async () => {
+    if (financeRefreshing || !dashboard) return;
+    setFinanceRefreshing(true); setFinancialNotice("");
+    try {
+      const result = await syncPaymentsOnEntry(dashboard.payments, { timeZone: DEFAULT_SYNC_TIME_ZONE, refreshOnEntry: true, force: true });
+      if (["pending", "auth_required", "credentials_required"].includes(result.status)) throw new Error("Não foi possível atualizar os pagamentos. Exibindo os dados salvos.");
+      setDashboard(await dashboardApi.get({ useLocalKodland: localOnly }));
+      if (!localOnly) { const payroll = await kodlandPayrollApi.get(); if (payroll.last_sync) setFinanceUpdatedAt(payroll.last_sync); }
+    } catch (error) { setFinancialNotice(error instanceof Error ? error.message : "Não foi possível atualizar o resumo financeiro."); }
+    finally { setFinanceRefreshing(false); }
+  }, [dashboard, financeRefreshing, localOnly]);
   const loadLocalFinance = useCallback(async () => {
     setFinancialFailed(false);
     setDashboard(null);
@@ -1081,7 +1096,7 @@ function DashboardPageContent({ uid }: { uid: string }) {
   }, [load]);
   const scheduleNotice = refreshNotice || (notifications?.autoSync.phase === "error" ? (notifications.autoSync.message ?? "Não foi possível atualizar a grade.") : "");
   if (failed) return <DashboardContent state="error" onRetry={load} />;
-  if (localOnly) return <><KodlandSummary groups={groups} students={students} reviews={reviews} lessons={lessons} extraLessons={extraLessons} availability={availability} onRefresh={() => void refreshSchedule()} refreshing={refreshingSchedule || notifications?.autoSync.phase === "syncing"} refreshNotice={scheduleNotice} scheduleLastUpdatedAt={scheduleLastUpdatedAt} onUpdateExtraStatus={updateExtraStatus} onMaterialsLoaded={updated => setLessons(items => items.map(item => item.id === updated.id ? updated : item))} customHolidays={[]} manualClasses={[]} manualStudents={[]} manualPendingCount={0} />{financialNotice && <p className="muted" role="status">{financialNotice}</p>}{dashboard ? <DashboardContent state="ready" dashboard={dashboard} onRefresh={loadLocalFinance} /> : financialFailed ? <section className="panel" role="alert"><h2>Competências mensais</h2><p>Não foi possível carregar os dados financeiros.</p><button className="button button-ghost" type="button" onClick={() => void loadLocalFinance()}>Tentar novamente</button></section> : <DashboardContent state="loading" />}</>;
+  if (localOnly) return <><KodlandSummary groups={groups} students={students} reviews={reviews} lessons={lessons} extraLessons={extraLessons} availability={availability} onRefresh={() => void refreshSchedule()} refreshing={refreshingSchedule || notifications?.autoSync.phase === "syncing"} refreshNotice={scheduleNotice} scheduleLastUpdatedAt={scheduleLastUpdatedAt} onUpdateExtraStatus={updateExtraStatus} onMaterialsLoaded={updated => setLessons(items => items.map(item => item.id === updated.id ? updated : item))} customHolidays={[]} manualClasses={[]} manualStudents={[]} manualPendingCount={0} />{financialNotice && <p className="muted" role="status">{financialNotice}</p>}{dashboard ? <DashboardContent state="ready" dashboard={dashboard} onRefresh={loadLocalFinance} onRefreshFinance={() => void refreshFinance()} financeRefreshing={financeRefreshing} financeUpdatedAt={financeUpdatedAt} /> : financialFailed ? <section className="panel" role="alert"><h2>Competências mensais</h2><p>Não foi possível carregar os dados financeiros.</p><button className="button button-ghost" type="button" onClick={() => void loadLocalFinance()}>Tentar novamente</button></section> : <DashboardContent state="loading" />}</>;
   if (!dashboard) return <DashboardContent state="loading" />;
   return (
     <>
@@ -1112,6 +1127,9 @@ function DashboardPageContent({ uid }: { uid: string }) {
         state="ready"
         dashboard={dashboard}
         onRefresh={() => void load()}
+        onRefreshFinance={() => void refreshFinance()}
+        financeRefreshing={financeRefreshing}
+        financeUpdatedAt={financeUpdatedAt}
       />
     </>
   );

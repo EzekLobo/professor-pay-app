@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Archive, ArchiveRestore, ArrowDown, ArrowLeft, ArrowUp, Columns3, Copy, GripVertical, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Columns3, Copy, GripVertical, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { observeOperation } from "@/lib/operation-log-client";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
@@ -42,6 +42,7 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
   const [archive, setArchive] = useState(false);
   const [mobileColumn, setMobileColumn] = useState<TaskCard["column"]>("todo");
   const [dragId, setDragId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ column: string; cardId: string | null; after: boolean } | null>(null);
   const [confirm, setConfirm] = useState<{ type: "complete" | "delete"; card: TaskCard } | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ pending: number; error: string | null }>({ pending: 0, error: null });
 
@@ -110,15 +111,22 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
     else void persist(updated).catch(() => undefined);
   }
 
-  function reorder(card: TaskCard, direction: -1 | 1) {
-    const siblings = ordered.filter((item) => item.column === card.column && !item.archived_at);
-    const index = siblings.findIndex((item) => item.id === card.id);
-    const target = siblings[index + direction];
-    if (!target) return;
-    const before = direction < 0 ? siblings[index - 2] : target;
-    const after = direction < 0 ? target : siblings[index + 2];
-    const position = before && after ? (before.position + after.position) / 2 : before ? before.position + 1000 : (after?.position ?? 1000) - 1000;
-    requestMove(card, card.column, position);
+  function finishDrag() {
+    setDragId(null);
+    setDropTarget(null);
+  }
+
+  function dropCard(column: string, target?: TaskCard, after = false) {
+    const moved = cards.find(item => item.id === dragId);
+    if (moved && !archive && moved.id !== target?.id) {
+      const siblings = ordered.filter(item => item.column === column && !item.archived_at && item.id !== moved.id);
+      const index = target ? siblings.findIndex(item => item.id === target.id) + (after ? 1 : 0) : siblings.length;
+      const before = siblings[index - 1];
+      const next = siblings[index];
+      const position = before && next ? (before.position + next.position) / 2 : before ? before.position + 1000 : (next?.position ?? 1000) - 1000;
+      requestMove(moved, column, position);
+    }
+    finishDrag();
   }
 
   function edit(card: TaskCard) { setDraft(clone(card)); setDraftError(""); setNewItem(""); }
@@ -147,12 +155,12 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
 
   return <div className="tasks-page">
     <div className="tasks-toolbar">
+      <div className="tasks-tools"><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label="Listas" title="Organizar listas" disabled={loading || busy} onClick={() => setListEditor("__all__")}><Columns3 size={18} aria-hidden="true" /><span>Listas</span></Button><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label="Filtros" title="Filtros" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((value) => !value)}><SlidersHorizontal size={18} aria-hidden="true" /><span>Filtros</span></Button><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label={archive ? "Voltar ao quadro" : "Ver arquivo"} title={archive ? "Voltar ao quadro" : "Ver arquivo"} onClick={() => setArchive((value) => !value)}>{archive ? <ArrowLeft size={18} aria-hidden="true" /> : <Archive size={18} aria-hidden="true" />}<span>{archive ? "Voltar ao quadro" : "Ver arquivo"}</span></Button></div>
       <div className="tasks-toolbar-actions">
         <Button type="button" className="button-ghost task-icon-button" aria-label={searchOpen ? "Fechar busca" : "Buscar tarefas"} title={searchOpen ? "Fechar e limpar busca" : "Buscar tarefas"} aria-expanded={searchOpen} aria-controls="task-search-field" onClick={() => { setSearchOpen((value) => !value); if (searchOpen) setSearch(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
       </div>
       {searchOpen && <div className="tasks-search-popover" role="search"><label className="tasks-search"><span className="sr-only">Buscar tarefas</span><Input id="task-search-field" autoFocus type="search" placeholder="Buscar tarefa" value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setSearch(""); setSearchOpen(false); document.querySelector<HTMLButtonElement>('[aria-controls="task-search-field"]')?.focus(); } }} /></label></div>}
     </div>
-    <div className="tasks-tools"><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label="Listas" title="Organizar listas" disabled={loading || busy} onClick={() => setListEditor("__all__")}><Columns3 size={18} aria-hidden="true" /><span>Listas</span></Button><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label="Filtros" title="Filtros" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((value) => !value)}><SlidersHorizontal size={18} aria-hidden="true" /><span>Filtros</span></Button><Button type="button" className="button-ghost button-small task-mobile-icon" aria-label={archive ? "Voltar ao quadro" : "Ver arquivo"} title={archive ? "Voltar ao quadro" : "Ver arquivo"} onClick={() => setArchive((value) => !value)}>{archive ? <ArrowLeft size={18} aria-hidden="true" /> : <Archive size={18} aria-hidden="true" />}<span>{archive ? "Voltar ao quadro" : "Ver arquivo"}</span></Button></div>
     {filtersOpen && <div className="tasks-filters"><label>Tipo<select className="input" value={kind} onChange={(event) => setKind(event.target.value)}><option value="">Todos</option><option value="task">Tarefa</option><option value="problem">Problema</option></select></label><label>Prioridade<select className="input" value={priority} onChange={(event) => setPriority(event.target.value)}><option value="">Todas</option>{Object.entries(priorities).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Categoria<select className="input" value={category} onChange={(event) => setCategory(event.target.value)}><option value="">Todas</option>{categories.map((value) => <option key={value}>{value}</option>)}</select></label><label>Prazo<select className="input" value={due} onChange={(event) => setDue(event.target.value)}><option value="">Todos</option><option value="today">Hoje</option><option value="overdue">Atrasadas</option></select></label></div>}
     {hasFilters && <div className="tasks-filter-summary"><span>{filtered.length} resultado(s)</span><button type="button" onClick={() => { setSearch(""); setKind(""); setPriority(""); setCategory(""); setDue(""); }}>Limpar filtros</button></div>}
     {error && <div className="tasks-error"><p className="form-error" role="alert">{error}</p><Button type="button" className="button-ghost button-small" onClick={() => { setError(""); setLoading(true); setReload((value) => value + 1); }}>Tentar novamente</Button></div>}
@@ -164,12 +172,12 @@ export function TasksContent({ store = taskBoardStore }: { store?: TaskBoardStor
     {loading ? <p className="muted" role="status">Carregando tarefas…</p> : <div className={`tasks-board${archive ? " is-archive" : ""}`} aria-label={archive ? "Arquivo de tarefas" : "Quadro de tarefas"}>
       {(archive ? [{ id: "archive", label: "Arquivo" }] : activeLists).map((column) => {
         const items = filtered.filter((card) => archive || card.column === column.id);
-        return <section className={`tasks-column${!archive && selectedColumn === column.id ? " is-mobile-active" : ""}`} key={column.id} aria-label={column.label} onDragOver={(event) => { if (dragId && !archive) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); const card = cards.find((item) => item.id === dragId); if (card && !archive) requestMove(card, column.id as TaskCard["column"]); setDragId(null); }}><div className="tasks-column-heading"><h3>{column.label}</h3><span>{items.length}</span>{!archive && <button type="button" className="task-list-add" aria-label={`Adicionar tarefa em ${column.label}`} title={`Adicionar tarefa em ${column.label}`} disabled={loading || busy} onClick={() => create(column.id)}><Plus size={18} aria-hidden="true" /></button>}{!archive && <button type="button" className="task-list-options" aria-label={`Editar lista ${column.label}`} onClick={() => setListEditor(column.id)}>•••</button>}</div>
+        return <section className={`tasks-column${dropTarget?.column === column.id ? " is-drop-target" : ""}${!archive && selectedColumn === column.id ? " is-mobile-active" : ""}`} key={column.id} aria-label={column.label} onDragOver={(event) => { if (dragId && !archive) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget({ column: column.id, cardId: null, after: true }); } }} onDrop={(event) => { event.preventDefault(); dropCard(column.id); }}><div className="tasks-column-heading"><h3>{column.label}</h3><span>{items.length}</span>{!archive && <button type="button" className="task-list-add" aria-label={`Adicionar tarefa em ${column.label}`} title={`Adicionar tarefa em ${column.label}`} disabled={loading || busy} onClick={() => create(column.id)}><Plus size={18} aria-hidden="true" /></button>}{!archive && <button type="button" className="task-list-options" aria-label={`Editar lista ${column.label}`} onClick={() => setListEditor(column.id)}>•••</button>}</div>
           {items.length === 0 && <p className="tasks-empty">{hasFilters ? "Nenhuma tarefa com esses filtros." : archive ? "Nenhuma tarefa arquivada." : "Nenhuma tarefa nesta etapa."}</p>}
-          {items.map((card) => <article className={`task-card${isTaskOverdue(card, today()) ? " is-overdue" : ""}`} key={card.id} onDragOver={(event) => { if (dragId && dragId !== card.id && !archive) { event.preventDefault(); event.stopPropagation(); } }} onDrop={(event) => { if (archive || dragId === card.id) return; event.preventDefault(); event.stopPropagation(); const moved = cards.find((item) => item.id === dragId); const siblings = ordered.filter((item) => item.column === card.column && !item.archived_at && item.id !== dragId); const index = siblings.findIndex((item) => item.id === card.id); const before = siblings[index - 1]; if (moved) requestMove(moved, card.column, before ? (before.position + card.position) / 2 : card.position - 1000); setDragId(null); }}>
-            <div className="task-card-title"><button type="button" className="task-title-button" onClick={() => edit(card)}>{card.title}</button>{!archive && <span className="task-drag-handle" draggable={!busy} role="img" aria-label={`Arrastar ${card.title}; use Mover para como alternativa`} onDragStart={(event) => { if (busy) { event.preventDefault(); return; } setDragId(card.id); event.dataTransfer.setData("text/plain", card.id); event.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDragId(null)}><GripVertical size={17} aria-hidden="true" /></span>}</div>
+          {items.map((card) => <article className={`task-card${isTaskOverdue(card, today()) ? " is-overdue" : ""}${dragId === card.id ? " is-dragging" : ""}${dropTarget?.cardId === card.id ? dropTarget.after ? " drop-after" : " drop-before" : ""}`} key={card.id} onDragOver={(event) => { if (dragId && dragId !== card.id && !archive) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "move"; const bounds = event.currentTarget.getBoundingClientRect(); setDropTarget({ column: card.column, cardId: card.id, after: event.clientY > bounds.top + bounds.height / 2 }); } }} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); dropCard(card.column, card, event.clientY > bounds.top + bounds.height / 2); }}>
+            <div className="task-card-title"><button type="button" className="task-title-button" onClick={() => edit(card)}>{card.title}</button>{!archive && <span className="task-drag-handle" draggable={!busy} role="img" aria-label={`Arrastar ${card.title}; use Mover para como alternativa`} onDragStart={(event) => { if (busy) { event.preventDefault(); return; } setDragId(card.id); event.dataTransfer.setData("text/plain", card.id); event.dataTransfer.effectAllowed = "move"; const element = event.currentTarget.closest<HTMLElement>(".task-card"); if (element) { const bounds = element.getBoundingClientRect(); event.dataTransfer.setDragImage(element, event.clientX - bounds.left, event.clientY - bounds.top); } }} onDragEnd={finishDrag}><GripVertical size={17} aria-hidden="true" /></span>}</div>
             <div className="task-card-meta">{card.kind === "problem" && <span>Problema</span>}{card.priority !== "normal" && <span className={`task-priority-${card.priority}`}>{priorities[card.priority]}</span>}{card.due_date && <time dateTime={card.due_date}>{isTaskOverdue(card, today()) ? "Atrasada · " : ""}{new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(new Date(`${card.due_date}T12:00:00Z`))}</time>}{card.checklist.length > 0 && <span>{card.checklist.filter((item) => item.done).length}/{card.checklist.length} itens</span>}{card.category && <span>{card.category}</span>}</div>
-            {!archive && <div className="task-card-actions"><select className="input" aria-label={`Mover ${card.title} para`} value={card.column} disabled={busy} onChange={(event) => requestMove(card, event.target.value as TaskCard["column"])}>{activeLists.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><button type="button" disabled={busy || ordered.filter((item) => item.column === card.column && !item.archived_at)[0]?.id === card.id} aria-label={`Subir ${card.title}`} onClick={() => reorder(card, -1)}><ArrowUp size={15} /></button><button type="button" disabled={busy || ordered.filter((item) => item.column === card.column && !item.archived_at).at(-1)?.id === card.id} aria-label={`Descer ${card.title}`} onClick={() => reorder(card, 1)}><ArrowDown size={15} /></button></div>}
+            {!archive && <div className="task-card-actions"><select className="input" aria-label={`Mover ${card.title} para`} value={card.column} disabled={busy} onChange={(event) => requestMove(card, event.target.value as TaskCard["column"])}>{activeLists.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>}
           </article>)}
         </section>;
       })}

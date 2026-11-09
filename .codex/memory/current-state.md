@@ -1,3 +1,9 @@
+## Ajustes de interação do quadro, pagamentos e cursos — 09/11/2026
+
+- Pagamentos troca modal de status por HeaderDropdown junto à etiqueta. Mantém gravação/erro/busy e proteção de competências recebidas. HeaderDropdown aceita âncora HTMLElement; Escape retorna foco à etiqueta. Abertura/opções não acionam extrato nem arraste do carrossel.
+- Quadro reúne Listas/Filtros/Arquivo e Busca na mesma barra; + mostra quadrado28px com área44px. Arraste usa setDragImage do cartão inteiro, origem atenuada, coluna/posição destacadas e entrada180ms respeitando reduzir movimento. Soltar acima/abaixo usa posição intermediária; setas removidas e seletor de lista preservado como alternativa.
+- Novidade2026110904. Critérios confirmados em7 E2E locais:3 larguras sem overflow, status sem modal, movimentação entre listas e ordenação antes/depois persistida após reload. Cursos separa seções Com turmas vinculadas/Sem turmas vinculadas e mostra nomes em chips no cartão fechado (CSS module próprio, novidade2026110905). Cursos próprios e materiais preservados. Confirmado:689 unitários, tipos/lint/build,10 E2E novos/cursos e demais regressões do quadro/carrossel; exclusão de listas passou na repetição. Conferir publicação e repetir navegador de produção; vínculos da conta real exigem sessão autenticada.
+
 ## Revisão de lógica — 09/11/2026
 
 - Relatório de5 falhas confirmadas em docs/plans/logic-audit-2026-11-09.md. Novidade2026110902. Não altera cálculos financeiros nem estados de créditos.

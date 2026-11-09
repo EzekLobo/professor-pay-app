@@ -6,6 +6,20 @@ for (const width of [1440, 390, 320]) {
     await page.goto("/demo#lessons");
     await expect(page.getByRole("link", { name: "Cursos", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Aulas", exact: true })).toHaveCount(0);
+    await page.waitForFunction(() => Boolean(localStorage.getItem("nexusclass.demo.v2")));
+    await page.evaluate(() => {
+      const data = JSON.parse(localStorage.getItem("nexusclass.demo.v2")!);
+      data.snapshot.tutorPreferences.kodland_enabled = true;
+      localStorage.setItem("nexusclass.demo.v2", JSON.stringify(data));
+    });
+    await page.reload();
+    const linkedCourses = page.getByRole("region", { name: /^Com turmas vinculadas/ });
+    await expect(linkedCourses).toBeVisible();
+    await expect(page.getByRole("region", { name: /^Sem turmas vinculadas/ })).toBeVisible();
+    const groupNames = linkedCourses.locator('summary [aria-label="Turmas vinculadas"]');
+    await expect(groupNames.first()).toBeVisible();
+    expect(await groupNames.first().innerText()).not.toBe("");
+    if (width === 390) await page.screenshot({ path: "test-results/course-groups-390.png", fullPage: true });
     await page.getByRole("button", { name: "Criar novo curso", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Criar novo curso", exact: true });
     await dialog.getByLabel("Nome do curso", { exact: true }).fill("Programação revisada");

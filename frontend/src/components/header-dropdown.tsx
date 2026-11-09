@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 
 /** Anchored in viewport coordinates so header filters/scroll cannot clip the list. */
 export function HeaderDropdown({ open, id, label, trigger, onClose, children, className = "" }: {
-  open: boolean; id: string; label: string; trigger: RefObject<HTMLButtonElement | null>; onClose: () => void; children: ReactNode; className?: string;
+  open: boolean; id: string; label: string; trigger: RefObject<HTMLElement | null>; onClose: () => void; children: ReactNode; className?: string;
 }) {
   const panel = useRef<HTMLElement>(null);
   const closeRef = useRef(onClose);

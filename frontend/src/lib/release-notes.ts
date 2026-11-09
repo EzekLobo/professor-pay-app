@@ -10,6 +10,16 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110905, date: "2026-11-09", title: "Turmas vinculadas aos cursos",
+    description: "Cursos separa o catálogo entre cursos com e sem turmas vinculadas. Os nomes das turmas aparecem em destaque em cada curso.",
+    href: "/lessons", action: "Abrir cursos",
+  },
+  {
+    version: 2026110904, date: "2026-11-09", title: "Quadro e pagamentos mais diretos",
+    description: "O status do pagamento oferece opções junto à etiqueta. No quadro, os controles ficam alinhados, o + fica mais compacto e o arraste mostra o cartão inteiro com indicação da posição de destino, substituindo as setas de ordenação.",
+    href: "/tasks", action: "Abrir quadro",
+  },
+  {
     version: 2026110903, date: "2026-11-09", title: "Atualização de presença",
     description: "A presença consulta a Kodland a cada entrada e retomada da página. O botão Atualizar consulta a aba selecionada, mesmo quando contatos ou créditos falham. Novos filtros de presença mostram todos os registros por padrão.",
     href: "/classes?tab=attendance", action: "Abrir presença",

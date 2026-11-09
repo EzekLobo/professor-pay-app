@@ -1,0 +1,49 @@
+.catalogSection {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.catalogSection + .catalogSection {
+  margin-top: 14px;
+  padding-top: 20px;
+  border-top: 1px solid #1d3556;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.sectionTitle span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.courseIdentity {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.groupChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.groupChip {
+  max-width: 100%;
+  padding: 5px 9px;
+  border: 1px solid #28517e;
+  border-radius: 8px;
+  background: #0c1d34;
+  color: var(--primary);
+  font-size: .8rem;
+  font-weight: 600;
+}
+
+.lessonCount {
+  flex-shrink: 0;
+  white-space: nowrap;
+}

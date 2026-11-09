@@ -16,6 +16,7 @@ import { PaymentHistoryChart } from "@/components/payment-history-chart";
 import { PaymentStatement } from "@/components/dashboard-content";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Modal } from "@/components/modal";
+import { HeaderDropdown } from "@/components/header-dropdown";
 import { Shell } from "@/components/shell";
 import { Button, StatusBadge } from "@/components/ui";
 import {
@@ -59,21 +60,35 @@ const paymentMonthTitle = (value: string) => {
 };
 function PaymentStatus({
   payment,
-  onActivate,
+  onChange,
+  busy,
   tourTarget = false,
 }: {
   payment: DashboardPayment;
-  onActivate: (payment: DashboardPayment) => void;
+  onChange: (payment: DashboardPayment, status: "RECEIVED" | "OVERDUE") => void;
+  busy: boolean;
   tourTarget?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLElement | null>(null);
+  const choose = (status: "RECEIVED" | "OVERDUE") => {
+    setOpen(false);
+    onChange(payment, status);
+  };
   return (
-    <span data-tour={tourTarget ? "payments-status" : undefined}>
+    <span ref={element => { trigger.current = element?.querySelector<HTMLElement>('[role="button"]') ?? element; }} data-tour={tourTarget ? "payments-status" : undefined} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
       <StatusBadge
         tone={tone(payment.status)}
-        onActivate={payment.status === "RECEIVED" ? undefined : () => onActivate(payment)}
+        onActivate={payment.status === "RECEIVED" || busy ? undefined : () => setOpen(value => !value)}
       >
         {status(payment.status)}
       </StatusBadge>
+      <HeaderDropdown open={open} id={`payment-status-${payment.payment_date}`} label="Opções do pagamento" trigger={trigger} onClose={() => setOpen(false)}>
+        <div className="payment-status-options">
+          <Button disabled={busy} onClick={() => choose("RECEIVED")}>Marcar como pago</Button>
+          <Button className="button-ghost" disabled={busy} onClick={() => choose("OVERDUE")}>Marcar como em atraso</Button>
+        </div>
+      </HeaderDropdown>
     </span>
   );
 }
@@ -97,7 +112,6 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
   const [items, setItems] = useState<DashboardPayment[]>([]),
     [detail, setDetail] = useState<PaymentDetail | null>(null),
     [focusedPaymentDate, setFocusedPaymentDate] = useState<string | null>(null),
-    [statusPayment, setStatusPayment] = useState<DashboardPayment | null>(null),
     [showAllPayments, setShowAllPayments] = useState(false),
     [carouselMotion, setCarouselMotion] = useState<"previous" | "next" | null>(null),
     [updatingLessonId, setUpdatingLessonId] = useState<string | null>(null),
@@ -178,7 +192,6 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
           ) ?? loadedItems.at(-1) ?? null;
         setItems(loadedItems);
         setForecast(loaded.next_month_forecast);
-        setStatusPayment(current => current ? loadedItems.find(item => item.payment_date === current.payment_date) ?? null : null);
         setFocusedPaymentDate((current) =>
           current && loadedItems.some((item) => item.payment_date === current)
             ? current
@@ -373,18 +386,17 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       setBusy(false);
     }
   }
-  async function updatePaymentStatus(status: "RECEIVED" | "OVERDUE") {
-    if (!statusPayment || busy) return;
+  async function updatePaymentStatus(payment: DashboardPayment, status: "RECEIVED" | "OVERDUE") {
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
-      await paymentActions.setStatus(statusPayment.payment_date, status);
+      await paymentActions.setStatus(payment.payment_date, status);
       await load();
-      if (detail?.payment_date === statusPayment.payment_date) {
-        await refreshDetail(statusPayment.payment_date);
+      if (detail?.payment_date === payment.payment_date) {
+        await refreshDetail(payment.payment_date);
       }
       setNotice(status === "RECEIVED" ? "Pagamento marcado como pago." : "Pagamento marcado como em atraso.");
-      setStatusPayment(null);
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -464,7 +476,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
                 <div>
                   <span className="payment-complete-value">
                     <strong>{formatMoney(payment.total_cents)}</strong>
-                    <PaymentStatus payment={payment} onActivate={setStatusPayment} tourTarget={index === 0} />
+                    <PaymentStatus payment={payment} busy={busy} onChange={(item, status) => void updatePaymentStatus(item, status)} tourTarget={index === 0} />
                   </span>
                   <em>Abrir extrato</em>
                 </div>
@@ -538,7 +550,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
                         {payment.lesson_count} aula{payment.lesson_count === 1 ? "" : "s"}
                       </small>
                     </div>
-                    <PaymentStatus payment={payment} onActivate={setStatusPayment} tourTarget={isFocus} />
+                    <PaymentStatus payment={payment} busy={busy} onChange={(item, status) => void updatePaymentStatus(item, status)} tourTarget={isFocus} />
                     <em>Abrir extrato</em>
                   </button>
                 );
@@ -603,21 +615,6 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
               )}
             </div>
           </>
-        )}
-      </Modal>
-      <Modal
-        open={Boolean(statusPayment)}
-        title="Alterar status do pagamento"
-        onClose={() => !busy && setStatusPayment(null)}
-      >
-        {statusPayment && (
-          <div className="form-stack">
-            <p className="muted">{paymentLabel(statusPayment.payment_date)} · {formatMoney(statusPayment.total_cents)}</p>
-            <div className="form-actions">
-              <Button disabled={busy} onClick={() => void updatePaymentStatus("RECEIVED")}>Marcar como pago</Button>
-              <button className="button button-ghost" type="button" disabled={busy} onClick={() => void updatePaymentStatus("OVERDUE")}>Marcar como em atraso</button>
-            </div>
-          </div>
         )}
       </Modal>
     </div>

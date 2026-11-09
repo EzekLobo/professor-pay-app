@@ -1025,7 +1025,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(timer);
-  }, [load, demo, viewMode]);
+  }, [load, demo]);
 
   useEffect(() => {
     if (demo) return;

@@ -808,19 +808,23 @@ type CorrectionsViewPreferences = {
   attendanceFilter: AttendanceFilter;
 };
 
+type CorrectionsSnapshot = { reviews: KodlandReview[]; lessons: KodlandLesson[]; progress: KodlandTaskProgress[]; attendance: KodlandAttendance[]; students: KodlandStudent[]; groups: KodlandGroup[]; activities: ManualActivity[]; occurrences: ManualOccurrence[]; classes: ManualClass[]; manualStudents: ManualStudent[]; courseNames: Record<string, string>; enabled: boolean };
+const correctionsSnapshots = new Map<string, CorrectionsSnapshot>();
+
 export function CorrectionsContent({ demo, preferenceKey = "default", classesContent }: { demo?: CorrectionsDemoAdapter; preferenceKey?: string; classesContent?: ReactNode }) {
   const unified = Boolean(classesContent);
+  const cached = !demo ? correctionsSnapshots.get(preferenceKey) : undefined;
 
   const notifications = useStudentNotifications();
-  const [storedReviews, setReviews] = useState<KodlandReview[]>([]);
-  const [storedLessons, setLessons] = useState<KodlandLesson[]>([]);
-  const [storedTaskProgress, setTaskProgress] = useState<KodlandTaskProgress[]>([]);
-  const [storedManualOccurrences, setManualOccurrences] = useState<ManualOccurrence[]>([]);
+  const [storedReviews, setReviews] = useState<KodlandReview[]>(cached?.reviews ?? []);
+  const [storedLessons, setLessons] = useState<KodlandLesson[]>(cached?.lessons ?? []);
+  const [storedTaskProgress, setTaskProgress] = useState<KodlandTaskProgress[]>(cached?.progress ?? []);
+  const [storedManualOccurrences, setManualOccurrences] = useState<ManualOccurrence[]>(cached?.occurrences ?? []);
   const taskProgress = demo?.taskProgress ?? storedTaskProgress;
   const manualOccurrences = demo?.manualOccurrences ?? storedManualOccurrences;
-  const [storedAttendance, setAttendance] = useState<KodlandAttendance[]>([]);
-  const [storedStudents, setStudents] = useState<KodlandStudent[]>([]);
-  const [storedGroups, setGroups] = useState<KodlandGroup[]>([]);
+  const [storedAttendance, setAttendance] = useState<KodlandAttendance[]>(cached?.attendance ?? []);
+  const [storedStudents, setStudents] = useState<KodlandStudent[]>(cached?.students ?? []);
+  const [storedGroups, setGroups] = useState<KodlandGroup[]>(cached?.groups ?? []);
   const reviews = demo?.reviews ?? storedReviews;
   const lessons = demo?.lessons ?? storedLessons;
   const attendance = demo?.attendance ?? storedAttendance;
@@ -853,21 +857,21 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const [storedWhatsAppDraft, setWhatsAppDraft] = useState<WhatsAppDraft | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [loading, setLoading] = useState(!demo);
+  const [loading, setLoading] = useState(!demo && !cached);
   const [refreshingData, setRefreshingData] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [storedManualActivities, setManualActivities] = useState<ManualActivity[]>([]);
-  const [manualCourseNames, setManualCourseNames] = useState<Record<string, string>>({});
-  const [storedManualClasses, setManualClasses] = useState<ManualClass[]>([]);
-  const [storedManualStudents, setManualStudents] = useState<ManualStudent[]>([]);
+  const [storedManualActivities, setManualActivities] = useState<ManualActivity[]>(cached?.activities ?? []);
+  const [manualCourseNames, setManualCourseNames] = useState<Record<string, string>>(cached?.courseNames ?? {});
+  const [storedManualClasses, setManualClasses] = useState<ManualClass[]>(cached?.classes ?? []);
+  const [storedManualStudents, setManualStudents] = useState<ManualStudent[]>(cached?.manualStudents ?? []);
   const manualActivities = demo?.manualActivities ?? storedManualActivities;
   const manualClasses = demo?.manualClasses ?? storedManualClasses;
   const manualStudents = demo?.manualStudents ?? storedManualStudents;
-  const [hasKodlandGroups, setHasKodlandGroups] = useState(false);
+  const [hasKodlandGroups, setHasKodlandGroups] = useState(Boolean(cached?.groups.length));
   const [editingManual, setEditingManual] = useState<ManualActivity | null>(null);
   const [feedback, setFeedback] = useState("");
   const [savingManual, setSavingManual] = useState(false);
-  const [kodlandEnabled, setKodlandEnabled] = useState(false);
+  const [kodlandEnabled, setKodlandEnabled] = useState(cached?.enabled ?? false);
   const [viewPreferencesLoaded, setViewPreferencesLoaded] = useState(false);
   const resolveNotificationContext = useCallback((item: StudentNotification) => {
     setViewMode(item.category === "absence" ? "attendance" : "activities");
@@ -915,12 +919,13 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
-  const snapshotReady = useRef(Boolean(demo));
+  useEffect(() => { if (!demo && !loading) correctionsSnapshots.set(preferenceKey, { reviews: storedReviews, lessons: storedLessons, progress: storedTaskProgress, attendance: storedAttendance, students: storedStudents, groups: storedGroups, activities: storedManualActivities, occurrences: storedManualOccurrences, classes: storedManualClasses, manualStudents: storedManualStudents, courseNames: manualCourseNames, enabled: kodlandEnabled }); }, [demo, loading, preferenceKey, storedReviews, storedLessons, storedTaskProgress, storedAttendance, storedStudents, storedGroups, storedManualActivities, storedManualOccurrences, storedManualClasses, storedManualStudents, manualCourseNames, kodlandEnabled]);
+  const snapshotReady = useRef(Boolean(demo || cached));
   const loadedViews = useRef({ activities: false, attendance: false });
   const currentView = useRef(viewMode);
   currentView.current = viewMode;
   const loadGeneration = useRef(0);
-  const load = useCallback(async (background = false) => {
+  const load = useCallback(async (background = false, silent = false) => {
     const mode = currentView.current;
     const generation = ++loadGeneration.current;
     if (demo) {
@@ -929,7 +934,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       const enabled = (await demo.manualAdapter?.preferences.get())?.kodland_enabled === true;
       setKodlandEnabled(enabled); setHasKodlandGroups(enabled && (demo.groups?.length ?? 0) > 0); return;
     }
-    if (background) setRefreshingData(true); else setLoading(true);
+    if (background) { if (!silent) setRefreshingData(true); } else setLoading(true);
     setError("");
     try {
       const localOnly = Boolean((await readKodlandLocal(() => kodlandApi.browserState(), crypto.randomUUID(), "Armazenamento das atividades", 8000))?.active);
@@ -1021,9 +1026,9 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
 
   useEffect(() => {
     if (!viewPreferencesLoaded) return;
-    const timer = window.setTimeout(() => { if (!loadedViews.current[viewMode]) void load(snapshotReady.current); }, 0);
+    const timer = window.setTimeout(() => { if (!loadedViews.current[viewMode]) void load(snapshotReady.current, Boolean(cached)); }, 0);
     return () => window.clearTimeout(timer);
-  }, [load, demo, viewMode, viewPreferencesLoaded]);
+  }, [load, demo, viewMode, viewPreferencesLoaded, cached]);
 
   useEffect(() => {
     if (demo) return;

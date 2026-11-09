@@ -39,9 +39,12 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     let refreshedRevision = 0;
     let pageCompletionPending = false;
     let pageFailed = false;
-    let scheduleRefreshed = false;
-    let attendanceRefreshed = false;
-    let activitiesRefreshed = false;
+    const sessionKey = `nexusclass:page-sync:${uid}`;
+    const sessionDone = (scope: string) => { try { return sessionStorage.getItem(`${sessionKey}:${scope}`) === "1"; } catch { return false; } };
+    const markSessionDone = (scope: string) => { try { sessionStorage.setItem(`${sessionKey}:${scope}`, "1"); } catch { /* Continue with in-memory state. */ } };
+    let scheduleRefreshed = sessionDone("schedule");
+    let attendanceRefreshed = sessionDone("attendance");
+    let activitiesRefreshed = sessionDone("activities");
     let correctionGroup: string | null = null;
     let priorityGroup: string | null = null;
     const recordingAttemptsThisVisit = new Set<string>();
@@ -192,7 +195,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
               await refreshIncompleteProfiles(uid, students.items, ids => synchronize(credentials, "profiles", undefined, undefined, ids), owner);
             } catch (error) { profileError = error; }
           };
-          if (requestedPage === "agenda") { await synchronize(credentials, "schedule", undefined, undefined, undefined, true); if (owner()) scheduleRefreshed = true; if (owner()) await repairProfiles(); }
+          if (requestedPage === "agenda") { await synchronize(credentials, "schedule", undefined, undefined, undefined, true); if (owner()) { scheduleRefreshed = true; markSessionDone("schedule"); } if (owner()) await repairProfiles(); }
           else {
             // Refresh the group next-lesson metadata without reimporting the timetable.
             if (requestedPage !== "attendance" && !activitiesRefreshed) await synchronize(credentials, "classroom");
@@ -216,8 +219,8 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
           }
           if (!owner()) return;
           refreshedRevision = revision;
-          if (requestedPage === "attendance") attendanceRefreshed = true;
-          if (requestedPage === "activities") activitiesRefreshed = true;
+          if (requestedPage === "attendance") { attendanceRefreshed = true; markSessionDone("attendance"); }
+          if (requestedPage === "activities") { activitiesRefreshed = true; markSessionDone("activities"); }
           cache = null;
           if (profileError) throw new Error("A página foi atualizada, mas alguns contatos ou saldos de aulas continuam pendentes.");
           setStatus({ phase: "ready", updatedAt: new Date().toISOString() });

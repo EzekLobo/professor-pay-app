@@ -181,6 +181,33 @@ describe("single Kodland scheduler integration", () => {
     await vi.advanceTimersByTimeAsync(60000);
     expect(state.sync.mock.calls.filter(call => call[2] === "profiles")).toHaveLength(1);
   });
+
+  it("updates attendance even when the contact and balance request fails", async () => {
+    state.students.mockResolvedValue({ items: [{ external_id: "student", status: "active", name: "Aluno", phone: "" }] });
+    state.sync.mockRejectedValueOnce(new Error("balance unavailable"));
+    useKodlandAutoSync("account", false);
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "attendance" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync.mock.calls.map(call => call[2])).toEqual(["profiles", "corrections"]);
+    expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "attendance" }));
+    expect(state.status).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "error", message: expect.stringContaining("contatos ou saldos") }));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(state.sync).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes attendance on every entry and resume even with a warm attendance cache", async () => {
+    markRefreshed("account", "page:corrections:group:attendance");
+    useKodlandAutoSync("account", false);
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "attendance" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync).toHaveBeenCalledTimes(2);
+    expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "attendance" }));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(state.sync).toHaveBeenCalledTimes(2);
+  });
 });
 
 it("ends page loading when the preference read never responds and recovers on focus", async () => {

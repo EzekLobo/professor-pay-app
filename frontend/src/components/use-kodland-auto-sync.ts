@@ -44,8 +44,8 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     const synchronize = async (credentials: { username: string; password: string }, mode: "schedule" | "classroom" | "corrections" | "profiles", groupId?: string, scope?: "attendance" | "activities", profileStudentIds?: string[], force = false) => {
       if (!owner()) return;
       const key = `page:${mode}:${groupId ?? "all"}:${scope ?? "both"}`;
-      const ttl = mode === "schedule" || mode === "classroom" ? 24 * 3600000 : scope === "attendance" ? 6 * 3600000 : 5 * 60000;
-      if (!force && mode !== "profiles" && !refreshDue(uid, key, ttl)) return;
+      const ttl = mode === "schedule" || mode === "classroom" ? 24 * 3600000 : 5 * 60000;
+      if (!force && mode !== "profiles" && scope !== "attendance" && !refreshDue(uid, key, ttl)) return;
       automaticRunning = true;
       try {
         let activityWindows: Record<string, ActivityWindow> | undefined;

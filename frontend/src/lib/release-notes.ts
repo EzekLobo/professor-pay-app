@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110903, date: "2026-11-09", title: "Atualização de presença",
+    description: "A presença consulta a Kodland a cada entrada e retomada da página. O botão Atualizar consulta a aba selecionada, mesmo quando contatos ou créditos falham. Novos filtros de presença mostram todos os registros por padrão.",
+    href: "/classes?tab=attendance", action: "Abrir presença",
+  },
+  {
     version: 2026110902, date: "2026-11-09", title: "Correções de consistência",
     description: "Notificações recuperam consultas com falha e atualizações pendentes. Desativar a Kodland prevalece sobre o cache. Extratos respeitam a última seleção e diferenciam uma alteração salva de uma falha ao consultar novamente.",
     href: "/classes", action: "Abrir turmas",

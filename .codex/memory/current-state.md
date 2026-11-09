@@ -60,6 +60,12 @@
 
 # Estado atual
 
+## Atualização de presença — 09/11/2026
+
+- Entrada/retomada de Presença ignora cooldown de6h da consulta corrections/attendance. Continua sem polling de página; cache de agenda/atividades e jobs pós-aula preservados. Regressão cobre cache quente, foco e ausência de consultas por intervalo.
+- Atualizar manual usa followupScope da aba e preserva watchKodlandSync/assertActive; falha de profiles permite consultar presença, com aviso específico. Automático já isolava falha de perfis no commit90513a1, preservado na integração.
+- Filtro inicial ALL, mantendo preferências salvas. Vazio distingue ausência de dados e filtro sem resultados; Mostrar toda a presença limpa busca/filtro.
+- Novidade2026110903. Confirmado:689 testes web após integrar origin/master, incluindo regressões de perfis e cache; tipos/lint e4 E2E de presença passaram em320/390/1440. Conferir build/publicação. Presença da conta real continua pendente de sessão autenticada.
 ## Catálogo completo e criação de tarefa por caixa — 06/11/2026
 
 - Menu /lessons passa a Cursos. A lista anterior só derivava cursos de turmas ativas. Novo mode courses em /api/kodland/sync consulta teachers/{teacherId}/get_teachers_courses e todas as páginas de lessons/get_lessons_list por curso; ID oficial é a identidade, nunca nome Roblox. Cursos sem turma ficam visíveis com outline e contador de aulas.

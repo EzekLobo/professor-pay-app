@@ -33,6 +33,12 @@ for (const width of [320, 390, 1440]) {
     await expect(page.getByRole("button", { name: "Com faltas", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "attendance-tab");
+    await page.getByRole("button", { name: "Abrir busca", exact: true }).click();
+    await page.getByLabel("Buscar correção").fill("aluno-inexistente-987654");
+    await expect(page.getByText("Nenhum registro de presença para este filtro.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Mostrar toda a presença", exact: true }).click();
+    await expect(page.getByLabel("Buscar correção")).toHaveValue("");
+    await page.getByRole("button", { name: "Fechar busca", exact: true }).click();
     const attendanceClass = page.locator(".attendance-class-group").filter({ has: page.locator(".attendance-name-contact") }).first();
     await attendanceClass.locator("summary").click();
     const contact = attendanceClass.locator(".attendance-name-contact").first();

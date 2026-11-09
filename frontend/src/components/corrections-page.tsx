@@ -848,7 +848,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const [searchOpen, setSearchOpen] = useState(false);
   const [studentDisplayMode, setStudentDisplayMode] = useState<StudentDisplayMode>("complete");
   const pendingOnly = studentDisplayMode === "pending";
-  const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ABSENT");
+  const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("ALL");
   const [openAttendanceClasses, setOpenAttendanceClasses] = useState<Set<string>>(() => new Set());
   const [storedWhatsAppDraft, setWhatsAppDraft] = useState<WhatsAppDraft | null>(null);
   const [error, setError] = useState("");
@@ -992,15 +992,24 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
         setError("Salve as credenciais em Configurações > Dados e backup antes de atualizar.");
         return;
       }
+      let contactWarning = "";
       const result = await watchKodlandSync(async (report, assertActive) => {
-        const options = { onProgress: report, assertActive };
-        await kodlandApi.sync(credentials.username.trim(), credentials.password, "profiles", options);
+        const options = { onProgress: report, assertActive, followupScope: viewMode };
+        try {
+          await kodlandApi.sync(credentials.username.trim(), credentials.password, "profiles", options);
+        } catch (reason) {
+          assertActive();
+          if (viewMode !== "attendance") throw reason;
+          contactWarning = " Os contatos e créditos não puderam ser atualizados.";
+        }
         assertActive();
         return kodlandApi.sync(credentials.username.trim(), credentials.password, "corrections", options);
       }, () => undefined);
       await load();
       setNotice(
-        `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
+        viewMode === "attendance"
+          ? `Presença atualizada.${contactWarning}`
+          : `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
       );
     } catch (reason) {
       setError(
@@ -1222,7 +1231,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
             </HeaderDropdown>
           </div>
           <Button type="button" className="button-ghost symbol-action" aria-label={searchOpen ? "Fechar busca" : "Abrir busca"} title={searchOpen ? "Fechar e limpar busca" : "Buscar aluno, turma ou atividade"} aria-expanded={searchOpen} aria-controls="correction-search-field" onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }}>{searchOpen ? <X size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}</Button>
-          {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label="Atualizar correções" title={syncing ? "Atualizando" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}
+          {kodlandEnabled && hasKodlandGroups && <Button className="button-ghost sync-icon-button" type="button" data-tour="corrections-sync" aria-label={viewMode === "attendance" ? "Atualizar presença" : "Atualizar correções"} title={syncing ? "Atualizando" : viewMode === "attendance" ? "Atualizar presença" : "Atualizar correções"} aria-busy={syncing} onClick={() => void syncCorrections()} disabled={syncing}><RefreshCw size={18} aria-hidden="true" className={syncing ? "sync-icon-spinning" : undefined} /></Button>}
           {viewMode === "attendance" && <Button type="button" className="button-ghost symbol-action" aria-label="Legenda de presença" title="Legenda de presença" aria-haspopup="dialog" aria-expanded={legendOpen} onClick={() => setLegendOpen(true)}><Info size={18} aria-hidden="true" /></Button>}
         </div>
       </div>
@@ -1240,7 +1249,10 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       <section id="corrections-content" role="tabpanel" aria-labelledby={viewMode === "activities" ? "activities-tab" : "attendance-tab"} className={`panel corrections-panel corrections-panel-${viewMode} page-fill-panel`}>
         {viewMode === "attendance" ? <>
         <ManualAttendanceGrid adapter={demo?.manualAdapter} />
-        {loading ? <p className="muted" role="status">Carregando presença…</p> : attendanceHistories.length === 0 ? <p className="muted">Nenhum registro de presença para este filtro.</p> : <div className="correction-class-list attendance-list">
+        {loading ? <p className="muted" role="status">Carregando presença…</p> : attendanceHistories.length === 0 ? <div>
+          <p className="muted">{attendance.length === 0 ? "Nenhum registro de presença carregado. Use Atualizar para consultar a Kodland." : "Nenhum registro de presença para este filtro."}</p>
+          {(attendanceFilter !== "ALL" || query.trim()) && <Button type="button" className="button-ghost" onClick={() => { setAttendanceFilter("ALL"); setQuery(""); }}>Mostrar toda a presença</Button>}
+        </div> : <div className="correction-class-list attendance-list">
           {attendanceByClass.map(([className, histories]) => <details
             className="correction-class-group attendance-class-group"
             key={className}

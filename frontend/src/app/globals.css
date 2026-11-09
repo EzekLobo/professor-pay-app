@@ -1511,6 +1511,7 @@ summary:focus-visible {
   gap: 14px;
   margin-top: 18px;
 }
+.payment-heading-actions { display: flex; align-items: center; gap: 8px; }
 .payment-visibility-toggle {
   display: grid;
   width: 34px;

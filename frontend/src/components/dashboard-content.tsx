@@ -237,7 +237,8 @@ export function DashboardContent(props: DashboardContentProps) {
             <h2>Competências mensais</h2>
             <small className="muted">{props.financeUpdatedAt ? `Última atualização: ${new Date(props.financeUpdatedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : "Última atualização indisponível"}</small>
           </div>
-          {props.onRefreshFinance && <button className="button-ghost sync-icon-button" type="button" aria-label="Atualizar resumo financeiro" title="Atualizar resumo financeiro" disabled={props.financeRefreshing} onClick={props.onRefreshFinance}><RefreshCw size={18} aria-hidden="true" className={props.financeRefreshing ? "sync-icon-spinning" : undefined} /></button>}
+          <div className="payment-heading-actions">
+          {props.onRefreshFinance && <button className="payment-visibility-toggle" type="button" aria-label="Atualizar resumo financeiro" title="Atualizar resumo financeiro" disabled={props.financeRefreshing} onClick={props.onRefreshFinance}><RefreshCw size={18} aria-hidden="true" className={props.financeRefreshing ? "sync-icon-spinning" : undefined} /></button>}
           <button
             className="payment-visibility-toggle"
             data-tour="dashboard-payment-visibility"
@@ -257,6 +258,7 @@ export function DashboardContent(props: DashboardContentProps) {
           >
             {paymentsVisible ? <EyeIcon /> : <EyeOffIcon />}
           </button>
+          </div>
         </div>
         {paymentsVisible ? (
           <DashboardPaymentCarousel

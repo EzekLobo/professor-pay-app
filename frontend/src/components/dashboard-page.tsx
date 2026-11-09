@@ -1028,6 +1028,16 @@ function DashboardPageContent({ uid }: { uid: string }) {
     return () => { active = false; unsubscribe(); };
   }, [uid, localOnly]);
   useEffect(() => {
+    let active = true;
+    const refreshTimestamp = (event: Event) => {
+      const mode = (event as CustomEvent<{ mode?: string }>).detail?.mode;
+      if (mode !== "schedule" && mode !== "essential") return;
+      void kodlandApi.scheduleLastUpdatedAt().then(value => { if (active) setScheduleLastUpdatedAt(value); }).catch(() => undefined);
+    };
+    window.addEventListener("nexusclass:kodland-synced", refreshTimestamp);
+    return () => { active = false; window.removeEventListener("nexusclass:kodland-synced", refreshTimestamp); };
+  }, []);
+  useEffect(() => {
     const reloadHolidays = () => void holidaysApi.list().then(setCustomHolidays).catch(() => undefined);
     window.addEventListener("nexusclass:holidays-changed", reloadHolidays);
     return () => window.removeEventListener("nexusclass:holidays-changed", reloadHolidays);

@@ -39,6 +39,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     let refreshedRevision = 0;
     let pageCompletionPending = false;
     let pageFailed = false;
+    let scheduleRefreshed = false;
     let attendanceRefreshed = false;
     let activitiesRefreshed = false;
     let correctionGroup: string | null = null;
@@ -178,6 +179,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
           if (!owner()) return;
           if (!credentials) { refreshedRevision = revision; setStatus({ phase: "credentials", message: "Salve o acesso à Kodland em Configurações > Dados e backup para atualizar esta página." }); return; }
           const requestedPage = page;
+          if (requestedPage === "agenda" && scheduleRefreshed) { refreshedRevision = revision; setStatus({ phase: "ready" }); return; }
           if (requestedPage === "activities" && activitiesRefreshed && !correctionGroup) { refreshedRevision = revision; setStatus({ phase: "ready" }); return; }
           if (requestedPage === "attendance" && attendanceRefreshed) { refreshedRevision = revision; setStatus({ phase: "ready" }); return; }
           pageFailed = false;
@@ -190,7 +192,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
               await refreshIncompleteProfiles(uid, students.items, ids => synchronize(credentials, "profiles", undefined, undefined, ids), owner);
             } catch (error) { profileError = error; }
           };
-          if (requestedPage === "agenda") { await synchronize(credentials, "schedule"); if (owner()) await repairProfiles(); }
+          if (requestedPage === "agenda") { await synchronize(credentials, "schedule", undefined, undefined, undefined, true); if (owner()) scheduleRefreshed = true; if (owner()) await repairProfiles(); }
           else {
             // Refresh the group next-lesson metadata without reimporting the timetable.
             if (requestedPage !== "attendance" && !activitiesRefreshed) await synchronize(credentials, "classroom");

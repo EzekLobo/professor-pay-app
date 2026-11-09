@@ -115,6 +115,7 @@ describe("single Kodland scheduler integration", () => {
   });
 
   it("refreshes the Resumo on entry without timed page polling", async () => {
+    markRefreshed("account", "page:schedule:all:both");
     useKodlandAutoSync("account", false, "/dashboard");
     await vi.advanceTimersByTimeAsync(0);
     expect(state.sync).toHaveBeenCalledWith("test", "test", "schedule", expect.objectContaining({ automatic: true, refreshSchedule: true }));

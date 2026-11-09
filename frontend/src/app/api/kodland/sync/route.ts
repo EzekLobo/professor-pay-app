@@ -669,7 +669,8 @@ async function groupsForTeacher(
   token: string,
 ): Promise<Group[]> {
   const groups: Group[] = [];
-  for (let page = 1; ; page += 1) {
+  const seenPages = new Set<string>();
+  for (let page = 1; page <= 100; page += 1) {
     const payload = record(
       await get(
         `teachers/${teacherId}/get_teachers_groups/?page=${page}&page_size=100`,
@@ -680,6 +681,9 @@ async function groupsForTeacher(
       throw new Error("A Kodland retornou uma lista de turmas inválida.");
     }
     const items = payload.results;
+    const signature = JSON.stringify(items);
+    if (items.length && seenPages.has(signature)) throw new Error("A Kodland repetiu a página de turmas. Os dados anteriores foram preservados.");
+    seenPages.add(signature);
     groups.push(
       ...items
         .map((value) => {
@@ -755,9 +759,9 @@ async function groupsForTeacher(
         })
         .filter((group) => group.external_id && group.title),
     );
-    if (!payload.next || !items.length) break;
+    if (!payload.next || !items.length) return groups;
   }
-  return groups;
+  throw new Error("A lista de turmas excedeu o limite seguro de páginas. Tente novamente.");
 }
 
 function studentsFromPayload(payload: unknown, group: Group): Student[] {

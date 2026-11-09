@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { POST } from "./route";
 const token = `header.${Buffer.from(JSON.stringify({ user_id: 22 })).toString("base64url")}.signature`;
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
-function mockProvider({ attendanceFails = false, invalidGroups = false, taskStatus = "TASK_NOT_SUBMITTED", timeline = [{ lesson_id: "l", lesson_passed: true }] } = {}) {
+function mockProvider({ attendanceFails = false, invalidGroups = false, repeatGroups = false, taskStatus = "TASK_NOT_SUBMITTED", timeline = [{ lesson_id: "l", lesson_passed: true }] } = {}) {
   vi.stubEnv("NEXT_PUBLIC_FIREBASE_API_KEY", "test");
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   const calls: string[] = [];
@@ -11,7 +11,7 @@ function mockProvider({ attendanceFails = false, invalidGroups = false, taskStat
     const url = String(input); calls.push(url);
     if (url.includes("identitytoolkit")) return Response.json({ users: [{ localId: "teacher" }] });
     if (url.includes("/login")) return Response.json({ access_token: token });
-    if (url.includes("get_teachers_groups")) return Response.json(invalidGroups ? { error: "unavailable" } : { results: [{ id: "g", title: "Python", course: { id: "course" }, archived: false }], next: null });
+    if (url.includes("get_teachers_groups")) return Response.json(invalidGroups ? { error: "unavailable" } : { results: [{ id: "g", title: "Python", course: { id: "course" }, archived: false }], next: repeatGroups ? "next" : null });
     if (url.includes("/lessons/")) return Response.json(url.includes("page=2") ? [] : timeline);
     if (url.includes("get_group_progress")) return Response.json({ lesson_tasks: [{ id: "t", title: "Projeto" }], students_progress: [{ student_id: "s", student_name: "Ana", tasks_data: [{ task_id: "t", task_status_key: taskStatus }] }] });
     if (url.includes("attendance") || url.includes("get_students_main_data")) return attendanceFails ? Response.json({}, { status: 404 }) : Response.json([{ student_id: "s", student_name: "Ana", lesson_id: "l", lesson_date: "2026-10-31", status: "ABSENT" }]);
@@ -83,4 +83,10 @@ it("keeps known history untouched when there is no requested/new lesson",async()
 });
 it("rejects invalid activity cache selectors",async()=>{
  mockProvider();expect((await POST(request({activity_windows:{g:{known:["../other"],refresh:[]}}}))).status).toBe(400);
+});
+
+it("interrompe paginação repetida sem publicar turmas incompletas", async () => {
+ const calls=mockProvider({repeatGroups:true}); const response=await POST(request({mode:"classroom"}));
+ expect(response.status).toBeGreaterThanOrEqual(500); expect(await response.json()).not.toHaveProperty("groups");
+ expect(calls.filter(url=>url.includes("get_teachers_groups"))).toHaveLength(2);
 });

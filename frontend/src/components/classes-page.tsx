@@ -1,7 +1,8 @@
 "use client";
+import { readWithDeadline } from "@/lib/read-deadline";
 import { CorrectionsContent } from "./corrections-page";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MoreVertical, RefreshCw, Settings, Trash2 } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Modal } from "@/components/modal";
@@ -211,49 +212,43 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  const loadGeneration = useRef(0);
   const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
-    const preferencesApi = demo?.manualAdapter?.preferences ?? tutorPreferencesApi;
-    const localOnly = !demo && Boolean((await kodlandApi.browserState())?.active);
-    const preferences = localOnly ? { kodland_enabled: true } : await preferencesApi.get().catch(() => ({ kodland_enabled: false }));
-    setKodlandEnabled(preferences.kodland_enabled);
-    if (!preferences.kodland_enabled) { setGroups([]); setStudents([]); setLoading(false); return; }
-    if (demo) {
-      const currentSettings = await settingsApi.list();
-      setGroups(demo.groups.filter((group) => !hiddenKodlandGroups.includes(group.external_id)).map((group) => ({ ...group, title: kodlandGroupNames[group.external_id] || group.title }))); setStudents(demo.students);
-      if (currentSettings) setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
-      setLoading(false); return;
-    }
+    const run = ++loadGeneration.current;
+    setLoading(true); setError("");
     try {
-      const [groupResult, studentResult, currentSettings] = await Promise.all([
-        kodlandApi.groups(),
-        kodlandApi.students(),
-        localOnly ? Promise.resolve(null) : settingsApi.list(),
-      ]);
-      setGroups(groupResult.items.filter((group) => !hiddenKodlandGroups.includes(group.external_id)).map((group) => ({ ...group, title: kodlandGroupNames[group.external_id] || group.title })));
-      setStudents(studentResult.items);
-      if (currentSettings) setSettingsByGroup(Object.fromEntries(currentSettings.map((item) => [item.id, item])));
+      const result = await readWithDeadline(async () => {
+        const settingsApi = demo?.manualAdapter?.kodland ?? kodlandClassSettingsApi;
+        const preferencesApi = demo?.manualAdapter?.preferences ?? tutorPreferencesApi;
+        const localOnly = !demo && Boolean((await kodlandApi.browserState())?.active);
+        const preferences = localOnly ? { kodland_enabled: true } : await preferencesApi.get();
+        if (!preferences.kodland_enabled) return { enabled: false, groups: [], students: [], settings: null };
+        const [groups, students, settings] = await Promise.all([
+          demo ? Promise.resolve(demo.groups) : kodlandApi.groups().then(value => value.items),
+          demo ? Promise.resolve(demo.students) : kodlandApi.students().then(value => value.items),
+          localOnly ? Promise.resolve(null) : settingsApi.list(),
+        ]);
+        return { enabled: true, groups, students, settings };
+      }, "Turmas");
+      if (run !== loadGeneration.current) return;
+      setKodlandEnabled(result.enabled);
+      setGroups(result.groups.filter(group => !hiddenKodlandGroups.includes(group.external_id)).map(group => ({ ...group, title: kodlandGroupNames[group.external_id] || group.title })));
+      setStudents(result.students);
+      if (result.settings) setSettingsByGroup(Object.fromEntries(result.settings.map(item => [item.id, item])));
     } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Não foi possível carregar as turmas.",
-      );
-    } finally {
-      setLoading(false);
-    }
+      if (run === loadGeneration.current) setError(reason instanceof Error ? reason.message : "Não foi possível carregar as turmas.");
+    } finally { if (run === loadGeneration.current) setLoading(false); }
   }, [demo, hiddenKodlandGroups, kodlandGroupNames]);
 
   useEffect(() => {
+    const generation = loadGeneration;
     const timer = window.setTimeout(() => void load(), 0);
     const onSync = (event: Event) => {
       const mode = (event as CustomEvent<{ mode?: string }>).detail?.mode;
       if (mode === "essential" || mode === "schedule") void load();
     };
     window.addEventListener("nexusclass:kodland-synced", onSync);
-    return () => { window.clearTimeout(timer); window.removeEventListener("nexusclass:kodland-synced", onSync); };
+    return () => { generation.current++; window.clearTimeout(timer); window.removeEventListener("nexusclass:kodland-synced", onSync); };
   }, [load]);
 
   async function syncClasses() {
@@ -329,11 +324,7 @@ export function ClassesContent({ demo }: { demo?: { groups: KodlandGroup[]; stud
 
   return (
     <div className="management-grid classes-management-grid">
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <div role="alert"><p className="form-error">{error}</p><Button type="button" className="button-ghost" onClick={() => void load()}>Tentar novamente</Button></div>}
       {notice && (
         <p className="notice" role="status">
           {notice}

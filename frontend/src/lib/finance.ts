@@ -6,5 +6,7 @@ export function brlToCents(value: string): number | null {
   return Number.isSafeInteger(cents) ? cents : null;
 }
 export const centsToBrlInput = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
-export const formatMoney = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-export const formatDate = (value: string) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(new Date(`${value}T12:00:00`));
+const moneyFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const dateFormatter = new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" });
+export const formatMoney = (cents: number) => moneyFormatter.format(cents / 100);
+export const formatDate = (value: string) => dateFormatter.format(new Date(`${value}T12:00:00`));

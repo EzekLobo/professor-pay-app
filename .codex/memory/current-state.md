@@ -1,3 +1,13 @@
+## Alvo: otimização profissional dos fluxos — 09/11/2026
+
+- Auditoria e9 melhorias em docs/plans/application-optimization-2026-11-09.md. Catálogo Kodland usa metadado persistido por conta24h, singleflight e atualização manual forçada; falha não troca cache por vazio. Novidade2026110901.
+- SettingsContent só busca disponibilidade/turmas/ocorrências ao abrir Disponibilidade. availability-meetings projeta horários recorrentes localmente, preservando cancelamentos e registros existentes, sem ensureOccurrences nem gravações ao navegar. Retry da seção não recarrega preferências/rascunhos.
+- read-deadline limita snapshots de leitura a15s; Classes/Lessons usam geração para descartar respostas antigas. Payments mantém conteúdo após primeira carga, limita lista/extrato a15s e aplica somente último pedido de extrato; fechar invalida resposta pendente. Prazos não simulam cancelamento de gravação.
+- AccountReadCache compartilha consultas lentas mesmo após TTL nominal; validade começa após resolução e leitura pendente expira20s com retry. Guardas de conta/invalidação preservadas. Notificações filtram domínios irrelevantes, coalescem pendências sem falso evento history, preservam force e revisão de metadados alterados em voo.
+- dashboardApi reaproveita classes/ocorrências/tarifas já carregadas, lê cursos uma vez e reúne ocorrências alteradas em lotes, preservando planManualOccurrences e confirmações.
+- payment-history-chart memoiza agregação por pagamentos/ano; formatadores Intl reutilizados. groupsForTeacher interrompe página repetida e limita100 páginas, falhando em vez de publicar histórico parcial. Testes de interface atualizados para a tela unificada Alunos e disponibilidade sob demanda.
+- Validação:674 testes unitários, lint/tipos/build,10 E2E de diagnóstico e cenários de cursos/configurações/notificações/cache/gráficos/navegação passaram. Toque nativo390px teve falha intermitente em execução agregada e passou nos7 cenários isolados; manter monitoramento. Push bloqueado: GitHub recusou GH_TOKEN e gh auth status confirmou token inválido; sem credential helper alternativo nem identidade/secreto configurado no runtime. Revalidar conexão GitHub do ambiente antes de enviar e conferir Vercel. Nenhuma porcentagem de ganho real é estimada sem tráfego autenticado.
+
 ## Cache e atualização seletiva — 08/11/2026
 
 - Retirado o bloco de previsão de Competências mensais; previsão continua em Pagamentos. Novidade2026110806.

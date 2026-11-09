@@ -1921,9 +1921,19 @@ export const dashboardApi = {
     ]));
     const today = isoToday();
     const activeManualClasses = (manualClasses as unknown as ManualClass[]).filter((item) => item.active);
-    const refreshedOccurrences = activeManualClasses.length
-      ? (await forAccount(operationUid, () => Promise.all(activeManualClasses.map((item) => manualOperationsApi.ensureOccurrences(item.id))))).flat()
-      : [];
+    const courses = activeManualClasses.length ? await forAccount(operationUid, () => manualCoursesApi.list()) : [];
+    const previousOccurrences = new Map(manualOccurrences.map(item => [String(item.id), item]));
+    const refreshedOccurrences = activeManualClasses.flatMap(classroom => planManualOccurrences({
+      classroom,
+      course: courses.find(item => item.id === classroom.course_id) ?? null,
+      existing: (manualOccurrences as unknown as ManualOccurrence[]).filter(item => item.class_id === classroom.id),
+      from: classroom.first_lesson_date,
+      to: occurrenceHorizon(today, classroom.end_date),
+      defaultRateHistory: rateHistory(settings.data()?.rate_history),
+      timestamp: now(),
+    }));
+    const changedOccurrences = refreshedOccurrences.filter(item => JSON.stringify(previousOccurrences.get(item.id)) !== JSON.stringify(item));
+    if (changedOccurrences.length) await forAccount(operationUid, () => commitWrites(changedOccurrences.map(item => batch => batch.set(doc(ref("manual_occurrences", operationUid), item.id), item))));
     const currentManualOccurrences = refreshedOccurrences.length
       ? [...(manualOccurrences as unknown as ManualOccurrence[]).filter((item) => !activeManualClasses.some((classroom) => classroom.id === item.class_id)), ...refreshedOccurrences]
       : manualOccurrences;

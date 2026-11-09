@@ -4,6 +4,8 @@ import { requestKodlandJson } from "./kodland-sync-client";
 import { mergeCourseCatalog, type KodlandCatalogCourse } from "./kodland-course-catalog";
 import type { KodlandLesson } from "./kodland-lessons";
 
+const refreshing = new Map<string, Promise<KodlandCatalogCourse[]>>();
+const catalogTtl = 24 * 3600000;
 const collection = "kodland_course_catalog";
 function owner() {
   const user = getFirebaseAuth().currentUser;
@@ -19,16 +21,28 @@ export const kodlandCourseCatalogApi = {
     if (!account.active()) throw new Error("A conta conectada mudou.");
     return (cached?.collections[collection] ?? []) as unknown as KodlandCatalogCourse[];
   },
-  refresh: async (username: string, password: string) => {
+  refresh: async (username: string, password: string, force = true): Promise<KodlandCatalogCourse[]> => {
     const account = owner();
+    const pending = refreshing.get(account.user.uid);
+    if (pending) return pending;
+    const request = (async () => {
+    const cached = await readKodlandBrowser(account.user.uid);
+    if (!account.active()) throw new Error("A conta conectada mudou.");
+    const stamp = Date.parse(String(cached?.collections.kodland_catalog_metadata?.[0]?.checked_at ?? ""));
+    if (!force && Number.isFinite(stamp) && stamp <= Date.now() && Date.now() - stamp < catalogTtl && cached?.collections[collection]) return cached.collections[collection] as unknown as KodlandCatalogCourse[];
     const response = await requestKodlandJson<{ courses: KodlandCatalogCourse[] }>({ username, password, mode: "courses" }, () => account.user.getIdToken(), crypto.randomUUID());
     if (!Array.isArray(response.courses)) throw new Error("A Kodland não retornou o catálogo de cursos.");
     let courses: KodlandCatalogCourse[] = [];
     await updateKodlandBrowser(account.user.uid, state => {
       courses = mergeCourseCatalog(response.courses, (state.collections[collection] ?? []) as unknown as KodlandCatalogCourse[]);
       state.collections[collection] = courses as unknown as BrowserRow[];
+      state.collections.kodland_catalog_metadata = [{ id: "catalog", checked_at: new Date().toISOString() }];
     }, account.active);
     return courses;
+    })();
+    refreshing.set(account.user.uid, request);
+    try { return await request; }
+    finally { if (refreshing.get(account.user.uid) === request) refreshing.delete(account.user.uid); }
   },
   materials: async (lesson: Pick<KodlandLesson, "id" | "external_class_id" | "source_lesson_id">, username: string, password: string): Promise<KodlandLesson> => {
     const account = owner();

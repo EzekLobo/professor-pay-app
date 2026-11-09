@@ -1,17 +1,22 @@
 "use client";
 import { ChartNoAxesCombined } from "lucide-react";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui";
 import type { DashboardPayment } from "@/lib/api";
 import { formatMoney } from "@/lib/finance";
 
+const monthFormatter = new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: "UTC" });
+const compactFormatter = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
+const percentFormatter = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 });
+const yearFormatter = new Intl.DateTimeFormat("en", { year: "numeric", timeZone: "America/Sao_Paulo" });
+
 export function paymentHistoryMonths(payments: readonly DashboardPayment[], year: string) {
   const months = Array.from({ length: 12 }, (_, index) => ({
     month: `${year}-${String(index + 1).padStart(2, "0")}`,
-    label: new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(Number(year), index, 1))).replace(".", ""),
+    label: monthFormatter.format(new Date(Date.UTC(Number(year), index, 1))).replace(".", ""),
     received: 0, overdue: 0, expected: 0, lessons: 0, normal: 0, extras: 0, extraAmount: 0,
   }));
   for (const payment of payments) {
@@ -39,14 +44,14 @@ export function PaymentHistoryChart({ payments, loading }: { payments: readonly 
     const y = rect.top >= height + 16 ? rect.top - height - 8 : Math.min(rect.bottom + 8, Math.max(12, window.innerHeight - height - 12));
     setTooltip({ key, heading, rows, x, y });
   };
-  const currentYear = new Intl.DateTimeFormat("en", { year: "numeric", timeZone: "America/Sao_Paulo" }).format(new Date());
-  const years = [...new Set(payments.map((payment) => payment.payment_date.slice(0, 4)))].sort();
+  const currentYear = yearFormatter.format(new Date());
+  const years = useMemo(() => [...new Set(payments.map(payment => payment.payment_date.slice(0, 4)))].sort(), [payments]);
   const [chartType, setChartType] = useState<"bars" | "line" | "donut">("bars");
   const [metric, setMetric] = useState<"money" | "lessons">("money");
   const [details, setDetails] = useState<"year" | string | null>(null);
   const [selection, setSelection] = useState("");
   const year = years.includes(selection) ? selection : years.includes(currentYear) ? currentYear : years[0] ?? currentYear;
-  const months = paymentHistoryMonths(payments, year);
+  const months = useMemo(() => paymentHistoryMonths(payments, year), [payments, year]);
   const totalMoney = (month: (typeof months)[number]) => month.received + month.overdue + month.expected;
   const max = Math.max(1, ...months.map((month) => metric === "money" ? totalMoney(month) : month.normal + month.extras));
   const detailedMonths = details === "year" ? months : months.filter((month) => month.month === details);
@@ -59,14 +64,14 @@ export function PaymentHistoryChart({ payments, loading }: { payments: readonly 
   let offset = 0;
   const slices = series.map((item) => { const from = offset; offset += compositionTotal ? annual[item.key] / compositionTotal * 100 : 0; return `${item.color} ${from}% ${offset}%`; });
   const displayValue = (amount: number) => metric === "money" ? formatMoney(amount) : `${amount} aulas`;
-  const compactMoney = (amount: number) => new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(amount / 100);
+  const compactMoney = (amount: number) => compactFormatter.format(amount / 100);
   const monthTooltip = (element: Element, month: (typeof months)[number]) => showTooltip(element, month.month, `${month.label} de ${year}`, [
     ...series.map((item) => ({ label: item.label, value: displayValue(month[item.key]) })),
     { label: "Total", value: metric === "money" ? formatMoney(totalMoney(month)) : `${month.lessons} aulas` },
   ]);
   const seriesTooltip = (element: Element, item: (typeof series)[number]) => showTooltip(element, item.key, `${item.label} · ${year}`, [
     { label: metric === "money" ? "Valor" : "Quantidade", value: displayValue(annual[item.key]) },
-    { label: "Participação", value: compositionTotal ? new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 }).format(annual[item.key] / compositionTotal) : "—" },
+    { label: "Participação", value: compositionTotal ? percentFormatter.format(annual[item.key] / compositionTotal) : "—" },
   ]);
   const renderPlot = (type: typeof chartType) => (type === "bars" ? <div className="payment-history-scroll" tabIndex={0} role="region" aria-label="Evolução mensal de pagamentos e aulas">
         <div className="payment-bars-plot"><div className="payment-chart-axis" aria-hidden="true"><span>{metric === "money" ? `R$ ${compactMoney(max)}` : max}</span><span>{metric === "money" ? compactMoney(Math.round(max / 2)) : Math.round(max / 2)}</span><span>0</span></div><div className="payment-history-bars">
@@ -101,7 +106,7 @@ export function PaymentHistoryChart({ payments, loading }: { payments: readonly 
           const item = series.find((entry) => { boundary += annual[entry.key]; return value < boundary; });
           if (item) seriesTooltip(event.currentTarget, item);
         }} onMouseLeave={() => setTooltip(null)} role="img" aria-label={`Composição de ${year}: ${series.map((item) => `${item.label} ${displayValue(annual[item.key])}`).join(", ")}`} style={{ background: compositionTotal ? `conic-gradient(${slices.join(", ")})` : "#29405b" }}><div><small>Total de {year}</small><strong>{displayValue(compositionTotal)}</strong></div></div>
-        <ul>{series.map((item) => <li key={item.key} tabIndex={0} aria-describedby={tooltip?.key === item.key ? tooltipId : undefined} onMouseEnter={(event) => seriesTooltip(event.currentTarget, item)} onMouseLeave={() => setTooltip(null)} onFocus={(event) => seriesTooltip(event.currentTarget, item)} onBlur={() => setTooltip(null)}><span><i style={{ background: item.color }} />{item.label}</span><small>{compositionTotal ? new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 }).format(annual[item.key] / compositionTotal) : "—"}</small></li>)}</ul>
+        <ul>{series.map((item) => <li key={item.key} tabIndex={0} aria-describedby={tooltip?.key === item.key ? tooltipId : undefined} onMouseEnter={(event) => seriesTooltip(event.currentTarget, item)} onMouseLeave={() => setTooltip(null)} onFocus={(event) => seriesTooltip(event.currentTarget, item)} onBlur={() => setTooltip(null)}><span><i style={{ background: item.color }} />{item.label}</span><small>{compositionTotal ? percentFormatter.format(annual[item.key] / compositionTotal) : "—"}</small></li>)}</ul>
       </div>);
   return <section onKeyDown={(event) => { if (event.key === "Escape") setTooltip(null); }} className="panel payment-history" aria-label="Gráfico de pagamentos" aria-busy={loading}>
     <div className="section-heading payment-history-heading"><h2>Evolução dos pagamentos</h2><div className="payment-history-toolbar">{years.length > 0 && <label className="payment-history-year"><span className="sr-only">Ano do gráfico</span><select className="input" value={year} onChange={(event) => { setTooltip(null); setSelection(event.target.value); }}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>}<label className="payment-history-metric"><span className="sr-only">Tipo de gráfico</span><select className="input" value={chartType} onChange={(event) => { setTooltip(null); setChartType(event.target.value as typeof chartType); }}><option value="bars">Barras</option><option value="line">Linhas</option><option value="donut">Rosca</option></select></label><label className="payment-history-metric"><span className="sr-only">Exibir no gráfico</span><select className="input" value={metric} onChange={(event) => { setTooltip(null); setMetric(event.target.value as "money" | "lessons"); }}><option value="money">Valores</option><option value="lessons">Aulas</option></select></label><Button type="button" className="button-ghost button-small symbol-action" aria-label="Ver detalhes" title="Ver detalhes dos pagamentos" onClick={() => setDetails("year")}><ChartNoAxesCombined size={18} aria-hidden="true" /></Button></div></div>
@@ -120,7 +125,7 @@ export function PaymentHistoryChart({ payments, loading }: { payments: readonly 
           <div><span>Recebido</span><strong>{formatMoney(detailedMonths.reduce((sum, month) => sum + month.received, 0))}</strong></div>
           <div><span>A receber</span><strong>{formatMoney(detailedMonths.reduce((sum, month) => sum + month.expected + month.overdue, 0))}</strong></div>
           <div><span>Em atraso</span><strong>{formatMoney(detailedMonths.reduce((sum, month) => sum + month.overdue, 0))}</strong></div>
-          <div><span>Percentual recebido</span><strong>{totals.amount ? new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 }).format(detailedMonths.reduce((sum, month) => sum + month.received, 0) / totals.amount) : "—"}</strong></div>
+          <div><span>Percentual recebido</span><strong>{totals.amount ? percentFormatter.format(detailedMonths.reduce((sum, month) => sum + month.received, 0) / totals.amount) : "—"}</strong></div>
         </div>
         <div className="payment-history-summary">
           <div><span>Aulas</span><strong>{totals.lessons}</strong></div><div><span>Aulas extras</span><strong>{totals.extras}</strong></div><div><span>Valor das extras</span><strong>{formatMoney(totals.extraAmount)}</strong></div><div><span>Valor médio por aula</span><strong>{totals.lessons ? formatMoney(Math.round(totals.amount / totals.lessons)) : "—"}</strong></div>

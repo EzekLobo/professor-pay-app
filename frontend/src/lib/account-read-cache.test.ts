@@ -22,3 +22,21 @@ it("rejects a late response after the account changes", async () => {
  await expect(pending).rejects.toThrow("conta conectada mudou");
  owner=true;expect(await cache.read("a",1000,async()=>"fresh-a",()=>owner)).toBe("fresh-a");
 });
+it("starts freshness after completion and shares slow requests beyond the freshness TTL", async () => {
+ let now = 1000; const cache = new AccountReadCache(() => now);
+ let release!: (value:number)=>void;
+ const read = vi.fn(() => new Promise<number>(resolve=>{release=resolve;}));
+ const first=cache.read("a",100,read,()=>true); await Promise.resolve(); await Promise.resolve();
+ now+=200; const second=cache.read("a",100,read,()=>true); release(7);
+ expect(await first).toBe(7); expect(await second).toBe(7); expect(read).toHaveBeenCalledOnce();
+ now+=99;expect(await cache.read("a",100,async()=>8,()=>true)).toBe(7);
+ now+=1;expect(await cache.read("a",100,async()=>8,()=>true)).toBe(8);
+});
+it("evicts a request that never answers so a later attempt can recover",async()=>{
+ vi.useFakeTimers();try {
+ const cache=new AccountReadCache(); const pending=cache.read("a",100,()=>new Promise(()=>undefined),()=>true);
+ const failure=expect(pending).rejects.toThrow("não respondeu no prazo");
+ await vi.advanceTimersByTimeAsync(20001); await failure;
+ expect(await cache.read("a",100,async()=>"recovered",()=>true)).toBe("recovered");
+ }finally{vi.useRealTimers();}
+});

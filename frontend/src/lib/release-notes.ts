@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026110901, date: "2026-11-09", title: "Navegação e carregamento mais eficientes",
+    description: "Cursos reaproveitam o catálogo diário, Disponibilidade carrega somente ao abrir e Pagamentos mantém a tela durante atualizações. Consultas sem resposta oferecem nova tentativa, e notificações evitam releituras sem relação com os alunos.",
+    href: "/settings", action: "Abrir configurações",
+  },
+  {
     version: 2026110806, date: "2026-11-08", title: "Atualizações mais leves",
     description: "As telas reaproveitam o cache e recebem atualizações por assunto. Atividades recentes e pendências são consultadas sem reimportar todo o histórico a cada visita. A previsão do próximo mês fica apenas em Pagamentos.",
     href: "/classes", action: "Abrir turmas",

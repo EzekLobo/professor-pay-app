@@ -22,3 +22,13 @@ it("keeps the last catalog when the request fails and refuses a late response af
   await expect(kodlandCourseCatalogApi.refresh("fixture", "fixture")).rejects.toThrow("conta conectada mudou");
   expect(mock.state.collections.kodland_course_catalog).toEqual([{ id: "1192", lessons: [] }]);
 });
+it("shares concurrent catalog requests, reuses a daily cache and allows explicit refresh",async()=>{
+ const courses=[{id:"1192",name:"Roblox",internal_name:"",lesson_count:0,lessons:[]}];
+ mock.request.mockResolvedValue({courses});
+ await Promise.all([kodlandCourseCatalogApi.refresh("fixture","fixture",false),kodlandCourseCatalogApi.refresh("fixture","fixture",false)]);
+ expect(mock.request).toHaveBeenCalledOnce();
+ await kodlandCourseCatalogApi.refresh("fixture","fixture",false);expect(mock.request).toHaveBeenCalledOnce();
+ await kodlandCourseCatalogApi.refresh("fixture","fixture",true);expect(mock.request).toHaveBeenCalledTimes(2);
+ mock.state.collections.kodland_catalog_metadata=[{id:"catalog",checked_at:new Date(Date.now()-25*3600000).toISOString()}];
+ await kodlandCourseCatalogApi.refresh("fixture","fixture",false);expect(mock.request).toHaveBeenCalledTimes(3);
+});

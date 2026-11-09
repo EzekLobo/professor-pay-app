@@ -7,6 +7,7 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from "react";
+import { readWithDeadline } from "@/lib/read-deadline";
 import { NextMonthPayrollCard } from "./next-month-payroll";
 import type { NextMonthPayroll } from "@/lib/next-month-payroll";
 import { AuthGuard } from "@/components/auth-guard";
@@ -137,18 +138,22 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
         ? [-2, -1, 0, 1]
         : [-1, 0, 1];
   const reading = useRef(false);
+  const loadGeneration = useRef(0);
+  const hasLoaded = useRef(false);
+  const detailRequest = useRef(0);
+  useEffect(() => () => { loadGeneration.current++; detailRequest.current++; }, []);
   const reloadRequested = useRef(false);
   const entryTimeZone = notificationState?.settings?.time_zone ?? "America/Sao_Paulo";
   const load = useCallback(async (keepContent = false) => {
-    void keepContent;
     if (reading.current) { reloadRequested.current = true; return; }
     reading.current = true;
-    setLoading(true);
+    const run = ++loadGeneration.current;
+    if (!keepContent && !hasLoaded.current) setLoading(true);
     setError("");
     try {
       do {
         reloadRequested.current = false;
-        let loaded = await paymentActions.list();
+        let loaded = await readWithDeadline(() => paymentActions.list(), "Pagamentos");
         let loadedItems = loaded.items;
         if (!adapter && !automaticEntryStarted.current) {
           automaticEntryStarted.current = true;
@@ -159,11 +164,13 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
               : result.status === "pending" ? "Não foi possível atualizar os pagamentos. Exibindo a última consulta salva." : "");
             if (result.updated) {
               reloadRequested.current = false; // This read includes the sync events already received.
-              loaded = await paymentActions.list();
+              loaded = await readWithDeadline(() => paymentActions.list(), "Pagamentos");
               loadedItems = loaded.items;
             }
           } catch { setAutomaticStatus("Não foi possível atualizar os pagamentos. Exibindo a última consulta salva."); }
         }
+        if (run !== loadGeneration.current) return;
+        hasLoaded.current = true;
         const nextFocus =
           loadedItems.find(
             (item) => item.payment_date > new Date().toISOString().slice(0, 10),
@@ -178,6 +185,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
         );
       } while (reloadRequested.current);
     } catch (e) {
+      if (run !== loadGeneration.current) return;
       setError(
         e instanceof Error
           ? e.message
@@ -185,7 +193,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       );
     } finally {
       reading.current = false;
-      setLoading(false);
+      if (run === loadGeneration.current) setLoading(false);
     }
   }, [paymentActions, adapter, entryTimeZone]);
   useEffect(() => {
@@ -201,15 +209,19 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
       if (!event.domains.includes("payments")) return;
       void load(true);
       const date = detailPaymentDate.current;
-      if (date) void paymentActions.get(date).then(value => {
-        if (getFirebaseAuth().currentUser?.uid === uid && detailPaymentDate.current === date) setDetail(value);
+      const request = ++detailRequest.current;
+      if (date) void readWithDeadline(() => paymentActions.get(date), "Extrato").then(value => {
+        if (request === detailRequest.current && getFirebaseAuth().currentUser?.uid === uid && detailPaymentDate.current === date) setDetail(value);
       }).catch(() => { /* Keep the open statement while a refresh is unavailable. */ });
     });
   }, [adapter, load, paymentActions]);
   async function open(date: string) {
+    const request = ++detailRequest.current;
     try {
-      setDetail(await paymentActions.get(date));
+      const result = await readWithDeadline(() => paymentActions.get(date), "Extrato");
+      if (request === detailRequest.current) setDetail(result);
     } catch (e) {
+      if (request !== detailRequest.current) return;
       setError(
         e instanceof Error ? e.message : "Não foi possível abrir o pagamento.",
       );
@@ -381,7 +393,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
         </p>
       </section>
       {automaticStatus && <p className="muted" role="status">{automaticStatus}</p>}
-      {error && <p className="form-error">{error}</p>}
+      {error && <div role="alert"><p className="form-error">{error}</p><Button type="button" className="button-ghost" onClick={() => void load(true)}>Tentar novamente</Button></div>}
       {notice && <p className="notice">{notice}</p>}
       <section className="metric-grid payment-metric-grid payment-metrics-with-forecast" data-tour="payments-summary">
         <NextMonthPayrollCard forecast={forecast} />
@@ -535,7 +547,7 @@ export function PaymentsContent({ adapter }: { adapter?: PaymentsAdapter } = {})
         open={Boolean(detail)}
         className="payment-statement-modal"
         title={detail ? `Extrato · ${detail.period}` : "Extrato"}
-        onClose={() => setDetail(null)}
+        onClose={() => { detailRequest.current++; setDetail(null); }}
         help={{
           id: adapter ? "demo-payment-statement" : "payment-statement",
           version: 2,

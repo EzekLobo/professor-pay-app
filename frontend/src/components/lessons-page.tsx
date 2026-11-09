@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { readWithDeadline } from "@/lib/read-deadline";
 import { Archive, ArrowDown, ArrowUp, BookPlus, ChevronRight, Copy, Download, Pencil, Plus, Trash2, RefreshCw } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { Shell } from "@/components/shell";
@@ -60,32 +61,33 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
   const [saving, setSaving] = useState(false);
   const [kodlandEnabled, setKodlandEnabled] = useState(false);
 
+  const loadGeneration = useRef(0);
   const load = useCallback(async () => {
+    const run = ++loadGeneration.current;
     setLoading(true); setError("");
     try {
-      const localOnly = !demoData && Boolean((await kodlandApi.browserState())?.active);
-      const preferences = localOnly ? { kodland_enabled: true } : await preferencesApi.get();
-      setKodlandEnabled(preferences.kodland_enabled);
-      if (demoData && preferences.kodland_enabled) {
-        setCourseGroups(demoData.groups); setCourseLessons(demoData.lessons); setManualCourses(await coursesApi.list());
-      } else if (demoData || !preferences.kodland_enabled) {
-        setCourseGroups([]); setCourseLessons([]); setManualCourses(await coursesApi.list());
-      } else {
+      const result = await readWithDeadline(async () => {
+        const localOnly = !demoData && Boolean((await kodlandApi.browserState())?.active);
+        const preferences = localOnly ? { kodland_enabled: true } : await preferencesApi.get();
+        if (demoData || !preferences.kodland_enabled) return { enabled: preferences.kodland_enabled, groups: preferences.kodland_enabled ? demoData?.groups ?? [] : [], lessons: preferences.kodland_enabled ? demoData?.lessons ?? [] : [], courses: await coursesApi.list(), catalog: null };
         const [groups, lessons, courses, catalog] = await Promise.all([kodlandApi.groups(), kodlandApi.lessons(), localOnly ? Promise.resolve(null) : coursesApi.list(), kodlandCourseCatalogApi.get()]);
-        setCourseGroups(groups.items.filter((group) => !group.archived)); setCourseLessons(lessons.items); if (courses) setManualCourses(courses);
-        setAvailableCourses(catalog);
-      }
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível carregar os cursos."); }
-    finally { setLoading(false); }
+        return { enabled: true, groups: groups.items.filter(group => !group.archived), lessons: lessons.items, courses, catalog };
+      }, "Cursos");
+      if (run !== loadGeneration.current) return;
+      setKodlandEnabled(result.enabled); setCourseGroups(result.groups); setCourseLessons(result.lessons);
+      if (result.courses) setManualCourses(result.courses);
+      if (result.catalog) setAvailableCourses(result.catalog);
+    } catch (reason) { if (run === loadGeneration.current) setError(reason instanceof Error ? reason.message : "Não foi possível carregar os cursos."); }
+    finally { if (run === loadGeneration.current) setLoading(false); }
   }, [coursesApi, demoData, preferencesApi]);
-  useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
-  const refreshCatalog = useCallback(async () => {
+  useEffect(() => { const generation = loadGeneration; const timer = window.setTimeout(() => void load(), 0); return () => { generation.current++; window.clearTimeout(timer); }; }, [load]);
+  const refreshCatalog = useCallback(async (force = false) => {
     if (demoData || !kodlandEnabled || loading) return;
     setRefreshingCatalog(true);
     try {
       const credentials = await restoreKodlandCredentials();
       if (!credentials) throw new Error("Salve o acesso à Kodland em Configurações > Dados e backup para consultar todos os cursos.");
-      setAvailableCourses(await kodlandCourseCatalogApi.refresh(credentials.username.trim(), credentials.password));
+      setAvailableCourses(await kodlandCourseCatalogApi.refresh(credentials.username.trim(), credentials.password, force));
       setError("");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível atualizar o catálogo. Os cursos anteriores foram preservados."); }
     finally { setRefreshingCatalog(false); }
@@ -137,9 +139,9 @@ export function LessonsContent({ demoData, manualAdapter }: { demoData?: { group
   const openKodlandLesson = (source: string, lesson: KodlandLesson) => setSelectedMaterial({ ...lesson, classroom_tasks: lesson.classroom_tasks ?? [], location: kodlandLessonLocation(lesson), source, note_key: `kodland:${lesson.external_class_id}:${lesson.id}` });
 
   return <div className="management-grid page-fill-grid">
-    {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
+    {error && <div role="alert"><p className="form-error">{error}</p><Button type="button" className="button-ghost" onClick={() => void load()}>Tentar novamente</Button></div>}{notice && <p className="notice" role="status">{notice}</p>}
     <section className="panel lessons-catalog-panel page-fill-panel">
-      <div className="section-heading"><div><h2>Cursos</h2></div>{!demoData && kodlandEnabled && <Button type="button" className="button-ghost sync-icon-button" aria-label="Atualizar cursos" title={refreshingCatalog ? "Atualizando cursos" : "Atualizar cursos"} aria-busy={refreshingCatalog} disabled={refreshingCatalog} onClick={() => void refreshCatalog()}><RefreshCw size={18} aria-hidden="true" className={refreshingCatalog ? "sync-icon-spinning" : undefined} /></Button>}<Button type="button" className="create-course-button" aria-label="Criar novo curso" title="Criar novo curso" onClick={() => openBuilder()}><BookPlus size={19} aria-hidden="true" /><span>Curso</span></Button></div>
+      <div className="section-heading"><div><h2>Cursos</h2></div>{!demoData && kodlandEnabled && <Button type="button" className="button-ghost sync-icon-button" aria-label="Atualizar cursos" title={refreshingCatalog ? "Atualizando cursos" : "Atualizar cursos"} aria-busy={refreshingCatalog} disabled={refreshingCatalog} onClick={() => void refreshCatalog(true)}><RefreshCw size={18} aria-hidden="true" className={refreshingCatalog ? "sync-icon-spinning" : undefined} /></Button>}<Button type="button" className="create-course-button" aria-label="Criar novo curso" title="Criar novo curso" onClick={() => openBuilder()}><BookPlus size={19} aria-hidden="true" /><span>Curso</span></Button></div>
       {loading ? <p className="muted">Carregando cursos…</p> : !courseCatalog.length && !manualCourses.length ? <p className="muted">Nenhum curso cadastrado. Crie o primeiro para organizar módulos, aulas e materiais.</p> : <div className="course-list" data-tour="lessons-courses">
         {manualCourses.map((course) => <details className={`course-card manual-course-card${course.archived ? " manual-course-archived" : ""}`} key={course.id}><summary><span><strong>{course.name}</strong><small>Curso próprio · {course.modules.length} módulo{course.modules.length === 1 ? "" : "s"}{course.archived ? " · Arquivado" : ""}</small></span><b>{manualCourseLessons(course).length} aulas</b></summary><div className="course-card-actions"><button className="button button-ghost button-small" type="button" onClick={() => openBuilder(course)}><Pencil size={15} aria-hidden="true" /> Editar curso</button><button className="button button-ghost button-small" type="button" onClick={() => void duplicateCourse(course)}><Copy size={15} /> Duplicar</button><button className="button button-ghost button-small" type="button" onClick={() => void toggleArchived(course)}><Archive size={15} /> {course.archived ? "Reativar" : "Arquivar"}</button><button className="button button-ghost button-small" type="button" onClick={() => { setError(""); setDeletingCourse(course); }}><Trash2 size={15} aria-hidden="true" /> Excluir curso</button></div><div className="course-lessons">{course.modules.map((module, moduleIndex) => <section className="course-module" key={module.id}><div className="course-module-heading"><h3>{module.title}</h3><span>{module.lessons.filter((lesson) => !lesson.archived).length} aulas</span></div><div className="course-module-lessons">{module.lessons.filter((lesson) => !lesson.archived).map((lesson, lessonIndex) => <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => setSelectedManualLesson({ course, module, lesson, code: `M${moduleIndex + 1}L${lessonIndex + 1}` })}><div><strong>{`M${moduleIndex + 1}L${lessonIndex + 1}`} · {lesson.title}</strong><span>{[lesson.activities && "Atividades", lesson.guide && "Roteiro", lesson.slides && "Slides", lesson.homework && "Lição de casa"].filter(Boolean).join(" · ") || "Sem materiais cadastrados"}</span></div><span className="course-lesson-hint">Ver detalhes</span></button>)}</div></section>)}</div></details>)}
         {courseCatalog.map((course) => <details className="course-card" key={course.id}><summary><span><strong>{course.name}</strong><small>{course.id.startsWith("course-") ? `Kodland #${course.id.slice(7)} · ` : ""}{course.groups.length ? `${course.groups.length} turma${course.groups.length === 1 ? "" : "s"}: ${course.groups.map(group => group.title || group.external_id).join(", ")}` : "Disponível no catálogo do professor"}</small></span><b>{course.lessons.length} aulas</b></summary><div className="course-lessons">{course.lessons.length ? groupLessonsByModule(course.lessons).map((module) => <section className="course-module" key={module.id}><div className="course-module-heading"><h3>{module.label}</h3><span>{module.lessons.length} aulas</span></div><div className="course-module-lessons">{module.lessons.map((lesson) => <button className="course-lesson course-lesson-action" type="button" key={lesson.id} onClick={() => openKodlandLesson(course.name, lesson)}><div><strong>Aula {(module.number ? lesson.lesson_number : lesson.course_index ?? lesson.lesson_number) || "—"}: {lesson.title || lesson.theme || "Aula"}</strong><span>{lesson.external_class_id.startsWith("course:") ? "Aula do catálogo" : lesson.lesson_date ? formatDate(lesson.lesson_date) : "Data a confirmar"}</span></div><span className="course-lesson-hint">Ver materiais</span></button>)}</div></section>) : <p className="muted">Ainda não há aulas disponíveis neste curso.</p>}</div></details>)}

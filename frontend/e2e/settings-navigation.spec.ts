@@ -37,6 +37,7 @@ for (const width of [1440, 390, 320]) {
     await menu.getByRole("tab", { name: "Disponibilidade", exact: true }).click();
     await expect(page.getByRole("button", { name: "Salvar", exact: true })).not.toBeVisible();
     await expect(panel).toHaveAccessibleName("Disponibilidade");
+    await expect(page.getByText("Carregando disponibilidade…", { exact: true })).toHaveCount(0);
     const initialRows = await panel.locator(".availability-row").count();
     await page.getByRole("combobox", { name: "Dia da semana", exact: true }).selectOption("6");
     await page.getByRole("button", { name: "Adicionar horário", exact: true }).click();

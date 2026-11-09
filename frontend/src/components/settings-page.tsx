@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { availabilityMeetings } from "@/lib/availability-meetings";
+import { readWithDeadline } from "@/lib/read-deadline";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { MessageSettings } from "./message-settings";
 import { NotificationSettingsPanel } from "./student-notifications";
 import { DataContent } from "@/components/data-page";
@@ -42,8 +44,11 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
     window.addEventListener("hashchange", syncHash);
     return () => { window.clearTimeout(timer); window.removeEventListener("hashchange", syncHash); window.removeEventListener("nexusclass:open-notification-settings", openNotifications); };
   }, []);
+  const availabilityLoaded = useRef(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
   const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [availabilityAttempt, setAvailabilityAttempt] = useState(0);
   const [preferences, setPreferences] = useState<TutorPreferences | null>(null);
   const [availability, setAvailability] = useState<ManualAvailability[]>([]);
   const [classes, setClasses] = useState<ManualClass[]>([]);
@@ -56,21 +61,37 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
 
   useEffect(() => {
     let active = true;
-    void Promise.all([adapter.preferences.get(), adapter.operations.availability(), adapter.settings.get(), adapter.teaching.classes()]).then(async ([prefs, slots, finance, classRows]) => {
-      const occurrenceRows = (await Promise.all(classRows.filter((item) => item.active).map((item) => adapter.operations.ensureOccurrences(item.id)))).flat();
+    void readWithDeadline(() => Promise.all([adapter.preferences.get(), adapter.settings.get()]), "Configurações").then(([prefs, finance]) => {
       if (!active) return;
-      setPreferences(prefs); setAvailability(slots); setClasses(classRows); setOccurrences(occurrenceRows); setDefaultRate(finance.default_hourly_rate_cents == null ? "" : (finance.default_hourly_rate_cents / 100).toFixed(2).replace(".", ","));
+      setPreferences(prefs); setDefaultRate(finance.default_hourly_rate_cents == null ? "" : (finance.default_hourly_rate_cents / 100).toFixed(2).replace(".", ","));
     }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Não foi possível carregar as configurações."); });
     return () => { active = false; };
   }, [adapter, loadAttempt]);
+  useEffect(() => {
+    availabilityLoaded.current = false;
+  }, [adapter]);
+  useEffect(() => {
+    if (section !== "availability" || availabilityLoaded.current) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      setAvailabilityLoading(true);
+      void readWithDeadline(() => Promise.all([adapter.operations.availability(), adapter.teaching.classes(), adapter.operations.occurrences()]), "Disponibilidade").then(([slots, rows, meetings]) => {
+        if (!active) return;
+        setAvailability(slots); setClasses(rows); setOccurrences(meetings); availabilityLoaded.current = true;
+      }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "Não foi possível carregar a disponibilidade."); })
+        .finally(() => { if (active) setAvailabilityLoading(false); });
+    }, 0);
+    return () => { active = false; clearTimeout(timer); };
+  }, [adapter, section, availabilityAttempt]);
+  const meetings = useMemo(() => availabilityMeetings(classes, occurrences, todayInSaoPaulo()), [classes, occurrences]);
   const freeByAvailability = useMemo(() => new Map(availability.map((availabilityItem) => {
     let free: Array<[number, number]> = [[minutes(availabilityItem.start_time), minutes(availabilityItem.end_time)]];
     const today = todayInSaoPaulo();
     const activeClassIds = new Set(classes.filter((item) => item.active).map((item) => item.id));
-    const occupied = occurrences.filter((item) => activeClassIds.has(item.class_id) && item.lesson_date >= today && (item.status === "planned" || item.status === "held") && new Date(`${item.lesson_date}T12:00:00Z`).getUTCDay() === availabilityItem.week_day).map((item) => [minutes(item.start_time), minutes(item.start_time) + item.duration_minutes] as [number, number]);
+    const occupied = meetings.filter((item) => activeClassIds.has(item.class_id) && item.lesson_date >= today && (item.status === "planned" || item.status === "held") && new Date(`${item.lesson_date}T12:00:00Z`).getUTCDay() === availabilityItem.week_day).map((item) => [minutes(item.start_time), minutes(item.start_time) + item.duration_minutes] as [number, number]);
     for (const [occupiedStart, occupiedEnd] of occupied) free = free.flatMap(([start, end]) => occupiedEnd <= start || occupiedStart >= end ? [[start, end]] : [[start, Math.max(start, occupiedStart)], [Math.min(end, occupiedEnd), end]].filter(([left, right]) => right > left) as Array<[number, number]>);
     return [availabilityItem.id, free.map(([start, end]) => `${clock(start)}–${clock(end)}`).join(", ") || "sem horário livre"];
-  })), [availability, classes, occurrences]);
+  })), [availability, classes, meetings]);
 
   function selectSection(value: SettingsSection) {
     if (busy || availabilityBusy) return;
@@ -156,9 +177,11 @@ export function SettingsContent({ adapter = productionAdapter, accountAccess = f
       <div className="settings-save-bar"><span>{section === "defaults" ? "Aplicado aos próximos cadastros." : "Defina quais integrações deseja usar."}</span><Button type="submit" disabled={busy}>{busy ? "Salvando…" : "Salvar"}</Button></div>
     </form>
     <section id="settings-panel-availability" role="tabpanel" aria-labelledby="settings-tab-availability" hidden={section !== "availability"} tabIndex={0} className="panel settings-section settings-availability"><div className="settings-section-heading"><span className="settings-section-icon"><CalendarClock size={19} aria-hidden="true" /></span><div><h3>Disponibilidade semanal</h3><p>Cadastre os horários disponíveis. As alterações são salvas automaticamente.</p></div></div>
-      {availability.filter((item) => item.active).length === 0 && <p className="muted settings-empty">Nenhum horário cadastrado.</p>}
-      <div className="availability-list">{availability.filter((item) => item.active).map((item) => <div className="availability-row" key={item.id}><span><strong>{weekdays[item.week_day]} · {item.start_time}–{item.end_time}</strong><small className="muted">Livre após descontar aulas: {freeByAvailability.get(item.id)}</small></span><button className="button button-ghost button-small" type="button" disabled={availabilityBusy} onClick={() => void removeAvailability(item.id)}>Remover</button></div>)}</div>
-      <div className="availability-add"><label><span>Dia da semana</span><select className="input" value={newSlot.week_day} onChange={(event) => setNewSlot({ ...newSlot, week_day: Number(event.target.value) })}>{weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label><label><span>Início</span><Input type="time" value={newSlot.start_time} onChange={(event) => setNewSlot({ ...newSlot, start_time: event.target.value })} /></label><label><span>Fim</span><Input type="time" value={newSlot.end_time} onChange={(event) => setNewSlot({ ...newSlot, end_time: event.target.value })} /></label><Button className="availability-add-button" disabled={availabilityBusy} type="button" aria-label="Adicionar horário" title="Adicionar horário" onClick={() => void addAvailability()}><Plus size={20} aria-hidden="true" /></Button></div>
+      {availabilityLoading && <p role="status" className="muted">Carregando disponibilidade…</p>}
+      {error && section === "availability" && <Button type="button" className="button-ghost" onClick={() => { setError(""); setAvailabilityAttempt(value => value + 1); }}>Tentar novamente</Button>}
+      {!availabilityLoading && availability.filter((item) => item.active).length === 0 && <p className="muted settings-empty">Nenhum horário cadastrado.</p>}
+      <div className="availability-list">{availability.filter((item) => item.active).map((item) => <div className="availability-row" key={item.id}><span><strong>{weekdays[item.week_day]} · {item.start_time}–{item.end_time}</strong><small className="muted">Livre após descontar aulas: {freeByAvailability.get(item.id)}</small></span><button className="button button-ghost button-small" type="button" disabled={availabilityBusy || availabilityLoading} onClick={() => void removeAvailability(item.id)}>Remover</button></div>)}</div>
+      <div className="availability-add"><label><span>Dia da semana</span><select className="input" value={newSlot.week_day} onChange={(event) => setNewSlot({ ...newSlot, week_day: Number(event.target.value) })}>{weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label><label><span>Início</span><Input type="time" value={newSlot.start_time} onChange={(event) => setNewSlot({ ...newSlot, start_time: event.target.value })} /></label><label><span>Fim</span><Input type="time" value={newSlot.end_time} onChange={(event) => setNewSlot({ ...newSlot, end_time: event.target.value })} /></label><Button className="availability-add-button" disabled={availabilityBusy || availabilityLoading} type="button" aria-label="Adicionar horário" title="Adicionar horário" onClick={() => void addAvailability()}><Plus size={20} aria-hidden="true" /></Button></div>
     </section>
     <div id="settings-panel-data" role="tabpanel" aria-labelledby="settings-tab-data" hidden={section !== "data"} tabIndex={0}>{section === "data" && (dataContent ?? <DataContent />)}</div>
     </div>

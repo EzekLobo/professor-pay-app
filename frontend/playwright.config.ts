@@ -9,9 +9,9 @@ export default defineConfig({
   use: { baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000", trace: "on-first-retry" },
   webServer: { command: "npm run dev -- --hostname 127.0.0.1", url: "http://127.0.0.1:3000", reuseExistingServer: !process.env.CI, timeout: 60_000 },
   projects: [
-    { name: "chromium", testIgnore: ["**/operation-logs.spec.ts", "**/activity-loading.spec.ts", "**/next-month-payroll.spec.ts"], use: { ...devices["Desktop Chrome"] } },
+    { name: "chromium", testIgnore: ["**/operation-logs.spec.ts", "**/activity-loading.spec.ts", "**/next-month-payroll.spec.ts", "**/optimization-flows.spec.ts"], use: { ...devices["Desktop Chrome"] } },
     // These fixtures add/remove development routes. Run them after other pages
     // to avoid Fast Refresh invalidating their server-rendered HTML mid-test.
-    { name: "diagnostic-ui", testMatch: ["**/operation-logs.spec.ts", "**/activity-loading.spec.ts", "**/next-month-payroll.spec.ts"], dependencies: ["chromium"], use: { ...devices["Desktop Chrome"] } },
+    { name: "diagnostic-ui", testMatch: ["**/operation-logs.spec.ts", "**/activity-loading.spec.ts", "**/next-month-payroll.spec.ts", "**/optimization-flows.spec.ts"], dependencies: ["chromium"], use: { ...devices["Desktop Chrome"] } },
   ],
 });

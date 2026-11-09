@@ -19,7 +19,7 @@ import type { DemoSnapshot } from "@/lib/demo-snapshot";
 import { DEFAULT_ABSENCE_MESSAGE } from "@/lib/manual-operations";
 import { defaultNotificationSettings, validateActivityMessageTemplate, validateNotificationSettings, evaluateStudentNotifications, needsNotificationContact, notificationMessage, notificationTarget, type NotificationCase, type NotificationSettings, type StudentNotification } from "@/lib/student-notification-rules";
 import { clearStudentNotificationSourceCache, demoStudentNotificationSource, loadStudentNotificationSource, loadBrowserKodlandNotificationSource, type NotificationSource } from "@/lib/student-notification-source";
-import { createDemoStudentNotificationStore, createStudentNotificationStore, subscribeStudentNotifications, notifyStudentNotificationsChanged } from "@/lib/student-notification-store";
+import { createDemoStudentNotificationStore, createStudentNotificationStore, subscribeStudentNotifications } from "@/lib/student-notification-store";
 import { whatsappUrl } from "@/lib/whatsapp";
 
 type NotificationContext = {
@@ -55,14 +55,19 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
   }, [demo, uid, snapshot]);
   const generation = useRef(0);
   const cached = useRef<{ at: number; settings: NotificationSettings; history: NotificationCase[]; signature: string } | null>(null);
+  const metadataRevision = useRef(0);
   const refreshing = useRef(false);
   const refreshPending = useRef(false);
+  const pendingForce = useRef(false);
+  const refreshLatest = useRef<(force?: boolean) => Promise<void>>(async () => undefined);
+  const pendingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastLogged = useRef("");
   const lastLoggedAt = useRef(0);
   const refresh = useCallback(async (force = false) => {
-    if (refreshing.current) { refreshPending.current = true; return; }
+    if (refreshing.current) { refreshPending.current = true; pendingForce.current ||= force; return; }
     refreshing.current = true;
     const run = ++generation.current;
+    const revision = metadataRevision.current;
     const startedAt = new Date().toISOString();
     if (!cached.current) setLoading(true);
     try {
@@ -79,7 +84,7 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
       const items = data ? evaluateStudentNotifications(data.lessons, data.obligations, value, new Date()) : [];
       const itemSignature = JSON.stringify(items);
       const rows = remote || previous?.signature !== itemSignature ? await store.reconcile(items, startedAt, data?.coverage) : history;
-      cached.current = { at: remote ? Date.now() : previous.at, settings: value, history: rows, signature: itemSignature };
+      cached.current = revision === metadataRevision.current ? { at: remote ? Date.now() : previous.at, settings: value, history: rows, signature: itemSignature } : null;
       if (run !== generation.current) return;
       setCases(rows); setWarnings(data?.warnings ?? []); setUpdated(data?.loaded_at ?? ""); setError("");
       const summary = { alerts: rows.filter(item => item.active).length, pending: rows.filter(needsNotificationContact).length, warnings: data?.warnings.length ?? 0 };
@@ -96,21 +101,26 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
       refreshing.current = false;
       if (run === generation.current) {
         setLoading(false);
-        if (refreshPending.current) { refreshPending.current = false; window.setTimeout(() => notifyStudentNotificationsChanged("history"), 0); }
+        if (refreshPending.current) {
+          refreshPending.current = false; const forceNext = pendingForce.current; pendingForce.current = false;
+          pendingTimer.current = setTimeout(() => void refreshLatest.current(forceNext), 0);
+        }
       }
     }
   }, [demo, snapshot, store, source]);
+  useEffect(() => { refreshLatest.current = refresh; }, [refresh]);
   useEffect(() => {
-    cached.current = null;
+    metadataRevision.current++; cached.current = null;
     const reload = () => { if (document.visibilityState !== "hidden" && navigator.onLine) void refresh(); };
     const timer = window.setTimeout(reload, 0);
     const interval = window.setInterval(reload, 60000);
     const unsubscribe = subscribeStudentNotifications((change, domains) => {
+      if (change === "source" && domains && !domains.some(domain => ["activities", "attendance", "ranking", "agenda"].includes(domain))) return;
       if (change === "source") clearStudentNotificationSourceCache(!domains);
-      else cached.current = null;
+      else { metadataRevision.current++; cached.current = null; }
       reload();
     });
-    const unsubscribePreferences = subscribeTutorPreferencesChanged(uid, () => { clearStudentNotificationSourceCache(); cached.current = null; reload(); });
+    const unsubscribePreferences = subscribeTutorPreferencesChanged(uid, () => { clearStudentNotificationSourceCache(); metadataRevision.current++; cached.current = null; reload(); });
     const storageChanged = (event: StorageEvent) => {
       if (event.key === `nexusclass:kodland-change:${uid}`) { clearStudentNotificationSourceCache(false); reload(); }
       else if (event.key === "nexusclass:sync-data-event") {
@@ -119,11 +129,11 @@ export function StudentNotificationsProvider({ uid, snapshot, onDemoChange, path
           if (update?.uid === uid && Array.isArray(update.domains) && update.domains.some((domain: string) => ["activities", "attendance", "ranking", "agenda"].includes(domain))) { clearStudentNotificationSourceCache(false); reload(); }
         } catch { /* Ignore unrelated/invalid cross-tab messages. */ }
       }
-      else if (demo && event.key?.startsWith("nexusclass.demo.")) { clearStudentNotificationSourceCache(); cached.current = null; reload(); }
+      else if (demo && event.key?.startsWith("nexusclass.demo.")) { clearStudentNotificationSourceCache(); metadataRevision.current++; cached.current = null; reload(); }
     };
     window.addEventListener("focus", reload); window.addEventListener("online", reload); window.addEventListener("storage", storageChanged); document.addEventListener("visibilitychange", reload);
     const runGeneration = generation;
-    return () => { runGeneration.current++; clearTimeout(timer); clearInterval(interval); unsubscribe(); unsubscribePreferences(); window.removeEventListener("focus", reload); window.removeEventListener("online", reload); window.removeEventListener("storage", storageChanged); document.removeEventListener("visibilitychange", reload); };
+    return () => { runGeneration.current++; clearTimeout(pendingTimer.current); refreshPending.current = false; pendingForce.current = false; clearTimeout(timer); clearInterval(interval); unsubscribe(); unsubscribePreferences(); window.removeEventListener("focus", reload); window.removeEventListener("online", reload); window.removeEventListener("storage", storageChanged); document.removeEventListener("visibilitychange", reload); };
   }, [refresh, uid, demo]);
   const value: NotificationContext = {
     settings, cases, warnings, error, loading, updated, demo, absenceTemplate, autoSync,

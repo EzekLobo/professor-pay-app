@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const fake = vi.hoisted(() => ({
   docs: new Map<string, Record<string, unknown>>(),
   batchSizes: [] as number[],
+  reads: [] as string[],
   queued: [] as string[],
   failMigration: false,
   failBatch: false,
@@ -39,10 +40,10 @@ vi.mock("firebase/firestore", () => {
     query: (collection: unknown) => collection,
     orderBy: () => ({}),
     where: () => ({}),
-    getDocs: async (collection: unknown) => ({ docs: [...fake.docs]
+    getDocs: async (collection: unknown) => { fake.reads.push(path(collection)); return { docs: [...fake.docs]
       .filter(([key]) => key.startsWith(`${path(collection)}/`) && key.slice(path(collection).length + 1).indexOf("/") < 0)
-      .map(([key]) => ({ id: key.split("/").at(-1)!, data: () => fake.docs.get(key)! })) }),
-    getDoc: async (key: unknown) => snapshot(path(key)),
+      .map(([key]) => ({ id: key.split("/").at(-1)!, data: () => fake.docs.get(key)! })) }; },
+    getDoc: async (key: unknown) => { fake.reads.push(path(key)); return snapshot(path(key)); },
     setDoc: async (key: unknown, value: Record<string, unknown>, options?: { merge: boolean }) => {
       set(path(key), value, options?.merge);
     },
@@ -88,6 +89,7 @@ const lesson = (id: string, date = "2026-10-13") => ({
 
 beforeEach(() => {
   fake.docs.clear();
+  fake.reads.length = 0;
   fake.batchSizes.length = 0;
   fake.queued.length = 0;
   fake.failMigration = false;
@@ -195,6 +197,7 @@ describe("backup e migração", () => {
       manual_class_groups: [{ name: "Autônomas" }], manual_classes: [{ name: "Própria", group_id: "personal-1" }], teaching_settings: { id: "finance" },
       payment_confirmations: [{ payment_snapshot: closed }] });
     fake.docs.clear();
+  fake.reads.length = 0;
     const preview = await dataApi.previewImport(exported);
     expect(preview.task_card_count).toBe(1);
     expect(exported.task_settings).toHaveLength(1);
@@ -359,4 +362,18 @@ it("uma turma atualizada não encobre uma turma cujo progresso ficou incompleto"
   fake.docs.set(key("sync_status", "kodland"), { status: "complete", sync_id: "newer" });
   fake.docs.set(key("sync_status", "corrections"), { status: "complete", group_status: { a: "failed", b: "complete" } });
   expect(await kodlandApi.notificationSyncStatus()).toMatchObject({ status: "failed" });
+});
+
+it("reuses dashboard inputs for every manual class and only persists changed occurrences",async()=>{
+ for(const id of ["one","two"]) fake.docs.set(key("manual_classes",id), {
+  id,name:id,source:"manual",active:true,first_lesson_date:"2026-10-13",end_date:"2026-11-24",hourly_rate_cents:3000,payment_day:15,student_ids:[],created_at:"2026-10-01",updated_at:"2026-10-01",
+  schedule_slots:[{id:"tuesday",week_day:1,start_time:"19:00",duration_minutes:60,effective_from:"2026-10-13"}],
+ });
+ const first=await dashboardApi.get();
+ for(const name of ["manual_classes","manual_occurrences","manual_courses"]) expect(fake.reads.filter(path=>path===`users/test-user/${name}`)).toHaveLength(1);
+ expect(fake.reads.filter(path=>path==="users/test-user/teaching_settings/finance")).toHaveLength(1);
+ const saved=[...fake.docs].filter(([path])=>path.includes("/manual_occurrences/"));expect(saved.length).toBeGreaterThan(0);
+ const writes=fake.batchSizes.reduce((a,b)=>a+b,0); const second=await dashboardApi.get();
+ expect(second.payments).toEqual(first.payments);expect(fake.batchSizes.reduce((a,b)=>a+b,0)).toBe(writes);
+ expect([...fake.docs].filter(([path])=>path.includes("/manual_occurrences/"))).toEqual(saved);
 });

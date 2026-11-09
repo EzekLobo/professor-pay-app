@@ -3,8 +3,9 @@ import { resolve } from "node:path";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 const source = readFileSync(resolve(__dirname, "../src/lib/kodland-browser-cache.ts"), "utf8");
-const memo = stripTypeScriptTypes(readFileSync(resolve(__dirname, "../src/lib/account-read-cache.ts"), "utf8")).replace(/\bexport\s+/g, "");
-const code = memo + stripTypeScriptTypes(source).replace(/^import .*AccountReadCache.*;\n/m, "").replace(/\bexport\s+/g, "") + ";return {readKodlandBrowser, readKodlandBrowserRows, updateKodlandBrowser};";
+const deadline = stripTypeScriptTypes(readFileSync(resolve(__dirname, "../src/lib/read-deadline.ts"), "utf8")).replace(/\bexport\s+/g, "");
+const memo = stripTypeScriptTypes(readFileSync(resolve(__dirname, "../src/lib/account-read-cache.ts"), "utf8")).replace(/^import .*readWithDeadline.*;\n/m, "").replace(/\bexport\s+/g, "");
+const code = deadline + memo + stripTypeScriptTypes(source).replace(/^import .*AccountReadCache.*;\n/m, "").replace(/\bexport\s+/g, "") + ";return {readKodlandBrowser, readKodlandBrowserRows, updateKodlandBrowser};";
 test("IndexedDB mantém dados após recarga e separa contas", async ({ page }) => {
  await page.goto("/demo");
  await page.evaluate(async code => {

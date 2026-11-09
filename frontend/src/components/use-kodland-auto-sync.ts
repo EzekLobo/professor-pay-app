@@ -39,6 +39,9 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     let refreshedRevision = 0;
     let pageCompletionPending = false;
     let pageFailed = false;
+    let attendanceRefreshed = false;
+    let activitiesRefreshed = false;
+    let correctionGroup: string | null = null;
     let priorityGroup: string | null = null;
     const recordingAttemptsThisVisit = new Set<string>();
     const unsubscribe = subscribeStudentNotifications(change => { if (change === "source" && !automaticRunning) { cache = null; disabledUntil = 0; } });
@@ -175,6 +178,8 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
           if (!owner()) return;
           if (!credentials) { refreshedRevision = revision; setStatus({ phase: "credentials", message: "Salve o acesso à Kodland em Configurações > Dados e backup para atualizar esta página." }); return; }
           const requestedPage = page;
+          if (requestedPage === "activities" && activitiesRefreshed && !correctionGroup) { refreshedRevision = revision; setStatus({ phase: "ready" }); return; }
+          if (requestedPage === "attendance" && attendanceRefreshed) { refreshedRevision = revision; setStatus({ phase: "ready" }); return; }
           pageFailed = false;
           setStatus({ phase: "syncing", message: requestedPage === "agenda" ? "Atualizando a grade do Resumo…" : requestedPage === "attendance" ? "Atualizando presença…" : "Atualizando tarefas e ranking…" });
           let profileError: unknown;
@@ -188,12 +193,13 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
           if (requestedPage === "agenda") { await synchronize(credentials, "schedule"); if (owner()) await repairProfiles(); }
           else {
             // Refresh the group next-lesson metadata without reimporting the timetable.
-            if (requestedPage !== "attendance") await synchronize(credentials, "classroom");
+            if (requestedPage !== "attendance" && !activitiesRefreshed) await synchronize(credentials, "classroom");
             if (!owner() || pageRevision !== revision) return;
             await repairProfiles();
             if (!owner() || pageRevision !== revision) return;
             const groups = await readKodlandLocal(() => kodlandApi.groups(), crypto.randomUUID(), "Turmas da página", 15000);
-            const remaining = groups.items.filter(item => !item.archived);
+            const targetedGroup = requestedPage === "activities" && activitiesRefreshed ? correctionGroup : null;
+            const remaining = groups.items.filter(item => !item.archived && (!targetedGroup || item.external_id === targetedGroup));
             let completed = 0;
             while (remaining.length) {
               if (!owner() || pageRevision !== revision) return;
@@ -201,12 +207,15 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
               remaining.sort((a, b) => Number(b.external_id === priorityGroup) - Number(a.external_id === priorityGroup) || refreshStamp(uid, `page:corrections:${a.external_id}:${requestedPage}`) - refreshStamp(uid, `page:corrections:${b.external_id}:${requestedPage}`));
               const group = remaining.shift()!;
               if (requestedPage === "activities") setStatus({ phase: "syncing", message: `Atualizando atividades: turma ${completed + 1} de ${groups.items.filter(item => !item.archived).length}…` });
-              await synchronize(credentials, "corrections", group.external_id, requestedPage);
+              await synchronize(credentials, "corrections", group.external_id, requestedPage, undefined, Boolean(targetedGroup));
+              if (targetedGroup && correctionGroup === targetedGroup) correctionGroup = null;
               completed++;
             }
           }
           if (!owner()) return;
           refreshedRevision = revision;
+          if (requestedPage === "attendance") attendanceRefreshed = true;
+          if (requestedPage === "activities") activitiesRefreshed = true;
           cache = null;
           if (profileError) throw new Error("A página foi atualizada, mas alguns contatos ou saldos de aulas continuam pendentes.");
           setStatus({ phase: "ready", updatedAt: new Date().toISOString() });
@@ -237,6 +246,25 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
       const id = (event as CustomEvent<string>).detail;
       if (typeof id === "string") priorityGroup = id;
     };
+    const correctionOpened = (event: Event) => { const id = (event as CustomEvent<string>).detail; if (typeof id === "string" && id) correctionGroup = id; };
+    const attendanceTimers = new Set<ReturnType<typeof setTimeout>>();
+    const justificationOpened = (event: Event) => {
+      const groupId = (event as CustomEvent<string>).detail;
+      if (typeof groupId !== "string" || !groupId) return;
+      for (const delay of [5 * 60000, 15 * 60000]) {
+        const timer = setTimeout(() => {
+          attendanceTimers.delete(timer);
+          void (async () => {
+            if (!owner() || !navigator.onLine || !kodlandAutoSyncAvailable(uid)) return;
+            const credentials = await restoreKodlandCredentials();
+            if (credentials && owner()) await synchronize(credentials, "corrections", groupId, "attendance", undefined, true);
+          })().catch(() => { if (owner()) setStatus({ phase: "error", message: "Não foi possível verificar a justificativa. Use Atualizar presença para tentar novamente." }); });
+        }, delay);
+        attendanceTimers.add(timer);
+      }
+    };
+    window.addEventListener("nexusclass:attendance-justification-open", justificationOpened);
+    window.addEventListener("nexusclass:activity-correction-open", correctionOpened);
     window.addEventListener("nexusclass:activity-group-open", prioritizeGroup);
     const pageChanged = (event: Event) => {
       const next = (event as CustomEvent<string>).detail;
@@ -288,7 +316,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     const first = window.setTimeout(runPage, 0);
     const interval = window.setInterval(run, 30000);
     window.addEventListener("focus", resume); window.addEventListener("online", resume); document.addEventListener("visibilitychange", resume);
-    return () => { disposed = true; window.removeEventListener("nexusclass:activity-group-open", prioritizeGroup); unsubscribe(); unsubscribePreferences(); window.removeEventListener("storage", invalidate); window.removeEventListener("nexusclass:kodland-route", routeChanged); window.removeEventListener("nexusclass:kodland-page", pageChanged); window.removeEventListener("nexusclass:kodland-synced", requestCompleted); clearTimeout(completionTimer); clearTimeout(first); clearInterval(interval); window.removeEventListener("focus", resume); window.removeEventListener("online", resume); document.removeEventListener("visibilitychange", resume); };
+    return () => { disposed = true; attendanceTimers.forEach(clearTimeout); window.removeEventListener("nexusclass:attendance-justification-open", justificationOpened); window.removeEventListener("nexusclass:activity-correction-open", correctionOpened); window.removeEventListener("nexusclass:activity-group-open", prioritizeGroup); unsubscribe(); unsubscribePreferences(); window.removeEventListener("storage", invalidate); window.removeEventListener("nexusclass:kodland-route", routeChanged); window.removeEventListener("nexusclass:kodland-page", pageChanged); window.removeEventListener("nexusclass:kodland-synced", requestCompleted); clearTimeout(completionTimer); clearTimeout(first); clearInterval(interval); window.removeEventListener("focus", resume); window.removeEventListener("online", resume); document.removeEventListener("visibilitychange", resume); };
     // Keep one scheduler per account; path changes arrive through the route event below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, demo]);

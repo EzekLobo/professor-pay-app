@@ -195,7 +195,7 @@ describe("single Kodland scheduler integration", () => {
     expect(state.sync).toHaveBeenCalledTimes(2);
   });
 
-  it("refreshes attendance on every entry and resume even with a warm attendance cache", async () => {
+  it("refreshes attendance once per session even on focus or re-entry", async () => {
     markRefreshed("account", "page:corrections:group:attendance");
     useKodlandAutoSync("account", false);
     window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "attendance" }));
@@ -203,10 +203,13 @@ describe("single Kodland scheduler integration", () => {
     expect(state.sync).toHaveBeenCalledTimes(1);
     window.dispatchEvent(new Event("focus"));
     await vi.advanceTimersByTimeAsync(0);
-    expect(state.sync).toHaveBeenCalledTimes(2);
+    expect(state.sync).toHaveBeenCalledTimes(1);
     expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ followupScope: "attendance" }));
     await vi.advanceTimersByTimeAsync(60000);
-    expect(state.sync).toHaveBeenCalledTimes(2);
+    expect(state.sync).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "attendance" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.sync).toHaveBeenCalledTimes(1);
   });
 });
 

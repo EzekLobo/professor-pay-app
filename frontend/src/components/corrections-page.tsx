@@ -581,15 +581,14 @@ function AttendanceClassGrid({
             const className = `attendance-grid-status${item ? ` attendance-status-${item.status.toLowerCase()}` : " attendance-status-empty"}${column.moduleStart ? " attendance-module-start" : ""}`;
             const lessonCode = column.module ? `${column.module}${column.lesson}` : column.lesson;
             const title = item ? `${lessonCode} · ${attendanceDateLabel(column.date)} · ${attendanceStatusLabel(item.status)}` : `${lessonCode} · Sem registro`;
-            if (item?.status === "ABSENT") return <button
+            if (item?.status === "ABSENT") return <span key={column.key} className="attendance-absence-actions"><button
               className={`${className} attendance-absence-action`}
               type="button"
               aria-label={`Preparar mensagem sobre ${lessonCode} de ${history.name} no WhatsApp`}
-              key={column.key}
               title={phone ? `${title} · ${column.title} · Preparar mensagem` : `${title} · ${column.title} · Telefone não cadastrado`}
               disabled={!phone && !history.student?.student_phone}
               onClick={() => onWhatsApp({ studentName: history.name, phone: phone || history.student?.student_phone || "", guardian: Boolean(phone), guardianPhone: phone, studentPhone: history.student?.student_phone ?? "", message: attendanceMessage(history, item, lessons.find((lesson) => lesson.id === column.key), lessons) })}
-            >{lessonCode}</button>;
+            >{lessonCode}</button><a href="https://bo.kodland.org/" target="_blank" rel="noreferrer" aria-label={`Abrir Kodland para justificar falta de ${history.name}`} title="Abrir Kodland para justificar falta" onClick={() => window.dispatchEvent(new CustomEvent("nexusclass:attendance-justification-open", { detail: item.external_class_id }))}>↗</a></span>;
             return <div className={className} role="cell" aria-label={item ? `${lessonCode}: ${attendanceStatusLabel(item.status)}` : `${lessonCode}: sem registro`} key={column.key} title={title}>{lessonCode}</div>;
           })}
         </div>;
@@ -743,7 +742,7 @@ export function CompactActivitiesGrid({
                 return <div className={`compact-activity-cell${columnIndex === 0 || columns[columnIndex - 1].lessonLabel !== column.lessonLabel ? " compact-lesson-start" : ""}`} role="gridcell" key={column.key}>
                   {cell.source === "progress" ? <ProgressActivity progress={cell.progress} name={row.name} column={column} demo={demo}>{actionContent}</ProgressActivity> : cell.source === "manual" && !pendingManualActivities([cell.activity]).length ? <button type="button" className={`compact-activity-action compact-activity-manual compact-activity-${cell.activity.status === "corrected" ? "delivered" : "missing"}`} onClick={() => onCorrectManual(cell.activity)} aria-label={`${row.name}: abrir ${column.taskLabel}${kindLabel}, ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`} title={`${column.taskLabel}${kindLabel} · ${cell.activity.status === "corrected" ? "Corrigida" : "Não entregue"}`}>{actionContent}<span className="compact-activity-status-icon" aria-hidden="true">{cell.activity.status === "corrected" ? "✓" : "!"}</span></button> : cell.source === "manual" ? <button type="button" className="compact-activity-action compact-activity-manual" aria-label={label} title={label} onClick={() => onCorrectManual(cell.activity)}>{actionContent}</button>
                     : demo ? <button type="button" className="compact-activity-action" aria-label={label} title={label} onClick={() => demo.onCorrect(cell.review)}>{actionContent}</button>
-                      : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} target="_blank" rel="noreferrer">{actionContent}</a>}
+                      : <a className="compact-activity-action" aria-label={label} title={label} href={cell.review.correction_url} onClick={() => window.dispatchEvent(new CustomEvent("nexusclass:activity-correction-open", { detail: cell.review.external_class_id }))} target="_blank" rel="noreferrer">{actionContent}</a>}
                 </div>;
               })}
             </div>)}
@@ -789,6 +788,7 @@ function ReviewCard({
           target="_blank"
           rel="noreferrer"
           href={review.correction_url}
+          onClick={() => window.dispatchEvent(new CustomEvent("nexusclass:activity-correction-open", { detail: review.external_class_id }))}
         >
           <ClipboardCheck size={18} aria-hidden="true" />
         </a>}
@@ -997,23 +997,15 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
         setError("Salve as credenciais em Configurações > Dados e backup antes de atualizar.");
         return;
       }
-      let contactWarning = "";
       const result = await watchKodlandSync(async (report, assertActive) => {
         const options = { onProgress: report, assertActive, followupScope: viewMode };
-        try {
-          await kodlandApi.sync(credentials.username.trim(), credentials.password, "profiles", options);
-        } catch (reason) {
-          assertActive();
-          if (viewMode !== "attendance") throw reason;
-          contactWarning = " Os contatos e créditos não puderam ser atualizados.";
-        }
         assertActive();
         return kodlandApi.sync(credentials.username.trim(), credentials.password, "corrections", options);
       }, () => undefined);
       await load();
       setNotice(
         viewMode === "attendance"
-          ? `Presença atualizada.${contactWarning}`
+          ? "Presença atualizada."
           : `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
       );
     } catch (reason) {

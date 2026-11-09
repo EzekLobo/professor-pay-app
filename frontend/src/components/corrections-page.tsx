@@ -1251,7 +1251,6 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
         <ManualAttendanceGrid adapter={demo?.manualAdapter} />
         {loading ? <p className="muted" role="status">Carregando presença…</p> : attendanceHistories.length === 0 ? <div>
           <p className="muted">{attendance.length === 0 ? "Nenhum registro de presença carregado. Use Atualizar para consultar a Kodland." : "Nenhum registro de presença para este filtro."}</p>
-          {(attendanceFilter !== "ALL" || query.trim()) && <Button type="button" className="button-ghost" onClick={() => { setAttendanceFilter("ALL"); setQuery(""); }}>Mostrar toda a presença</Button>}
         </div> : <div className="correction-class-list attendance-list">
           {attendanceByClass.map(([className, histories]) => <details
             className="correction-class-group attendance-class-group"

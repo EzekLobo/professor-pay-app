@@ -2915,8 +2915,6 @@ async function syncKodlandBrowser(username: string, password: string, mode: Kodl
     assert();
     previous = await readKodlandBrowser(user.uid);
   }
-  // Hydrate attendance once when transparently adopting browser storage; never repeat it on the six-hour activity cadence.
-  if (mode === "corrections" && options.followupScope === "activities" && (options.correctionGroupIds ?? []).some(id => !previous?.attendanceCompletedAt?.[id])) options = { ...options, followupScope: undefined };
   options.onProgress?.("Consultando a Kodland…", syncId);
   const pending = (previous?.collections.kodland_extra_lessons ?? []).filter(item => !item.completed && !["DONE", "ACCOUNTED"].includes(String(item.manual_status))).map(item => String(item.external_student_id));
   const snapshot = await requestKodlandJson<KodlandSnapshot>({ username, password, mode, activity_windows: options.activityWindows, profile_student_ids: options.profileStudentIds, correction_group_ids: options.correctionGroupIds, refresh_schedule: options.refreshSchedule, followup_scope: options.followupScope, pending_extra_student_ids: pending }, () => user.getIdToken(), syncId);

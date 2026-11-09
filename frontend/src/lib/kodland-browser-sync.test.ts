@@ -80,7 +80,8 @@ it("inicializa o cache ao adotar política do administrador numa atualização a
  const fetch=vi.fn(async(_url,request)=>Response.json({...base(),review_group_ids:["g"],attendance_group_ids:JSON.parse(request.body).followup_scope === "activities" ? [] : ["g"],task_progress:[]}));vi.stubGlobal("fetch",fetch);
  await kodlandApi.sync("teacher","fixture","corrections",{automatic:true,refreshSchedule:false,correctionGroupIds:["g"],followupScope:"activities"});
  expect(fetch.mock.calls.map(call=>JSON.parse(call[1].body).mode)).toEqual(["essential","corrections"]);
- expect((await kodlandApi.groups()).items).toHaveLength(1);expect(state.disk!.attendanceCompletedAt?.g).toBeTruthy();
+ expect((await kodlandApi.groups()).items).toHaveLength(1); expect(state.disk!.attendanceCompletedAt?.g).toBeFalsy();
+ expect(JSON.parse(fetch.mock.lastCall![1].body).followup_scope).toBe("activities");
  await kodlandApi.sync("teacher","fixture","corrections",{automatic:true,refreshSchedule:false,correctionGroupIds:["g"],followupScope:"activities"});
  expect(JSON.parse(fetch.mock.lastCall![1].body).followup_scope).toBe("activities");
 });

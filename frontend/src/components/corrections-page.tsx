@@ -916,8 +916,12 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   }, [notice]);
 
   const snapshotReady = useRef(Boolean(demo));
+  const loadedViews = useRef({ activities: false, attendance: false });
+  const currentView = useRef(viewMode);
+  currentView.current = viewMode;
   const loadGeneration = useRef(0);
   const load = useCallback(async (background = false) => {
+    const mode = currentView.current;
     const generation = ++loadGeneration.current;
     if (demo) {
       const courses = await demo.manualAdapter?.courses.list() ?? [];
@@ -935,17 +939,17 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       setKodlandEnabled(preferences.kodland_enabled);
       const empty = Promise.resolve({ items: [] });
       const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents, progressResult, ownOccurrences, ownCourses] = await readKodlandLocal(() => Promise.all([
-        preferences.kodland_enabled ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled ? kodlandApi.attendance() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty,
-        localOnly ? Promise.resolve(null) : manualPedagogyApi.activities(), localOnly ? Promise.resolve(null) : manualTeachingApi.classes(), localOnly ? Promise.resolve(null) : manualTeachingApi.students(),
-        preferences.kodland_enabled ? kodlandApi.taskProgress() : empty, localOnly ? Promise.resolve(null) : manualOperationsApi.occurrences(),
+        preferences.kodland_enabled && mode === "activities" ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled && mode === "attendance" ? kodlandApi.attendance() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty,
+        localOnly || mode !== "activities" ? Promise.resolve(null) : manualPedagogyApi.activities(), localOnly ? Promise.resolve(null) : manualTeachingApi.classes(), localOnly ? Promise.resolve(null) : manualTeachingApi.students(),
+        preferences.kodland_enabled && mode === "activities" ? kodlandApi.taskProgress() : empty, localOnly || mode !== "activities" ? Promise.resolve(null) : manualOperationsApi.occurrences(),
         localOnly ? Promise.resolve(null) : manualCoursesApi.list(),
       ]), crypto.randomUUID(), "Atividades e presença", 15000);
       if (generation !== loadGeneration.current) return;
-      setTaskProgress(progressResult.items);
+      if (mode === "activities") setTaskProgress(progressResult.items);
       if (ownOccurrences) setManualOccurrences(ownOccurrences);
-      setReviews(reviewResult.items);
+      if (mode === "activities") setReviews(reviewResult.items);
       setLessons(lessonResult.items);
-      setAttendance(attendanceResult.items);
+      if (mode === "attendance") setAttendance(attendanceResult.items);
       setGroups(groupResult.items);
       setHasKodlandGroups(groupResult.items.length > 0);
       if (ownActivities) setManualActivities(ownActivities);
@@ -954,6 +958,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       if (ownStudents) setManualStudents(ownStudents);
       setStudents(current => reuseSyncedRows(current, studentResult.items));
       snapshotReady.current = true;
+      loadedViews.current[mode] = true;
     } catch (reason) {
       if (generation === loadGeneration.current) setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");
     } finally {
@@ -1023,9 +1028,10 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void load(); }, 0);
+    if (!viewPreferencesLoaded) return;
+    const timer = window.setTimeout(() => { if (!loadedViews.current[viewMode]) void load(snapshotReady.current); }, 0);
     return () => window.clearTimeout(timer);
-  }, [load, demo]);
+  }, [load, demo, viewMode, viewPreferencesLoaded]);
 
   useEffect(() => {
     if (demo) return;
@@ -1035,7 +1041,9 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     let pendingDomains: Set<SyncDataDomain> | null = new Set();
     const partial = async (domains: Set<SyncDataDomain>) => {
       if (!snapshotReady.current) { await load(true); return; }
-      const activities = domains.has("activities"), attendanceChanged = domains.has("attendance"), ranking = domains.has("ranking");
+      if (domains.has("activities") && currentView.current !== "activities") loadedViews.current.activities = false;
+      if (domains.has("attendance") && currentView.current !== "attendance") loadedViews.current.attendance = false;
+      const activities = domains.has("activities") && currentView.current === "activities", attendanceChanged = domains.has("attendance") && currentView.current === "attendance", ranking = domains.has("ranking");
       const agenda = domains.has("agenda") || domains.has("recordings") || domains.has("call_link");
       if (!activities && !attendanceChanged && !ranking && !agenda) return;
       const generation = ++loadGeneration.current;
@@ -1203,7 +1211,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       </section>
       {error && <div className="activity-load-error" role="alert"><p className="form-error">{error}</p><Button type="button" onClick={() => void load()}>Tentar novamente</Button></div>}
       {!demo && notifications?.autoSync.phase === "error" && <p className="form-error" role="status">{notifications.autoSync.message}</p>}
-      {(refreshingData || syncing || (!demo && notifications?.autoSync.phase === "syncing")) && !loading && <p className="muted" role="status">Atualizando atividades e presença em segundo plano… A lista mostra a última consulta concluída.</p>}
+      {(refreshingData || syncing || (!demo && notifications?.autoSync.phase === "syncing")) && !loading && <p className="muted" role="status">Atualizando {viewMode === "attendance" ? "presença" : "atividades"} em segundo plano… A lista mostra a última consulta concluída.</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
       <div className="corrections-topbar">
         <nav className="corrections-page-tabs" data-tour={classesContent ? "classes-tabs" : undefined} role="tablist" aria-label={classesContent ? "Áreas de turmas" : "Páginas do acompanhamento"}>

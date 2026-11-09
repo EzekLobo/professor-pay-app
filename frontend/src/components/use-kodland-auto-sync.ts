@@ -1,5 +1,5 @@
 "use client";
-import { activityWindow, markRefreshed, refreshDue, type ActivityWindow } from "@/lib/automatic-refresh-cache";
+import { activityWindow, markRefreshed, refreshDue, refreshStamp, type ActivityWindow } from "@/lib/automatic-refresh-cache";
 import { calendarDay } from "@/lib/sync-policy";
 import { refreshIncompleteProfiles } from "@/lib/auto-sync-profiles";
 import { subscribeTutorPreferencesChanged } from "@/lib/tutor-preference-events";
@@ -39,6 +39,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     let refreshedRevision = 0;
     let pageCompletionPending = false;
     let pageFailed = false;
+    let priorityGroup: string | null = null;
     const recordingAttemptsThisVisit = new Set<string>();
     const unsubscribe = subscribeStudentNotifications(change => { if (change === "source" && !automaticRunning) { cache = null; disabledUntil = 0; } });
     const synchronize = async (credentials: { username: string; password: string }, mode: "schedule" | "classroom" | "corrections" | "profiles", groupId?: string, scope?: "attendance" | "activities", profileStudentIds?: string[], force = false) => {
@@ -192,10 +193,16 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
             await repairProfiles();
             if (!owner() || pageRevision !== revision) return;
             const groups = await readKodlandLocal(() => kodlandApi.groups(), crypto.randomUUID(), "Turmas da página", 15000);
-            for (const group of groups.items.filter(item => !item.archived)) {
+            const remaining = groups.items.filter(item => !item.archived);
+            let completed = 0;
+            while (remaining.length) {
               if (!owner() || pageRevision !== revision) return;
               if (!kodlandAutoSyncAvailable(uid)) throw new KodlandAutoSyncBusyError("A atualização aguarda a sincronização em andamento.");
+              remaining.sort((a, b) => Number(b.external_id === priorityGroup) - Number(a.external_id === priorityGroup) || refreshStamp(uid, `page:corrections:${a.external_id}:${requestedPage}`) - refreshStamp(uid, `page:corrections:${b.external_id}:${requestedPage}`));
+              const group = remaining.shift()!;
+              if (requestedPage === "activities") setStatus({ phase: "syncing", message: `Atualizando atividades: turma ${completed + 1} de ${groups.items.filter(item => !item.archived).length}…` });
               await synchronize(credentials, "corrections", group.external_id, requestedPage);
+              completed++;
             }
           }
           if (!owner()) return;
@@ -226,6 +233,11 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
         }
       }
     };
+    const prioritizeGroup = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      if (typeof id === "string") priorityGroup = id;
+    };
+    window.addEventListener("nexusclass:activity-group-open", prioritizeGroup);
     const pageChanged = (event: Event) => {
       const next = (event as CustomEvent<string>).detail;
       if (next !== "activities" && next !== "attendance") return;
@@ -276,7 +288,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     const first = window.setTimeout(runPage, 0);
     const interval = window.setInterval(run, 30000);
     window.addEventListener("focus", resume); window.addEventListener("online", resume); document.addEventListener("visibilitychange", resume);
-    return () => { disposed = true; unsubscribe(); unsubscribePreferences(); window.removeEventListener("storage", invalidate); window.removeEventListener("nexusclass:kodland-route", routeChanged); window.removeEventListener("nexusclass:kodland-page", pageChanged); window.removeEventListener("nexusclass:kodland-synced", requestCompleted); clearTimeout(completionTimer); clearTimeout(first); clearInterval(interval); window.removeEventListener("focus", resume); window.removeEventListener("online", resume); document.removeEventListener("visibilitychange", resume); };
+    return () => { disposed = true; window.removeEventListener("nexusclass:activity-group-open", prioritizeGroup); unsubscribe(); unsubscribePreferences(); window.removeEventListener("storage", invalidate); window.removeEventListener("nexusclass:kodland-route", routeChanged); window.removeEventListener("nexusclass:kodland-page", pageChanged); window.removeEventListener("nexusclass:kodland-synced", requestCompleted); clearTimeout(completionTimer); clearTimeout(first); clearInterval(interval); window.removeEventListener("focus", resume); window.removeEventListener("online", resume); document.removeEventListener("visibilitychange", resume); };
     // Keep one scheduler per account; path changes arrive through the route event below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, demo]);

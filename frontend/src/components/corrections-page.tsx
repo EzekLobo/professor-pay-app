@@ -890,7 +890,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
-  const load = useCallback(async (background = false) => {
+  const loadedViews = useRef({ activities: false, attendance: false });
+  const load = useCallback(async (background = false, mode: "activities" | "attendance" = "activities") => {
     if (demo) {
       const courses = await demo.manualAdapter?.courses.list() ?? [];
       setManualCourseNames(Object.fromEntries(courses.map(course => [course.id, course.name])));
@@ -905,13 +906,13 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       setKodlandEnabled(preferences.kodland_enabled);
       const empty = Promise.resolve({ items: [] });
       const [reviewResult, lessonResult, groupResult, attendanceResult, studentResult, ownActivities, ownClasses, ownStudents, progressResult, ownOccurrences] = await Promise.all([
-        preferences.kodland_enabled ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled ? kodlandApi.attendance() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty,
-        localOnly ? Promise.resolve(null) : manualPedagogyApi.activities(), localOnly ? Promise.resolve(null) : manualTeachingApi.classes(), localOnly ? Promise.resolve(null) : manualTeachingApi.students(),
-        preferences.kodland_enabled ? kodlandApi.taskProgress() : empty, localOnly ? Promise.resolve(null) : manualOperationsApi.occurrences(),
+        preferences.kodland_enabled && mode === "activities" ? kodlandApi.reviews() : empty, preferences.kodland_enabled ? kodlandApi.lessons() : empty, preferences.kodland_enabled ? kodlandApi.groups() : empty, preferences.kodland_enabled ? kodlandApi.attendance() : empty, preferences.kodland_enabled ? kodlandApi.students() : empty,
+        localOnly || mode !== "activities" ? Promise.resolve(null) : manualPedagogyApi.activities(), localOnly ? Promise.resolve(null) : manualTeachingApi.classes(), localOnly ? Promise.resolve(null) : manualTeachingApi.students(),
+        preferences.kodland_enabled && mode === "activities" ? kodlandApi.taskProgress() : empty, localOnly || mode !== "activities" ? Promise.resolve(null) : manualOperationsApi.occurrences(),
       ]);
-      setTaskProgress(progressResult.items);
+      if (mode === "activities") setTaskProgress(progressResult.items);
       if (ownOccurrences) setManualOccurrences(ownOccurrences);
-      setReviews(reviewResult.items);
+      if (mode === "activities") setReviews(reviewResult.items);
       setLessons(lessonResult.items);
       setAttendance(attendanceResult.items);
       setGroups(groupResult.items);
@@ -921,6 +922,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
       if (!localOnly) { const courses = await manualCoursesApi.list(); setManualCourseNames(Object.fromEntries(courses.map(course => [course.id, course.name]))); }
       if (ownStudents) setManualStudents(ownStudents);
       setStudents(studentResult.items);
+      loadedViews.current[mode] = true;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar as correções.");
     } finally {
@@ -956,7 +958,8 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
         credentials.password,
         studentDisplayMode === "students" ? "profiles" : "corrections",
       );
-      await load();
+      loadedViews.current = { activities: false, attendance: false };
+      await load(false, viewMode);
       setNotice(
         studentDisplayMode === "students" ? "Perfis e saldos de aulas atualizados." : `${result.review_count ?? 0} atividade(s) pendente(s) foram atualizadas.`,
       );
@@ -972,14 +975,15 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void load(); }, 0);
+    if (!viewPreferencesLoaded) return;
+    const timer = window.setTimeout(() => { if (!loadedViews.current[viewMode]) void load(false, viewMode); }, 0);
     return () => window.clearTimeout(timer);
-  }, [load, demo, viewMode]);
+  }, [load, demo, viewMode, viewPreferencesLoaded]);
 
   useEffect(() => {
     if (demo) return;
     let timer: ReturnType<typeof setTimeout>;
-    const unsubscribe = subscribeStudentNotifications(change => { if (change !== "source") return; clearTimeout(timer); timer = setTimeout(() => { void load(true); }, 150); });
+    const unsubscribe = subscribeStudentNotifications(change => { if (change !== "source") return; clearTimeout(timer); timer = setTimeout(() => { loadedViews.current = { activities: false, attendance: false }; void load(true, viewMode); }, 150); });
     return () => { clearTimeout(timer); unsubscribe(); };
   }, [demo, load, viewMode]);
 

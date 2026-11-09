@@ -878,11 +878,10 @@ export function KodlandSummary({
   );
 }
 
-const financialSnapshots = new Map<string, DashboardResponse>();
+const financialSnapshots = new Map<string, { dashboard: DashboardResponse; updatedAt: string | null }>();
 
 function DashboardPageContent({ uid }: { uid: string }) {
-  const [dashboard, setDashboard] = useState<DashboardResponse | null>(() => financialSnapshots.get(uid) ?? null);
-  useEffect(() => { if (dashboard) financialSnapshots.set(uid, dashboard); }, [uid, dashboard]);
+  const [dashboard, setDashboard] = useState<DashboardResponse | null>(() => financialSnapshots.get(uid)?.dashboard ?? null);
   const [groups, setGroups] = useState<KodlandGroup[]>([]);
   const [students, setStudents] = useState<KodlandStudent[]>([]);
   const [reviews, setReviews] = useState<KodlandReview[]>([]);
@@ -911,13 +910,14 @@ function DashboardPageContent({ uid }: { uid: string }) {
   const financialReady = useRef(false);
   const [financialNotice, setFinancialNotice] = useState("");
   const [financeRefreshing, setFinanceRefreshing] = useState(false);
-  const [financeUpdatedAt, setFinanceUpdatedAt] = useState<string | null>(null);
+  const [financeUpdatedAt, setFinanceUpdatedAt] = useState<string | null>(() => financialSnapshots.get(uid)?.updatedAt ?? null);
+  useEffect(() => { if (dashboard) financialSnapshots.set(uid, { dashboard, updatedAt: financeUpdatedAt }); }, [uid, dashboard, financeUpdatedAt]);
   const notifications = useStudentNotifications();
   const readFinancial = useCallback(async (local: boolean) => {
     const read = () => readKodlandLocal(() => dashboardApi.get({ useLocalKodland: local }), crypto.randomUUID(), "Resumo financeiro", 8000);
     const awaitingEntry = !financialReady.current;
     const initial = await read();
-    setDashboard(initial);
+    setDashboard(current => current ?? initial);
     if (!financialEntry.current) financialEntry.current = (async () => {
       try {
         const result = await syncPaymentsOnEntry(initial.payments, { timeZone: DEFAULT_SYNC_TIME_ZONE, refreshOnEntry: true });
@@ -1009,7 +1009,8 @@ function DashboardPageContent({ uid }: { uid: string }) {
       setManualPendingCount(pendingManualActivities(ownActivities).length);
       return true;
     } catch {
-      setFailed(true);
+      if (financialSnapshots.has(uid)) setFinancialNotice("Não foi possível atualizar o resumo. Exibindo os dados salvos.");
+      else setFailed(true);
       return false;
     }
   }, [uid, loadLocalFinance, readFinancial]);

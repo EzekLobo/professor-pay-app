@@ -2832,6 +2832,15 @@ async function persistKodlandBrowserSnapshot(uid: string, snapshot: KodlandSnaps
         const ids = snapshot.review_group_ids ?? [];
         replaceGroups("kodland_reviews", snapshot.reviews.map(item => ({ ...item, created_at: stamp })), ids, snapshot.review_lesson_ids);
         if (snapshot.task_progress) replaceGroups("kodland_task_progress", snapshot.task_progress.map(validateKodlandTaskProgress), ids, snapshot.review_lesson_ids);
+        const ranking = new Map((snapshot.ranking ?? [])
+          .filter(item => ids.includes(item.external_class_id) && /^\d+(?:[.,]\d+)?\/\d+(?:[.,]\d+)?$/.test(item.progress_summary))
+          .map(item => [item.id, item]));
+        state.collections.kodland_students = collection("kodland_students").map(student => {
+          const incoming = ranking.get(student.id);
+          return incoming && incoming.external_class_id === student.external_class_id
+            ? { ...student, progress_summary: incoming.progress_summary }
+            : student;
+        });
         ids.forEach(id => { state.groupCompletedAt[id] = stamp; });
       }
       if (options.followupScope !== "activities") {

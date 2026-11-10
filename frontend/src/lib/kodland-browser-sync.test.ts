@@ -46,6 +46,26 @@ it("uma falha local não descarta o snapshot anterior nem anuncia sucesso", asyn
  await expect(kodlandApi.sync("teacher", "fixture", "corrections", { storage: "browser" })).rejects.toThrow("Storage refused");
  expect(state.disk).toEqual(before);
 });
+
+it("persists refreshed scores with corrected tasks in browser storage", async () => {
+ await kodlandApi.sync("teacher", "fixture", "essential", { storage: "browser" });
+ Object.assign(state.disk!.collections.kodland_students[0], { progress_summary: "100/200", lesson_credits_remaining: 7, hidden: false });
+ state.disk!.collections.kodland_students.push({ id: "other", external_id: "other", external_class_id: "unrelated", progress_summary: "10/20", name: "Outro aluno" });
+ vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ...base(), task_progress: [{ id: "p", external_class_id: "g", external_student_id: "s", lesson_id: "l", task_id: "t", task_title: "Projeto", state: "corrected" }], review_group_ids: ["g"], attendance_group_ids: [], ranking: [{ id: "s", external_class_id: "g", progress_summary: "150/200" }, { id: "other", external_class_id: "unrelated", progress_summary: "99/100" }] })));
+ await kodlandApi.sync("teacher", "fixture", "corrections", { followupScope: "activities", correctionGroupIds: ["g"], refreshSchedule: false });
+ expect((await kodlandApi.students()).items).toEqual(expect.arrayContaining([expect.objectContaining({ id: "s", progress_summary: "150/200", lesson_credits_remaining: 7 }), expect.objectContaining({ id: "other", progress_summary: "10/20" })]));
+ expect((await kodlandApi.taskProgress()).items).toMatchObject([{ state: "corrected" }]);
+});
+
+it("does not replace browser scores with invalid or cross-group patches", async () => {
+ await kodlandApi.sync("teacher", "fixture", "essential", { storage: "browser" });
+ state.disk!.collections.kodland_students[0].progress_summary = "100/200";
+ for (const ranking of [[{ id: "s", external_class_id: "other", progress_summary: "150/200" }], [{ id: "s", external_class_id: "g", progress_summary: "unknown" }]]) {
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ...base(), task_progress: [], review_group_ids: ["g"], attendance_group_ids: [], ranking })));
+  await kodlandApi.sync("teacher", "fixture", "corrections", { followupScope: "activities", correctionGroupIds: ["g"], refreshSchedule: false });
+  expect((await kodlandApi.students()).items[0].progress_summary).toBe("100/200");
+ }
+});
 it("consulta parcial de presença preserva tarefas e o horário das atividades", async () => {
  await kodlandApi.syncAll("teacher", "fixture", undefined, { storage: "browser" });
  const before=structuredClone(state.disk!.groupCompletedAt);

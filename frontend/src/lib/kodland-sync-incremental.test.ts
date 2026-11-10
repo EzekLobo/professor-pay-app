@@ -24,6 +24,17 @@ afterEach(()=>vi.unstubAllGlobals());
 const lesson={id:"l",source_lesson_id:"l",external_class_id:"g",external_class_name:"G",module_number:"1",lesson_number:1,course_index:1,schedule_code:"M1L1",title:"Aula",theme:"",lesson_date:"2026-10-01",start_time:"18:00",end_time:"19:00",status:"held",lesson_passed:true,external_url:"",slides_url:"",guide_url:"",homework_url:"",homework_title:"",classroom_tasks:[]};
 const snapshot=()=>({groups:[{id:"g",external_id:"g",title:"G",archived:false}],students:[{id:"s",external_id:"s",external_class_id:"g",name:"Ana",status:"active"}],lessons:[lesson],reviews:[],extra_lessons:[],availability:[],attendance:[]});
 
+it("persists corrected progress and the refreshed official score in the same update", async () => {
+ await kodlandApi.sync("teacher","fixture","essential");
+ const studentPath="users/incremental/kodland_students/s";
+ Object.assign(mocks.db.get(studentPath)!,{progress_summary:"100/200",lesson_credits_remaining:7});
+ const progress={id:"p",external_class_id:"g",external_student_id:"s",student_name:"Ana",lesson_id:"l",task_id:"t",task_title:"Projeto",state:"corrected",kind:"classroom",task_number:1};
+ vi.stubGlobal("fetch",vi.fn(async()=>Response.json({...snapshot(),lessons:[],students:[],review_group_ids:["g"],attendance_group_ids:[],task_progress:[progress],ranking:[{id:"s",external_class_id:"g",progress_summary:"150/200"}]})));
+ await kodlandApi.sync("teacher","fixture","corrections",{refreshSchedule:false,correctionGroupIds:["g"],followupScope:"activities"});
+ expect(mocks.db.get(studentPath)).toMatchObject({progress_summary:"150/200",lesson_credits_remaining:7});
+ expect(mocks.db.get("users/incremental/kodland_task_progress/p")).toMatchObject({state:"corrected"});
+});
+
 it("atualiza créditos de documentos legados pelo aluno Kodland sem mover matrículas", async () => {
  const prefix = "users/incremental/kodland_students/";
  mocks.db.set(prefix + "legacy-a", { id:"legacy-a", external_id:"s", external_class_id:"g", name:"Ana", hidden:true, created_at:"old" });

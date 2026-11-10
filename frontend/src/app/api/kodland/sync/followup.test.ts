@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { POST } from "./route";
 const token = `header.${Buffer.from(JSON.stringify({ user_id: 22 })).toString("base64url")}.signature`;
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
-function mockProvider({ attendanceFails = false, invalidGroups = false, repeatGroups = false, taskStatus = "TASK_NOT_SUBMITTED", timeline = [{ lesson_id: "l", lesson_passed: true }] } = {}) {
+function mockProvider({ attendanceFails = false, rankingFails = false, invalidGroups = false, repeatGroups = false, score = 150, taskStatus = "TASK_NOT_SUBMITTED", timeline = [{ lesson_id: "l", lesson_passed: true }] } = {}) {
   vi.stubEnv("NEXT_PUBLIC_FIREBASE_API_KEY", "test");
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   const calls: string[] = [];
@@ -14,13 +14,33 @@ function mockProvider({ attendanceFails = false, invalidGroups = false, repeatGr
     if (url.includes("get_teachers_groups")) return Response.json(invalidGroups ? { error: "unavailable" } : { results: [{ id: "g", title: "Python", course: { id: "course" }, archived: false }], next: repeatGroups ? "next" : null });
     if (url.includes("/lessons/")) return Response.json(url.includes("page=2") ? [] : timeline);
     if (url.includes("get_group_progress")) return Response.json({ lesson_tasks: [{ id: "t", title: "Projeto" }], students_progress: [{ student_id: "s", student_name: "Ana", tasks_data: [{ task_id: "t", task_status_key: taskStatus }] }] });
-    if (url.includes("attendance") || url.includes("get_students_main_data")) return attendanceFails ? Response.json({}, { status: 404 }) : Response.json([{ student_id: "s", student_name: "Ana", lesson_id: "l", lesson_date: "2026-10-31", status: "ABSENT" }]);
+    if (url.includes("get_students_main_data")) return attendanceFails || rankingFails ? Response.json({}, { status: 503 }) : Response.json([{ main_info: { student_id: "s", full_name: "Ana" }, progress_info: [{ module_current_grade: score, module_max_grade: 200 }], student_id: "s", student_name: "Ana", lesson_id: "l", lesson_date: "2026-10-31", status: "ABSENT" }]);
+    if (url.includes("attendance")) return attendanceFails ? Response.json({}, { status: 404 }) : Response.json([{ student_id: "s", student_name: "Ana", lesson_id: "l", lesson_date: "2026-10-31", status: "ABSENT" }]);
     throw new Error(`Unexpected endpoint: ${url}`);
   });
   vi.stubGlobal("fetch", fetch); return calls;
 }
 const request = (extra: Record<string, unknown> = {}) => new NextRequest("https://example.test/api/kodland/sync", { method: "POST", headers: { authorization: "Bearer token", "content-type": "application/json" }, body: JSON.stringify({ username: "fixture", password: "fixture", mode: "corrections", refresh_schedule: false, correction_group_ids: ["g"], ...extra }) });
 describe("consulta automática de acompanhamento", () => {
+  it("refreshes official points after confirming the corrected activity", async () => {
+    mockProvider({ taskStatus: "TASK_SUBMITTED", score: 100 });
+    const before = await (await POST(request({ followup_scope: "activities" }))).json();
+    expect(before.ranking).toMatchObject([{ id: "kodland-student-s", progress_summary: "100/200" }]);
+    const calls = mockProvider({ taskStatus: "TASK_CHECKED", score: 150 });
+    const response = await POST(request({ followup_scope: "activities" }));
+    expect(response.status).toBe(200);
+    const after = await response.json();
+    expect(after.task_progress).toMatchObject([{ state: "corrected" }]);
+    expect(after.ranking).toMatchObject([{ id: "kodland-student-s", progress_summary: "150/200" }]);
+    expect(calls.findIndex(url => url.includes("get_students_main_data"))).toBeGreaterThan(calls.findIndex(url => url.includes("get_group_progress")));
+  });
+
+  it("reports a score failure instead of silently leaving points stale", async () => {
+    mockProvider({ rankingFails: true, taskStatus: "TASK_CHECKED" });
+    const response = await POST(request({ followup_scope: "activities" }));
+    expect(response.status).toBeGreaterThanOrEqual(500);
+    expect(await response.json()).not.toHaveProperty("task_progress");
+  });
   it("traz progresso não entregue e falta sem consultar perfis, cursos ou materiais", async () => {
     const calls = mockProvider(); const response = await POST(request());
     expect(response.status).toBe(200);
@@ -42,7 +62,7 @@ it("consulta somente presença após a aula, sem progresso, cronograma ou materi
  expect(calls.some(url=>/get_group_progress|\/lessons\/|schedule_view|teacher_timetables/.test(url))).toBe(false);
 });
 it("atualiza atividades sem buscar presença", async () => {
- const calls=mockProvider({attendanceFails:true});const response=await POST(request({followup_scope:"activities"}));
+ const calls=mockProvider();const response=await POST(request({followup_scope:"activities"}));
  expect(response.status).toBe(200);const data=await response.json();expect(data.task_progress).toHaveLength(1);
  expect(data.attendance).toEqual([]);expect(data.attendance_group_ids).toEqual([]);
  // Ranking shares Kodland's student summary endpoint. It does not import or mark attendance.

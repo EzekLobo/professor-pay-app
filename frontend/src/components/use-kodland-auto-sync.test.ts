@@ -231,14 +231,36 @@ it("ends page loading when the preference read never responds and recovers on fo
   expect(state.sync).toHaveBeenCalled();
 });
 
-it("uses warm page caches across focus without replaying schedule or activity history", async () => {
+it("refreshes activities and scores on return while reusing classroom metadata", async () => {
   useKodlandAutoSync("account", false);
   window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
   await vi.advanceTimersByTimeAsync(0);
   expect(state.sync).toHaveBeenCalledTimes(2);
   window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(0);
   expect(state.sync).toHaveBeenCalledTimes(2);
+  window.dispatchEvent(new CustomEvent("nexusclass:activity-correction-open", { detail: "group" }));
+  window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(0);
+  expect(state.sync).toHaveBeenCalledTimes(3);
+  expect(state.sync.mock.calls.map(call => call[2])).toEqual(["classroom", "corrections", "corrections"]);
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(state.sync).toHaveBeenCalledTimes(3);
 });
+it("refreshes every group opened for correction without refreshing unrelated groups", async () => {
+  state.groups.mockResolvedValue({ items: ["group", "second", "unrelated"].map(external_id => ({ external_id, archived: false })) });
+  useKodlandAutoSync("account", false);
+  window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.sync).toHaveBeenCalledTimes(4);
+  window.dispatchEvent(new CustomEvent("nexusclass:activity-correction-open", { detail: "group" }));
+  window.dispatchEvent(new CustomEvent("nexusclass:activity-correction-open", { detail: "second" }));
+  window.dispatchEvent(new Event("focus"));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.sync.mock.calls.slice(4).map(call => call[3].correctionGroupIds)).toEqual([["group"], ["second"]]);
+  window.dispatchEvent(new Event("focus"));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.sync).toHaveBeenCalledTimes(6);
+});
+
 it("requests only recent/uncorrected activities after the initial history snapshot", async () => {
   markRefreshed("account", "activity-history:group");
   state.progress.mockResolvedValue({ items: [{ external_class_id: "group", lesson_id: "source", state: "corrected" }] });
@@ -246,4 +268,22 @@ it("requests only recent/uncorrected activities after the initial history snapsh
   window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
   await vi.advanceTimersByTimeAsync(0);
   expect(state.sync).toHaveBeenLastCalledWith("test", "test", "corrections", expect.objectContaining({ activityWindows: { group: { known: ["source"], refresh: ["source"] } } }));
+});
+
+it("keeps a newer correction request when an older refresh finishes", async () => {
+  useKodlandAutoSync("account", false);
+  window.dispatchEvent(new CustomEvent("nexusclass:kodland-page", { detail: "activities" }));
+  await vi.advanceTimersByTimeAsync(0);
+  let finish!: () => void;
+  state.sync.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  window.dispatchEvent(new CustomEvent("nexusclass:activity-correction-open", { detail: "group" }));
+  window.dispatchEvent(new Event("focus"));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.sync).toHaveBeenCalledTimes(3);
+  window.dispatchEvent(new CustomEvent("nexusclass:activity-correction-open", { detail: "group" }));
+  finish();
+  await vi.advanceTimersByTimeAsync(0);
+  window.dispatchEvent(new Event("focus"));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.sync).toHaveBeenCalledTimes(4);
 });

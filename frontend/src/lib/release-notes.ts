@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026111001, date: "2026-11-10", title: "Atividades feitas por turma",
+    description: "Cada turma mostra a porcentagem e a quantidade de atividades feitas. Ao voltar da correção, atividades e pontuação oficial são consultadas novamente. Falhas na consulta dos pontos são informadas na atualização.",
+    href: "/classes", action: "Abrir turmas",
+  },
+  {
     version: 2026110905, date: "2026-11-09", title: "Turmas vinculadas aos cursos",
     description: "Cursos separa o catálogo entre cursos com e sem turmas vinculadas. Os nomes das turmas aparecem em destaque em cada curso.",
     href: "/lessons", action: "Abrir cursos",

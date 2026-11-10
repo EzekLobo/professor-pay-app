@@ -1,3 +1,9 @@
+## Atividades feitas e pontuação após correção — 10/11/2026
+
+- Indicador de atividades feitas por turma independe de busca/filtro/módulos. Entregues/corrigidas/legado delivered contam feitas; total por aluno/tarefa deduplicado, com alias de aula. Ausência/todos desconhecidos não viram0%; unknown torna percentual parcial, indicado em texto/tooltip. Estados explícitos de progresso prevalecem sobre review duplicado.
+- Integrados10 commits até3ad700c: retorno da correção usa evento activity-correction-open e força somente a turma correspondente, ignorando cooldown5min. Navegação comum/cache de sessão, priorização da turma aberta e janela incremental preservados, sem polling da página. ProgressActivity também emite evento de correção (antes só reviews faziam isso). Fila por turma/versionada preserva múltiplas abas e reabertura durante consulta. Rota corrections consulta pontuação oficial após progresso e deixa de descartar falha com catch vazio; falha mantém snapshot anterior e informa erro.
+- Novidade2026111001. Confirmado701 testes unitários, tipos/lint/build e5 E2E em320/390/1440, incluindo retorno da correção,100→150 pontos com atividade corrigida e preservação de créditos. Conferir publicação e comparação com conta real.
+
 ## Ajustes de interação do quadro, pagamentos e cursos — 09/11/2026
 
 - Pagamentos troca modal de status por HeaderDropdown junto à etiqueta. Mantém gravação/erro/busy e proteção de competências recebidas. HeaderDropdown aceita âncora HTMLElement; Escape retorna foco à etiqueta. Abertura/opções não acionam extrato nem arraste do carrossel.

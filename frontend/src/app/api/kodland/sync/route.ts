@@ -2226,12 +2226,16 @@ export async function POST(request: NextRequest) {
         async (group) => {
           const taskProgress: KodlandTaskProgress[] = [];
           const checked: string[] = [];
-          const [reviews, attendance, lessons, ranking] = await Promise.all([
+          const [reviews, attendance, lessons] = await Promise.all([
             body.followup_scope === "attendance" ? Promise.resolve([]) : reviewsForGroup(group, token, taskProgress, body.activity_windows?.[group.external_id], checked),
             body.followup_scope === "activities" ? Promise.resolve([]) : attendanceForGroup(group, token),
             body.refresh_schedule === false ? Promise.resolve([]) : lessonsForGroup(group, token, courseLessonCache),
-            body.followup_scope === "attendance" ? Promise.resolve([]) : get(`student_groups/${group.external_id}/get_students_main_data/`, token).then(payload => rankingPatches(payload, group)).catch(() => []),
           ]);
+          // Read the official score after activity progress has been confirmed.
+          // A failed score request must remain a visible sync failure.
+          const ranking = body.followup_scope === "attendance" ? [] : rankingPatches(
+            await get(`student_groups/${group.external_id}/get_students_main_data/`, token), group,
+          );
           return { groupId: group.external_id, checked, reviews, taskProgress, ranking, attendance: attachAttendanceSchedule(attendance, lessons), lessons };
         },
       ), (result) => ({

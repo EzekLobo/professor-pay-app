@@ -45,7 +45,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
     let scheduleRefreshed = sessionDone("schedule");
     let attendanceRefreshed = sessionDone("attendance");
     let activitiesRefreshed = sessionDone("activities");
-    let correctionGroup: string | null = null;
+    const correctionGroups = new Map<string, number>();
     let priorityGroup: string | null = null;
     const recordingAttemptsThisVisit = new Set<string>();
     const unsubscribe = subscribeStudentNotifications(change => { if (change === "source" && !automaticRunning) { cache = null; disabledUntil = 0; } });
@@ -183,7 +183,7 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
           if (!credentials) { refreshedRevision = revision; setStatus({ phase: "credentials", message: "Salve o acesso à Kodland em Configurações > Dados e backup para atualizar esta página." }); return; }
           const requestedPage = page;
           if (requestedPage === "agenda" && scheduleRefreshed) { refreshedRevision = revision; setStatus({ phase: "ready" }); return; }
-          if (requestedPage === "activities" && activitiesRefreshed && !correctionGroup) { refreshedRevision = revision; setStatus({ phase: "ready" }); return; }
+          if (requestedPage === "activities" && activitiesRefreshed && !correctionGroups.size) { refreshedRevision = revision; setStatus({ phase: "ready" }); return; }
           if (requestedPage === "attendance" && attendanceRefreshed) { refreshedRevision = revision; setStatus({ phase: "ready" }); return; }
           pageFailed = false;
           setStatus({ phase: "syncing", message: requestedPage === "agenda" ? "Atualizando a grade do Resumo…" : requestedPage === "attendance" ? "Atualizando presença…" : "Atualizando tarefas e ranking…" });
@@ -203,8 +203,8 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
             await repairProfiles();
             if (!owner() || pageRevision !== revision) return;
             const groups = await readKodlandLocal(() => kodlandApi.groups(), crypto.randomUUID(), "Turmas da página", 15000);
-            const targetedGroup = requestedPage === "activities" && activitiesRefreshed ? correctionGroup : null;
-            const remaining = groups.items.filter(item => !item.archived && (!targetedGroup || item.external_id === targetedGroup));
+            const targetedGroups = requestedPage === "activities" && activitiesRefreshed ? new Map(correctionGroups) : null;
+            const remaining = groups.items.filter(item => !item.archived && (!targetedGroups || targetedGroups.has(item.external_id)));
             let completed = 0;
             while (remaining.length) {
               if (!owner() || pageRevision !== revision) return;
@@ -212,8 +212,8 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
               remaining.sort((a, b) => Number(b.external_id === priorityGroup) - Number(a.external_id === priorityGroup) || refreshStamp(uid, `page:corrections:${a.external_id}:${requestedPage}`) - refreshStamp(uid, `page:corrections:${b.external_id}:${requestedPage}`));
               const group = remaining.shift()!;
               if (requestedPage === "activities") setStatus({ phase: "syncing", message: `Atualizando atividades: turma ${completed + 1} de ${groups.items.filter(item => !item.archived).length}…` });
-              await synchronize(credentials, "corrections", group.external_id, requestedPage, undefined, Boolean(targetedGroup));
-              if (targetedGroup && correctionGroup === targetedGroup) correctionGroup = null;
+              await synchronize(credentials, "corrections", group.external_id, requestedPage, undefined, Boolean(targetedGroups));
+              if (targetedGroups && correctionGroups.get(group.external_id) === targetedGroups.get(group.external_id)) correctionGroups.delete(group.external_id);
               completed++;
             }
           }
@@ -251,7 +251,10 @@ export function useKodlandAutoSync(uid: string, demo: boolean, pathname = typeof
       const id = (event as CustomEvent<string>).detail;
       if (typeof id === "string") priorityGroup = id;
     };
-    const correctionOpened = (event: Event) => { const id = (event as CustomEvent<string>).detail; if (typeof id === "string" && id) correctionGroup = id; };
+    const correctionOpened = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      if (typeof id === "string" && id) correctionGroups.set(id, (correctionGroups.get(id) ?? 0) + 1);
+    };
     const attendanceTimers = new Set<ReturnType<typeof setTimeout>>();
     const justificationOpened = (event: Event) => {
       const groupId = (event as CustomEvent<string>).detail;

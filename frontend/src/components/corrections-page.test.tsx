@@ -45,6 +45,83 @@ const manualActivity = (overrides: Partial<ManualActivity> = {}): ManualActivity
   created_at: timestamp, updated_at: timestamp, ...overrides,
 });
 
+describe("indicador de atividades feitas por turma", () => {
+  const input = () => ({
+    groups: [group()], students: [student()], lessons: [lesson({ source_lesson_id: "catalog-1" })],
+    reviews: [review({ lesson_id: "lesson-1", lesson_number: 27, task_id: "task-0" })],
+    manualActivities: [], manualClasses: [], manualStudents: [],
+    taskProgress: (["submitted", "corrected", "delivered", "missing", "not_graded", "unknown"] as const).map((state, index) => ({
+      id: `progress-${index}`, external_class_id: "kodland-1", external_student_id: "external-student-1",
+      lesson_id: "catalog-1", task_id: `task-${index}`, task_title: `Atividade ${index}`, state,
+    })),
+  });
+
+  it("conta estados feitos, deduplica progresso e review com aliases de aula e ignora alunos inativos", () => {
+    const data = input();
+    const model = compactActivitiesModel({ ...data,
+      students: [...data.students, student({ external_id: "inactive", status: "inactive" })],
+      taskProgress: [...data.taskProgress, { ...data.taskProgress[0], id: "duplicate", lesson_id: "lesson-1" }, { ...data.taskProgress[0], id: "inactive", external_student_id: "inactive" }],
+      reviews: [...data.reviews, review({ external_student_id: "inactive" })],
+    });
+    expect(model[0].activityCompletion).toEqual({ done: 3, total: 6, unknown: 1, percent: 50 });
+  });
+
+  it.each([false, true])("mantém totais com filtros de pendências e modo completo=%s", complete => {
+    const data = input();
+    const baseline = compactActivitiesModel(data)[0].activityCompletion;
+    for (const pendingOnly of [false, true]) {
+      const model = compactActivitiesModel({ ...data, complete, pendingOnly });
+      expect(model[0].activityCompletion).toEqual(baseline);
+      expect(filterCompactActivitiesModel(model, "Ana")[0].activityCompletion).toEqual(baseline);
+      expect(filterCompactActivitiesModel(model, "Desafio")[0].activityCompletion).toEqual(baseline);
+      const onlyOneModule = [{ ...model[0], columns: model[0].columns.slice(0, 1) }];
+      const markup = renderToStaticMarkup(<CompactActivitiesGrid model={onlyOneModule} displayMode={complete ? "complete" : "pending"} onCorrectManual={() => undefined} />);
+      expect(markup).toContain("3/6 atividades feitas · 50% parcial · 1 sem informação");
+    }
+  });
+
+  it("distingue ausência, estado desconhecido e zero confirmado", () => {
+    const data = input();
+    const empty = compactActivitiesModel({ ...data, reviews: [], taskProgress: [] });
+    expect(empty[0].activityCompletion).toEqual({ done: 0, total: 0, unknown: 0, percent: null });
+    const emptyMarkup = renderToStaticMarkup(<CompactActivitiesGrid model={empty} onCorrectManual={() => undefined} />);
+    expect(emptyMarkup).toContain("Atividades sem informação");
+    expect(emptyMarkup).not.toContain("0/0 atividades");
+    const unknown = compactActivitiesModel({ ...data, reviews: [], taskProgress: [data.taskProgress[5]] });
+    expect(unknown[0].activityCompletion).toEqual({ done: 0, total: 1, unknown: 1, percent: null });
+    expect(renderToStaticMarkup(<CompactActivitiesGrid model={unknown} onCorrectManual={() => undefined} />)).toContain("0/1 atividades feitas · percentual sem informação · 1 sem informação");
+    expect(compactActivitiesModel({ ...data, reviews: [], taskProgress: [data.taskProgress[3]] })[0].activityCompletion).toEqual({ done: 0, total: 1, unknown: 0, percent: 0 });
+  });
+
+  it("conta tarefas de alunos distintos separadamente", () => {
+    const data = input();
+    const model = compactActivitiesModel({ ...data, reviews: [],
+      students: [...data.students, student({ external_id: "other" })],
+      taskProgress: [data.taskProgress[0], { ...data.taskProgress[0], id: "other", external_student_id: "other" }],
+    });
+    expect(model[0].activityCompletion).toEqual({ done: 2, total: 2, unknown: 0, percent: 100 });
+  });
+
+  it("preserva estados explícitos diante de reviews duplicados e aceita review legado sem progresso", () => {
+    const data = input();
+    const model = compactActivitiesModel({ ...data, reviews: [3, 4, 5].map(index => review({ id: `review-${index}`, lesson_id: "lesson-1", task_id: `task-${index}` })) });
+    expect(model[0].activityCompletion).toEqual({ done: 3, total: 6, unknown: 1, percent: 50 });
+    expect(compactActivitiesModel({ ...data, taskProgress: [] })[0].activityCompletion).toEqual({ done: 1, total: 1, unknown: 0, percent: 100 });
+  });
+
+  it("considera entregas manuais e legadas com alunos ativos e tarefas únicas", () => {
+    const activities = [manualActivity(), ...(["assigned", "submitted", "corrected", "completed"] as const).map(status => manualActivity({ id: status, title: status, status, submission_text: "" }))];
+    const data = { groups: [], students: [], reviews: [], lessons: [], manualClasses: [manualClass()], manualStudents: [manualStudent(), manualStudent({ id: "inactive", active: false })],
+      manualActivities: [...activities, manualActivity({ id: "duplicate" }), manualActivity({ id: "inactive", student_id: "inactive" })] };
+    for (const complete of [false, true]) {
+      for (const pendingOnly of [false, true]) {
+        const model = compactActivitiesModel({ ...data, complete, pendingOnly });
+        expect(model[0].activityCompletion).toEqual({ done: 4, total: 5, unknown: 0, percent: 80 });
+      }
+    }
+  });
+});
+
 describe("organização da grade por módulos", () => {
   it("uses catalog order within each lesson and places homework last", () => {
     const catalog = lesson({ classroom_tasks: [{ title: "Z: primeira", url: "https://learn.kodland.org/pt/task/first/" }, { title: "A: segunda", url: "https://learn.kodland.org/pt/task/second/" }], homework_url: "https://learn.kodland.org/pt/task/home/" });

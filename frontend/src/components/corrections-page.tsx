@@ -93,6 +93,7 @@ export type CompactActivityClass = {
   currentLessonNumber?: number;
   completionPercent?: number | null;
   pendingCount?: number;
+  activityCompletion?: { done: number; total: number; unknown: number; percent: number | null };
   columns: CompactActivityColumn[];
   rows: CompactActivityRow[];
 };
@@ -321,9 +322,45 @@ export function compactActivitiesModel({
     }
   }
 
+  const activityCompletionFor = (classKey: string) => {
+    const states = new Map<string, "done" | "unfinished" | "unknown">();
+    const activeStudent = (classId: string, studentId: string) => {
+      const student = students.find(item => item.external_class_id === classId && (item.external_id || item.id) === studentId);
+      return !student || isActiveKodlandStudent(student.status);
+    };
+    const taskKey = (classId: string, studentId: string, lessonId: string, taskId: string) => {
+      const lesson = lessons.find(item => item.external_class_id === classId && (item.id === lessonId || item.source_lesson_id === lessonId));
+      return JSON.stringify([studentId, lesson?.source_lesson_id || lesson?.id || lessonId, taskId]);
+    };
+    for (const progress of taskProgress) {
+      if (`kodland:${progress.external_class_id}` !== classKey || !activeStudent(progress.external_class_id, progress.external_student_id)) continue;
+      const key = taskKey(progress.external_class_id, progress.external_student_id, progress.lesson_id, progress.task_id);
+      const state = ["submitted", "corrected", "delivered"].includes(progress.state) ? "done" : progress.state === "unknown" ? "unknown" : "unfinished";
+      // Duplicate snapshots represent one student task. Keep confirmed completion.
+      if (states.get(key) !== "done") states.set(key, state);
+    }
+    for (const review of reviews) {
+      if (`kodland:${review.external_class_id || review.external_class_name || "unknown"}` !== classKey || !activeStudent(review.external_class_id, review.external_student_id)) continue;
+      const lesson = lessonForReview(review, [...lessons]);
+      const key = taskKey(review.external_class_id, review.external_student_id || review.student_name || review.id, lesson?.id || review.lesson_id, review.task_id || `${review.task_number}:${review.task_title}`);
+      // Legacy queue entries confirm submission only when task progress is absent.
+      if (!states.has(key)) states.set(key, "done");
+    }
+    for (const activity of manualActivities) {
+      if (`manual:${activity.class_id}` !== classKey || !manualStudentsById.get(activity.student_id)?.active) continue;
+      const key = JSON.stringify([activity.student_id, activity.occurrence_id, activity.title.trim().toLocaleLowerCase("pt-BR")]);
+      const done = ["submitted", "corrected", "completed"].includes(activity.status) || pendingManualActivities([activity]).length > 0;
+      if (states.get(key) !== "done") states.set(key, done ? "done" : "unfinished");
+    }
+    const done = [...states.values()].filter(state => state === "done").length;
+    const unknown = [...states.values()].filter(state => state === "unknown").length;
+    return { done, total: states.size, unknown, percent: states.size && unknown < states.size ? Math.round(done * 100 / states.size) : null };
+  };
+
   return [...drafts.values()].map((draft) => ({
     key: draft.key,
     name: draft.name,
+    activityCompletion: activityCompletionFor(draft.key),
     courseName: draft.courseName,
     completedLessons: draft.completedLessons,
     totalLessons: draft.totalLessons,
@@ -606,7 +643,7 @@ function ProgressActivity({ progress, name, column, children, demo }: { progress
   const className = `compact-activity-action compact-activity-progress compact-activity-${progress.state}`;
   const content = <>{children}<span className="compact-activity-status-icon" aria-hidden="true">{progress.state === "corrected" ? "✓" : progress.state === "submitted" ? "◷" : progress.state === "missing" ? "!" : progress.state === "not_graded" ? "—" : "?"}</span></>;
   return demo ? <button type="button" className={className} aria-label={label} title={title} onClick={() => demo.onTask?.(progress)}>{content}</button>
-    : <a className={className} aria-label={label} title={title} href={correctionUrlFor({ link: progress.task_url ?? "", taskId: progress.task_id, studentId: progress.external_student_id, groupId: progress.external_class_id })} target="_blank" rel="noreferrer">{content}</a>;
+    : <a className={className} aria-label={label} title={title} href={correctionUrlFor({ link: progress.task_url ?? "", taskId: progress.task_id, studentId: progress.external_student_id, groupId: progress.external_class_id })} onClick={() => window.dispatchEvent(new CustomEvent("nexusclass:activity-correction-open", { detail: progress.external_class_id }))} target="_blank" rel="noreferrer">{content}</a>;
 }
 
 export function CompactActivitiesGrid({
@@ -716,9 +753,12 @@ export function CompactActivitiesGrid({
       const classMenuOpen = openClassMenu === classModel.key;
       const classIsBeingRenamed = editingClassKey === classModel.key;
       const menuId = `compact-class-actions-${classModel.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+      const activityCompletion = classModel.activityCompletion;
+      const activityCompletionLabel = !activityCompletion?.total ? "Atividades sem informação"
+        : `${activityCompletion.done}/${activityCompletion.total} atividades feitas · ${activityCompletion.percent == null ? "percentual sem informação" : `${activityCompletion.percent}%${activityCompletion.unknown ? " parcial" : ""}`}${activityCompletion.unknown ? ` · ${activityCompletion.unknown} sem informação` : ""}`;
       return <details className={`correction-class-group attendance-class-group compact-activities-class${classMenuOpen ? " has-actions-menu" : ""}`} key={classModel.key} open={openClassKey === classModel.key} onToggle={event => { const isOpen = event.currentTarget.open; setOpenClassKey(current => isOpen ? classModel.key : current === classModel.key ? null : current); if (isOpen && classModel.key.startsWith("kodland:")) window.dispatchEvent(new CustomEvent("nexusclass:activity-group-open", { detail: classModel.key.slice(8) })); if (isOpen && openClassMenu && openClassMenu !== classModel.key) { setOpenClassMenu(null); setEditingClassKey(null); } }}>
         <summary className="correction-class-heading">
-          <div className="compact-class-copy"><h3>{classModel.name}</h3><small className="compact-class-course" title={classModel.courseName || "Curso não informado"}>{classModel.courseName || "Curso não informado"}</small></div>
+          <div className="compact-class-copy"><h3>{classModel.name}</h3><small className="compact-class-course" title={classModel.courseName || "Curso não informado"}>{classModel.courseName || "Curso não informado"}</small><small className="compact-class-activity-completion" title={`${activityCompletionLabel}. Cada atividade é contada uma vez por aluno ativo. Estados sem informação entram no total, com percentual parcial.`}>{activityCompletionLabel}</small></div>
           <span className="compact-class-actions"><span className="class-count-badge" aria-label={`${classModel.rows.length} alunos`} title={`${classModel.rows.length} alunos`}><Users size={14} aria-hidden="true" />{classModel.rows.length}</span><span className="class-count-badge class-pending-badge" aria-label={`${classModel.pendingCount ?? 0} atividades sem corrigir`} title="Atividades sem corrigir"><ClipboardCheck size={14} aria-hidden="true" />{classModel.pendingCount ?? 0}</span><span className="class-count-badge class-completion-badge" aria-label={classModel.completionPercent == null ? "Percentual de aulas concluídas não informado" : `${classModel.completionPercent}% das aulas concluídas`} title={classModel.completionPercent == null ? "Percentual de aulas concluídas não informado" : `${classModel.completedLessons ?? 0} de ${classModel.totalLessons ?? 0} aulas concluídas`}><Percent size={14} aria-hidden="true" />{classModel.completionPercent == null ? "—" : `${classModel.completionPercent}%`}</span><span className="compact-class-actions-menu-anchor"><button type="button" className="group-menu-button" aria-label={`Ações da turma ${classModel.name}`} title="Ações da turma" aria-haspopup="menu" aria-expanded={classMenuOpen} aria-controls={classMenuOpen ? menuId : undefined} onClick={event => { event.preventDefault(); event.stopPropagation(); setOpenClassMenu(current => current === classModel.key ? null : classModel.key); setEditingClassKey(null); }}><MoreVertical size={18} aria-hidden="true" /></button>{classMenuOpen && <div id={menuId} className="group-actions-menu compact-class-actions-menu" role="menu" aria-label={`Ações da turma ${classModel.name}`} onClick={event => { event.stopPropagation(); }}>{classIsBeingRenamed ? <form className="group-rename-form" onSubmit={event => { event.preventDefault(); const name = nameInput.trim(); if (!name) return; setNames(current => ({ ...current, [classModel.key]: name })); setEditingClassKey(null); setOpenClassMenu(null); }}><label><span className="sr-only">Novo nome da turma</span><input className="input" autoFocus value={nameInput} onChange={event => setNameInput(event.target.value)} aria-label="Novo nome da turma" /></label><div><button className="button button-ghost button-small" type="button" onClick={() => setEditingClassKey(null)}>Cancelar</button><button className="button button-small" type="submit" disabled={!nameInput.trim()}>Salvar</button></div></form> : <><button type="button" role="menuitem" onClick={() => { setNameInput(classModel.name); setEditingClassKey(classModel.key); }}><Settings size={15} aria-hidden="true" /> Renomear turma</button><button className="group-actions-menu-danger" type="button" role="menuitem" onClick={() => { if (window.confirm(`Ocultar a turma ${classModel.name} desta visualização?`)) setHidden(current => [...current, classModel.key]); setOpenClassMenu(null); }}><EyeOff size={15} aria-hidden="true" /> Ocultar turma</button></>}</div>}</span><ChevronDown className="correction-disclosure" size={18} aria-hidden="true" /></span>
         </summary>
         <div className="correction-class-body attendance-class-body">
@@ -923,7 +963,7 @@ export function CorrectionsContent({ demo, preferenceKey = "default", classesCon
   const snapshotReady = useRef(Boolean(demo || cached));
   const loadedViews = useRef({ activities: false, attendance: false });
   const currentView = useRef(viewMode);
-  currentView.current = viewMode;
+  useEffect(() => { currentView.current = viewMode; }, [viewMode]);
   const loadGeneration = useRef(0);
   const load = useCallback(async (background = false, silent = false) => {
     const mode = currentView.current;

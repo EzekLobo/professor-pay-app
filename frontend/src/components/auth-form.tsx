@@ -12,6 +12,8 @@ export function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [login, setLogin] = useState("");
+  const [editingLogin, setEditingLogin] = useState(false);
+  const [editingPassword, setEditingPassword] = useState(false);
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
@@ -21,11 +23,16 @@ export function AuthForm() {
     event.preventDefault();
     setError(undefined);
     setMessage(undefined);
-    setSubmitting(true);
 
     const data = new FormData(event.currentTarget);
     const login = String(data.get("login") || "").trim();
-    const password = String(data.get("password"));
+    const password = String(data.get("password") || "");
+    if (!login || !password) {
+      setError("Informe seu nick ou e-mail e sua senha para entrar.");
+      event.currentTarget.querySelector<HTMLInputElement>(!login ? '[name="login"]' : '[name="password"]')?.focus();
+      return;
+    }
+    setSubmitting(true);
 
     try {
       await loginWithFirebase(login, password);
@@ -90,14 +97,39 @@ export function AuthForm() {
         </Link>
         <h1>Bem-vindo de volta</h1>
         <p className="muted">Gerencie aulas, alunos e pagamentos.</p>
-        <form id="nexusclass-sign-in" name="nexusclass-sign-in" className="form" onSubmit={submit}>
+        <form id="nexusclass-sign-in" name="nexusclass-sign-in" className="form" autoComplete="off" onSubmit={submit}>
           <label className="field">
             Nick ou e-mail
-            <Input id="nexusclass-login" name="login" value={login} onChange={(event) => setLogin(event.target.value)} required autoComplete="section-nexusclass username" autoCapitalize="none" spellCheck={false} />
+            <Input
+              id="nexusclass-login"
+              name="login"
+              value={login}
+              onChange={(event) => setLogin(event.target.value)}
+              readOnly={!editingLogin}
+              onFocus={() => setEditingLogin(true)}
+              required
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-bwignore="true"
+            />
           </label>
           <label className="field">
             Senha
-            <Input id="nexusclass-password" name="password" type="password" required autoComplete="section-nexusclass current-password" />
+            <Input
+              id="nexusclass-password"
+              name="password"
+              type="password"
+              readOnly={!editingPassword}
+              onFocus={() => setEditingPassword(true)}
+              required
+              autoComplete="off"
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-bwignore="true"
+            />
           </label>
           {error && <p className="form-error" role="alert">{error}</p>}
           {message && <p className="form-success" role="status">{message}</p>}

@@ -1,3 +1,8 @@
+## Preenchimento de credenciais no login — 11/11/2026
+
+- Usuário relatou preenchimento automático de acesso com conta Kodland. AuthForm e integrações já tinham IDs/nomes distintos e hints de gerenciadores, mas credenciais gravadas no mesmo domínio ainda podem ser sugeridas pelo navegador. Cofre Kodland atual é IndexedDB cifrado por UID, sem PasswordCredential nem fallback do gerenciador.
+- AuthForm inicia ambos os inputs readonly e libera cada campo no foco, por clique ou teclado. Formulário/campos pedem autocomplete off e têm hints para extensões. Não comparar login com usuário Kodland: nomes iguais podem ser legítimos. Novidade2026111101. Confirmado703 testes unitários, tipos/lint/build e4 E2E de acesso (clique, Tab, reload, obrigatórios e dados digitados). Verificar publicação e preenchimento inicial no Chrome de produção. Sugestões históricas do gerenciador são controladas pelo navegador.
+
 ## Atividades feitas e pontuação após correção — 10/11/2026
 
 - Validação real via Chrome extension conseguiu acessar NexusClass e bo.kodland.org. Indicadores apareceram nas3 turmas. Após Atualizar correções, pontos ainda divergiam: persistKodlandBrowserSnapshot ignorava snapshot.ranking em mode corrections, embora Firestore já aplicasse. Adicionado patch validado por ID/turma e escopo, preservando créditos/preferências e turmas não consultadas; regressões cobrem storage browser e patches inválidos. Correção986554e publicada com Vercel success. Conferência autenticada após atualização confirmou pontos dos4 alunos ativos iguais à soma dos pontos visíveis na grade oficial, com reordenação do ranking.703 testes/tipos/lint/build passaram. Renovar inventário CUA pela família do navegador/URL: IDs de browser/abas mudam entre execuções.

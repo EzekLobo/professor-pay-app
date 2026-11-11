@@ -10,6 +10,11 @@ export type ReleaseNote = {
 /** Published features only. Add new entries with a strictly increasing version. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: 2026111101, date: "2026-11-11", title: "Preenchimento do acesso",
+    description: "O login abre com os campos vazios e permite edição ao clicar ou navegar pelo teclado, evitando o preenchimento inicial com credenciais de sincronização salvas para o mesmo site.",
+    href: "/login", action: "Abrir acesso",
+  },
+  {
     version: 2026111001, date: "2026-11-10", title: "Atividades feitas por turma",
     description: "Cada turma mostra a porcentagem e a quantidade de atividades feitas. Ao voltar da correção, atividades e pontuação oficial são consultadas novamente. Falhas na consulta dos pontos são informadas na atualização.",
     href: "/classes", action: "Abrir turmas",

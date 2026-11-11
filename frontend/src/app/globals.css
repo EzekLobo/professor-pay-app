@@ -122,9 +122,12 @@ summary:focus-visible {
   justify-content: center;
   text-align: center;
 }
-.auth-card .input {
+.auth-card .input,
+.auth-card .input[readonly] {
   border-color: #3f2a67;
   background: #0e0919;
+  color: var(--text);
+  cursor: text;
 }
 .auth-card .input:hover {
   border-color: #7350b5;

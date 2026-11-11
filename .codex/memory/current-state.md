@@ -1,7 +1,7 @@
 ## Preenchimento de credenciais no login — 11/11/2026
 
 - Usuário relatou preenchimento automático de acesso com conta Kodland. AuthForm e integrações já tinham IDs/nomes distintos e hints de gerenciadores, mas credenciais gravadas no mesmo domínio ainda podem ser sugeridas pelo navegador. Cofre Kodland atual é IndexedDB cifrado por UID, sem PasswordCredential nem fallback do gerenciador.
-- AuthForm inicia ambos os inputs readonly e libera cada campo no foco, por clique ou teclado. Formulário/campos pedem autocomplete off e têm hints para extensões. Não comparar login com usuário Kodland: nomes iguais podem ser legítimos. Novidade2026111101. Confirmado703 testes unitários, tipos/lint/build e4 E2E de acesso (clique, Tab, reload, obrigatórios e dados digitados). Verificar publicação e preenchimento inicial no Chrome de produção. Sugestões históricas do gerenciador são controladas pelo navegador.
+- AuthForm inicia ambos os inputs readonly e libera cada campo no foco, por clique ou teclado. Após esclarecimento do usuário, formulário permite autocomplete on, username/current-password na seção nexusclass e remove bloqueios de extensões apenas do login, permitindo oferta de salvamento pelo navegador. Campos permanecem readonly até foco. Não comparar login com usuário Kodland: nomes iguais podem ser legítimos. Novidade2026111101. Confirmado703 testes unitários, tipos/lint/build e4 E2E de acesso (clique, Tab, reload, obrigatórios e dados digitados). Verificar publicação e preenchimento inicial no Chrome de produção. Sugestões históricas do gerenciador são controladas pelo navegador.
 
 ## Atividades feitas e pontuação após correção — 10/11/2026
 

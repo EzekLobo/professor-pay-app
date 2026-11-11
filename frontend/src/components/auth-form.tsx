@@ -97,7 +97,7 @@ export function AuthForm() {
         </Link>
         <h1>Bem-vindo de volta</h1>
         <p className="muted">Gerencie aulas, alunos e pagamentos.</p>
-        <form id="nexusclass-sign-in" name="nexusclass-sign-in" className="form" autoComplete="off" onSubmit={submit}>
+        <form id="nexusclass-sign-in" name="nexusclass-sign-in" className="form" autoComplete="on" onSubmit={submit}>
           <label className="field">
             Nick ou e-mail
             <Input
@@ -108,12 +108,9 @@ export function AuthForm() {
               readOnly={!editingLogin}
               onFocus={() => setEditingLogin(true)}
               required
-              autoComplete="off"
+              autoComplete="section-nexusclass username"
               autoCapitalize="none"
               spellCheck={false}
-              data-1p-ignore="true"
-              data-lpignore="true"
-              data-bwignore="true"
             />
           </label>
           <label className="field">
@@ -125,10 +122,7 @@ export function AuthForm() {
               readOnly={!editingPassword}
               onFocus={() => setEditingPassword(true)}
               required
-              autoComplete="off"
-              data-1p-ignore="true"
-              data-lpignore="true"
-              data-bwignore="true"
+              autoComplete="section-nexusclass current-password"
             />
           </label>
           {error && <p className="form-error" role="alert">{error}</p>}

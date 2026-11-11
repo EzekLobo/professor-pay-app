@@ -17,6 +17,10 @@ test("login inicia vazio e permite digitação por clique e teclado", async ({ p
   await page.goto("/login");
   const login = page.getByLabel("Nick ou e-mail", { exact: true });
   const password = page.getByLabel("Senha", { exact: true });
+  await expect(page.locator("#nexusclass-sign-in")).toHaveAttribute("autocomplete", "on");
+  await expect(login).toHaveAttribute("autocomplete", "section-nexusclass username");
+  await expect(password).toHaveAttribute("autocomplete", "section-nexusclass current-password");
+  await expect(page.locator("#nexusclass-sign-in [data-1p-ignore], #nexusclass-sign-in [data-lpignore], #nexusclass-sign-in [data-bwignore]")).toHaveCount(0);
   await expect(login).toHaveValue("");
   await expect(password).toHaveValue("");
   await expect(login).toHaveAttribute("readonly", "");
